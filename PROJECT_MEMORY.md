@@ -21,6 +21,7 @@ Repo con estructura Claude/Codex (CLAUDE.md, AGENTS.md, docs/tasks/TEMPLATE.md, 
 - D-002 (2026-09-22): Package/applicationId `com.mipatrimonio.app`; minSdk 26, targetSdk 36, compileSdk 37 (las androidx actuales exigen compileSdk 37). Room 2.8.5 con KSP 2.3.12.
 - D-003 (2026-09-22): AGP 9 trae Kotlin integrado, por eso el módulo app NO aplica `kotlin-android`; solo `com.android.application`, `kotlin.plugin.compose` y `ksp`.
 - D-004 (2026-09-22): `allowBackup=false` en el manifiesto (datos financieros; las copias serán las propias cifradas de la app, Fase 8). Sin permiso INTERNET por ahora (se añadirá con cotizaciones/Supabase, Fase 9).
+- D-005 (2026-09-22): política git (CLAUDE.md §35): nunca commit/push a `main`; trabajo propio en `claude/<descripcion>` con commit y push automáticos (rutas concretas, sin `git add -A`); merge a main solo con autorización explícita. Rama actual: `claude/fase-2-proyecto-base` (commit 65b5788, subida a origin). `Claude.md` modificado por el usuario, sin commitear (no es mío).
 - Pendiente de decidir en T-003: representación del dinero (BigDecimal vs. céntimos Long), inyección de dependencias (manual vs. Hilt).
 
 ## 4. TAREAS PENDIENTES
@@ -83,7 +84,7 @@ Ninguna en curso. Última cerrada: T-002 (ver sección 6).
 1. Registrar T-003 como EN CURSO y decidir Money: propuesta = importes en céntimos `Long` + `BigDecimal` para cálculos intermedios (tipos de cambio, cantidades de activos con decimales) con redondeo HALF_EVEN documentado. Crear `domain/model/Money.kt` y `domain/model/Currency` con tests unitarios (importes negativos, división por cero, redondeo).
 2. Esquema Room v1 (`Account`, `Category`, `Transaction`, `Transfer`) con saldo derivado (saldo inicial + movimientos), `exportSchema=true`, y test de los casos: ingreso sube saldo, gasto lo baja, transferencia no es gasto y conserva patrimonio.
 3. Redactar fichas en `docs/tasks/` (T-004…) y delegar UI a Codex vía `scripts/delegate-codex.ps1`.
-4. Hacer commit del estado actual cuando el usuario lo pida (hay archivos nuevos sin commitear).
+4. Añadir `.gitattributes` (`* text=auto`, `gradlew text eol=lf`, `*.bat eol=crlf`) para que git no convierta `gradlew` a CRLF; empezar T-003 en una rama nueva `claude/fase-3-dominio` desde `main` actualizado (o desde la rama actual si el usuario aún no ha fusionado).
 
 ## 12. REGISTRO CRONOLÓGICO DE SESIONES
 
