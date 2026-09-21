@@ -1839,3 +1839,44 @@ Este proyecto se desarrolla con dos agentes. Tú (Claude Code) eres el **arquite
 - Si Codex informa de una duda o desvío, decide tú y actualiza la ficha.
 - Mantén `AGENTS.md` alineado con este documento cuando cambien las reglas.
 - Registra cada tarea delegada (ficha, rama, estado y resultado de la revisión) en `PROJECT_MEMORY.md`, según la sección 33, para poder retomar el trabajo entre sesiones.
+
+
+---
+
+# 35. CONTROL DE VERSIONES (GIT)
+
+El repositorio ya existe y está enlazado a GitHub (`origin`). Usa siempre el `git` de la terminal, con las credenciales que ya tiene configuradas el sistema: no necesitas ninguna conexión ni token adicional.
+
+## Modelo de ramas
+
+`main` es la rama estable y solo se actualiza por fusión (merge), nunca por commit directo. **No hagas commit ni push directamente a `main` bajo ninguna circunstancia.**
+
+Tu propio trabajo (el de Claude Code, distinto del de Codex) vive en una rama dedicada:
+
+- Nómbrala `claude/<descripcion-corta>` (por ejemplo `claude/fase-2-arquitectura-base`, `claude/fase-3-mvp-presupuestos`). Usa una rama por fase o por bloque de trabajo coherente, no una única rama infinita para todo el proyecto.
+- Al empezar un bloque nuevo de trabajo, crea la rama desde `main` actualizado: `git checkout main && git pull && git checkout -b claude/<descripcion>`.
+- Las ramas `codex/t-xxx-...` de las tareas delegadas (sección 34) siguen su propio ciclo; no las mezcles con las tuyas.
+
+## Commits y push en tu rama
+
+Dentro de tu rama `claude/...` tienes autonomía completa:
+
+- Haz commit local de forma automática al terminar cada incremento verificable que compile (y pase sus pruebas si las tiene), y también al final de cada sesión aunque quede a medias, marcándolo como `WIP` en el mensaje.
+- Haz `git push` a tu propia rama (`origin claude/<descripcion>`) de forma automática, sin pedir confirmación cada vez. Así queda registro en GitHub del progreso aunque la fase no esté terminada.
+- Mensajes en español, en imperativo, un commit por cambio lógico. Revisa `git status`/`git diff` y usa `git add` con rutas concretas, nunca `git add -A` ni `git add .` a ciegas.
+- Nunca subas secretos, claves de Supabase, keystores de firma ni nada listado en `.gitignore`.
+
+## Fusión a `main`
+
+La fusión de una rama `claude/...` (o `codex/...`) a `main` **requiere autorización explícita del usuario en esa sesión** (por ejemplo, "fusiona esta rama a main" o "haz merge"). Nunca la hagas por iniciativa propia, aunque la fase esté terminada y verificada.
+
+Cuando el usuario la autorice, dos formas válidas, en orden de preferencia:
+
+1. **Pull request en GitHub** (preferible, porque deja el registro más claro): `gh pr create --base main --head claude/<descripcion> --title "..." --body "..."` si `gh` está disponible y autenticado, y luego `gh pr merge --merge` (o pide confirmación antes de fusionar el PR si el usuario prefiere revisarlo primero en GitHub).
+2. Si `gh` no está disponible: `git checkout main && git pull && git merge --no-ff claude/<descripcion>` (el `--no-ff` conserva el historial de la rama como un merge commit identificable) y después `git push origin main`, siempre tras la autorización.
+
+Después de fusionar, no borres la rama `claude/...` ni `codex/...` sin que el usuario lo pida.
+
+## Si algo falla
+
+Si un commit, push, PR o merge falla (por ejemplo por credenciales no configuradas o conflictos), no lo intentes repetidamente ni lo omitas en silencio: informa del error exacto, del estado en que queda el repositorio y de qué falta por hacer.
