@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Mi Patrimonio</string>
+
+    <string name="nav_inicio">Inicio</string>
+    <string name="nav_movimientos">Movimientos</string>
+    <string name="nav_presupuestos">Presupuestos</string>
+    <string name="nav_inversiones">Inversiones</string>
+    <string name="nav_patrimonio">Patrimonio</string>
+    <string name="nav_ajustes">Ajustes</string>
+
+    <string name="vacio_inicio">Aún no hay datos que mostrar. Crea una cuenta para empezar.</string>
+    <string name="vacio_movimientos">Todavía no has registrado movimientos.</string>
+    <string name="vacio_presupuestos">Todavía no has configurado presupuestos.</string>
+    <string name="vacio_inversiones">Todavía no has creado ninguna cartera.</string>
+    <string name="vacio_patrimonio">Tu patrimonio aparecerá aquí cuando registres cuentas e inversiones.</string>
+    <string name="vacio_ajustes">Los ajustes estarán disponibles próximamente.</string>
+</resources>
