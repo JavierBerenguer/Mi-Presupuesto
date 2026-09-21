@@ -45,11 +45,19 @@ Repo con estructura Claude/Codex (CLAUDE.md, AGENTS.md, docs/tasks/TEMPLATE.md, 
 - Resultado: domain/model/{Money,Models}.kt y domain/calc/{Balance,Stats,Budget,Position,NetWorth}Calculator.kt. Verificado: `./gradlew.bat testDebugUnitTest` → BUILD SUCCESSFUL, 34 tests (LedgerTest 15, MoneyTest 8, PositionTest 11), 0 fallos.
 - Reglas fijadas: saldo derivado; transferencia no es ingreso/gasto; presupuesto usa gastos de su periodo/categoría (+subcategorías) y aviso al 80 %; posición por coste medio ponderado con comisiones capitalizadas; rentabilidad = simple no realizada (no TWR/MWR); patrimonio siempre marcado parcial (sin pasivos) y excluye divisas sin tipo de cambio.
 
-### T-004 — Room v1 + repositorios + DI manual — EN CURSO
+### T-004 — Room v1 + repositorios + DI manual — COMPLETADA (2026-09-22)
 - Objetivo: entidades/DAOs Room (cuentas, categorías, movimientos, transferencias, presupuestos, carteras, activos, operaciones, precios, ajustes), mappers, repositorios (Flow) y `AppContainer`; categorías por defecto sembradas en primer arranque.
 - Archivos previstos: app/src/main/java/com/mipatrimonio/app/data/**, `MiPatrimonioApplication.kt`, manifest (android:name).
 - Verificación: compilación KSP + `assembleDebug`; esquema exportado en app/schemas.
-- Próxima acción: escribir entidades Room.
+- Resultado: data/db (Entities, Daos, AppDatabase v1 con FKs RESTRICT y esquema exportado en app/schemas/1.json, Mappers), data/repository (Ledger, Investment, Settings con DataStore, DefaultCategories), AppContainer + MiPatrimonioApplication. Sin TypeConverters: enums como texto, BigDecimal como texto, fechas epochDay.
+- Verificación: `testDebugUnitTest` → 43 tests OK (RepositoryTest 9 con Robolectric 4.17 + Room en memoria: persistencia, saldo derivado, no duplicar al editar, validaciones, FK impide borrar cuenta con movimientos, ventas en descubierto rechazadas, precios manuales). `assembleDebug` OK.
+- Nota: Robolectric requiere `@Config(sdk=[34])` (el SDK objetivo 36/37 puede no estar soportado).
+
+### T-005 — Interfaz MVP (ViewModels + pantallas Compose) — EN CURSO
+- Objetivo: Inicio (dashboard con datos reales y 2 gráficos Canvas), Movimientos (lista, buscar/filtrar, crear/editar/borrar/duplicar, transferencias), Presupuestos, Inversiones (carteras, activos, operaciones, precio manual), Patrimonio, Ajustes (cuentas, categorías, tema, divisa base).
+- Archivos previstos: app/src/main/java/com/mipatrimonio/app/ui/**, strings.xml.
+- Verificación: assembleDebug + tests; sin emulador no se puede verificar la ejecución visual (a comprobar si se puede montar uno).
+- Próxima acción: escribir ViewModels y componentes comunes.
 
 ## 6. HISTORIAL DE TAREAS
 

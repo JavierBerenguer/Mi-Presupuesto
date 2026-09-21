@@ -5,6 +5,10 @@ plugins {
 }
 
 android {
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
+
     namespace = "com.mipatrimonio.app"
     compileSdk = 37
 
@@ -34,6 +38,10 @@ android {
     }
 }
 
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
@@ -55,4 +63,6 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core)
 }
