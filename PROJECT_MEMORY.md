@@ -2,9 +2,9 @@
 
 ## 1. ESTADO ACTUAL DEL PROYECTO
 
-- Fase actual: FASE 2 completada; comienza FASE 3 (MVP financiero)
+- Fase actual: FASE 3 (MVP financiero) + FASE 4 (inversiones básicas) + FASE 5 (primer APK)
 - Última tarea completada: T-002 (proyecto base Kotlin + Compose, compila y genera APK de depuración)
-- Tarea en curso: ninguna
+- Tarea en curso: T-003 (dominio financiero + tests) → luego T-004…T-007 de forma autónoma en rama `claude/fase-3-mvp`
 - Próxima tarea: T-003 (diseño del dominio financiero y modelo Room; ver sección 11)
 - Estado de compilación: `./gradlew.bat assembleDebug` → BUILD SUCCESSFUL (2026-09-22)
 - Última prueba ejecutada: ninguna (aún no hay tests; solo dependencias JUnit/coroutines-test declaradas)
@@ -36,7 +36,20 @@ Repo con estructura Claude/Codex (CLAUDE.md, AGENTS.md, docs/tasks/TEMPLATE.md, 
 
 ## 5. TAREA ACTUAL
 
-Ninguna en curso. Última cerrada: T-002 (ver sección 6).
+### T-003 — Dominio financiero — COMPLETADA (2026-09-22)
+- Objetivo: `Money`, cálculo de saldos, presupuestos, posiciones de inversión (coste medio ponderado), patrimonio; todo lógica pura en `domain/` con tests JUnit.
+- Archivos previstos: app/src/main/java/com/mipatrimonio/app/domain/**, app/src/test/**.
+- Verificación: `./gradlew.bat testDebugUnitTest`.
+- Decisión: importes en céntimos `Long` (2 decimales; conversión y cantidades de activos con `BigDecimal`, redondeo HALF_EVEN). Sin multidivisa real en el MVP: solo se suma la divisa base; el resto se excluye y se marca patrimonio parcial (no se inventan tipos de cambio).
+- Reparto: Codex NO se usa en esta sesión (su script parte de `main`, que aún no contiene el proyecto; y la autonomía pedida por el usuario). Claude implementa todo directamente.
+- Resultado: domain/model/{Money,Models}.kt y domain/calc/{Balance,Stats,Budget,Position,NetWorth}Calculator.kt. Verificado: `./gradlew.bat testDebugUnitTest` → BUILD SUCCESSFUL, 34 tests (LedgerTest 15, MoneyTest 8, PositionTest 11), 0 fallos.
+- Reglas fijadas: saldo derivado; transferencia no es ingreso/gasto; presupuesto usa gastos de su periodo/categoría (+subcategorías) y aviso al 80 %; posición por coste medio ponderado con comisiones capitalizadas; rentabilidad = simple no realizada (no TWR/MWR); patrimonio siempre marcado parcial (sin pasivos) y excluye divisas sin tipo de cambio.
+
+### T-004 — Room v1 + repositorios + DI manual — EN CURSO
+- Objetivo: entidades/DAOs Room (cuentas, categorías, movimientos, transferencias, presupuestos, carteras, activos, operaciones, precios, ajustes), mappers, repositorios (Flow) y `AppContainer`; categorías por defecto sembradas en primer arranque.
+- Archivos previstos: app/src/main/java/com/mipatrimonio/app/data/**, `MiPatrimonioApplication.kt`, manifest (android:name).
+- Verificación: compilación KSP + `assembleDebug`; esquema exportado en app/schemas.
+- Próxima acción: escribir entidades Room.
 
 ## 6. HISTORIAL DE TAREAS
 
