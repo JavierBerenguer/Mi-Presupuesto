@@ -1809,6 +1809,9 @@ El objetivo es garantizar que Mi Patrimonio pueda desarrollarse durante numerosa
 
 Este proyecto se desarrolla con dos agentes. Tú (Claude Code) eres el **arquitecto, integrador y revisor**. Codex CLI es el **implementador**: escribe el código mecánico a partir de fichas de tarea precisas. Sus instrucciones están en `AGENTS.md`.
 
+## Coste de Codex
+Codex CLI está autenticado con la cuenta de ChatGPT del usuario (login por suscripción, Plus/Pro/Team), no con una clave de API de pago por uso. Delegar tareas en Codex **no genera coste adicional por token**; el uso cuenta dentro de los límites de esa suscripción, igual que la extensión de VS Code. No evites ni limites la delegación en Codex por motivos de coste. Si en algún momento `codex login status` (o el primer uso) muestra que se está autenticando con una API key en vez de con la cuenta de ChatGPT, detente y avisa al usuario antes de seguir, porque entonces sí facturaría por uso.
+
 ## Qué haces tú (no se delega)
 - Arquitectura, modelo de datos Room y migraciones.
 - Reglas financieras: precisión decimal, transferencias, multidivisa, rentabilidad.
