@@ -4,7 +4,7 @@
 
 - Fase actual: FASE 3 (MVP financiero) + FASE 4 (inversiones básicas) + FASE 5 (primer APK)
 - Última tarea completada: T-002 (proyecto base Kotlin + Compose, compila y genera APK de depuración)
-- Tarea en curso: T-003 (dominio financiero + tests) → luego T-004…T-007 de forma autónoma en rama `claude/fase-3-mvp`
+- Tarea en curso: reparto de UI con Codex (T-006…T-012) e integración (T-013); ver sección 6
 - Próxima tarea: T-003 (diseño del dominio financiero y modelo Room; ver sección 11)
 - Estado de compilación: `./gradlew.bat assembleDebug` → BUILD SUCCESSFUL (2026-09-22)
 - Última prueba ejecutada: ninguna (aún no hay tests; solo dependencias JUnit/coroutines-test declaradas)
@@ -53,11 +53,22 @@ Repo con estructura Claude/Codex (CLAUDE.md, AGENTS.md, docs/tasks/TEMPLATE.md, 
 - Verificación: `testDebugUnitTest` → 43 tests OK (RepositoryTest 9 con Robolectric 4.17 + Room en memoria: persistencia, saldo derivado, no duplicar al editar, validaciones, FK impide borrar cuenta con movimientos, ventas en descubierto rechazadas, precios manuales). `assembleDebug` OK.
 - Nota: Robolectric requiere `@Config(sdk=[34])` (el SDK objetivo 36/37 puede no estar soportado).
 
-### T-005 — Interfaz MVP (ViewModels + pantallas Compose) — EN CURSO
-- Objetivo: Inicio (dashboard con datos reales y 2 gráficos Canvas), Movimientos (lista, buscar/filtrar, crear/editar/borrar/duplicar, transferencias), Presupuestos, Inversiones (carteras, activos, operaciones, precio manual), Patrimonio, Ajustes (cuentas, categorías, tema, divisa base).
-- Archivos previstos: app/src/main/java/com/mipatrimonio/app/ui/**, strings.xml.
-- Verificación: assembleDebug + tests; sin emulador no se puede verificar la ejecución visual (a comprobar si se puede montar uno).
-- Próxima acción: escribir ViewModels y componentes comunes.
+### T-005 — Base de UI común + capa de agregación — COMPLETADA (2026-09-22)
+- Claude: domain/usecase/{FinanceSnapshot,Period,HistoryCalculator}.kt (+SnapshotTest, 6 tests), ui/common/{ViewModelFactory,Labels,Components}.kt, res/values/strings_common.xml. `testDebugUnitTest` 49 tests OK; `assembleDebug` OK.
+- Histórico de patrimonio: efectivo por fecha + inversiones a COSTE (no hay histórico de cotizaciones); documentado en HistoryCalculator.
+
+### Reparto de la UI con Codex (autorizado por el usuario, sin coste extra: login ChatGPT verificado con `codex login status`)
+Base de las ramas codex: `claude/fase-3-mvp`. Cada tarea es dueña de su carpeta `ui/<feature>/` y de su `res/values/strings_<feature>.xml`; la navegación (MiPatrimonioApp.kt, MainActivity.kt) la integra Claude.
+| Ficha | Alcance | Estado |
+|---|---|---|
+| T-006 | Movimientos (lista, filtros, formularios ingreso/gasto y transferencia) | PENDIENTE |
+| T-007 | Presupuestos | PENDIENTE |
+| T-008 | Inversiones | PENDIENTE |
+| T-009 | Ajustes, cuentas y categorías | PENDIENTE |
+| T-010 | Gráficos Canvas (línea, barras, donut) | PENDIENTE |
+| T-011 | Inicio (dashboard) — depende de T-010 | PENDIENTE |
+| T-012 | Patrimonio — depende de T-010 | PENDIENTE |
+| T-013 | (Claude) integración de navegación y tema, revisión de diffs, APK | PENDIENTE |
 
 ## 6. HISTORIAL DE TAREAS
 

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="common_cancel">Cancelar</string>
+    <string name="common_accept">Aceptar</string>
+    <string name="common_save">Guardar</string>
+    <string name="common_delete">Eliminar</string>
+    <string name="common_edit">Editar</string>
+    <string name="common_duplicate">Duplicar</string>
+    <string name="common_change">Cambiar</string>
+    <string name="common_back">Atrás</string>
+    <string name="common_close">Cerrar</string>
+    <string name="common_add">Añadir</string>
+    <string name="common_archive">Archivar</string>
+    <string name="common_restore">Restaurar</string>
+    <string name="common_none">Ninguna</string>
+    <string name="common_loading">Cargando…</string>
+    <string name="common_more_options">Más opciones</string>
+
+    <string name="common_account_corriente">Cuenta corriente</string>
+    <string name="common_account_ahorro">Cuenta de ahorro</string>
+    <string name="common_account_efectivo">Efectivo</string>
+    <string name="common_account_inversion">Cuenta de inversión</string>
+    <string name="common_account_cripto">Criptomonedas</string>
+    <string name="common_account_otra">Otra</string>
+
+    <string name="common_kind_gasto">Gasto</string>
+    <string name="common_kind_ingreso">Ingreso</string>
+
+    <string name="common_op_compra">Compra</string>
+    <string name="common_op_venta">Venta</string>
+    <string name="common_op_dividendo">Dividendo</string>
+    <string name="common_op_comision">Comisión</string>
+
+    <string name="common_asset_accion">Acción</string>
+    <string name="common_asset_etf">ETF</string>
+    <string name="common_asset_fondo_indexado">Fondo indexado</string>
+    <string name="common_asset_fondo_inversion">Fondo de inversión</string>
+    <string name="common_asset_cripto">Criptomoneda</string>
+
+    <string name="common_period_mensual">Mensual</string>
+    <string name="common_period_anual">Anual</string>
+
+    <string name="common_range_mes">Mes</string>
+    <string name="common_range_3m">3 meses</string>
+    <string name="common_range_6m">6 meses</string>
+    <string name="common_range_anio">Año</string>
+    <string name="common_range_todo">Todo</string>
+</resources>
