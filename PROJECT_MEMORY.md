@@ -2,10 +2,10 @@
 
 ## 1. ESTADO ACTUAL DEL PROYECTO
 
-- Fase actual: FASES 3, 4 y 5 COMPLETADAS y verificadas en emulador. Siguiente: FASE 6 (notificaciones bancarias) o FASE 8 (importación CSV), a decidir con el usuario.
+- Fase actual: FASES 3, 4 y 5 COMPLETADAS y verificadas en emulador. En marcha FASE 6 (Claude) y FASE 8 parcial (Codex), en paralelo.
 - Última tarea completada: T-014 (verificación del MVP en emulador Android 15 + corrección D-UI-001) — ver sección 18
-- Tarea en curso: ninguna
-- Próxima tarea: pedir al usuario autorización para fusionar `claude/fase-3-mvp` a `main` y elegir la siguiente fase
+- Tarea en curso: T-016 (Claude, FASE 6: motor de notificaciones bancarias) y T-015 (Codex, parser CSV + adaptador Trade Republic) — ver sección 19
+- Próxima tarea: revisar el diff de T-015 e integrarlo; pedir autorización al usuario para fusionar `claude/fase-3-mvp` a `main`
 - Estado de compilación: `./gradlew.bat assembleDebug testDebugUnitTest` → BUILD SUCCESSFUL (2026-09-22, sesión 4)
 - Última prueba ejecutada: suite unitaria completa OK + **verificación manual en emulador Android 15 (API 35)**: la app arranca sin crashes y los flujos de cuentas, movimientos, presupuestos, inversiones y patrimonio funcionan con datos reales (ver sección 18)
 - Último APK generado: app/build/outputs/apk/debug/app-debug.apk (MVP completo, instalado y ejecutado en emulador) — ver secciones 8 y 18
@@ -13,7 +13,13 @@
 
 ## 2. RESUMEN EJECUTIVO
 
-Repo con estructura Claude/Codex (CLAUDE.md, AGENTS.md, docs/tasks/TEMPLATE.md, scripts/delegate-codex.ps1) y ahora un proyecto Android real: Gradle 9.7.1 (wrapper con checksum), AGP 9.4.1, Kotlin 2.4.20, Compose (BOM 2026.09.00), Material 3, tema oscuro por defecto/claro opcional, navegación con 5 secciones (Inicio, Movimientos, Presupuestos, Inversiones, Patrimonio) + Ajustes en la barra superior. Todas las pantallas son estados vacíos: NO hay dominio, base de datos ni lógica financiera todavía. Room/DataStore/WorkManager están declarados como dependencias pero sin usar. Entorno: JDK 17 y Android SDK instalados por usuario (sin admin).
+**MVP terminado y verificado en un dispositivo real** (emulador Android 15, sesión 4). Kotlin + Jetpack Compose, MVVM + Clean Architecture, Gradle 9.7.1, AGP 9.4.1, Kotlin 2.4.20, Compose BOM 2026.09.00, Material 3.
+
+Qué funciona hoy, comprobado en la app: cuentas con saldo derivado, ingresos, gastos, transferencias (que conservan el patrimonio y no consumen presupuesto), categorías sembradas, presupuestos con umbral de aviso, carteras/activos/operaciones con coste medio ponderado y precios manuales, patrimonio neto con desgloses, dashboard con gráficos reales, tema oscuro por defecto y claro opcional, todo en español y sin conexión (la app ni siquiera declara permiso INTERNET). Persistencia Room v1 con esquema exportado; ajustes en DataStore.
+
+Qué NO existe todavía: notificaciones bancarias (FASE 6, en curso), importación/exportación y copias de seguridad (FASE 8, parcial en curso), movimientos recurrentes, dividendos en UI, multidivisa real (hoy se excluyen las divisas distintas de la principal y el patrimonio se marca parcial), objetivos, cotizaciones externas y Supabase. No hay keystore de firma: solo APK de depuración.
+
+Entorno: JDK 17 y Android SDK instalados por usuario (sin admin); emulador `mp_test` (API 35) disponible.
 
 ## 3. DECISIONES TÉCNICAS
 
@@ -197,3 +203,21 @@ Base de las ramas codex: `claude/fase-3-mvp`. Cada tarea es dueña de su carpeta
 - Errores abiertos: solo D-UI-002 (signo negativo tipográficamente inconsistente, cosmético).
 - PENDIENTE de probar en app real (no bloquea el MVP): editar/duplicar/eliminar movimientos desde el menú «⋮», archivar cuentas y categorías, búsqueda y filtros con volumen de datos, venta de inversión y dividendos.
 - Próxima acción exacta: decidir con el usuario si se fusiona `claude/fase-3-mvp` a `main` (requiere su autorización explícita, CLAUDE.md §35) y después abordar la FASE 6 (NotificationListenerService) o la FASE 8 (importación CSV de Trade Republic).
+
+## 19. FASES 6 Y 8 EN PARALELO (sesión 4, 2026-09-22)
+
+Autorización del usuario: «puedes continuar (recuerda delegar a codex cuando sea necesario, decide tú el modelo)». Codex CLI 0.155.1, `codex login status` → «Logged in using ChatGPT» (sin coste por token, §34 cumplido). `~/.codex/config.toml` ya fija `model = "gpt-5.6-sol"` y `model_reasoning_effort = "high"`, que es lo que usa el usuario: no se sobrescribe.
+
+Reparto (respeta §34 y la regla de concurrencia: un Codex + un Claude a la vez):
+
+### T-015 — Codex — Parser CSV genérico + adaptador Trade Republic — EN CURSO
+- Ficha: `docs/tasks/T-015.md`. Rama `codex/t-015-csv-parser`, worktree `..\worktrees\t-015-csv-parser`, base `claude/fase-3-mvp`.
+- Alcance: SOLO `data/importer/` + tests. Lógica pura, sin UI, sin Room, sin tocar `domain/`.
+- Prohibido expresamente leer `datos-privados/` (contiene el export real del usuario): los tests usan fixtures sintéticas escritas por Codex.
+- Verificación que hará Claude: `git diff`, `gradlew test` y `gradlew assembleDebug` propios.
+
+### T-016 — Claude — Motor de notificaciones bancarias (FASE 6) — EN CURSO
+- Zona protegida para Codex (AGENTS.md), la implementa Claude.
+- Alcance previsto: `domain/notifications/` (motor de reglas puro + adaptadores por banco), entidades Room para reglas y propuestas pendientes (migración v1→v2), `NotificationListenerService`, pantalla de propuestas y ajustes de apps autorizadas.
+- Enfoque: primero la lógica pura con tests de notificaciones sintéticas; el servicio Android y la UI después.
+- Riesgo conocido: no se puede afirmar compatibilidad con ningún banco real sin probar sus formatos (CLAUDE.md §13).
