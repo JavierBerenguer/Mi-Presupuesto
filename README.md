@@ -40,4 +40,4 @@ Aún **no** hay proveedor de cotizaciones ni sincronización con Supabase (Fase 
 - Verificado por compilación y tests JVM; **no se ha probado aún en un dispositivo o emulador**.
 
 ## Desarrollo con dos agentes
-El código se reparte entre Claude Code (arquitectura, dominio, revisión) y Codex CLI (implementación por fichas en `docs/tasks/`). Ver `Claude.md` (sección 34) y `AGENTS.md`.
+Claude Code dirige el producto y la arquitectura, acota riesgos, resuelve las consultas de Codex, revisa e integra. Codex CLI es el implementador principal por fichas en `docs/tasks/`, incluidas tareas de alto riesgo cuando cuentan con autorización y controles reforzados. Codex no pregunta directamente al usuario: Claude decide y solo eleva al usuario lo imprescindible. Ver `Claude.md` (sección 34) y `AGENTS.md`.

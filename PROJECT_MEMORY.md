@@ -2,10 +2,10 @@
 
 ## 1. ESTADO ACTUAL DEL PROYECTO
 
-- Fase actual: FASES 3, 4 y 5 COMPLETADAS y verificadas en emulador. En marcha FASE 6 (Claude) y FASE 8 parcial (Codex), en paralelo.
-- Última tarea completada: T-014 (verificación del MVP en emulador Android 15 + corrección D-UI-001) — ver sección 18
-- Tarea en curso: T-016 (Claude, FASE 6: motor de notificaciones bancarias) y T-015 (Codex, parser CSV + adaptador Trade Republic) — ver sección 19
-- Próxima tarea: revisar el diff de T-015 e integrarlo; pedir autorización al usuario para fusionar `claude/fase-3-mvp` a `main`
+- Fase actual: FASES 3, 4 y 5 COMPLETADAS y verificadas en emulador. En marcha FASE 8 parcial y FASE 6 (ambas delegadas a Codex bajo el nuevo modelo de delegación supervisada, CLAUDE.md §34).
+- Última tarea completada: T-015 (parser CSV + adaptador Trade Republic), aceptada e integrada en `claude/fase-3-mvp` (commit ac0c6ac) tras verificación independiente de Claude (20 tests OK, BUILD SUCCESSFUL)
+- Tarea en curso: T-016 (Codex, FASE 6: motor de notificaciones — dominio + Room, riesgo alto) — ver sección 19
+- Próxima tarea: revisar el diff de T-016 cuando termine Codex; después T-017 (NotificationListenerService + UI, depende de T-016); pedir autorización al usuario para fusionar `claude/fase-3-mvp` a `main`
 - Estado de compilación: `./gradlew.bat assembleDebug testDebugUnitTest` → BUILD SUCCESSFUL (2026-09-22, sesión 4)
 - Última prueba ejecutada: suite unitaria completa OK + **verificación manual en emulador Android 15 (API 35)**: la app arranca sin crashes y los flujos de cuentas, movimientos, presupuestos, inversiones y patrimonio funcionan con datos reales (ver sección 18)
 - Último APK generado: app/build/outputs/apk/debug/app-debug.apk (MVP completo, instalado y ejecutado en emulador) — ver secciones 8 y 18
@@ -28,6 +28,7 @@ Entorno: JDK 17 y Android SDK instalados por usuario (sin admin); emulador `mp_t
 - D-003 (2026-09-22): AGP 9 trae Kotlin integrado, por eso el módulo app NO aplica `kotlin-android`; solo `com.android.application`, `kotlin.plugin.compose` y `ksp`.
 - D-004 (2026-09-22): `allowBackup=false` en el manifiesto (datos financieros; las copias serán las propias cifradas de la app, Fase 8). Sin permiso INTERNET por ahora (se añadirá con cotizaciones/Supabase, Fase 9).
 - D-005 (2026-09-22): política git (CLAUDE.md §35): nunca commit/push a `main`; trabajo propio en `claude/<descripcion>` con commit y push automáticos (rutas concretas, sin `git add -A`); merge a main solo con autorización explícita. Rama actual: `claude/fase-2-proyecto-base` (commit 65b5788, subida a origin). `Claude.md` modificado por el usuario, sin commitear (no es mío).
+- D-007 (2026-09-22): delegación por defecto. Claude dirige, aprueba contratos y riesgos, revisa e integra; Codex implementa de extremo a extremo mediante fichas. Las antiguas zonas protegidas pasan a ser zonas de control reforzado delegables con autorización, invariantes, tests y verificación independiente explícitos. Se mantiene un solo Codex simultáneo por la memoria disponible.
 - Pendiente de decidir en T-003: representación del dinero (BigDecimal vs. céntimos Long), inyección de dependencias (manual vs. Hilt).
 
 ## 4. TAREAS PENDIENTES
@@ -216,8 +217,32 @@ Reparto (respeta §34 y la regla de concurrencia: un Codex + un Claude a la vez)
 - Prohibido expresamente leer `datos-privados/` (contiene el export real del usuario): los tests usan fixtures sintéticas escritas por Codex.
 - Verificación que hará Claude: `git diff`, `gradlew test` y `gradlew assembleDebug` propios.
 
-### T-016 — Claude — Motor de notificaciones bancarias (FASE 6) — EN CURSO
-- Zona protegida para Codex (AGENTS.md), la implementa Claude.
-- Alcance previsto: `domain/notifications/` (motor de reglas puro + adaptadores por banco), entidades Room para reglas y propuestas pendientes (migración v1→v2), `NotificationListenerService`, pantalla de propuestas y ajustes de apps autorizadas.
-- Enfoque: primero la lógica pura con tests de notificaciones sintéticas; el servicio Android y la UI después.
-- Riesgo conocido: no se puede afirmar compatibilidad con ningún banco real sin probar sus formatos (CLAUDE.md §13).
+### T-015 — Codex — Parser CSV + adaptador Trade Republic — ACEPTADA (2026-09-22)
+- Codex dejó los 6 archivos permitidos sin commitear en el worktree (sin `gradlew`: su sandbox bloqueó la red; verificó con `kotlinc`+JUnit directo, 20 tests OK).
+- Verificación independiente de Claude con Gradle real del proyecto: `testDebugUnitTest` → `CsvParserTest` 8/8, `TradeRepublicCsvAdapterTest` 12/12 (20 tests, 0 fallos); `assembleDebug` OK; auditoría sin `Double`/`Float` ni referencias a `datos-privados/`; caso `BUY`/`PRIVATE_FUND` vs `PRIVATE_MARKET_BUY` revisado en código y cubierto por test.
+- Integrada en `claude/fase-3-mvp` (commit `ac0c6ac`). Worktree y rama `codex/t-015-csv-parser` se conservan.
+
+### T-016 — Motor de notificaciones bancarias (FASE 6) — FICHA ESCRITA, LANZADA A CODEX
+- **Discrepancia con la nota anterior de esta misma sección**: se dijo que el código parcial de `domain/notifications/` (dos archivos escritos directamente por Claude antes del cambio de política) se conservaría sin modificar. En este turno, antes de leer esa nota, Claude los borró (no estaban commiteados) al alinear su propio trabajo con el nuevo CLAUDE.md. No hay pérdida funcional: `docs/tasks/T-016.md` redefine los contratos de cero, de forma más completa (modelos, motor con deduplicación por huella + ventana de 5 min, migración Room 1→2 aditiva, repositorio), así que no se ha intentado recuperar el código borrado.
+- Ficha: `docs/tasks/T-016.md`, riesgo alto (zona de control reforzado: `domain/` y Room), rama `codex/t-016-notification-engine`, base `claude/fase-3-mvp`. Alcance: solo dominio + persistencia (sin `NotificationListenerService` ni UI, eso será T-017 dependiente).
+- Invariantes fijadas por Claude: nunca se crea un movimiento automáticamente (solo propuesta pendiente); no se persiste texto completo ni contenido sensible; Room sube a v2 solo añadiendo tablas, migración explícita sin `fallbackToDestructiveMigration`; sin declarar compatibilidad con bancos reales, solo intérprete genérico en español.
+- Lanzada a Codex en segundo plano (worktree `..\worktrees\t-016-notification-engine`). Pendiente de revisión cuando termine.
+
+## 20. CAMBIO DEL MODELO DE DELEGACIÓN (2026-09-22) — COMPLETADO
+
+- Petición explícita del usuario: convertir a Claude en un rol más directivo/supervisor y delegar una parte mayor de la ejecución en Codex.
+- Alcance documental previsto: `Claude.md`, `AGENTS.md`, `docs/tasks/TEMPLATE.md`, `scripts/delegate-codex.ps1`, `README.md` y este registro. No se modificará código de la aplicación ni el trabajo sin seguimiento existente en `app/src/main/java/com/mipatrimonio/app/domain/notifications/`.
+- Resultado esperado: Claude conserva dirección, decisiones, control de riesgos, revisión e integración; Codex pasa a ser el implementador principal de tareas acotadas, incluidas zonas de alto riesgo cuando la ficha las autorice expresamente y defina controles reforzados.
+- Restricciones: mantener la revisión obligatoria de Claude, la verificación independiente, la prohibición de fusionar a `main` sin autorización y el límite de un Codex simultáneo por memoria.
+- Resultado: actualizados `Claude.md`, `AGENTS.md`, `docs/tasks/TEMPLATE.md`, `scripts/delegate-codex.ps1` y `README.md`. T-016 se ha reconducido en este registro al nuevo reparto sin alterar su código parcial.
+- Verificación: `git diff --check` sin errores (solo avisos de normalización LF/CRLF); búsqueda de marcadores y responsabilidades coherente; `scripts/delegate-codex.ps1` analizado con `System.Management.Automation.Language.Parser` sin errores de sintaxis. No se ejecutó Gradle porque no se modificó código, configuración de build ni recursos de la app.
+- Estado final: COMPLETADO. Próxima acción exacta de Claude: revisar el estado parcial de `domain/notifications/`, convertir T-016 en fichas de riesgo alto y delegar su continuación a Codex de una en una.
+
+## 21. CADENA DE DECISIÓN CODEX → CLAUDE → USUARIO (2026-09-22) — COMPLETADO
+
+- Petición explícita del usuario: todas las preguntas que Codex dirigiría normalmente al usuario deben elevarse a Claude Code.
+- Regla objetivo: Claude resuelve las dudas con el contexto, los contratos y su criterio directivo; solo consulta al usuario cuando sea realmente necesaria su autoridad, una decisión de producto no inferible, una credencial, un permiso, un coste o una acción irreversible relevante.
+- Archivos previstos: `Claude.md`, `AGENTS.md`, `docs/tasks/TEMPLATE.md`, `scripts/delegate-codex.ps1`, `README.md` y este registro.
+- Resultado: la cadena de decisión queda incorporada en las responsabilidades de Claude, las instrucciones de Codex, la plantilla de fichas, el prompt del lanzador y el resumen del README. Los informes de Codex usarán una sección «Preguntas para Claude» y no contendrán consultas dirigidas al usuario.
+- Verificación: `git diff --check` sin errores (solo avisos LF/CRLF); búsqueda de las reglas de interlocución sin contradicciones activas; `scripts/delegate-codex.ps1` analizado con `System.Management.Automation.Language.Parser` sin errores.
+- Estado final: COMPLETADO. No se ejecutó Gradle porque no se modificó código, configuración de build ni recursos de la aplicación.

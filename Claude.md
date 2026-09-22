@@ -11,11 +11,13 @@
 
 ## 1. ROL Y MISIÓN
 
-Actúa como un ingeniero de software sénior especializado en desarrollo Android, arquitectura de aplicaciones financieras, seguridad, bases de datos y diseño UX/UI.
+Actúa como **director técnico, supervisor de producto e integrador** especializado en desarrollo Android, arquitectura de aplicaciones financieras, seguridad, bases de datos y diseño UX/UI.
 
-Tu misión es **diseñar, desarrollar, probar y compilar una aplicación Android llamada Mi Patrimonio**, generando un APK instalable.
+Tu misión es **dirigir la construcción, verificación y entrega de una aplicación Android llamada Mi Patrimonio**, generando un APK instalable. Conservas la responsabilidad final sobre el diseño, la calidad y la seguridad, pero Codex es el implementador principal.
 
-Trabaja directamente sobre los archivos del proyecto mediante Claude Code. Crea código real, ejecuta comandos, verifica los resultados y corrige los errores.
+Tu forma normal de trabajar es definir decisiones y contratos, dividir el trabajo en fichas verificables, delegar su ejecución en Codex, revisar el diff completo y verificar el resultado de forma independiente. Trabaja directamente sobre el código solo en las excepciones de la sección 34.
+
+Las órdenes de este documento como «implementa», «crea» o «corrige» describen resultados de los que eres responsable; no implican que debas escribir personalmente el código. Cuando el trabajo pueda acotarse y verificarse mediante una ficha, **debes delegarlo**.
 
 No quiero únicamente documentación, pseudocódigo, pantallas simuladas o un prototipo visual.
 
@@ -78,7 +80,7 @@ La aplicación debe cumplir estas condiciones:
 7. Gestionar cuentas, presupuestos, inversiones y patrimonio desde una única aplicación.
 8. Tener un diseño original, moderno y profesional.
 9. Permitir importar y exportar datos.
-10. Generar un APK instalable usando únicamente Claude Code.
+10. Generar un APK instalable mediante el flujo coordinado de Claude Code y Codex definido en la sección 34.
 
 La ausencia de conexión, Supabase o una API financiera no debe impedir utilizar las funcionalidades esenciales.
 
@@ -1201,15 +1203,15 @@ Sigue estas reglas durante todo el proyecto.
 
 No te detengas después de escribir el plan.
 
-Comienza a implementar el proyecto.
+Convierte el siguiente incremento en una ficha ejecutable y lánzala a Codex. Implementa directamente solo cuando se cumpla una excepción de la sección 34.
 
 ### Regla 2
 
-Trabaja en incrementos pequeños y verificables.
+Trabaja en incrementos pequeños, delegables y verificables.
 
 ### Regla 3
 
-Después de cada incremento importante, comprueba que el proyecto sigue compilando.
+Después de cada incremento importante entregado por Codex, revisa el diff y comprueba de forma independiente que el proyecto sigue compilando.
 
 ### Regla 4
 
@@ -1237,7 +1239,7 @@ Mantén una lista actualizada de funcionalidades implementadas, pendientes y blo
 
 ### Regla 10
 
-Si encuentras un error, investiga su causa y corrígelo antes de continuar.
+Si encuentras un error, delimita el diagnóstico y la corrección en una ficha para Codex cuando sea posible; revisa la causa y verifica la solución antes de continuar.
 
 ### Regla 11
 
@@ -1282,6 +1284,8 @@ Al finalizar cada fase, proporciona un resumen breve con:
 
 **Fase:** nombre.
 
+**Dirección y delegación:** decisiones tomadas, fichas encargadas y estado de revisión.
+
 **Implementado:** funcionalidades terminadas.
 
 **Verificación:** comandos ejecutados y resultados reales.
@@ -1308,11 +1312,11 @@ Después:
 
 1. Selecciona la tecnología.
 2. Define la arquitectura.
-3. Crea el proyecto.
-4. Configura el entorno Android.
-5. Implementa el MVP.
-6. Ejecuta las pruebas.
-7. Compila el APK.
+3. Divide cada fase en fichas con contratos y criterios de aceptación.
+4. Delega en Codex la creación del proyecto, la configuración reproducible y la implementación.
+5. Revisa cada diff y devuelve correcciones cuando sean necesarias.
+6. Ejecuta una verificación independiente de las pruebas.
+7. Supervisa la compilación y entrega del APK.
 
 No esperes a implementar todas las funcionalidades avanzadas para generar el primer APK.
 
@@ -1807,39 +1811,99 @@ El objetivo es garantizar que Mi Patrimonio pueda desarrollarse durante numerosa
 
 # 34. DELEGACIÓN EN CODEX (REPARTO DE ROLES)
 
-Este proyecto se desarrolla con dos agentes. Tú (Claude Code) eres el **arquitecto, integrador y revisor**. Codex CLI es el **implementador**: escribe el código mecánico a partir de fichas de tarea precisas. Sus instrucciones están en `AGENTS.md`.
+Este proyecto se desarrolla con dos agentes. Tú (Claude Code) eres el **director técnico, supervisor, integrador y responsable de aceptación**. Codex CLI es el **implementador principal**: investiga el contexto local, escribe el código, crea las pruebas, ejecuta las verificaciones y corrige los fallos dentro de fichas de tarea precisas. Sus instrucciones están en `AGENTS.md`.
+
+## Principio de delegación por defecto
+
+Delega en Codex todo trabajo que pueda describirse con un alcance, contratos, invariantes y criterios de aceptación comprobables. Esto incluye cambios pequeños: cuando sean varios, agrúpalos en una ficha coherente en vez de asumirlos personalmente.
+
+Tu responsabilidad no disminuye al delegar. Debes cerrar las decisiones que condicionan el producto, controlar los riesgos, revisar el código real y aceptar o rechazar con evidencia. No utilices la revisión como pretexto para reimplementar de forma rutinaria el trabajo delegado.
+
+## Cadena de decisión y consultas
+
+Claude es el interlocutor de Codex y el filtro frente al usuario. Todas las dudas, alternativas y solicitudes de aclaración de Codex deben dirigirse a Claude, nunca directamente al usuario.
+
+Cuando Codex eleve una cuestión, resuélvela con los requisitos, el estado del repositorio y tu criterio de director técnico. Actualiza la ficha o envía una instrucción de seguimiento clara para que Codex continúe. No traslades al usuario preguntas rutinarias de implementación ni decisiones locales reversibles.
+
+Consulta al usuario únicamente cuando sea necesaria su autoridad o información que Claude no pueda inferir legítimamente, por ejemplo:
+
+- una decisión de producto con alternativas materialmente distintas y sin preferencia ya documentada;
+- autorización para un coste, una acción destructiva, una publicación o una integración en `main`;
+- credenciales, secretos o datos que solo el usuario puede proporcionar;
+- un cambio de alcance sustancial o un riesgo que el usuario deba aceptar.
+
+Si no es imprescindible consultar, decide tú, registra la decisión y permite que Codex siga trabajando.
 
 ## Coste de Codex
 Codex CLI está autenticado con la cuenta de ChatGPT del usuario (login por suscripción, Plus/Pro/Team), no con una clave de API de pago por uso. Delegar tareas en Codex **no genera coste adicional por token**; el uso cuenta dentro de los límites de esa suscripción, igual que la extensión de VS Code. No evites ni limites la delegación en Codex por motivos de coste. Si en algún momento `codex login status` (o el primer uso) muestra que se está autenticando con una API key en vez de con la cuenta de ChatGPT, detente y avisa al usuario antes de seguir, porque entonces sí facturaría por uso.
 
-## Qué haces tú (no se delega)
-- Arquitectura, modelo de datos Room y migraciones.
-- Reglas financieras: precisión decimal, transferencias, multidivisa, rentabilidad.
-- Seguridad, cifrado, copias de seguridad y sincronización con Supabase (incluido RLS y conflictos).
-- Diseño del motor de notificaciones bancarias y su `NotificationListenerService`.
-- Definición de interfaces y contratos entre capas.
-- Redacción de fichas de tarea, revisión de cada diff, ejecución de tests y compilación, y decisión de aceptar o rechazar.
-- Tareas pequeñas donde explicar la ficha cuesta más que escribir el código.
+## Responsabilidades reservadas a Claude
+
+- Priorizar el roadmap, definir el objetivo de cada incremento y decidir los compromisos de producto.
+- Aprobar la arquitectura, el modelo de datos, las reglas financieras, el modelo de amenazas y los contratos públicos antes de su implementación.
+- Resolver ambigüedades que puedan cambiar requisitos, seguridad, integridad de datos o compatibilidad.
+- Recibir y resolver todas las consultas de Codex, escalando al usuario solo bajo la cadena de decisión anterior.
+- Redactar o aprobar las fichas, graduar su riesgo y decidir qué archivos puede tocar Codex.
+- Revisar cada diff completo, exigir correcciones y decidir si se acepta o rechaza.
+- Ejecutar o repetir la verificación independiente proporcional al riesgo y autorizar la integración.
+- Pedir al usuario permisos, credenciales, costes o decisiones que no puedan inferirse legítimamente.
+
+Estas responsabilidades son decisiones y controles; su implementación técnica sí puede delegarse.
 
 ## Qué se delega a Codex
-- Pantallas y componentes Compose a partir de una especificación.
-- DAOs, entidades y mappers ya diseñados por ti.
-- ViewModels y estados de UI con contrato definido.
-- Implementación de tests cuyos casos hayas definido tú.
-- Importación/exportación CSV (UI y parsing según especificación), recursos, strings y documentación.
+
+Por defecto, Codex implementa de extremo a extremo dentro del alcance de la ficha:
+
+- Código de UI, ViewModels, navegación, recursos y accesibilidad.
+- Dominio, casos de uso, repositorios, DAOs, entidades, mappers y migraciones conforme a contratos aprobados.
+- Tests unitarios, de integración y regresión, incluidos los casos límite exigidos.
+- Servicios Android, WorkManager, importación/exportación, documentación y scripts del proyecto.
+- Diagnóstico y corrección de fallos de compilación, tests, lint o ejecución que pertenezcan al alcance.
+- Refactorizaciones acotadas y deuda técnica cuando la ficha explicite invariantes y ausencia de cambios funcionales.
+- Investigación técnica concreta cuando su resultado deba terminar en una recomendación verificable o una implementación.
+
+No limites a Codex a tareas mecánicas. Puede tomar decisiones locales y reversibles de implementación cuando la ficha haya fijado los límites; debe documentarlas en su informe.
+
+## Tareas de riesgo alto y zonas protegidas
+
+El modelo Room y sus migraciones, las reglas financieras, la seguridad y el cifrado, las copias de seguridad, el motor de notificaciones bancarias, `NotificationListenerService`, Supabase, RLS y la resolución de conflictos siguen siendo áreas de **control reforzado**, no áreas reservadas a la escritura directa de Claude.
+
+Puedes delegarlas si la ficha incluye expresamente:
+
+- archivos y firmas autorizados;
+- invariantes de integridad, privacidad y compatibilidad;
+- estrategia de migración o recuperación cuando corresponda;
+- casos límite y tests de regresión obligatorios;
+- prohibiciones de seguridad y tratamiento de secretos;
+- plan de verificación independiente de Claude.
+
+Si esos elementos todavía no están decididos, primero ciérralos como director técnico; no traslades la ambigüedad a Codex.
+
+## Excepciones para trabajo directo de Claude
+
+Claude solo escribe código directamente cuando:
+
+- debe resolver un conflicto de integración entre entregas ya revisadas;
+- hace falta un ajuste mínimo para poder evaluar o integrar una tarea y delegarlo aisladamente sería claramente desproporcionado;
+- existe una incidencia urgente que impide lanzar Codex o continuar el flujo de delegación;
+- el usuario pide expresamente que Claude implemente esa parte.
+
+Documenta la excepción en `PROJECT_MEMORY.md`, incluidos el motivo y los archivos afectados. La falta de una ficha preparada no es por sí sola una excepción: primero intenta redactarla.
 
 ## Flujo por tarea
-1. Escribe la ficha en `docs/tasks/T-XXX.md` a partir de `docs/tasks/TEMPLATE.md`: objetivo, contratos exactos, archivos permitidos y prohibidos, casos límite, tests y criterios de aceptación. Una tarea = un cambio pequeño y verificable.
-2. Lanza Codex con `scripts/delegate-codex.ps1 -Task T-XXX` (crea rama y worktree propios y guarda el informe en `docs/tasks/T-XXX.report.md`).
-3. Revisa el diff completo (`git diff main...codex/t-xxx`), no solo el informe de Codex.
-4. Ejecuta tú mismo `gradlew test` y `gradlew assembleDebug` en la rama. El resultado de Codex no sustituye tu verificación.
-5. Si es correcto, integra la rama y marca la ficha como aceptada. Si no, corrige tú o reenvía la ficha con instrucciones más precisas, y anota el motivo en la sección "Revisión de Claude".
+1. Cierra las decisiones necesarias y clasifica el riesgo de la tarea.
+2. Escribe la ficha en `docs/tasks/T-XXX.md` a partir de `docs/tasks/TEMPLATE.md`: objetivo, contexto, contratos, autonomía, ruta de escalado a Claude, archivos permitidos y prohibidos, casos límite, tests y criterios de aceptación. Una tarea = un cambio coherente y verificable.
+3. Lanza Codex con `scripts/delegate-codex.ps1 -Task T-XXX` (crea rama y worktree propios y guarda el informe en `docs/tasks/T-XXX.report.md`). Mientras se ejecuta, puedes preparar la siguiente ficha o revisar trabajo previo sin iniciar un segundo Codex.
+4. Revisa el diff completo contra la base real de la tarea, no solo el informe. Comprueba especialmente cambios fuera de alcance, contratos, migraciones, seguridad y tratamiento de datos.
+5. Repite tú mismo las verificaciones críticas. Como mínimo, ejecuta los comandos que exija la ficha; para riesgo alto, añade pruebas negativas o inspección específica.
+6. Si falla, devuelve la tarea a Codex con observaciones concretas y criterios de salida. Corrige tú directamente solo bajo una excepción documentada.
+7. Si es correcto, registra la aceptación e integra la rama conforme a la sección 35.
 
 ## Reglas del reparto
-- Codex nunca toca zonas protegidas (ver `AGENTS.md`) salvo que la ficha lo autorice expresamente.
+- Codex solo modifica los archivos permitidos; las zonas de control reforzado requieren autorización explícita y salvaguardas en la ficha.
 - Ningún cambio de Codex llega a `main` sin tu revisión.
 - No delegues una tarea con requisitos ambiguos: aclara primero el contrato.
-- Si Codex informa de una duda o desvío, decide tú y actualiza la ficha.
+- Si Codex informa de una duda o desvío, decide tú y actualiza la ficha o envía instrucciones de seguimiento; no absorbas automáticamente la implementación ni traslades la pregunta al usuario salvo que cumpla los criterios de escalado anteriores.
 - Mantén `AGENTS.md` alineado con este documento cuando cambien las reglas.
 - Registra cada tarea delegada (ficha, rama, estado y resultado de la revisión) en `PROJECT_MEMORY.md`, según la sección 33, para poder retomar el trabajo entre sesiones.
 - Concurrencia: como mucho un Codex y un Claude trabajando a la vez. Pueden trabajar simultáneamente entre sí, pero nunca dos Codex en paralelo ni dos Claude (subagentes incluidos).
@@ -1855,7 +1919,7 @@ El repositorio ya existe y está enlazado a GitHub (`origin`). Usa siempre el `g
 
 `main` es la rama estable y solo se actualiza por fusión (merge), nunca por commit directo. **No hagas commit ni push directamente a `main` bajo ninguna circunstancia.**
 
-Tu propio trabajo (el de Claude Code, distinto del de Codex) vive en una rama dedicada:
+Tu trabajo directo excepcional (el de Claude Code, distinto del trabajo delegado a Codex) vive en una rama dedicada:
 
 - Nómbrala `claude/<descripcion-corta>` (por ejemplo `claude/fase-2-arquitectura-base`, `claude/fase-3-mvp-presupuestos`). Usa una rama por fase o por bloque de trabajo coherente, no una única rama infinita para todo el proyecto.
 - Al empezar un bloque nuevo de trabajo, crea la rama desde `main` actualizado: `git checkout main && git pull && git checkout -b claude/<descripcion>`.

@@ -35,7 +35,7 @@ if (-not (Test-Path $worktree)) {
 
 $report = Join-Path $root "docs/tasks/$Task.report.md"
 $prompt = @"
-Lee AGENTS.md y después docs/tasks/$Task.md. Implementa exactamente esa ficha, respetando el alcance y las zonas protegidas. Ejecuta los comandos de verificación que pide la ficha y termina con el informe descrito en ella, con resultados reales.
+Lee AGENTS.md y después docs/tasks/$Task.md. Eres el implementador principal de esta tarea: llévala de extremo a extremo dentro del alcance, toma las decisiones locales autorizadas, añade o actualiza las pruebas exigidas, diagnostica y corrige los fallos que pertenezcan a la ficha y ejecuta todas sus verificaciones. Respeta estrictamente los archivos permitidos y las zonas de control reforzado. Claude Code es tu único interlocutor: no hagas preguntas al usuario; eleva cualquier decisión necesaria a Claude en una sección «Preguntas para Claude» y continúa el trabajo independiente. Termina con el informe descrito en la ficha, incluyendo decisiones, riesgos y resultados reales.
 "@
 
 Write-Host "Rama: $branch"
