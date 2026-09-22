@@ -2,10 +2,10 @@
 
 ## 1. ESTADO ACTUAL DEL PROYECTO
 
-- Fase actual: FASE 3 (MVP financiero) + FASE 4 (inversiones básicas) + FASE 5 (primer APK)
-- Última tarea completada: T-002 (proyecto base Kotlin + Compose, compila y genera APK de depuración)
-- Tarea en curso: UI del MVP escrita directamente por Claude (decisión del usuario, 2026-09-22), en rama `claude/fase-3-mvp`; tareas Codex T-006/8/9/10 CANCELADAS (parcial en worktrees, solo consultable)
-- Próxima tarea: T-003 (diseño del dominio financiero y modelo Room; ver sección 11)
+- Fase actual: FASES 3, 4 y 5 COMPLETADAS y verificadas en emulador. Siguiente: FASE 6 (notificaciones bancarias) o FASE 8 (importación CSV), a decidir con el usuario.
+- Última tarea completada: T-014 (verificación del MVP en emulador Android 15 + corrección D-UI-001) — ver sección 18
+- Tarea en curso: ninguna
+- Próxima tarea: pedir al usuario autorización para fusionar `claude/fase-3-mvp` a `main` y elegir la siguiente fase
 - Estado de compilación: `./gradlew.bat assembleDebug testDebugUnitTest` → BUILD SUCCESSFUL (2026-09-22, sesión 4)
 - Última prueba ejecutada: suite unitaria completa OK + **verificación manual en emulador Android 15 (API 35)**: la app arranca sin crashes y los flujos de cuentas, movimientos, presupuestos, inversiones y patrimonio funcionan con datos reales (ver sección 18)
 - Último APK generado: app/build/outputs/apk/debug/app-debug.apk (MVP completo, instalado y ejecutado en emulador) — ver secciones 8 y 18
@@ -97,7 +97,8 @@ Base de las ramas codex: `claude/fase-3-mvp`. Cada tarea es dueña de su carpeta
 
 - 2026-09-22 `./gradlew.bat assembleDebug`: 1º intento FALLÓ (E-002), 2º FALLÓ (E-003), 3º OK (19 s) con aviso de icono deprecado, 4º OK sin avisos tras usar `Icons.AutoMirrored.Filled.TrendingUp`.
 - APK de DEPURACIÓN (no apto para publicar): `C:\Users\Usuario\Desktop\apk finanzas\app\build\outputs\apk\debug\app-debug.apk`, 20 433 805 bytes, SHA-256 `84043ed83d7f83163a6ca3262788cc86b8f910b63bd224ec197a4e45bc02d351`. Es solo el esqueleto de navegación.
-- Tests: ninguno ejecutado todavía.
+- Tests: suite unitaria completa en verde (ver sección 18).
+- 2026-09-22 (sesión 4) APK de DEPURACIÓN tras corregir D-UI-001: `app/build/outputs/apk/debug/app-debug.apk`, 21 377 039 bytes, SHA-256 `6d9933b094bd051e91bd3b9984165865d5100c064e8cc353ac1ddb107636846e`. **Instalado y ejecutado en el emulador `mp_test` (Android 15, API 35)**: arranca sin crashes y todos los flujos del MVP funcionan (secciones 18.2–18.4). Sigue siendo un APK de depuración: NO es una versión lista para publicar (falta keystore de firma).
 
 ## 9. DEPENDENCIAS Y CONFIGURACIÓN
 
@@ -183,4 +184,16 @@ Base de las ramas codex: `claude/fase-3-mvp`. Cada tarea es dueña de su carpeta
 - **D-UI-001 CORREGIDO y verificado**: `MiPatrimonioApp.kt` — la etiqueta del `NavigationBarItem` pasa a `maxLines = 1` con `MaterialTheme.typography.labelSmall`. Verificado tras reinstalar: «Presupuestos» cabe en una línea, sin truncar, y las cinco etiquetas encajan. `assembleDebug` + `testDebugUnitTest` → BUILD SUCCESSFUL (41 s).
 - Criterios del MVP (CLAUDE.md §30) comprobados en dispositivo: instala, abre sin errores, crea cuentas, registra gastos, crea categorías (sembradas), configura presupuestos, muestra saldos correctos, registra inversiones manualmente, valora la cartera con precios manuales, calcula el patrimonio, muestra dashboard con datos reales y conserva los datos al cerrar. PENDIENTES de probar en app real: transferencia entre cuentas (requiere 2 cuentas), ingreso, edición/eliminación de movimientos, tema claro y ajustes.
 - Nota: la app no declara permiso INTERNET, por lo que el funcionamiento offline está garantizado por construcción.
-- Próxima acción exacta: crear una segunda cuenta y probar una transferencia (debe conservar el patrimonio total y no contabilizarse como gasto), y registrar un ingreso.
+
+### 18.4. Ajustes, transferencia e ingreso verificados (sesión 4) — T-014 COMPLETADA
+- **Ajustes**: Gestión (Cuentas, Categorías), Preferencias (Modo oscuro activado por defecto, Divisa principal EUR) y «Acerca de» con «Tus datos se guardan solo en este dispositivo». **Modo claro probado**: el tema cambia al instante y es legible; se restauró el oscuro.
+- **Transferencia (regla crítica)**: creada 2ª cuenta «Efectivo» (0,00 €) y transferidos 200,00 € de Banco Principal → Efectivo. El formulario deshabilita «Importe de destino» cuando ambas cuentas comparten divisa (solo se habilita en multidivisa). Resultado verificado en el dashboard:
+  - Patrimonio neto **sin cambios** (2.349,50 €) → la transferencia conserva el patrimonio ✓
+  - Gastos del mes **sin cambios** (250,50 €) e Ingresos 0,00 € → no se contabiliza como gasto ni ingreso ✓
+  - Presupuesto restante **sin cambios** (49,50 €) → las transferencias internas no consumen presupuesto ✓
+  - En la lista aparece «Transferencia · Banco Principal → Efectivo · 200,00 €» en color neutro (ni rojo ni verde).
+- **Ingreso**: 1.800,00 € «Nomina septiembre» en Banco Principal → Patrimonio 4.149,50 €, Dinero disponible 3.049,50 €, Ingresos 1.800,00 €, Balance +1.549,50 € en verde, y el presupuesto restante sigue en 49,50 € (un ingreso no consume presupuesto) ✓
+- **Estado final de T-014: COMPLETADA**. Todos los criterios de aceptación del MVP (CLAUDE.md §30) están verificados en un dispositivo real, no solo por tests unitarios.
+- Errores abiertos: solo D-UI-002 (signo negativo tipográficamente inconsistente, cosmético).
+- PENDIENTE de probar en app real (no bloquea el MVP): editar/duplicar/eliminar movimientos desde el menú «⋮», archivar cuentas y categorías, búsqueda y filtros con volumen de datos, venta de inversión y dividendos.
+- Próxima acción exacta: decidir con el usuario si se fusiona `claude/fase-3-mvp` a `main` (requiere su autorización explícita, CLAUDE.md §35) y después abordar la FASE 6 (NotificationListenerService) o la FASE 8 (importación CSV de Trade Republic).
