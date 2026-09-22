@@ -1842,6 +1842,7 @@ Codex CLI está autenticado con la cuenta de ChatGPT del usuario (login por susc
 - Si Codex informa de una duda o desvío, decide tú y actualiza la ficha.
 - Mantén `AGENTS.md` alineado con este documento cuando cambien las reglas.
 - Registra cada tarea delegada (ficha, rama, estado y resultado de la revisión) en `PROJECT_MEMORY.md`, según la sección 33, para poder retomar el trabajo entre sesiones.
+- Concurrencia: como mucho un Codex y un Claude trabajando a la vez. Pueden trabajar simultáneamente entre sí, pero nunca dos Codex en paralelo ni dos Claude (subagentes incluidos).
 
 
 ---

@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="inv_summary_title">Resumen de inversiones</string>
+    <string name="inv_total_value">Valor total</string>
+    <string name="inv_total_cost">Coste</string>
+    <string name="inv_unrealized_gain">Plusvalía latente</string>
+    <string name="inv_simple_return_legend">Rentabilidad simple no realizada (no ponderada por tiempo)</string>
+    <string name="inv_unpriced_warning">Activos sin cotización: %1$s</string>
+    <string name="inv_excluded_warning">Divisas excluidas (sin conversión): %1$s</string>
+    <string name="inv_portfolio_value">Valor</string>
+    <string name="inv_realized_gain">Resultado realizado</string>
+    <string name="inv_net_dividends">Dividendos netos</string>
+    <string name="inv_open_positions">Posiciones abiertas</string>
+    <string name="inv_empty_positions">Esta cartera no tiene posiciones abiertas.</string>
+    <string name="inv_empty_portfolios">Todavía no hay carteras de inversión.</string>
+
+    <string name="inv_asset_name_ticker">%1$s · %2$s</string>
+    <string name="inv_quantity_value">Cantidad: %1$s</string>
+    <string name="inv_average_price_value">Precio medio: %1$s</string>
+    <string name="inv_current_price_value">Precio actual: %1$s · %2$s</string>
+    <string name="inv_updated_today">Actualizado hoy</string>
+    <plurals name="inv_updated_days">
+        <item quantity="one">Actualizado hace %d día</item>
+        <item quantity="other">Actualizado hace %d días</item>
+    </plurals>
+    <string name="inv_without_price">Sin cotización</string>
+    <string name="inv_position_value">Valor</string>
+    <string name="inv_unrealized_short">Plusvalía</string>
+    <string name="inv_not_available">No disponible</string>
+    <string name="inv_percentage_unavailable">—</string>
+    <string name="inv_positive_amount">+%1$s</string>
+
+    <string name="inv_actions">Acciones de inversión</string>
+    <string name="inv_new_portfolio">Nueva cartera</string>
+    <string name="inv_new_asset">Nuevo activo</string>
+    <string name="inv_new_operation">Nueva operación</string>
+    <string name="inv_update_price">Actualizar precio</string>
+
+    <string name="inv_portfolio_name">Nombre de la cartera</string>
+    <string name="inv_asset_name">Nombre del activo</string>
+    <string name="inv_ticker">Ticker</string>
+    <string name="inv_ticker_not_identifier">El ticker no identifica de forma única un activo.</string>
+    <string name="inv_isin_optional">ISIN (opcional)</string>
+    <string name="inv_duplicate_isin_warning">Ya existe otro activo con este ISIN. Puedes guardarlo, pero revisa que no sea un duplicado.</string>
+    <string name="inv_asset_type">Tipo de activo</string>
+    <string name="inv_market_optional">Mercado (opcional)</string>
+    <string name="inv_currency">Divisa</string>
+
+    <string name="inv_portfolio">Cartera</string>
+    <string name="inv_asset">Activo</string>
+    <string name="inv_asset_option">%1$s · %2$s · %3$s</string>
+    <string name="inv_operation_currency">Importes en %1$s</string>
+    <string name="inv_operation_type">Tipo de operación</string>
+    <string name="inv_date">Fecha</string>
+    <string name="inv_quantity">Cantidad</string>
+    <string name="inv_unit_price">Precio unitario</string>
+    <string name="inv_amount_per_share">Importe por título</string>
+    <string name="inv_amount">Importe</string>
+    <string name="inv_fees_optional">Comisiones (opcional)</string>
+    <string name="inv_withholding_optional">Retención (opcional)</string>
+    <string name="inv_note_optional">Nota (opcional)</string>
+    <string name="inv_operation_needs_portfolio">Necesitas crear una cartera antes de registrar una operación.</string>
+    <string name="inv_operation_needs_asset">Necesitas crear un activo antes de registrar una operación.</string>
+
+    <string name="inv_price">Precio</string>
+    <string name="inv_manual_price_explanation">Este precio se guardará manualmente, sin proveedor externo.</string>
+    <string name="inv_price_needs_asset">Necesitas crear un activo antes de actualizar un precio.</string>
+
+    <string name="inv_history_title">%1$s · %2$s</string>
+    <string name="inv_empty_history">No hay operaciones para esta posición.</string>
+    <string name="inv_operation_amount">%1$s títulos a %2$s</string>
+    <string name="inv_operation_fees">Comisiones o retención: %1$s</string>
+    <string name="inv_delete_operation">Eliminar operación</string>
+    <string name="inv_delete_operation_title">Eliminar operación</string>
+    <string name="inv_delete_operation_message">¿Quieres eliminar esta operación? El historial debe seguir siendo válido.</string>
+
+    <string name="inv_error_name_required">El nombre es obligatorio.</string>
+    <string name="inv_error_ticker_required">El ticker es obligatorio.</string>
+    <string name="inv_error_quantity_positive">La cantidad debe ser mayor que cero.</string>
+    <string name="inv_error_price_non_negative">El precio debe ser cero o mayor.</string>
+    <string name="inv_error_price_positive">El precio debe ser mayor que cero.</string>
+    <string name="inv_error_fees_non_negative">Las comisiones o la retención no pueden ser negativas.</string>
+    <string name="inv_error_amount_too_large">El importe es demasiado grande.</string>
+</resources>

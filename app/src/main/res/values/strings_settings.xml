@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="aj_management">Gestión</string>
+    <string name="aj_accounts">Cuentas</string>
+    <string name="aj_categories">Categorías</string>
+    <string name="aj_preferences">Preferencias</string>
+    <string name="aj_dark_mode">Modo oscuro</string>
+    <string name="aj_base_currency">Divisa principal</string>
+    <string name="aj_about">Acerca de</string>
+    <string name="aj_version">Versión %1$s</string>
+    <string name="aj_unknown_version">desconocida</string>
+    <string name="aj_privacy">Tus datos se guardan solo en este dispositivo.</string>
+    <string name="aj_change_currency_title">Cambiar divisa principal</string>
+    <string name="aj_change_currency_message">La divisa principal pasará a ser %1$s. Los importes en otras divisas no se convierten y quedan excluidos de los totales.</string>
+
+    <string name="aj_no_accounts">Todavía no hay cuentas.</string>
+    <string name="aj_new_account">Nueva cuenta</string>
+    <string name="aj_active_accounts">Cuentas activas</string>
+    <string name="aj_archived_accounts">Cuentas archivadas</string>
+    <string name="aj_account_details">%1$s · %2$s</string>
+    <string name="aj_edit_account">Editar la cuenta %1$s</string>
+    <string name="aj_archive_account">Archivar la cuenta %1$s</string>
+    <string name="aj_restore_account">Restaurar la cuenta %1$s</string>
+    <string name="aj_archive_account_title">Archivar cuenta</string>
+    <string name="aj_restore_account_title">Restaurar cuenta</string>
+    <string name="aj_archive_account_message">Se archivará «%1$s». Se conserva todo su historial y la cuenta deja de contar en el patrimonio.</string>
+    <string name="aj_restore_account_message">Se restaurará «%1$s». Se conserva todo su historial y la cuenta volverá a contar en el patrimonio.</string>
+    <string name="aj_create_account">Crear cuenta</string>
+    <string name="aj_edit_account_title">Editar cuenta</string>
+    <string name="aj_name">Nombre</string>
+    <string name="aj_account_type">Tipo de cuenta</string>
+    <string name="aj_currency">Divisa</string>
+    <string name="aj_currency_cannot_change">La divisa no se puede modificar después de crear la cuenta.</string>
+    <string name="aj_initial_balance">Saldo inicial (opcional)</string>
+    <string name="aj_error_blank_account_name">Escribe un nombre para la cuenta.</string>
+    <string name="aj_error_invalid_initial_balance">El saldo inicial no es válido.</string>
+    <string name="aj_error_saving">No se han podido guardar los cambios.</string>
+
+    <string name="aj_expenses">Gastos</string>
+    <string name="aj_income">Ingresos</string>
+    <string name="aj_no_expense_categories">Todavía no hay categorías de gastos.</string>
+    <string name="aj_no_income_categories">Todavía no hay categorías de ingresos.</string>
+    <string name="aj_new_category">Nueva categoría</string>
+    <string name="aj_archived">Archivada</string>
+    <string name="aj_edit_category">Editar la categoría %1$s</string>
+    <string name="aj_archive_category">Archivar la categoría %1$s</string>
+    <string name="aj_restore_category">Restaurar la categoría %1$s</string>
+    <string name="aj_archive_category_title">Archivar categoría</string>
+    <string name="aj_restore_category_title">Restaurar categoría</string>
+    <string name="aj_archive_category_message">Se archivará «%1$s». Sus referencias históricas se conservan.</string>
+    <string name="aj_archive_root_category_message">Se archivará «%1$s» junto con sus subcategorías. Sus referencias históricas se conservan.</string>
+    <string name="aj_restore_category_message">Se restaurará «%1$s». Sus referencias históricas se conservan.</string>
+    <string name="aj_create_category">Crear categoría</string>
+    <string name="aj_edit_category_title">Editar categoría</string>
+    <string name="aj_parent_category">Categoría padre</string>
+    <string name="aj_category_with_children">Una categoría con subcategorías no puede convertirse en subcategoría.</string>
+    <string name="aj_color">Color</string>
+    <string name="aj_select_color">Seleccionar color %1$d</string>
+    <string name="aj_error_blank_category_name">Escribe un nombre para la categoría.</string>
+    <string name="aj_error_invalid_parent">La categoría padre no es válida.</string>
+</resources>

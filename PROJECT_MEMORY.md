@@ -4,7 +4,7 @@
 
 - Fase actual: FASE 3 (MVP financiero) + FASE 4 (inversiones básicas) + FASE 5 (primer APK)
 - Última tarea completada: T-002 (proyecto base Kotlin + Compose, compila y genera APK de depuración)
-- Tarea en curso: ninguna activa. T-006, T-008, T-009 y T-010 (Codex) INTERRUMPIDAS por falta de memoria; ver sección 15
+- Tarea en curso: UI del MVP escrita directamente por Claude (decisión del usuario, 2026-09-22), en rama `claude/fase-3-mvp`; tareas Codex T-006/8/9/10 CANCELADAS (parcial en worktrees, solo consultable)
 - Próxima tarea: T-003 (diseño del dominio financiero y modelo Room; ver sección 11)
 - Estado de compilación: `./gradlew.bat assembleDebug` → BUILD SUCCESSFUL (2026-09-22)
 - Última prueba ejecutada: ninguna (aún no hay tests; solo dependencias JUnit/coroutines-test declaradas)
@@ -137,3 +137,11 @@ Base de las ramas codex: `claude/fase-3-mvp`. Cada tarea es dueña de su carpeta
 - Compilación/tests de esas ramas: NO ejecutados ni verificados.
 - Cómo retomar: relanzar de UNO en UNO (o dos como mucho) con `delegate-codex.ps1` (el worktree y la rama ya existen y se reutilizan); revisar primero lo parcial (`git -C ..\worktrees\<t> status`) y decir en el prompt que continúe desde lo existente. Orden recomendado: T-010 (gráficos, desbloquea T-011/T-012), luego T-006, T-009, T-008, T-007. Cerrar antes otras apps pesadas; parar daemons con `gradlew --stop`.
 - Riesgo pendiente: el resto de tareas depende de estas; el primer APK con UI real está bloqueado hasta entonces. Alternativa si se prefiere: implementar la UI directamente por Claude (más lento en tokens pero sin carga de RAM).
+
+## 16. CAMBIO DE PLAN: UI POR CLAUDE (2026-09-22)
+- El usuario decide que Claude escriba la UI (respuesta a la interrupción por memoria). Las fichas T-006…T-012 se mantienen como especificación (docs/tasks) y Claude las implementa en `claude/fase-3-mvp`. Las ramas/worktrees de Codex quedan como CANCELADAS; su código parcial no se integra salvo revisión explícita.
+- Orden: gráficos → ajustes/cuentas/categorías → movimientos → presupuestos → inversiones → inicio → patrimonio → navegación y tema → tests → APK.
+
+## 17. REGLA DE CONCURRENCIA DE AGENTES (usuario, 2026-09-22)
+- Como mucho **un Codex y un Claude a la vez**. Codex y Claude pueden trabajar simultáneamente entre sí, pero **nunca dos Codex ni dos Claude (subagentes incluidos) en paralelo**. Motivo: la tanda de 4 Codex saturó la RAM. Aplicar antes de cada `delegate-codex.ps1`: comprobar que no hay otro Codex en marcha.
+- Estado: UI de las secciones 6/8/9/10 traída desde los worktrees de Codex a `claude/fase-3-mvp` (compila; tests 76 OK) y pendiente de revisión; presupuestos, inicio, patrimonio y navegación por escribir por Claude.
