@@ -31,7 +31,7 @@ Repo con estructura Claude/Codex (CLAUDE.md, AGENTS.md, docs/tasks/TEMPLATE.md, 
 | T-003 | Dominio: `Money`/redondeo/divisa, entidades y reglas de saldo; esquema Room v1 (cuentas, categorías, movimientos, transferencias) con tests | Alta | T-002 | PENDIENTE |
 | T-004 | Pantallas MVP (cuentas, movimientos, categorías) — delegable a Codex con ficha | Alta | T-003 | PENDIENTE |
 | T-005 | Presupuestos + dashboard + patrimonio básico | Alta | T-004 | PENDIENTE |
-| T-006 | Inversiones básicas (carteras, activos, compras/ventas, precios manuales) | Alta | T-005 | PENDIENTE |
+| T-006 | Inversiones básicas (carteras, activos, compras/ventas, precios manuales) | Alta | T-005 | EN CURSO (rama codex/t-006-movimientos) |
 | T-007 | Primer APK verificado con tests (Fase 5) | Alta | T-006 | PENDIENTE |
 
 ## 5. TAREA ACTUAL
@@ -61,10 +61,10 @@ Repo con estructura Claude/Codex (CLAUDE.md, AGENTS.md, docs/tasks/TEMPLATE.md, 
 Base de las ramas codex: `claude/fase-3-mvp`. Cada tarea es dueña de su carpeta `ui/<feature>/` y de su `res/values/strings_<feature>.xml`; la navegación (MiPatrimonioApp.kt, MainActivity.kt) la integra Claude.
 | Ficha | Alcance | Estado |
 |---|---|---|
-| T-006 | Movimientos (lista, filtros, formularios ingreso/gasto y transferencia) | PENDIENTE |
+| T-006 | Movimientos (lista, filtros, formularios ingreso/gasto y transferencia) | EN CURSO (rama codex/t-006-movimientos) |
 | T-007 | Presupuestos | PENDIENTE |
-| T-008 | Inversiones | PENDIENTE |
-| T-009 | Ajustes, cuentas y categorías | PENDIENTE |
+| T-008 | Inversiones | EN CURSO (rama codex/t-008-inversiones) |
+| T-009 | Ajustes, cuentas y categorías | EN CURSO (rama codex/t-009-ajustes) |
 | T-010 | Gráficos Canvas (línea, barras, donut) | PENDIENTE |
 | T-011 | Inicio (dashboard) — depende de T-010 | PENDIENTE |
 | T-012 | Patrimonio — depende de T-010 | PENDIENTE |
