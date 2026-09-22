@@ -13,6 +13,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -40,6 +42,8 @@ import com.mipatrimonio.app.ui.common.appViewModel
 fun SettingsScreen(
     onOpenAccounts: () -> Unit,
     onOpenCategories: () -> Unit,
+    onOpenNotificationSettings: () -> Unit,
+    onOpenPendingProposals: () -> Unit,
     viewModel: SettingsViewModel = appViewModel { c -> SettingsViewModel(c.settings) },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -71,6 +75,16 @@ fun SettingsScreen(
                     label = stringResource(R.string.aj_categories),
                     icon = { Icon(Icons.Default.Category, contentDescription = null) },
                     onClick = onOpenCategories,
+                )
+                SettingsNavigationRow(
+                    label = stringResource(R.string.aj_bank_notifications),
+                    icon = { Icon(Icons.Default.Notifications, contentDescription = null) },
+                    onClick = onOpenNotificationSettings,
+                )
+                SettingsNavigationRow(
+                    label = stringResource(R.string.aj_pending_proposals),
+                    icon = { Icon(Icons.Default.Schedule, contentDescription = null) },
+                    onClick = onOpenPendingProposals,
                 )
             }
         }

@@ -31,6 +31,8 @@ object Rutas {
     const val NUEVO = "nuevo"
     const val CUENTAS = "cuentas"
     const val CATEGORIAS = "categorias"
+    const val NOTIFICACIONES = "notificaciones"
+    const val PROPUESTAS = "propuestas"
     const val MOVIMIENTO = "movimiento/{id}"
     const val TRANSFERENCIA = "transferencia/{id}"
 

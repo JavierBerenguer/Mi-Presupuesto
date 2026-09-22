@@ -5,8 +5,9 @@
 - Fase actual: FASES 3, 4 y 5 COMPLETADAS y verificadas en emulador. En marcha FASE 8 parcial y FASE 6 (ambas delegadas a Codex bajo el nuevo modelo de delegación supervisada, CLAUDE.md §34).
 - Última tarea completada: T-015 (parser CSV + adaptador Trade Republic), aceptada e integrada en `claude/fase-3-mvp` (commit ac0c6ac) tras verificación independiente de Claude (20 tests OK, BUILD SUCCESSFUL)
 - Última tarea completada: T-016 (motor de notificaciones bancarias: dominio + Room v2), aceptada e integrada en `claude/fase-3-mvp` tras verificación independiente (19 tests OK, BUILD SUCCESSFUL)
-- Tarea en curso: T-017 (Codex, NotificationListenerService + permiso + UI de apps autorizadas y propuestas pendientes) — lanzada
-- Próxima tarea: revisar T-017 cuando termine; instalar y probar el flujo con notificaciones sintéticas en el emulador; pedir autorización al usuario para fusionar `claude/fase-3-mvp` a `main`
+- Última tarea completada: T-017 (NotificationListenerService + permiso + UI de apps autorizadas y propuestas pendientes), aceptada tras una corrección de un bug real de concurrencia, integrada en `claude/fase-3-mvp` (154 tests OK, BUILD SUCCESSFUL)
+- Tarea en curso: prueba manual del flujo de notificaciones bancarias en el emulador con notificación sintética
+- Próxima tarea: verificar visualmente en el emulador; después decidir con el usuario sobre fusionar `claude/fase-3-mvp` a `main` o seguir con más fases (recurrentes, dividendos UI, importación CSV con UI real)
 - Estado de compilación: `./gradlew.bat assembleDebug testDebugUnitTest` → BUILD SUCCESSFUL (2026-09-22, sesión 4)
 - Última prueba ejecutada: suite unitaria completa OK + **verificación manual en emulador Android 15 (API 35)**: la app arranca sin crashes y los flujos de cuentas, movimientos, presupuestos, inversiones y patrimonio funcionan con datos reales (ver sección 18)
 - Último APK generado: app/build/outputs/apk/debug/app-debug.apk (MVP completo, instalado y ejecutado en emulador) — ver secciones 8 y 18
@@ -261,3 +262,9 @@ Reparto (respeta §34 y la regla de concurrencia: un Codex + un Claude a la vez)
 - Causa: `NotificationSettingsViewModel.setAuthorized`/`setAccount` leían el campo no modificado desde `uiState.value` (foto cacheada de un `StateFlow` con `WhileSubscribed(5_000)`), que puede quedar obsoleta y provocar que cambiar la cuenta desautorice sin querer, o viceversa. Condición de carrera real, no solo un artefacto de test.
 - Corrección pedida (sin nueva ficha, mismo worktree/rama `codex/t-017-notification-ui`): dos funciones nuevas en `NotificationRepository` (`updateAuthorized`, `updateAccount`) que leen el campo no tocado de la base de datos dentro de la misma transacción, no de la caché de UI. Detalle completo en `docs/tasks/T-017.md` → «Revisión de Claude».
 - Relanzado a Codex en el mismo worktree para aplicar la corrección.
+
+## 24. T-017 — Corrección aplicada y aceptada (sesión 4)
+- Codex aplicó exactamente la corrección pedida en la sección 23 (`updateAuthorized`/`updateAccount` leen de Room, no de `uiState.value`). Su sandbox no pudo ni descargar Gradle para verificar.
+- Verificación independiente de Claude: `testDebugUnitTest --rerun` → 154 tests, 0 fallos (tarea realmente ejecutada, no cacheada); `assembleDebug` OK. Repetido en el repositorio principal tras integrar los 17 archivos → BUILD SUCCESSFUL.
+- **T-017 ACEPTADA e integrada en `claude/fase-3-mvp`.** FASE 6 (CLAUDE.md §13) completa a nivel de código: motor + persistencia (T-016) + `NotificationListenerService` + permiso + UI de apps autorizadas y propuestas pendientes (T-017).
+- Pendiente inmediato: instalar el APK en el emulador y probar el flujo real con una notificación sintética (`adb shell cmd notification post`), como exige CLAUDE.md §13 («Implementa pruebas con notificaciones sintéticas»).

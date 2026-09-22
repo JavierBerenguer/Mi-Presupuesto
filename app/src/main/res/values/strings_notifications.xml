@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notif_settings_title">Notificaciones bancarias</string>
+    <string name="notif_proposals_title">Propuestas pendientes</string>
+    <string name="notif_access_title">Acceso a notificaciones</string>
+    <string name="notif_access_explanation">Si activas el acceso, Mi Patrimonio podrá leer localmente las notificaciones de las aplicaciones bancarias que autorices para proponerte movimientos. Nunca se registran automáticamente ni se envía nada fuera de tu dispositivo. Los formatos pueden variar y siempre debes revisar cada propuesta.</string>
+    <string name="notif_access_enabled">Acceso concedido</string>
+    <string name="notif_access_disabled">Acceso no concedido</string>
+    <string name="notif_enable_access">Abrir ajustes para activar</string>
+    <string name="notif_manage_access">Gestionar acceso en Android</string>
+    <string name="notif_access_required">La aplicación funciona sin este acceso. Si quieres recibir propuestas, actívalo voluntariamente desde los ajustes de Android.</string>
+    <string name="notif_no_known_apps">Todavía no hay aplicaciones conocidas. Aparecerán aquí cuando recibas una notificación con el acceso concedido; inicialmente estarán desautorizadas.</string>
+    <string name="notif_linked_account">Cuenta asociada (opcional)</string>
+    <string name="notif_no_linked_account">Sin cuenta asociada</string>
+    <string name="notif_linked_account_inactive">La cuenta asociada ya no está activa. Elige otra cuenta o deja la asociación vacía.</string>
+
+    <string name="notif_no_pending_proposals">No hay propuestas pendientes</string>
+    <string name="notif_unknown_merchant">Comercio no identificado</string>
+    <string name="notif_confidence">Confianza: %1$s</string>
+    <string name="notif_confidence_high">alta</string>
+    <string name="notif_confidence_medium">media</string>
+    <string name="notif_confidence_low">baja</string>
+    <string name="notif_kind_expense">Gasto</string>
+    <string name="notif_kind_income">Ingreso</string>
+    <string name="notif_kind_transfer">Transferencia</string>
+    <string name="notif_confirm">Confirmar</string>
+    <string name="notif_discard">Descartar</string>
+    <string name="notif_transfer_manual">No se puede saber si esta transferencia es entre cuentas propias. Descártala y regístrala manualmente si corresponde.</string>
+    <string name="notif_discard_title">Descartar propuesta</string>
+    <string name="notif_discard_message">Esta propuesta se descartará de forma irreversible. No se eliminará ningún movimiento real.</string>
+    <string name="notif_select_account_title">Seleccionar cuenta</string>
+    <string name="notif_select_account_message">Elige una cuenta activa antes de confirmar esta propuesta.</string>
+    <string name="notif_account">Cuenta</string>
+    <string name="notif_select_account">Selecciona una cuenta</string>
+    <string name="notif_account_required">Debes seleccionar una cuenta activa.</string>
+    <string name="notif_no_active_accounts">No hay cuentas activas disponibles. Crea o restaura una cuenta antes de confirmar.</string>
+    <string name="notif_operation_error">No se ha podido completar la operación.</string>
+</resources>

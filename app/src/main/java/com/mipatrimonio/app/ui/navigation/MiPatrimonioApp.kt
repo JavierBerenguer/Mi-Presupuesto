@@ -33,6 +33,8 @@ import com.mipatrimonio.app.ui.movements.TransferFormScreen
 import com.mipatrimonio.app.ui.networth.NetWorthScreen
 import com.mipatrimonio.app.ui.settings.AccountsScreen
 import com.mipatrimonio.app.ui.settings.CategoriesScreen
+import com.mipatrimonio.app.ui.settings.NotificationSettingsScreen
+import com.mipatrimonio.app.ui.settings.PendingProposalsScreen
 import com.mipatrimonio.app.ui.settings.SettingsScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -100,6 +102,8 @@ private fun titleFor(route: String?, isEditing: Boolean, destino: Destino?): Int
     destino != null -> destino.titulo
     route == Rutas.CUENTAS -> R.string.nav_cuentas
     route == Rutas.CATEGORIAS -> R.string.nav_categorias
+    route == Rutas.NOTIFICACIONES -> R.string.notif_settings_title
+    route == Rutas.PROPUESTAS -> R.string.notif_proposals_title
     route == Rutas.MOVIMIENTO -> if (isEditing) R.string.nav_editar_movimiento else R.string.nav_nuevo_movimiento
     route == Rutas.TRANSFERENCIA -> if (isEditing) R.string.nav_editar_transferencia else R.string.nav_nueva_transferencia
     else -> R.string.app_name
@@ -131,10 +135,14 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
             SettingsScreen(
                 onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
                 onOpenCategories = { navController.navigate(Rutas.CATEGORIAS) },
+                onOpenNotificationSettings = { navController.navigate(Rutas.NOTIFICACIONES) },
+                onOpenPendingProposals = { navController.navigate(Rutas.PROPUESTAS) },
             )
         }
         composable(Rutas.CUENTAS) { AccountsScreen() }
         composable(Rutas.CATEGORIAS) { CategoriesScreen() }
+        composable(Rutas.NOTIFICACIONES) { NotificationSettingsScreen() }
+        composable(Rutas.PROPUESTAS) { PendingProposalsScreen() }
         composable(Rutas.MOVIMIENTO, idArg) { entry ->
             TransactionFormScreen(transactionId = idOf(entry), onDone = { navController.popBackStack() })
         }

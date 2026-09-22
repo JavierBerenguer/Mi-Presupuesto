@@ -29,6 +29,21 @@ class NotificationRepository(
     val pendingProposals: Flow<List<PendingProposal>> =
         notificationDao.observePendingProposals().map { proposals -> proposals.map { it.toDomain() } }
 
+    suspend fun ensureKnown(packageName: String) = db.withTransaction {
+        val normalizedPackageName = packageName.trim()
+        require(normalizedPackageName.isNotEmpty()) { "El paquete de la aplicación es obligatorio" }
+        if (notificationDao.getAuthorizationRule(normalizedPackageName) == null) {
+            notificationDao.upsertAuthorizationRule(
+                NotificationAuthorizationEntity(
+                    packageName = normalizedPackageName,
+                    authorized = false,
+                    accountId = null,
+                    createdAt = clock(),
+                ),
+            )
+        }
+    }
+
     suspend fun setAuthorized(packageName: String, authorized: Boolean, accountId: String?) = db.withTransaction {
         val normalizedPackageName = packageName.trim()
         require(normalizedPackageName.isNotEmpty()) { "El paquete de la aplicación es obligatorio" }
@@ -42,6 +57,17 @@ class NotificationRepository(
                 createdAt = existing?.createdAt ?: clock(),
             ),
         )
+    }
+
+    suspend fun updateAuthorized(packageName: String, authorized: Boolean) = db.withTransaction {
+        val existing = notificationDao.getAuthorizationRule(packageName) ?: return@withTransaction
+        notificationDao.upsertAuthorizationRule(existing.copy(authorized = authorized))
+    }
+
+    suspend fun updateAccount(packageName: String, accountId: String?) = db.withTransaction {
+        val existing = notificationDao.getAuthorizationRule(packageName) ?: return@withTransaction
+        val normalized = accountId?.trim()?.takeIf { it.isNotEmpty() }
+        notificationDao.upsertAuthorizationRule(existing.copy(accountId = normalized))
     }
 
     suspend fun ingest(notification: BankNotification): NotificationOutcome = db.withTransaction {

@@ -64,6 +64,34 @@ class NotificationRepositoryTest {
     }
 
     @Test
+    fun `ensureKnown crea una regla no autorizada para un paquete nuevo`() = runBlocking<Unit> {
+        repository.ensureKnown(PACKAGE)
+
+        val rule = repository.authorizationRules.first().single()
+        assertEquals(PACKAGE, rule.packageName)
+        assertTrue(!rule.authorized)
+        assertNull(rule.accountId)
+        assertEquals(10_000L, rule.createdAt)
+    }
+
+    @Test
+    fun `ensureKnown conserva reglas existentes autorizadas y no autorizadas`() = runBlocking<Unit> {
+        repository.setAuthorized(PACKAGE, true, "account-1")
+        repository.setAuthorized(OTHER_PACKAGE, false, "account-2")
+
+        repository.ensureKnown(PACKAGE)
+        repository.ensureKnown(OTHER_PACKAGE)
+
+        val rules = repository.authorizationRules.first().associateBy { it.packageName }
+        assertEquals(true, rules.getValue(PACKAGE).authorized)
+        assertEquals("account-1", rules.getValue(PACKAGE).accountId)
+        assertEquals(false, rules.getValue(OTHER_PACKAGE).authorized)
+        assertEquals("account-2", rules.getValue(OTHER_PACKAGE).accountId)
+        assertEquals(10_000L, rules.getValue(PACKAGE).createdAt)
+        assertEquals(10_001L, rules.getValue(OTHER_PACKAGE).createdAt)
+    }
+
+    @Test
     fun `ingest persiste propuesta sin texto ni cuenta y deduplica`() = runBlocking<Unit> {
         repository.setAuthorized(PACKAGE, true, null)
         val notification = BankNotification(PACKAGE, "Aviso", "Compra de 12,50 € en Mercado", 100_000L)
@@ -184,5 +212,6 @@ class NotificationRepositoryTest {
 
     private companion object {
         const val PACKAGE = "app.bank"
+        const val OTHER_PACKAGE = "app.other.bank"
     }
 }
