@@ -28,11 +28,10 @@ Repo con estructura Claude/Codex (CLAUDE.md, AGENTS.md, docs/tasks/TEMPLATE.md, 
 
 | ID | Objetivo | Prioridad | Dependencias | Estado |
 |---|---|---|---|---|
-| T-003 | Dominio: `Money`/redondeo/divisa, entidades y reglas de saldo; esquema Room v1 (cuentas, categorías, movimientos, transferencias) con tests | Alta | T-002 | PENDIENTE |
-| T-004 | Pantallas MVP (cuentas, movimientos, categorías) — delegable a Codex con ficha | Alta | T-003 | PENDIENTE |
-| T-005 | Presupuestos + dashboard + patrimonio básico | Alta | T-004 | PENDIENTE |
-| T-006 | Inversiones básicas (carteras, activos, compras/ventas, precios manuales) | Alta | T-005 | EN CURSO (rama codex/t-006-movimientos) |
-| T-007 | Primer APK verificado con tests (Fase 5) | Alta | T-006 | PENDIENTE |
+| T-006…T-012 | UI delegada a Codex (ver sección 6, «Reparto de la UI con Codex») | Alta | T-005 | EN CURSO (T-006, T-008, T-009, T-010 lanzadas; T-007 pendiente de lanzar por RAM; T-011/T-012 esperan a T-010) |
+| T-013 | (Claude) revisar diffs, integrar ramas codex, navegación (MiPatrimonioApp/MainActivity/tema desde ajustes), tests + assembleDebug | Alta | T-006…T-012 | PENDIENTE |
+| T-014 | Primer APK verificado (Fase 5) + documentación README/ARCHITECTURE/ROADMAP | Alta | T-013 | PENDIENTE |
+| Fases 6-10 | Notificaciones bancarias, recurrentes, dividendos UI, multidivisa real, objetivos, importación/exportación, copias cifradas, cotizaciones, Supabase | Media | Primer APK | PENDIENTE (post-versión inicial) |
 
 ## 5. TAREA ACTUAL
 
@@ -122,3 +121,8 @@ Base de las ramas codex: `claude/fase-3-mvp`. Cada tarea es dueña de su carpeta
 
 - 2026-09-22 (sesión 1): FASE 0, T-000; se crea PROJECT_MEMORY.md; inicio de T-001 (JDK).
 - 2026-09-22 (sesión 2): estado real == memoria; T-001 completada (SDK); T-002 completada (proyecto base + primer APK de esqueleto). Errores E-001…E-003 corregidos. Próxima acción: T-003.
+
+## 13. NOTAS OPERATIVAS DE DELEGACIÓN (Codex)
+- Lanzar: PowerShell con `JAVA_HOME`, `ANDROID_HOME` y PATH definidos y `.\scripts\delegate-codex.ps1 -Task T-XXX -Slug <slug> -Base claude/fase-3-mvp` (el script usa `main` por defecto: hay que pasar `-Base`). Worktrees en `C:\Users\Usuario\Desktop\worktrees\<t-xxx-slug>`; informes en `docs/tasks/T-XXX.report.md` del repo principal.
+- La máquina tiene 15 GB de RAM: como mucho 3-4 Codex/Gradle a la vez; parar mis daemons con `./gradlew.bat --stop` antes de lanzar tandas.
+- Un Codex nuevo hereda las fichas solo si están commiteadas en la rama base.
