@@ -126,3 +126,7 @@ Base de las ramas codex: `claude/fase-3-mvp`. Cada tarea es dueña de su carpeta
 - Lanzar: PowerShell con `JAVA_HOME`, `ANDROID_HOME` y PATH definidos y `.\scripts\delegate-codex.ps1 -Task T-XXX -Slug <slug> -Base claude/fase-3-mvp` (el script usa `main` por defecto: hay que pasar `-Base`). Worktrees en `C:\Users\Usuario\Desktop\worktrees\<t-xxx-slug>`; informes en `docs/tasks/T-XXX.report.md` del repo principal.
 - La máquina tiene 15 GB de RAM: como mucho 3-4 Codex/Gradle a la vez; parar mis daemons con `./gradlew.bat --stop` antes de lanzar tandas.
 - Un Codex nuevo hereda las fichas solo si están commiteadas en la rama base.
+
+## 14. DECISIONES/HALLAZGOS POSTERIORES
+- 2026-09-22: el usuario aportó `datos-privados/trade-republic-exportacion.csv` (465 filas; ignorado por git vía `.gitignore`, nunca commitear). Hallazgos en ARCHITECTURE.md («Importación de Trade Republic»): `transaction_id` único = clave de deduplicación; `BUY PRIVATE_FUND` sin importe + `PRIVATE_MARKET_BUY` como salida de caja (no duplicar); MCC en tarjetas.
+- Carencia de diseño (D-006, pendiente para Fase 7/8): operaciones de inversión sin cuenta de financiación → añadir `fundingAccountId` opcional (migración Room v2) y derivar el efecto en saldos. No se cambia en el MVP para no alterar el esquema v1 mientras Codex trabaja sobre él.

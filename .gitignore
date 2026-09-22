@@ -22,3 +22,6 @@ supabase.properties
 
 # Informes de delegación (opcional: quítalo si quieres versionarlos)
 docs/tasks/*.report.md
+
+# Datos financieros reales del usuario: nunca se suben a GitHub
+datos-privados/

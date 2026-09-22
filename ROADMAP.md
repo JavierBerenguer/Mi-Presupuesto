@@ -19,4 +19,4 @@ Leyenda: ✅ completado y verificado · 🔄 en curso · ⏳ pendiente
 ## Funcionalidades bloqueadas o dependientes de decisiones
 - APK de distribución firmado: requiere que el usuario cree/aporte el keystore.
 - Cotizaciones y Supabase: requieren elegir proveedor/credenciales; el sistema sigue funcionando con precios manuales.
-- Importación de Trade Republic: el CSV de ejemplo mencionado en `Claude.md` no está en el repositorio. Hay tres archivos «Exportación de transacción» en `Descargas\Telegram Desktop` que probablemente lo sean; se inspeccionarán en la Fase 8 (contienen datos personales: no se versionarán) para diseñar el adaptador.
+- Importación de Trade Republic: CSV de ejemplo aportado en `datos-privados/` (ignorado por git). Hallazgos y trampas en ARCHITECTURE.md; requiere antes la carencia de diseño «operaciones de inversión sin cuenta de financiación».
