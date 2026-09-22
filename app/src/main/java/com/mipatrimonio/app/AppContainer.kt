@@ -5,7 +5,10 @@ import android.content.Context
 import com.mipatrimonio.app.data.db.AppDatabase
 import com.mipatrimonio.app.data.repository.InvestmentRepository
 import com.mipatrimonio.app.data.repository.LedgerRepository
+import com.mipatrimonio.app.data.repository.NotificationRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
+import com.mipatrimonio.app.domain.notifications.GenericSpanishParser
+import com.mipatrimonio.app.domain.notifications.NotificationEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -17,6 +20,7 @@ class AppContainer(context: Context) {
     val ledger = LedgerRepository(database)
     val investments = InvestmentRepository(database)
     val settings = SettingsRepository(context.applicationContext)
+    val notifications = NotificationRepository(database, NotificationEngine(listOf(GenericSpanishParser())))
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 

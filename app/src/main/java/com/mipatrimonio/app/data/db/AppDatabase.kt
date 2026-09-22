@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.mipatrimonio.app.data.db.migrations.MIGRATION_1_2
 
 @Database(
     entities = [
@@ -16,8 +17,10 @@ import androidx.room.RoomDatabase
         AssetEntity::class,
         InvestmentOperationEntity::class,
         AssetPriceEntity::class,
+        NotificationAuthorizationEntity::class,
+        PendingProposalEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -27,12 +30,15 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun transferDao(): TransferDao
     abstract fun budgetDao(): BudgetDao
     abstract fun investmentDao(): InvestmentDao
+    abstract fun notificationDao(): NotificationDao
 
     companion object {
         const val NAME = "mi_patrimonio.db"
 
         /** Las migraciones futuras se añaden con `.addMigrations(...)`; nunca `fallbackToDestructiveMigration`. */
         fun create(context: Context): AppDatabase =
-            Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, NAME).build()
+            Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, NAME)
+                .addMigrations(MIGRATION_1_2)
+                .build()
     }
 }

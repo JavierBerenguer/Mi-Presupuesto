@@ -4,8 +4,9 @@
 
 - Fase actual: FASES 3, 4 y 5 COMPLETADAS y verificadas en emulador. En marcha FASE 8 parcial y FASE 6 (ambas delegadas a Codex bajo el nuevo modelo de delegación supervisada, CLAUDE.md §34).
 - Última tarea completada: T-015 (parser CSV + adaptador Trade Republic), aceptada e integrada en `claude/fase-3-mvp` (commit ac0c6ac) tras verificación independiente de Claude (20 tests OK, BUILD SUCCESSFUL)
-- Tarea en curso: T-016 (Codex, FASE 6: motor de notificaciones — dominio + Room, riesgo alto) — ver sección 19
-- Próxima tarea: revisar el diff de T-016 cuando termine Codex; después T-017 (NotificationListenerService + UI, depende de T-016); pedir autorización al usuario para fusionar `claude/fase-3-mvp` a `main`
+- Última tarea completada: T-016 (motor de notificaciones bancarias: dominio + Room v2), aceptada e integrada en `claude/fase-3-mvp` tras verificación independiente (19 tests OK, BUILD SUCCESSFUL)
+- Tarea en curso: ninguna
+- Próxima tarea: escribir y lanzar T-017 (NotificationListenerService + permiso + UI de apps autorizadas y propuestas pendientes, depende de T-016); pedir autorización al usuario para fusionar `claude/fase-3-mvp` a `main`
 - Estado de compilación: `./gradlew.bat assembleDebug testDebugUnitTest` → BUILD SUCCESSFUL (2026-09-22, sesión 4)
 - Última prueba ejecutada: suite unitaria completa OK + **verificación manual en emulador Android 15 (API 35)**: la app arranca sin crashes y los flujos de cuentas, movimientos, presupuestos, inversiones y patrimonio funcionan con datos reales (ver sección 18)
 - Último APK generado: app/build/outputs/apk/debug/app-debug.apk (MVP completo, instalado y ejecutado en emulador) — ver secciones 8 y 18
@@ -226,7 +227,9 @@ Reparto (respeta §34 y la regla de concurrencia: un Codex + un Claude a la vez)
 - **Discrepancia con la nota anterior de esta misma sección**: se dijo que el código parcial de `domain/notifications/` (dos archivos escritos directamente por Claude antes del cambio de política) se conservaría sin modificar. En este turno, antes de leer esa nota, Claude los borró (no estaban commiteados) al alinear su propio trabajo con el nuevo CLAUDE.md. No hay pérdida funcional: `docs/tasks/T-016.md` redefine los contratos de cero, de forma más completa (modelos, motor con deduplicación por huella + ventana de 5 min, migración Room 1→2 aditiva, repositorio), así que no se ha intentado recuperar el código borrado.
 - Ficha: `docs/tasks/T-016.md`, riesgo alto (zona de control reforzado: `domain/` y Room), rama `codex/t-016-notification-engine`, base `claude/fase-3-mvp`. Alcance: solo dominio + persistencia (sin `NotificationListenerService` ni UI, eso será T-017 dependiente).
 - Invariantes fijadas por Claude: nunca se crea un movimiento automáticamente (solo propuesta pendiente); no se persiste texto completo ni contenido sensible; Room sube a v2 solo añadiendo tablas, migración explícita sin `fallbackToDestructiveMigration`; sin declarar compatibilidad con bancos reales, solo intérprete genérico en español.
-- Lanzada a Codex en segundo plano (worktree `..\worktrees\t-016-notification-engine`). Pendiente de revisión cuando termine.
+- Lanzada a Codex en segundo plano (worktree `..\worktrees\t-016-notification-engine`).
+- **ACEPTADA (2026-09-22)**: Codex dejó los archivos sin commitear (sandbox sin red, verificó con `kotlinc`+JUnit directo, 14 tests). Verificación independiente de Claude con Gradle real: 19 tests OK (incluido `NotificationRepositoryTest` con Robolectric+Room, que Codex no pudo ejecutar), `assembleDebug` OK, migración 1→2 puramente aditiva revisada línea a línea, `1.json` sin cambios (verificado byte a byte), filtro de contenido sensible revisado con prioridad correcta. Integrada en `claude/fase-3-mvp`. Detalle completo en `docs/tasks/T-016.md` («Revisión de Claude»).
+- Pendiente: T-017 (NotificationListenerService, permiso de notificaciones, pantalla de apps autorizadas y de propuestas pendientes), depende de T-016.
 
 ## 20. CAMBIO DEL MODELO DE DELEGACIÓN (2026-09-22) — COMPLETADO
 

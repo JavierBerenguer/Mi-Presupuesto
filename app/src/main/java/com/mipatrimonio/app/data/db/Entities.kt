@@ -147,3 +147,31 @@ data class AssetPriceEntity(
     val asOfEpochMillis: Long,
     val source: String,
 )
+
+@Entity(tableName = "notification_authorization")
+data class NotificationAuthorizationEntity(
+    @PrimaryKey val packageName: String,
+    val authorized: Boolean,
+    val accountId: String?,
+    val createdAt: Long,
+)
+
+@Entity(
+    tableName = "pending_proposal",
+    indices = [Index("status"), Index("postedAt")],
+)
+data class PendingProposalEntity(
+    @PrimaryKey val id: String,
+    val packageName: String,
+    val accountId: String?,
+    val kind: String,
+    val amountMinor: Long,
+    val currency: String,
+    val merchant: String?,
+    val confidence: String,
+    val parserId: String,
+    val postedAt: Long,
+    val status: String,
+    val resultingTransactionId: String?,
+    val createdAt: Long,
+)

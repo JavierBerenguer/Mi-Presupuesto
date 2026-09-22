@@ -106,3 +106,33 @@ interface InvestmentDao {
     @Upsert
     suspend fun upsertPrice(entity: AssetPriceEntity)
 }
+
+@Dao
+interface NotificationDao {
+    @Query("SELECT * FROM notification_authorization ORDER BY createdAt, packageName")
+    fun observeAuthorizationRules(): Flow<List<NotificationAuthorizationEntity>>
+
+    @Query("SELECT * FROM notification_authorization WHERE authorized = 1")
+    suspend fun getAuthorizedRules(): List<NotificationAuthorizationEntity>
+
+    @Query("SELECT * FROM notification_authorization WHERE packageName = :packageName")
+    suspend fun getAuthorizationRule(packageName: String): NotificationAuthorizationEntity?
+
+    @Upsert
+    suspend fun upsertAuthorizationRule(entity: NotificationAuthorizationEntity)
+
+    @Query("SELECT * FROM pending_proposal WHERE status = 'PENDIENTE' ORDER BY postedAt DESC, createdAt DESC")
+    fun observePendingProposals(): Flow<List<PendingProposalEntity>>
+
+    @Query("SELECT * FROM pending_proposal WHERE postedAt BETWEEN :fromInclusive AND :toInclusive")
+    suspend fun getProposalsBetween(fromInclusive: Long, toInclusive: Long): List<PendingProposalEntity>
+
+    @Upsert
+    suspend fun upsertProposal(entity: PendingProposalEntity)
+
+    @Query(
+        "UPDATE pending_proposal SET status = :status, resultingTransactionId = :resultingTransactionId " +
+            "WHERE id = :id AND status = 'PENDIENTE'",
+    )
+    suspend fun updatePendingStatus(id: String, status: String, resultingTransactionId: String?): Int
+}
