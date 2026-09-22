@@ -5,6 +5,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -78,7 +79,13 @@ fun MiPatrimonioApp() {
                                 }
                             },
                             icon = { Icon(item.icono, contentDescription = null) },
-                            label = { Text(stringResource(item.titulo)) },
+                            label = {
+                                Text(
+                                    stringResource(item.titulo),
+                                    maxLines = 1,
+                                    style = MaterialTheme.typography.labelSmall,
+                                )
+                            },
                         )
                     }
                 }

@@ -6,9 +6,9 @@
 - Última tarea completada: T-002 (proyecto base Kotlin + Compose, compila y genera APK de depuración)
 - Tarea en curso: UI del MVP escrita directamente por Claude (decisión del usuario, 2026-09-22), en rama `claude/fase-3-mvp`; tareas Codex T-006/8/9/10 CANCELADAS (parcial en worktrees, solo consultable)
 - Próxima tarea: T-003 (diseño del dominio financiero y modelo Room; ver sección 11)
-- Estado de compilación: `./gradlew.bat assembleDebug` → BUILD SUCCESSFUL (2026-09-22)
-- Última prueba ejecutada: ninguna (aún no hay tests; solo dependencias JUnit/coroutines-test declaradas)
-- Último APK generado: app/build/outputs/apk/debug/app-debug.apk (esqueleto de navegación, sin lógica) — ver sección 8
+- Estado de compilación: `./gradlew.bat assembleDebug testDebugUnitTest` → BUILD SUCCESSFUL (2026-09-22, sesión 4)
+- Última prueba ejecutada: suite unitaria completa OK + **verificación manual en emulador Android 15 (API 35)**: la app arranca sin crashes y los flujos de cuentas, movimientos, presupuestos, inversiones y patrimonio funcionan con datos reales (ver sección 18)
+- Último APK generado: app/build/outputs/apk/debug/app-debug.apk (MVP completo, instalado y ejecutado en emulador) — ver secciones 8 y 18
 - Bloqueos actuales: ninguno
 
 ## 2. RESUMEN EJECUTIVO
@@ -145,3 +145,42 @@ Base de las ramas codex: `claude/fase-3-mvp`. Cada tarea es dueña de su carpeta
 ## 17. REGLA DE CONCURRENCIA DE AGENTES (usuario, 2026-09-22)
 - Como mucho **un Codex y un Claude a la vez**. Codex y Claude pueden trabajar simultáneamente entre sí, pero **nunca dos Codex ni dos Claude (subagentes incluidos) en paralelo**. Motivo: la tanda de 4 Codex saturó la RAM. Aplicar antes de cada `delegate-codex.ps1`: comprobar que no hay otro Codex en marcha.
 - Estado: UI de las secciones 6/8/9/10 traída desde los worktrees de Codex a `claude/fase-3-mvp` (compila; tests 76 OK) y pendiente de revisión; presupuestos, inicio, patrimonio y navegación por escribir por Claude.
+
+## 18. T-014 — Verificación en emulador (EN CURSO, 2026-09-22)
+- Estado previo verificado: `assembleDebug` OK y 103 tests OK (12 suites) en `claude/fase-3-mvp` (commit b579b33). La UI completa está integrada (5 secciones + ajustes + formularios). NUNCA se ha ejecutado la app: riesgo de fallos de arranque/runtime.
+- Plan: instalar emulator + system image x86_64 (android-35 google_apis) con sdkmanager (componentes del SDK; ~2 GB), crear AVD, instalar el APK, arrancar y revisar logcat; capturas con `adb exec-out screencap`.
+- Restricción: poca RAM libre (~1,4 GB): parar daemons Gradle, AVD con ≤2 GB.
+
+### 18.1. Progreso registrado (sesión 3, 2026-09-22)
+- COMPLETADO: `emulator` 37.1.11 y `system-images;android-35;google_apis;x86_64` instalados en el SDK.
+- COMPLETADO: AVD `mp_test` creado (aviso no fatal sobre `devices.xml` del system-image; no impide arrancar).
+- COMPLETADO (sesión anterior, no registrado entonces): emulador arrancado headless con swiftshader, APK instalado, app arrancada y captura obtenida. Ese resultado NO se volcó a este archivo antes de la interrupción.
+- DISCREPANCIA detectada al reanudar (sesión 4): `adb devices` vacío y ningún emulador en marcha; `emulator -list-avds` sí muestra `mp_test`. Es decir, el AVD persiste pero la ejecución anterior se perdió y su resultado no está verificado en este archivo.
+- Reanudación en curso: relanzar `mp_test`, reinstalar el APK de `claude/fase-3-mvp`, arrancar la app, revisar logcat (crashes/excepciones) y capturar pantalla, registrando el resultado real aquí.
+
+### 18.2. Ejecución real verificada (sesión 4, 2026-09-22)
+- Emulador `mp_test` arrancado headless (PID Windows 38272, `-memory 1536`, swiftshader): `boot_completed=1`, `emulator-5554`, Android 15 (API 35). RAM libre de partida 1,48 GB de 15,16 GB (Code 2,5 GB + claude 1,6 GB + brave 1,5 GB).
+- APK verificado al día (20,37 MB, 02:30:10 > último fuente `MiPatrimonioApp.kt` 02:30:04), es decir el de commit b579b33. `adb uninstall` + `adb install -r` → Success.
+- Arranque REAL: `am start com.mipatrimonio.app/.MainActivity` → PID 3296, `topResumedActivity=MainActivity`. **logcat sin FATAL/ANR/excepciones**. Solo avisos benignos: `base.dm` ausente (normal sin baseline profile en debug), `PackageConfigPersister`, `InputManager-JNI` del splash.
+- UI confirmada por captura: tema oscuro por defecto, textos en español, estado vacío con CTA, barra inferior con las 5 secciones.
+- Flujo funcional verificado: Inicio → Crear cuenta → Cuentas → Nueva cuenta → diálogo (Nombre, Tipo, Divisa, Saldo inicial con sufijo EUR y teclado numérico) → Guardar → la cuenta «Banco Principal · Cuenta corriente · EUR · 1.500,00 €» aparece en «Cuentas activas». Persistencia Room y formato es-ES (miles con punto, decimales con coma) correctos.
+- DEFECTO D-UI-001 detectado: en la barra de navegación inferior la etiqueta «Presupuestos» se parte en dos líneas («Presupuesto» / «s»). Pendiente de corregir.
+- Nota de método: `adb exec-out screencap -p > fichero` desde PowerShell CORROMPE el PNG (BOM/CRLF). Usar `adb shell screencap -p /sdcard/shot.png` + `adb pull`.
+- Dashboard con datos REALES verificado: Patrimonio neto 1.500,00 € con aviso «Patrimonio parcial: no incluye deudas», Dinero disponible 1.500,00 €, Inversiones 0,00 €, bloque «Este mes», «Sin presupuestos mensuales», selector de periodo (Mes/3/6/Año/Todo) y gráfico «Evolución del patrimonio» con punto real (22 sept, 1.500,00 €).
+- Movimientos: buscador, chips de filtro (Todos/Ingresos/Gastos/Transferencias), estado vacío y FAB. El menú del FAB deshabilita «Nueva transferencia» explicando «Necesitas al menos dos cuentas activas» (buen estado deshabilitado).
+- Formulario de movimiento verificado: selector Ingreso/Gasto, importe con sufijo EUR y teclado numérico, cuenta preseleccionada, categorías por defecto sembradas y FILTRADAS por tipo (Alimentación, Vivienda, Transporte, Ocio, Salud, Suscripciones…), fecha, descripción, comercio, notas.
+- **REGLA FINANCIERA VERIFICADA EN APP REAL**: gasto de 250,50 € (categoría Alimentación) → lista muestra «−250,50 €» en rojo; dashboard pasa a Patrimonio neto 1.249,50 €, Dinero disponible 1.249,50 €, Gastos del mes 250,50 €, Balance −250,50 €, y el gráfico refleja la caída. Precisión decimal exacta (céntimos Long), sin errores de coma flotante.
+- **PERSISTENCIA VERIFICADA**: `am force-stop` + reinicio (PID nuevo 3974) → los datos siguen intactos. Cumple el criterio «conservar los datos después de cerrar la aplicación».
+- DEFECTO D-UI-002 (menor, ABIERTO): inconsistencia tipográfica del signo negativo — la lista de movimientos usa «−» (U+2212) y el balance del dashboard usa «-» (guion). Baja prioridad.
+
+### 18.3. Presupuestos, inversiones y patrimonio verificados en app real (sesión 4)
+- **Presupuestos**: creado presupuesto global mensual de 300,00 €. La tarjeta muestra «Mensual · 1 sept 2026 – 30 sept 2026», barra ámbar, «⚠ Cerca del límite · 84 % consumido», «Gastado 250,50 € de 300,00 €», «Disponible: 49,50 €». Cálculo y umbral de aviso correctos (250,50/300 = 83,5 % → 84 %). El dashboard pasó a mostrar «Presupuesto restante del mes: 49,50 €».
+- **Inversiones**: cartera «Cartera Principal» + activo «Vanguard All-World · VWCE · EUR» (el formulario avisa «El ticker no identifica de forma única un activo») + compra de 10 a 100,00 € con 5,00 € de comisiones.
+  - Coste 1.005,00 € y precio medio 100,50 € → comisión capitalizada en el coste medio ponderado, **correcto**.
+  - Antes de fijar precio: «Sin cotización», Valor y Plusvalía = «No disponible», aviso ámbar «Activos sin cotización: Vanguard All-World». **No inventa precios**, tal y como exige CLAUDE.md §15.
+  - Tras precio manual 110,00 € (el diálogo advierte «Este precio se guardará manualmente, sin proveedor externo»): Valor 1.100,00 €, Plusvalía +95,00 € (+9,45 %), «Precio actual: 110,00 € · Actualizado hoy». Métrica etiquetada como «Rentabilidad simple no realizada (no ponderada por tiempo)».
+- **Patrimonio**: 2.349,50 € = 1.249,50 € efectivo + 1.100,00 € inversiones. Desglose con «Pasivos: No registrados» y explicación del carácter parcial. Donut por tipo de activo (Cuenta corriente 53 % / Inversiones 47 %), por divisa, por cuenta y por cartera. El gráfico histórico avisa «Las inversiones se valoran a coste en el histórico» y el punto de sept 26 (2.254,50 € = 1.249,50 + 1.005,00 de coste) es coherente con esa política.
+- **D-UI-001 CORREGIDO y verificado**: `MiPatrimonioApp.kt` — la etiqueta del `NavigationBarItem` pasa a `maxLines = 1` con `MaterialTheme.typography.labelSmall`. Verificado tras reinstalar: «Presupuestos» cabe en una línea, sin truncar, y las cinco etiquetas encajan. `assembleDebug` + `testDebugUnitTest` → BUILD SUCCESSFUL (41 s).
+- Criterios del MVP (CLAUDE.md §30) comprobados en dispositivo: instala, abre sin errores, crea cuentas, registra gastos, crea categorías (sembradas), configura presupuestos, muestra saldos correctos, registra inversiones manualmente, valora la cartera con precios manuales, calcula el patrimonio, muestra dashboard con datos reales y conserva los datos al cerrar. PENDIENTES de probar en app real: transferencia entre cuentas (requiere 2 cuentas), ingreso, edición/eliminación de movimientos, tema claro y ajustes.
+- Nota: la app no declara permiso INTERNET, por lo que el funcionamiento offline está garantizado por construcción.
+- Próxima acción exacta: crear una segunda cuenta y probar una transferencia (debe conservar el patrimonio total y no contabilizarse como gasto), y registrar un ingreso.
