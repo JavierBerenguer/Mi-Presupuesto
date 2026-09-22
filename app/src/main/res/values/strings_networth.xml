@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pat_empty">Tu patrimonio aparecerá aquí cuando registres cuentas e inversiones.</string>
+    <string name="pat_current">Patrimonio neto actual</string>
+    <string name="pat_breakdown">Desglose</string>
+    <string name="pat_cash">Efectivo y cuentas</string>
+    <string name="pat_investments">Inversiones (a valor de mercado)</string>
+    <string name="pat_liabilities">Pasivos</string>
+    <string name="pat_liabilities_none">No registrados</string>
+    <string name="pat_liabilities_note">Todavía no se gestionan deudas, por eso el patrimonio se muestra como parcial.</string>
+    <string name="pat_evolution">Evolución</string>
+    <string name="pat_evolution_note">Las inversiones se valoran a coste en el histórico.</string>
+    <string name="pat_evolution_desc">Gráfico de línea con la evolución del patrimonio neto.</string>
+    <string name="pat_no_data">Sin datos en este periodo.</string>
+    <string name="pat_by_type">Por tipo de activo</string>
+    <string name="pat_by_type_desc">Gráfico circular con el patrimonio por tipo de activo.</string>
+    <string name="pat_investments_label">Inversiones</string>
+    <string name="pat_by_currency">Por divisa</string>
+    <string name="pat_not_included">No incluido en el total: sin tipo de cambio</string>
+    <string name="pat_by_account">Por cuenta</string>
+    <string name="pat_by_portfolio">Por cartera</string>
+    <string name="pat_percent">%1$d %%</string>
+    <string name="pat_unpriced_count">%1$d activos sin cotización</string>
+    <string name="pat_no_accounts">Sin cuentas activas.</string>
+    <string name="pat_no_portfolios">Sin posiciones abiertas en carteras.</string>
+</resources>

@@ -45,4 +45,8 @@
     <string name="common_range_6m">6 meses</string>
     <string name="common_range_anio">Año</string>
     <string name="common_range_todo">Todo</string>
+
+    <string name="common_networth_partial">Patrimonio parcial: no incluye deudas.</string>
+    <string name="common_networth_excluded">No incluye importes en otras divisas sin tipo de cambio: %1$s.</string>
+    <string name="common_networth_unpriced">Sin cotización, no valorados: %1$s.</string>
 </resources>

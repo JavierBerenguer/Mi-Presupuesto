@@ -8,11 +8,10 @@
     <string name="nav_inversiones">Inversiones</string>
     <string name="nav_patrimonio">Patrimonio</string>
     <string name="nav_ajustes">Ajustes</string>
-
-    <string name="vacio_inicio">Aún no hay datos que mostrar. Crea una cuenta para empezar.</string>
-    <string name="vacio_movimientos">Todavía no has registrado movimientos.</string>
-    <string name="vacio_presupuestos">Todavía no has configurado presupuestos.</string>
-    <string name="vacio_inversiones">Todavía no has creado ninguna cartera.</string>
-    <string name="vacio_patrimonio">Tu patrimonio aparecerá aquí cuando registres cuentas e inversiones.</string>
-    <string name="vacio_ajustes">Los ajustes estarán disponibles próximamente.</string>
+    <string name="nav_cuentas">Cuentas</string>
+    <string name="nav_categorias">Categorías</string>
+    <string name="nav_nuevo_movimiento">Nuevo movimiento</string>
+    <string name="nav_editar_movimiento">Editar movimiento</string>
+    <string name="nav_nueva_transferencia">Nueva transferencia</string>
+    <string name="nav_editar_transferencia">Editar transferencia</string>
 </resources>

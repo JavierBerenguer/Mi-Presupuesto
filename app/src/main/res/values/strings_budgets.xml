@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pres_global">Presupuesto global</string>
+    <string name="pres_global_option">Global (todos los gastos)</string>
+    <string name="pres_category_path">%1$s › %2$s</string>
+    <string name="pres_empty">Todavía no has configurado presupuestos. Fija un límite mensual o anual para controlar tus gastos.</string>
+    <string name="pres_new">Nuevo presupuesto</string>
+    <string name="pres_edit">Editar presupuesto</string>
+    <string name="pres_period">Periodo</string>
+    <string name="pres_category">Categoría</string>
+    <string name="pres_limit">Límite</string>
+    <string name="pres_period_range">%1$s · %2$s – %3$s</string>
+    <string name="pres_level_ok">En orden</string>
+    <string name="pres_level_warning">Cerca del límite</string>
+    <string name="pres_level_over">Superado</string>
+    <string name="pres_percent">%1$d %% consumido</string>
+    <string name="pres_spent_of">Gastado %1$s de %2$s</string>
+    <string name="pres_available">Disponible: %1$s</string>
+    <string name="pres_over_by">Superado en %1$s</string>
+    <string name="pres_excluded">%1$d gastos en otra divisa no se han contabilizado.</string>
+    <string name="pres_delete_title">Eliminar presupuesto</string>
+    <string name="pres_delete_text">Se eliminará el presupuesto «%1$s». Tus movimientos no se modifican.</string>
+    <string name="pres_error_limit">Introduce un límite mayor que cero.</string>
+    <string name="pres_error_duplicate">Ya existe un presupuesto activo con esa categoría y ese periodo.</string>
+</resources>
