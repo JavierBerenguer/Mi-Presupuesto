@@ -4,7 +4,7 @@
 
 - Fase actual: FASE 3 (MVP financiero) + FASE 4 (inversiones básicas) + FASE 5 (primer APK)
 - Última tarea completada: T-002 (proyecto base Kotlin + Compose, compila y genera APK de depuración)
-- Tarea en curso: reparto de UI con Codex (T-006…T-012) e integración (T-013); ver sección 6
+- Tarea en curso: ninguna activa. T-006, T-008, T-009 y T-010 (Codex) INTERRUMPIDAS por falta de memoria; ver sección 15
 - Próxima tarea: T-003 (diseño del dominio financiero y modelo Room; ver sección 11)
 - Estado de compilación: `./gradlew.bat assembleDebug` → BUILD SUCCESSFUL (2026-09-22)
 - Última prueba ejecutada: ninguna (aún no hay tests; solo dependencias JUnit/coroutines-test declaradas)
@@ -28,7 +28,7 @@ Repo con estructura Claude/Codex (CLAUDE.md, AGENTS.md, docs/tasks/TEMPLATE.md, 
 
 | ID | Objetivo | Prioridad | Dependencias | Estado |
 |---|---|---|---|---|
-| T-006…T-012 | UI delegada a Codex (ver sección 6, «Reparto de la UI con Codex») | Alta | T-005 | EN CURSO (T-006, T-008, T-009, T-010 lanzadas; T-007 pendiente de lanzar por RAM; T-011/T-012 esperan a T-010) |
+| T-006…T-012 | UI delegada a Codex (ver sección 6, «Reparto de la UI con Codex») | Alta | T-005 | INTERRUMPIDAS T-006, T-008, T-009, T-010 (ver sección 15); T-007, T-011, T-012 sin lanzar |
 | T-013 | (Claude) revisar diffs, integrar ramas codex, navegación (MiPatrimonioApp/MainActivity/tema desde ajustes), tests + assembleDebug | Alta | T-006…T-012 | PENDIENTE |
 | T-014 | Primer APK verificado (Fase 5) + documentación README/ARCHITECTURE/ROADMAP | Alta | T-013 | PENDIENTE |
 | Fases 6-10 | Notificaciones bancarias, recurrentes, dividendos UI, multidivisa real, objetivos, importación/exportación, copias cifradas, cotizaciones, Supabase | Media | Primer APK | PENDIENTE (post-versión inicial) |
@@ -60,11 +60,11 @@ Repo con estructura Claude/Codex (CLAUDE.md, AGENTS.md, docs/tasks/TEMPLATE.md, 
 Base de las ramas codex: `claude/fase-3-mvp`. Cada tarea es dueña de su carpeta `ui/<feature>/` y de su `res/values/strings_<feature>.xml`; la navegación (MiPatrimonioApp.kt, MainActivity.kt) la integra Claude.
 | Ficha | Alcance | Estado |
 |---|---|---|
-| T-006 | Movimientos (lista, filtros, formularios ingreso/gasto y transferencia) | EN CURSO (rama codex/t-006-movimientos) |
+| T-006 | Movimientos (lista, filtros, formularios ingreso/gasto y transferencia) | INTERRUMPIDA (rama codex/t-006-movimientos; código parcial sin commitear en el worktree) |
 | T-007 | Presupuestos | PENDIENTE |
-| T-008 | Inversiones | EN CURSO (rama codex/t-008-inversiones) |
-| T-009 | Ajustes, cuentas y categorías | EN CURSO (rama codex/t-009-ajustes) |
-| T-010 | Gráficos Canvas (línea, barras, donut) | PENDIENTE |
+| T-008 | Inversiones | INTERRUMPIDA (rama codex/t-008-inversiones; parcial sin commitear) |
+| T-009 | Ajustes, cuentas y categorías | INTERRUMPIDA (rama codex/t-009-ajustes; parcial sin commitear) |
+| T-010 | Gráficos Canvas (línea, barras, donut) | INTERRUMPIDA (rama codex/t-010-graficos; parcial sin commitear) |
 | T-011 | Inicio (dashboard) — depende de T-010 | PENDIENTE |
 | T-012 | Patrimonio — depende de T-010 | PENDIENTE |
 | T-013 | (Claude) integración de navegación y tema, revisión de diffs, APK | PENDIENTE |
@@ -130,3 +130,10 @@ Base de las ramas codex: `claude/fase-3-mvp`. Cada tarea es dueña de su carpeta
 ## 14. DECISIONES/HALLAZGOS POSTERIORES
 - 2026-09-22: el usuario aportó `datos-privados/trade-republic-exportacion.csv` (465 filas; ignorado por git vía `.gitignore`, nunca commitear). Hallazgos en ARCHITECTURE.md («Importación de Trade Republic»): `transaction_id` único = clave de deduplicación; `BUY PRIVATE_FUND` sin importe + `PRIVATE_MARKET_BUY` como salida de caja (no duplicar); MCC en tarjetas.
 - Carencia de diseño (D-006, pendiente para Fase 7/8): operaciones de inversión sin cuenta de financiación → añadir `fundingAccountId` opcional (migración Room v2) y derivar el efecto en saldos. No se cambia en el MVP para no alterar el esquema v1 mientras Codex trabaja sobre él.
+
+## 15. INTERRUPCIÓN DE CODEX POR MEMORIA (2026-09-22 ~02:15)
+- Qué pasó: con 4 Codex + Gradle en paralelo, Claude Code detuvo las 4 tareas en segundo plano por memoria crítica (15 GB de RAM; ~0,5 GB libres). No es un fallo de las tareas. Instrucción del sistema: no relanzarlas por iniciativa propia; solo cuando el usuario lo pida.
+- Estado real (verificado): cada worktree en `C:\Users\Usuario\Desktop\worktrees\t-00X-*` conserva ficheros SIN commitear (T-006: ui/movements + strings_movements.xml; T-008: ui/investments + strings_investments.xml + tests; T-009: ui/settings + strings_settings.xml + tests; T-010: ui/common/charts + tests + `.gradle-local/` a ignorar). Sin informes `.report.md`. Nada ha llegado a `claude/fase-3-mvp`.
+- Compilación/tests de esas ramas: NO ejecutados ni verificados.
+- Cómo retomar: relanzar de UNO en UNO (o dos como mucho) con `delegate-codex.ps1` (el worktree y la rama ya existen y se reutilizan); revisar primero lo parcial (`git -C ..\worktrees\<t> status`) y decir en el prompt que continúe desde lo existente. Orden recomendado: T-010 (gráficos, desbloquea T-011/T-012), luego T-006, T-009, T-008, T-007. Cerrar antes otras apps pesadas; parar daemons con `gradlew --stop`.
+- Riesgo pendiente: el resto de tareas depende de estas; el primer APK con UI real está bloqueado hasta entonces. Alternativa si se prefiere: implementar la UI directamente por Claude (más lento en tokens pero sin carga de RAM).
