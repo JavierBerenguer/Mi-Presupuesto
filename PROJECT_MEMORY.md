@@ -5,8 +5,8 @@
 - Fase actual: FASES 3, 4 y 5 COMPLETADAS y verificadas en emulador. En marcha FASE 8 parcial y FASE 6 (ambas delegadas a Codex bajo el nuevo modelo de delegación supervisada, CLAUDE.md §34).
 - Última tarea completada: T-015 (parser CSV + adaptador Trade Republic), aceptada e integrada en `claude/fase-3-mvp` (commit ac0c6ac) tras verificación independiente de Claude (20 tests OK, BUILD SUCCESSFUL)
 - Última tarea completada: T-016 (motor de notificaciones bancarias: dominio + Room v2), aceptada e integrada en `claude/fase-3-mvp` tras verificación independiente (19 tests OK, BUILD SUCCESSFUL)
-- Tarea en curso: ninguna
-- Próxima tarea: escribir y lanzar T-017 (NotificationListenerService + permiso + UI de apps autorizadas y propuestas pendientes, depende de T-016); pedir autorización al usuario para fusionar `claude/fase-3-mvp` a `main`
+- Tarea en curso: T-017 (Codex, NotificationListenerService + permiso + UI de apps autorizadas y propuestas pendientes) — lanzada
+- Próxima tarea: revisar T-017 cuando termine; instalar y probar el flujo con notificaciones sintéticas en el emulador; pedir autorización al usuario para fusionar `claude/fase-3-mvp` a `main`
 - Estado de compilación: `./gradlew.bat assembleDebug testDebugUnitTest` → BUILD SUCCESSFUL (2026-09-22, sesión 4)
 - Última prueba ejecutada: suite unitaria completa OK + **verificación manual en emulador Android 15 (API 35)**: la app arranca sin crashes y los flujos de cuentas, movimientos, presupuestos, inversiones y patrimonio funcionan con datos reales (ver sección 18)
 - Último APK generado: app/build/outputs/apk/debug/app-debug.apk (MVP completo, instalado y ejecutado en emulador) — ver secciones 8 y 18
@@ -249,3 +249,9 @@ Reparto (respeta §34 y la regla de concurrencia: un Codex + un Claude a la vez)
 - Resultado: la cadena de decisión queda incorporada en las responsabilidades de Claude, las instrucciones de Codex, la plantilla de fichas, el prompt del lanzador y el resumen del README. Los informes de Codex usarán una sección «Preguntas para Claude» y no contendrán consultas dirigidas al usuario.
 - Verificación: `git diff --check` sin errores (solo avisos LF/CRLF); búsqueda de las reglas de interlocución sin contradicciones activas; `scripts/delegate-codex.ps1` analizado con `System.Management.Automation.Language.Parser` sin errores.
 - Estado final: COMPLETADO. No se ejecutó Gradle porque no se modificó código, configuración de build ni recursos de la aplicación.
+
+## 22. T-017 — NotificationListenerService + UI (sesión 4, en curso)
+- Ficha: `docs/tasks/T-017.md`. Depende de T-016 (ya integrada). Riesgo alto: toca `AndroidManifest.xml`, `ui/navigation/` y crea el `NotificationListenerService`.
+- Decisiones cerradas por Claude: descubrimiento de apps candidatas SIN `QUERY_ALL_PACKAGES` (se registran solo paquetes que ya han notificado, vía `ensureKnown`, sin interpretar su texto hasta que el usuario las autorice); cuenta se vincula al autorizar, no al confirmar (con fallback a pedirla en el momento de confirmar si falta); las propuestas de tipo TRANSFERENCIA solo pueden descartarse en esta ficha (no se adivina cuenta destino); el servicio nunca usa `Log` con contenido de notificaciones; el permiso del sistema nunca se solicita automáticamente.
+- Alcance: nuevo paquete `notifications/` (servicio), dos pantallas nuevas en `ui/settings/`, una función nueva en `NotificationRepository` (`ensureKnown`), wiring mínimo en `SettingsScreen`/`Destino`/`MiPatrimonioApp`/`AndroidManifest`.
+- Lanzada a Codex en segundo plano (worktree `..\worktrees\t-017-notification-ui`).
