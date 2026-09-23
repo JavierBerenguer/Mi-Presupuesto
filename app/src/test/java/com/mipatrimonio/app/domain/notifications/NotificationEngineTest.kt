@@ -29,9 +29,18 @@ class NotificationEngineTest {
     }
 
     @Test
-    fun `texto no interpretable devuelve resultado especifico`() {
-        val outcome = engine.process(notification("Saldo 2,00 €"), setOf(PACKAGE), { null }, emptyList())
+    fun `texto sin importe devuelve resultado no interpretable`() {
+        val outcome = engine.process(notification("Tu extracto está disponible"), setOf(PACKAGE), { null }, emptyList())
         assertEquals(NotificationOutcome.NoInterpretable, outcome)
+    }
+
+    @Test
+    fun `importe sin palabras clave crea propuesta de gasto con confianza baja`() {
+        val outcome = engine.process(notification("Saldo 2,00 €"), setOf(PACKAGE), { null }, emptyList())
+        val proposal = (outcome as NotificationOutcome.Nueva).propuesta
+
+        assertEquals(ProposalKind.GASTO, proposal.kind)
+        assertEquals(Confidence.BAJA, proposal.confidence)
     }
 
     @Test
