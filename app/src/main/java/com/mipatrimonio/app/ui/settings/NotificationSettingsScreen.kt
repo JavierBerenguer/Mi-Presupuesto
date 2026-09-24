@@ -34,6 +34,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mipatrimonio.app.R
 import com.mipatrimonio.app.domain.notifications.AuthorizationRule
+import com.mipatrimonio.app.domain.notifications.AutoConfirmMode
 import com.mipatrimonio.app.notifications.isNotificationListenerEnabled
 import com.mipatrimonio.app.notifications.notificationListenerSettingsIntent
 import com.mipatrimonio.app.ui.common.DropdownField
@@ -44,6 +45,7 @@ import com.mipatrimonio.app.ui.common.appViewModel
 
 @Composable
 fun NotificationSettingsScreen(
+    onOpenDiagnostics: () -> Unit = {},
     viewModel: NotificationSettingsViewModel = appViewModel { c ->
         NotificationSettingsViewModel(c.notifications, c.ledger)
     },
@@ -90,6 +92,11 @@ fun NotificationSettingsScreen(
             }
         }
 
+
+        Button(onClick = onOpenDiagnostics, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.notif_open_diagnostics))
+        }
+
         if (!hasAccess) {
             EmptyState(
                 icon = Icons.Outlined.NotificationsOff,
@@ -118,6 +125,7 @@ fun NotificationSettingsScreen(
                         state = state,
                         onAuthorizedChange = { viewModel.setAuthorized(rule.packageName, it) },
                         onAccountChange = { viewModel.setAccount(rule.packageName, it) },
+                        onAutoConfirmModeChange = { viewModel.setAutoConfirmMode(rule.packageName, it) },
                     )
                 }
             }
@@ -132,6 +140,7 @@ private fun AuthorizationRuleCard(
     state: NotificationSettingsUiState,
     onAuthorizedChange: (Boolean) -> Unit,
     onAccountChange: (String?) -> Unit,
+    onAutoConfirmModeChange: (AutoConfirmMode) -> Unit,
 ) {
     SectionCard {
         Row(
@@ -157,6 +166,25 @@ private fun AuthorizationRuleCard(
             Text(
                 stringResource(R.string.notif_linked_account_inactive),
                 color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        if (rule.authorized) {
+            DropdownField(
+                label = stringResource(R.string.notif_auto_confirm_label),
+                options = AutoConfirmMode.entries,
+                selected = rule.autoConfirmMode,
+                optionLabel = { mode ->
+                    when (mode) {
+                        AutoConfirmMode.OFF -> stringResource(R.string.notif_auto_confirm_off)
+                        AutoConfirmMode.SOLO_SEGURAS -> stringResource(R.string.notif_auto_confirm_safe)
+                        AutoConfirmMode.TODAS -> stringResource(R.string.notif_auto_confirm_all)
+                    }
+                },
+                onSelected = { it?.let(onAutoConfirmModeChange) },
+            )
+            Text(
+                stringResource(R.string.notif_auto_confirm_warning),
                 style = MaterialTheme.typography.bodySmall,
             )
         }

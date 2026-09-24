@@ -10,10 +10,24 @@ class GenericSpanishParser : BankNotificationParser {
     override fun accepts(packageName: String) = true
 
     override fun parse(notification: BankNotification): ParsedNotification? {
-        val content = listOf(notification.title, notification.text).joinToString(" ").trim()
-        if (content.containsSensitiveContent()) return null
+        return (parseWithReason(notification) as? NotificationParseResult.Success)?.parsed
+    }
 
-        val amount = extractAmount(content) ?: return null
+    override fun parseWithReason(notification: BankNotification): NotificationParseResult {
+        val content = listOf(notification.title, notification.text).joinToString(" ").trim()
+        if (content.isEmpty()) return NotificationParseResult.Failure(NoInterpretableReason.SIN_TEXTO, false)
+        if (content.containsSensitiveContent()) {
+            return NotificationParseResult.Failure(NoInterpretableReason.CONTENIDO_SENSIBLE, AMOUNT_LIKE.containsMatchIn(content))
+        }
+
+        val amount = extractAmount(content) ?: return NotificationParseResult.Failure(
+            reason = if (UNRECOGNIZED_CURRENCY_AMOUNT.containsMatchIn(content)) {
+                NoInterpretableReason.DIVISA_NO_RECONOCIDA
+            } else {
+                NoInterpretableReason.SIN_IMPORTE
+            },
+            amountFound = AMOUNT_LIKE.containsMatchIn(content),
+        )
         val classification = classify(content, amount)
         val merchant = extractMerchant(notification.text)
             ?: extractMerchantFromTitle(notification.title, notification.packageName)
@@ -22,13 +36,15 @@ class GenericSpanishParser : BankNotificationParser {
             merchant != null -> Confidence.ALTA
             else -> Confidence.MEDIA
         }
-        return ParsedNotification(
-            classification.kind,
-            amount.amountMinor,
-            amount.currency,
-            merchant,
-            confidence,
-            parserId,
+        return NotificationParseResult.Success(
+            ParsedNotification(
+                classification.kind,
+                amount.amountMinor,
+                amount.currency,
+                merchant,
+                confidence,
+                parserId,
+            ),
         )
     }
 
@@ -134,6 +150,10 @@ class GenericSpanishParser : BankNotificationParser {
             "(?i)($NUMBER)\\s*(€|\\$|£|eur(?:o|os)?\\b|usd\\b|d[oó]lar(?:es)?\\b|gbp\\b|libras?\\b)",
         )
         val SINGLE_THOUSANDS_SEPARATOR = Regex("[+-]?\\d{1,3}[.,]\\d{3}")
+        val AMOUNT_LIKE = Regex(NUMBER)
+        val UNRECOGNIZED_CURRENCY_AMOUNT = Regex(
+            "(?i)(?:$NUMBER\\s*(?!(?:EUR|USD|GBP)\\b)[A-Z]{3}\\b|(?!(?:EUR|USD|GBP)\\b)[A-Z]{3}\\s*$NUMBER)",
+        )
         val TRANSFER_KEYWORDS = Regex(
             "\\b(transferencia|bizum|traspaso|plan\\s+de\\s+inversi[oó]n|ahorro\\s+autom[aá]tico|round[ -]?up|saveback|inversi[oó]n|aportaci[oó]n)\\b",
             RegexOption.IGNORE_CASE,

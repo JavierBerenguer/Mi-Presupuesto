@@ -6,6 +6,7 @@ import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.NotificationRepository
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.notifications.AuthorizationRule
+import com.mipatrimonio.app.domain.notifications.AutoConfirmMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -54,6 +55,14 @@ class NotificationSettingsViewModel(
     fun setAccount(packageName: String, accountId: String?) {
         viewModelScope.launch {
             runCatching { notifications.updateAccount(packageName, accountId) }
+                .onSuccess { errorMessage.value = null }
+                .onFailure { errorMessage.value = it.message }
+        }
+    }
+
+    fun setAutoConfirmMode(packageName: String, mode: AutoConfirmMode) {
+        viewModelScope.launch {
+            runCatching { notifications.updateAutoConfirmMode(packageName, mode) }
                 .onSuccess { errorMessage.value = null }
                 .onFailure { errorMessage.value = it.message }
         }

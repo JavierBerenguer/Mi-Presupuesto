@@ -34,6 +34,7 @@ import com.mipatrimonio.app.ui.networth.NetWorthScreen
 import com.mipatrimonio.app.ui.settings.AccountsScreen
 import com.mipatrimonio.app.ui.settings.CategoriesScreen
 import com.mipatrimonio.app.ui.settings.NotificationSettingsScreen
+import com.mipatrimonio.app.ui.settings.NotificationDiagnosticsScreen
 import com.mipatrimonio.app.ui.settings.PendingProposalsScreen
 import com.mipatrimonio.app.ui.settings.SettingsScreen
 
@@ -104,6 +105,7 @@ private fun titleFor(route: String?, isEditing: Boolean, destino: Destino?): Int
     route == Rutas.CATEGORIAS -> R.string.nav_categorias
     route == Rutas.NOTIFICACIONES -> R.string.notif_settings_title
     route == Rutas.PROPUESTAS -> R.string.notif_proposals_title
+    route == Rutas.DIAGNOSTICO_NOTIFICACIONES -> R.string.notif_diagnostics_title
     route == Rutas.MOVIMIENTO -> if (isEditing) R.string.nav_editar_movimiento else R.string.nav_nuevo_movimiento
     route == Rutas.TRANSFERENCIA -> if (isEditing) R.string.nav_editar_transferencia else R.string.nav_nueva_transferencia
     else -> R.string.app_name
@@ -141,7 +143,12 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
         }
         composable(Rutas.CUENTAS) { AccountsScreen() }
         composable(Rutas.CATEGORIAS) { CategoriesScreen() }
-        composable(Rutas.NOTIFICACIONES) { NotificationSettingsScreen() }
+        composable(Rutas.NOTIFICACIONES) {
+            NotificationSettingsScreen(
+                onOpenDiagnostics = { navController.navigate(Rutas.DIAGNOSTICO_NOTIFICACIONES) },
+            )
+        }
+        composable(Rutas.DIAGNOSTICO_NOTIFICACIONES) { NotificationDiagnosticsScreen() }
         composable(Rutas.PROPUESTAS) { PendingProposalsScreen() }
         composable(Rutas.MOVIMIENTO, idArg) { entry ->
             TransactionFormScreen(transactionId = idOf(entry), onDone = { navController.popBackStack() })

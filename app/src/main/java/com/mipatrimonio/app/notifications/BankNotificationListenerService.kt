@@ -1,10 +1,12 @@
 package com.mipatrimonio.app.notifications
 
 import android.app.Notification
+import android.os.Bundle
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import com.mipatrimonio.app.MiPatrimonioApplication
 import com.mipatrimonio.app.domain.notifications.BankNotification
+import com.mipatrimonio.app.domain.notifications.NotificationFields
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -26,6 +28,11 @@ class BankNotificationListenerService : NotificationListenerService() {
             text = extras.getCharSequence(Notification.EXTRA_TEXT),
             bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT),
             subText = extras.getCharSequence(Notification.EXTRA_SUB_TEXT),
+            textLines = extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)?.asList().orEmpty(),
+            messages = extras.getParcelableArray(Notification.EXTRA_MESSAGES)
+                ?.mapNotNull { (it as? Bundle)?.getCharSequence("text") }
+                .orEmpty(),
+            ticker = sbn.notification.tickerText,
             postTime = sbn.postTime,
         )
         val repository = (application as MiPatrimonioApplication).container.notifications
@@ -51,11 +58,23 @@ fun bankNotificationFromRaw(
     titleBig: CharSequence? = null,
     bigText: CharSequence? = null,
     subText: CharSequence? = null,
+    textLines: List<CharSequence> = emptyList(),
+    messages: List<CharSequence> = emptyList(),
+    ticker: CharSequence? = null,
 ): BankNotification = BankNotification(
     packageName = packageName,
     title = title.asTrimmedString().ifEmpty { titleBig.asTrimmedString() },
-    text = composeNotificationText(text, bigText, subText),
+    text = composeNotificationText(text, bigText, subText, textLines, messages, ticker),
     postedAt = postTime,
+    fields = NotificationFields(
+        hadTitle = title.hasText() || titleBig.hasText(),
+        hadText = text.hasText(),
+        hadBigText = bigText.hasText(),
+        hadSubText = subText.hasText(),
+        hadTextLines = textLines.any { it.hasText() },
+        hadMessages = messages.any { it.hasText() },
+        hadTicker = ticker.hasText(),
+    ),
 )
 
 internal fun shouldProcessBankNotification(packageName: String, ownPackageName: String, flags: Int): Boolean =
@@ -65,15 +84,29 @@ private fun composeNotificationText(
     text: CharSequence?,
     bigText: CharSequence?,
     subText: CharSequence?,
+    textLines: List<CharSequence>,
+    messages: List<CharSequence>,
+    ticker: CharSequence?,
 ): String {
     val regular = text.asTrimmedString()
     val expanded = bigText.asTrimmedString()
     val primary = expanded.takeIf { it.isNotEmpty() && (regular.isEmpty() || it.length > regular.length) }
         ?: regular
-    val secondary = subText.asTrimmedString().takeIf {
-        it.isNotEmpty() && !primary.contains(it, ignoreCase = true)
+    val fragments = mutableListOf<String>()
+    fun addFragment(raw: CharSequence?) {
+        val candidate = raw.asTrimmedString()
+        if (candidate.isEmpty() || fragments.any { it.contains(candidate, ignoreCase = true) }) return
+        fragments.removeAll { candidate.contains(it, ignoreCase = true) }
+        fragments += candidate
     }
-    return listOfNotNull(primary.takeIf(String::isNotEmpty), secondary).joinToString("\n")
+    addFragment(primary)
+    addFragment(subText)
+    textLines.forEach(::addFragment)
+    messages.forEach(::addFragment)
+    addFragment(ticker)
+    return fragments.joinToString("\n")
 }
 
 private fun CharSequence?.asTrimmedString(): String = this?.toString()?.trim().orEmpty()
+
+private fun CharSequence?.hasText(): Boolean = this?.toString()?.isNotBlank() == true

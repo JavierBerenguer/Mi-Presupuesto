@@ -4,7 +4,7 @@ import java.util.Locale
 
 sealed interface NotificationOutcome {
     data object AppNoAutorizada : NotificationOutcome
-    data object NoInterpretable : NotificationOutcome
+    data class NoInterpretable(val reason: NoInterpretableReason, val amountFound: Boolean) : NotificationOutcome
     data class Duplicada(val existenteId: String) : NotificationOutcome
     data class Nueva(val propuesta: PendingProposalDraft) : NotificationOutcome
 }
@@ -25,8 +25,11 @@ class NotificationEngine(private val parsers: List<BankNotificationParser>) {
         if (notification.packageName !in authorizedPackages) return NotificationOutcome.AppNoAutorizada
 
         val parser = parsers.firstOrNull { it.accepts(notification.packageName) }
-            ?: return NotificationOutcome.NoInterpretable
-        val parsed = parser.parse(notification) ?: return NotificationOutcome.NoInterpretable
+            ?: return NotificationOutcome.NoInterpretable(NoInterpretableReason.SIN_IMPORTE, false)
+        val parsed = when (val result = parser.parseWithReason(notification)) {
+            is NotificationParseResult.Failure -> return NotificationOutcome.NoInterpretable(result.reason, result.amountFound)
+            is NotificationParseResult.Success -> result.parsed
+        }
         val draft = PendingProposalDraft(
             id = "",
             packageName = notification.packageName,

@@ -14,6 +14,17 @@ class GenericSpanishParserTest {
     ) = parser.parse(BankNotification(packageName, title, text, 1_000L))
 
     @Test
+    fun `informa motivos de descarte tipados`() {
+        fun failure(text: String, title: String = "") =
+            parser.parseWithReason(BankNotification("app.test", title, text, 1L)) as NotificationParseResult.Failure
+
+        assertEquals(NoInterpretableReason.SIN_TEXTO, failure("").reason)
+        assertEquals(NoInterpretableReason.CONTENIDO_SENSIBLE, failure("Código de verificación 123456").reason)
+        assertEquals(NoInterpretableReason.SIN_IMPORTE, failure("Extracto disponible").reason)
+        assertEquals(NoInterpretableReason.DIVISA_NO_RECONOCIDA, failure("Compra de 12 CHF").reason)
+    }
+
+    @Test
     fun `descarta contenido sensible antes de interpretar importes`() {
         listOf("codigo", "código", "clave", "contraseña", "contrasena", "OTP", "PIN", "verificación", "verificacion", "token")
             .forEach { signal -> assertNull(signal, parse("Compra de 12,50 €; $signal 1234")) }

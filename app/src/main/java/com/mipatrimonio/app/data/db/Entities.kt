@@ -1,5 +1,6 @@
 package com.mipatrimonio.app.data.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -156,6 +157,29 @@ data class NotificationAuthorizationEntity(
     @PrimaryKey val packageName: String,
     val authorized: Boolean,
     val accountId: String?,
+    val createdAt: Long,
+    @ColumnInfo(defaultValue = "OFF") val autoConfirmMode: String = "OFF",
+)
+
+@Entity(
+    tableName = "notification_diagnostic",
+    indices = [Index("createdAt")],
+)
+data class NotificationDiagnosticEntity(
+    @PrimaryKey val id: String,
+    val packageName: String,
+    val postedAt: Long,
+    val outcome: String,
+    val reason: String?,
+    val hadTitle: Boolean,
+    val hadText: Boolean,
+    val hadBigText: Boolean,
+    val hadSubText: Boolean,
+    val hadTextLines: Boolean,
+    val hadMessages: Boolean,
+    val hadTicker: Boolean,
+    val amountFound: Boolean,
+    val sampleText: String?,
     val createdAt: Long,
 )
 

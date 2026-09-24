@@ -138,4 +138,25 @@ interface NotificationDao {
             "WHERE id = :id AND status = 'PENDIENTE'",
     )
     suspend fun updatePendingStatus(id: String, status: String, resultingTransactionId: String?): Int
+
+    @Query("SELECT * FROM notification_diagnostic ORDER BY createdAt DESC")
+    fun observeDiagnostics(): Flow<List<NotificationDiagnosticEntity>>
+
+    @Upsert
+    suspend fun upsertDiagnostic(entity: NotificationDiagnosticEntity)
+
+    @Query("UPDATE notification_diagnostic SET sampleText = NULL WHERE sampleText IS NOT NULL AND createdAt < :cutoff")
+    suspend fun clearExpiredSamples(cutoff: Long): Int
+
+    @Query("DELETE FROM notification_diagnostic WHERE createdAt < :cutoff")
+    suspend fun deleteDiagnosticsOlderThan(cutoff: Long): Int
+
+    @Query(
+        "DELETE FROM notification_diagnostic WHERE id NOT IN " +
+            "(SELECT id FROM notification_diagnostic ORDER BY createdAt DESC, id DESC LIMIT :limit)",
+    )
+    suspend fun trimDiagnostics(limit: Int): Int
+
+    @Query("DELETE FROM notification_diagnostic")
+    suspend fun clearDiagnostics()
 }

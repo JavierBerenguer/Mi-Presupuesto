@@ -9,6 +9,7 @@ import com.mipatrimonio.app.data.repository.NotificationRepository
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountType
 import com.mipatrimonio.app.domain.notifications.GenericSpanishParser
+import com.mipatrimonio.app.domain.notifications.AutoConfirmMode
 import com.mipatrimonio.app.domain.notifications.NotificationEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -94,6 +95,18 @@ class NotificationSettingsViewModelTest {
         val state = viewModel.uiState.first { !it.isLoading && it.activeAccounts.isNotEmpty() }
 
         assertEquals(listOf("active"), state.activeAccounts.map { it.id })
+    }
+
+    @Test
+    fun `actualiza el modo de registro automatico por aplicacion`() = runTest {
+        notifications.ensureKnown(PACKAGE)
+        val viewModel = NotificationSettingsViewModel(notifications, ledger)
+        viewModel.uiState.first { !it.isLoading && it.rules.size == 1 }
+
+        viewModel.setAutoConfirmMode(PACKAGE, AutoConfirmMode.TODAS)
+        advanceUntilIdle()
+
+        assertEquals(AutoConfirmMode.TODAS, notifications.authorizationRules.first().single().autoConfirmMode)
     }
 
     private fun account(id: String, archived: Boolean = false) = Account(

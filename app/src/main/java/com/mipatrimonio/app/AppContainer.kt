@@ -17,15 +17,30 @@ import kotlinx.coroutines.launch
 /** Inyección de dependencias manual: suficiente para el tamaño actual y sin magia de generación de código. */
 class AppContainer(context: Context) {
     private val database = AppDatabase.create(context)
+    private val notificationPreferences = context.applicationContext.getSharedPreferences(
+        "notification_diagnostics",
+        Context.MODE_PRIVATE,
+    )
     val ledger = LedgerRepository(database)
     val investments = InvestmentRepository(database)
     val settings = SettingsRepository(context.applicationContext)
-    val notifications = NotificationRepository(database, NotificationEngine(listOf(GenericSpanishParser())))
+    val notifications = NotificationRepository(
+        database,
+        NotificationEngine(listOf(GenericSpanishParser())),
+        initialDiagnosticTextEnabled = notificationPreferences.getBoolean(DIAGNOSTIC_TEXT_KEY, false),
+        persistDiagnosticTextEnabled = { enabled ->
+            notificationPreferences.edit().putBoolean(DIAGNOSTIC_TEXT_KEY, enabled).apply()
+        },
+    )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     init {
         scope.launch { ledger.seedDefaultCategoriesIfEmpty() }
+    }
+
+    private companion object {
+        const val DIAGNOSTIC_TEXT_KEY = "diagnostic_text_enabled"
     }
 }
 

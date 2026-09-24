@@ -33,6 +33,7 @@ object Rutas {
     const val CATEGORIAS = "categorias"
     const val NOTIFICACIONES = "notificaciones"
     const val PROPUESTAS = "propuestas"
+    const val DIAGNOSTICO_NOTIFICACIONES = "diagnostico-notificaciones"
     const val MOVIMIENTO = "movimiento/{id}"
     const val TRANSFERENCIA = "transferencia/{id}"
 

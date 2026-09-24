@@ -31,7 +31,26 @@ class NotificationEngineTest {
     @Test
     fun `texto sin importe devuelve resultado no interpretable`() {
         val outcome = engine.process(notification("Tu extracto está disponible"), setOf(PACKAGE), { null }, emptyList())
-        assertEquals(NotificationOutcome.NoInterpretable, outcome)
+        assertEquals(
+            NotificationOutcome.NoInterpretable(NoInterpretableReason.SIN_IMPORTE, false),
+            outcome,
+        )
+    }
+
+    @Test
+    fun `distingue ausencia de texto contenido sensible y divisa desconocida`() {
+        assertEquals(
+            NotificationOutcome.NoInterpretable(NoInterpretableReason.SIN_TEXTO, false),
+            engine.process(notification(""), setOf(PACKAGE), { null }, emptyList()),
+        )
+        assertEquals(
+            NotificationOutcome.NoInterpretable(NoInterpretableReason.CONTENIDO_SENSIBLE, true),
+            engine.process(notification("Código de verificación 123456 para 10 EUR"), setOf(PACKAGE), { null }, emptyList()),
+        )
+        assertEquals(
+            NotificationOutcome.NoInterpretable(NoInterpretableReason.DIVISA_NO_RECONOCIDA, true),
+            engine.process(notification("Compra de 10 CHF"), setOf(PACKAGE), { null }, emptyList()),
+        )
     }
 
     @Test
