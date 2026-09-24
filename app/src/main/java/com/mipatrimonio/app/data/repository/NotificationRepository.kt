@@ -90,6 +90,11 @@ class NotificationRepository(
         }
     }
 
+    /**
+     * Marca la propuesta como confirmada y vincula el identificador del resultado creado.
+     * [resultingTransactionId] contiene el id de `Transaction` para gastos/ingresos o el id
+     * de `Transfer` para transferencias internas.
+     */
     suspend fun markConfirmed(id: String, resultingTransactionId: String) {
         require(resultingTransactionId.isNotBlank()) { "El identificador del movimiento es obligatorio" }
         notificationDao.updatePendingStatus(id, ProposalStatus.CONFIRMADA.name, resultingTransactionId)

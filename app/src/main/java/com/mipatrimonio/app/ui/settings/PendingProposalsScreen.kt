@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Payments
 import androidx.compose.material.icons.outlined.ShoppingCart
@@ -18,6 +20,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -31,6 +34,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mipatrimonio.app.R
+import com.mipatrimonio.app.domain.model.CategoryKind
 import com.mipatrimonio.app.domain.notifications.Confidence
 import com.mipatrimonio.app.domain.notifications.PendingProposal
 import com.mipatrimonio.app.domain.notifications.ProposalKind
@@ -73,7 +77,7 @@ fun PendingProposalsScreen(
             contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 88.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            state.error?.let { currentError ->
+            state.error?.takeIf { state.reviewProposal == null }?.let { currentError ->
                 item {
                     Text(
                         text = pendingErrorText(currentError),
@@ -92,12 +96,12 @@ fun PendingProposalsScreen(
         }
     }
 
-    state.accountSelectionProposal?.let { proposal ->
-        AccountSelectionDialog(
+    state.reviewProposal?.let { proposal ->
+        ProposalReviewDialog(
             proposal = proposal,
             state = state,
-            onConfirm = viewModel::confirmWithAccount,
-            onDismiss = viewModel::dismissAccountSelection,
+            onConfirm = viewModel::confirm,
+            onDismiss = viewModel::dismissReview,
         )
     }
 
@@ -133,7 +137,11 @@ private fun ProposalCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Icon(icon, contentDescription = null, tint = tint)
+            Icon(
+                imageVector = icon,
+                contentDescription = stringResource(R.string.notif_proposal_icon, proposal.kind.label()),
+                tint = tint,
+            )
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(proposal.kind.label(), style = MaterialTheme.typography.labelLarge, color = tint)
                 Text(
@@ -153,48 +161,106 @@ private fun ProposalCard(
                 style = MaterialTheme.typography.titleMedium,
             )
         }
-        if (proposal.kind == ProposalKind.TRANSFERENCIA) {
-            Text(
-                stringResource(R.string.notif_transfer_manual),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             TextButton(onClick = onDiscard, enabled = !isProcessing) {
                 Text(stringResource(R.string.notif_discard))
             }
-            if (canConfirm(proposal)) {
-                Button(onClick = onConfirm, enabled = !isProcessing) {
-                    Text(stringResource(R.string.notif_confirm))
-                }
+            Button(onClick = onConfirm, enabled = !isProcessing) {
+                Text(stringResource(R.string.notif_confirm))
             }
         }
     }
 }
 
 @Composable
-private fun AccountSelectionDialog(
+private fun ProposalReviewDialog(
     proposal: PendingProposal,
     state: PendingProposalsUiState,
-    onConfirm: (String?) -> Unit,
+    onConfirm: (ProposalConfirmation) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var selectedAccountId by remember(proposal.id) { mutableStateOf<String?>(null) }
-    val selected = state.activeAccounts.firstOrNull { it.id == selectedAccountId }
+    var kind by remember(proposal.id) { mutableStateOf(proposal.kind) }
+    var accountId by remember(proposal.id) {
+        mutableStateOf(proposal.accountId?.takeIf { id -> state.activeAccounts.any { it.id == id } })
+    }
+    var destinationAccountId by remember(proposal.id) { mutableStateOf<String?>(null) }
+    var categoryId by remember(proposal.id) { mutableStateOf<String?>(null) }
+    var merchant by remember(proposal.id) { mutableStateOf(proposal.merchant.orEmpty()) }
+    var description by remember(proposal.id) { mutableStateOf("") }
+    val selectedAccount = state.activeAccounts.firstOrNull { it.id == accountId }
+    val selectedDestination = state.activeAccounts.firstOrNull { it.id == destinationAccountId }
+    val categoryKind = when (kind) {
+        ProposalKind.GASTO -> CategoryKind.GASTO
+        ProposalKind.INGRESO -> CategoryKind.INGRESO
+        ProposalKind.TRANSFERENCIA -> null
+    }
+    val categories = state.activeCategories.filter { it.kind == categoryKind }
+    val selectedCategory = categories.firstOrNull { it.id == categoryId }
+    val isProcessing = proposal.id in state.processingIds
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.notif_select_account_title)) },
+        title = { Text(stringResource(R.string.notif_review_title)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(stringResource(R.string.notif_select_account_message))
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(stringResource(R.string.notif_review_message))
                 DropdownField(
-                    label = stringResource(R.string.notif_account),
+                    label = stringResource(R.string.notif_type),
+                    options = ProposalKind.entries,
+                    selected = kind,
+                    optionLabel = { it.label() },
+                    onSelected = { selectedKind ->
+                        selectedKind?.let {
+                            kind = it
+                            categoryId = null
+                        }
+                    },
+                )
+                DropdownField(
+                    label = stringResource(
+                        if (kind == ProposalKind.TRANSFERENCIA) R.string.notif_source_account
+                        else R.string.notif_account
+                    ),
                     options = state.activeAccounts,
-                    selected = selected,
-                    optionLabel = { it.name },
-                    onSelected = { selectedAccountId = it?.id },
+                    selected = selectedAccount,
+                    optionLabel = { stringResource(R.string.notif_account_with_currency, it.name, it.currency) },
+                    onSelected = { accountId = it?.id },
                     noneLabel = stringResource(R.string.notif_select_account),
+                )
+                if (kind == ProposalKind.TRANSFERENCIA) {
+                    DropdownField(
+                        label = stringResource(R.string.notif_destination_account),
+                        options = state.activeAccounts,
+                        selected = selectedDestination,
+                        optionLabel = { stringResource(R.string.notif_account_with_currency, it.name, it.currency) },
+                        onSelected = { destinationAccountId = it?.id },
+                        noneLabel = stringResource(R.string.notif_select_destination_account),
+                    )
+                } else {
+                    DropdownField(
+                        label = stringResource(R.string.notif_category),
+                        options = categories,
+                        selected = selectedCategory,
+                        optionLabel = { it.name },
+                        onSelected = { categoryId = it?.id },
+                        noneLabel = stringResource(R.string.notif_no_category),
+                    )
+                    OutlinedTextField(
+                        value = merchant,
+                        onValueChange = { merchant = it },
+                        label = { Text(stringResource(R.string.notif_merchant)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text(stringResource(R.string.notif_description)) },
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 if (state.activeAccounts.isEmpty()) {
                     Text(
@@ -202,15 +268,9 @@ private fun AccountSelectionDialog(
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
-                if (state.error == PendingProposalError.AccountRequired) {
+                state.error?.let { currentError ->
                     Text(
-                        stringResource(R.string.notif_account_required),
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-                (state.error as? PendingProposalError.Repository)?.let { repositoryError ->
-                    Text(
-                        repositoryError.message.ifBlank { stringResource(R.string.notif_operation_error) },
+                        pendingErrorText(currentError),
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
@@ -218,12 +278,25 @@ private fun AccountSelectionDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(selectedAccountId) },
-                enabled = selectedAccountId != null && proposal.id !in state.processingIds,
+                onClick = {
+                    onConfirm(
+                        ProposalConfirmation(
+                            kind = kind,
+                            accountId = accountId,
+                            destinationAccountId = destinationAccountId,
+                            categoryId = categoryId,
+                            merchant = merchant,
+                            description = description,
+                        ),
+                    )
+                },
+                enabled = !isProcessing,
             ) { Text(stringResource(R.string.notif_confirm)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
+            TextButton(onClick = onDismiss, enabled = !isProcessing) {
+                Text(stringResource(R.string.common_cancel))
+            }
         },
     )
 }
@@ -231,9 +304,11 @@ private fun AccountSelectionDialog(
 @Composable
 private fun pendingErrorText(error: PendingProposalError): String = when (error) {
     PendingProposalError.AccountRequired -> stringResource(R.string.notif_account_required)
-    is PendingProposalError.Repository -> error.message.ifBlank {
-        stringResource(R.string.notif_operation_error)
-    }
+    PendingProposalError.DestinationAccountRequired -> stringResource(R.string.notif_destination_account_required)
+    PendingProposalError.AccountsMustDiffer -> stringResource(R.string.notif_accounts_must_differ)
+    PendingProposalError.CurrencyMismatch -> stringResource(R.string.notif_currency_mismatch)
+    PendingProposalError.CategoryUnavailable -> stringResource(R.string.notif_category_unavailable)
+    is PendingProposalError.Repository -> stringResource(R.string.notif_operation_error)
 }
 
 @Composable

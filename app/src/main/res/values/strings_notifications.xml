@@ -35,4 +35,20 @@
     <string name="notif_account_required">Debes seleccionar una cuenta activa.</string>
     <string name="notif_no_active_accounts">No hay cuentas activas disponibles. Crea o restaura una cuenta antes de confirmar.</string>
     <string name="notif_operation_error">No se ha podido completar la operación.</string>
+    <string name="notif_review_title">Revisar propuesta</string>
+    <string name="notif_review_message">Revisa los datos antes de crear el movimiento.</string>
+    <string name="notif_type">Tipo</string>
+    <string name="notif_source_account">Cuenta origen</string>
+    <string name="notif_destination_account">Cuenta destino</string>
+    <string name="notif_select_destination_account">Selecciona una cuenta destino</string>
+    <string name="notif_destination_account_required">Debes seleccionar una cuenta destino activa.</string>
+    <string name="notif_accounts_must_differ">Las cuentas de origen y destino deben ser distintas.</string>
+    <string name="notif_currency_mismatch">La divisa de la propuesta debe coincidir con la de las cuentas seleccionadas.</string>
+    <string name="notif_category">Categoría</string>
+    <string name="notif_no_category">Sin categoría</string>
+    <string name="notif_category_unavailable">La categoría seleccionada no está disponible para este tipo de movimiento.</string>
+    <string name="notif_merchant">Comercio</string>
+    <string name="notif_description">Descripción</string>
+    <string name="notif_account_with_currency">%1$s · %2$s</string>
+    <string name="notif_proposal_icon">Propuesta de %1$s</string>
 </resources>

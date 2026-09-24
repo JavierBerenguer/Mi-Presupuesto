@@ -4,10 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.NotificationRepository
+import com.mipatrimonio.app.domain.calc.BalanceCalculator
 import com.mipatrimonio.app.domain.model.Account
+import com.mipatrimonio.app.domain.model.Category
+import com.mipatrimonio.app.domain.model.CategoryKind
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
+import com.mipatrimonio.app.domain.model.Transfer
 import com.mipatrimonio.app.domain.notifications.PendingProposal
 import com.mipatrimonio.app.domain.notifications.ProposalKind
 import java.time.Instant
@@ -22,20 +26,40 @@ import kotlinx.coroutines.launch
 
 sealed interface PendingProposalError {
     data object AccountRequired : PendingProposalError
+    data object DestinationAccountRequired : PendingProposalError
+    data object AccountsMustDiffer : PendingProposalError
+    data object CurrencyMismatch : PendingProposalError
+    data object CategoryUnavailable : PendingProposalError
     data class Repository(val message: String) : PendingProposalError
 }
+
+data class ProposalConfirmation(
+    val kind: ProposalKind,
+    val accountId: String?,
+    val destinationAccountId: String? = null,
+    val categoryId: String? = null,
+    val merchant: String = "",
+    val description: String = "",
+)
 
 data class PendingProposalsUiState(
     val isLoading: Boolean = true,
     val proposals: List<PendingProposal> = emptyList(),
     val activeAccounts: List<Account> = emptyList(),
-    val accountSelectionProposalId: String? = null,
+    val activeCategories: List<Category> = emptyList(),
+    val reviewProposalId: String? = null,
     val processingIds: Set<String> = emptySet(),
     val error: PendingProposalError? = null,
 ) {
-    val accountSelectionProposal: PendingProposal?
-        get() = proposals.firstOrNull { it.id == accountSelectionProposalId }
+    val reviewProposal: PendingProposal?
+        get() = proposals.firstOrNull { it.id == reviewProposalId }
 }
+
+private data class ProposalCatalog(
+    val proposals: List<PendingProposal>,
+    val accounts: List<Account>,
+    val categories: List<Category>,
+)
 
 class PendingProposalsViewModel(
     private val notifications: NotificationRepository,
@@ -44,22 +68,28 @@ class PendingProposalsViewModel(
     private val idFactory: () -> String = { UUID.randomUUID().toString() },
     private val zoneId: ZoneId = ZoneId.systemDefault(),
 ) : ViewModel() {
-    private val accountSelectionProposalId = MutableStateFlow<String?>(null)
+    private val reviewProposalId = MutableStateFlow<String?>(null)
     private val processingIds = MutableStateFlow<Set<String>>(emptySet())
     private val error = MutableStateFlow<PendingProposalError?>(null)
 
-    val uiState: StateFlow<PendingProposalsUiState> = combine(
+    private val catalog = combine(
         notifications.pendingProposals,
         ledger.accounts,
-        accountSelectionProposalId,
+        ledger.categories,
+    ) { proposals, accounts, categories -> ProposalCatalog(proposals, accounts, categories) }
+
+    val uiState: StateFlow<PendingProposalsUiState> = combine(
+        catalog,
+        reviewProposalId,
         processingIds,
         error,
-    ) { proposals, accounts, selectionId, processing, currentError ->
+    ) { currentCatalog, reviewId, processing, currentError ->
         PendingProposalsUiState(
             isLoading = false,
-            proposals = proposals,
-            activeAccounts = accounts.filterNot { it.archived },
-            accountSelectionProposalId = selectionId?.takeIf { id -> proposals.any { it.id == id } },
+            proposals = currentCatalog.proposals,
+            activeAccounts = currentCatalog.accounts.filterNot { it.archived },
+            activeCategories = currentCatalog.categories.filterNot { it.archived },
+            reviewProposalId = reviewId?.takeIf { id -> currentCatalog.proposals.any { it.id == id } },
             processingIds = processing,
             error = currentError,
         )
@@ -71,34 +101,47 @@ class PendingProposalsViewModel(
 
     fun requestConfirmation(proposalId: String) {
         val proposal = uiState.value.proposals.firstOrNull { it.id == proposalId } ?: return
-        if (!canConfirm(proposal)) return
+        if (proposal.id in processingIds.value) return
         error.value = null
-        if (proposal.accountId == null) {
-            accountSelectionProposalId.value = proposal.id
-        } else {
-            saveProposal(proposal, proposal.accountId)
-        }
+        reviewProposalId.value = proposal.id
     }
 
-    fun confirmWithAccount(accountId: String?) {
-        val proposal = uiState.value.accountSelectionProposal ?: return
-        if (accountId.isNullOrBlank()) {
-            error.value = PendingProposalError.AccountRequired
+    fun confirm(confirmation: ProposalConfirmation) {
+        val proposal = uiState.value.reviewProposal ?: return
+        if (proposal.id in processingIds.value) return
+        val validationError = validate(proposal, confirmation)
+        if (validationError != null) {
+            error.value = validationError
             return
         }
-        saveProposal(proposal, accountId)
+
+        processingIds.value += proposal.id
+        viewModelScope.launch {
+            val result = if (confirmation.kind == ProposalKind.TRANSFERENCIA) {
+                saveTransfer(proposal, confirmation)
+            } else {
+                saveTransaction(proposal, confirmation)
+            }
+            result.onSuccess {
+                reviewProposalId.value = null
+                error.value = null
+            }.onFailure {
+                error.value = PendingProposalError.Repository(it.message.orEmpty())
+            }
+            processingIds.value -= proposal.id
+        }
     }
 
-    fun dismissAccountSelection() {
-        accountSelectionProposalId.value = null
+    fun dismissReview() {
+        reviewProposalId.value = null
         error.value = null
     }
 
     fun discard(proposalId: String) {
         val proposal = uiState.value.proposals.firstOrNull { it.id == proposalId } ?: return
         if (proposal.id in processingIds.value) return
+        processingIds.value += proposal.id
         viewModelScope.launch {
-            processingIds.value += proposal.id
             runCatching { notifications.markDiscarded(proposal.id) }
                 .onSuccess { error.value = null }
                 .onFailure { error.value = PendingProposalError.Repository(it.message.orEmpty()) }
@@ -110,51 +153,105 @@ class PendingProposalsViewModel(
         error.value = null
     }
 
-    private fun saveProposal(proposal: PendingProposal, accountId: String) {
-        if (!canConfirm(proposal) || proposal.id in processingIds.value) return
-        val type = proposal.transactionType() ?: return
-        viewModelScope.launch {
-            processingIds.value += proposal.id
-            val transactionId = idFactory()
-            val now = clock()
-            val transaction = Transaction(
-                id = transactionId,
-                type = type,
-                amountMinor = proposal.amountMinor,
-                currency = proposal.currency,
-                date = Instant.ofEpochMilli(proposal.postedAt).atZone(zoneId).toLocalDate(),
-                accountId = accountId,
-                categoryId = null,
-                description = "",
-                merchant = proposal.merchant.orEmpty(),
-                notes = "",
-                source = TransactionSource.NOTIFICACION,
-                createdAt = now,
-                updatedAt = now,
-            )
-            runCatching {
-                ledger.saveTransaction(transaction)
-                try {
-                    notifications.markConfirmed(proposal.id, transactionId)
-                } catch (error: Exception) {
-                    runCatching { ledger.deleteTransaction(transactionId) }
-                    throw error
-                }
-            }.onSuccess {
-                accountSelectionProposalId.value = null
-                error.value = null
-            }.onFailure {
-                error.value = PendingProposalError.Repository(it.message.orEmpty())
+    private fun validate(
+        proposal: PendingProposal,
+        confirmation: ProposalConfirmation,
+    ): PendingProposalError? {
+        val account = uiState.value.activeAccounts.firstOrNull { it.id == confirmation.accountId }
+            ?: return PendingProposalError.AccountRequired
+        if (account.currency != proposal.currency) return PendingProposalError.CurrencyMismatch
+
+        if (confirmation.kind == ProposalKind.TRANSFERENCIA) {
+            val destination = uiState.value.activeAccounts.firstOrNull { it.id == confirmation.destinationAccountId }
+                ?: return PendingProposalError.DestinationAccountRequired
+            if (account.id == destination.id) return PendingProposalError.AccountsMustDiffer
+            if (destination.currency != proposal.currency) return PendingProposalError.CurrencyMismatch
+            if (BalanceCalculator.validateTransfer(
+                    account,
+                    destination,
+                    proposal.amountMinor,
+                    proposal.amountMinor,
+                ) != null
+            ) {
+                return PendingProposalError.AccountsMustDiffer
             }
-            processingIds.value -= proposal.id
+        } else if (confirmation.categoryId != null) {
+            val expectedKind = confirmation.kind.categoryKind()
+            val categoryIsAvailable = uiState.value.activeCategories.any {
+                it.id == confirmation.categoryId && it.kind == expectedKind
+            }
+            if (!categoryIsAvailable) return PendingProposalError.CategoryUnavailable
+        }
+        return null
+    }
+
+    private suspend fun saveTransaction(
+        proposal: PendingProposal,
+        confirmation: ProposalConfirmation,
+    ): Result<Unit> = runCatching {
+        val transactionId = idFactory()
+        val now = clock()
+        val transaction = Transaction(
+            id = transactionId,
+            type = confirmation.kind.transactionType(),
+            amountMinor = proposal.amountMinor,
+            currency = proposal.currency,
+            date = proposal.localDate(),
+            accountId = requireNotNull(confirmation.accountId),
+            categoryId = confirmation.categoryId,
+            description = confirmation.description.trim(),
+            merchant = confirmation.merchant.trim(),
+            notes = "",
+            source = TransactionSource.NOTIFICACION,
+            createdAt = now,
+            updatedAt = now,
+        )
+        ledger.saveTransaction(transaction)
+        try {
+            notifications.markConfirmed(proposal.id, transactionId)
+        } catch (markError: Exception) {
+            runCatching { ledger.deleteTransaction(transactionId) }
+            throw markError
         }
     }
+
+    private suspend fun saveTransfer(
+        proposal: PendingProposal,
+        confirmation: ProposalConfirmation,
+    ): Result<Unit> = runCatching {
+        val transferId = idFactory()
+        val transfer = Transfer(
+            id = transferId,
+            fromAccountId = requireNotNull(confirmation.accountId),
+            toAccountId = requireNotNull(confirmation.destinationAccountId),
+            fromAmountMinor = proposal.amountMinor,
+            toAmountMinor = proposal.amountMinor,
+            date = proposal.localDate(),
+            description = confirmation.description.trim(),
+            createdAt = clock(),
+        )
+        // Transfer no dispone de campo source; su origen queda vinculado mediante la propuesta confirmada.
+        ledger.saveTransfer(transfer)
+        try {
+            notifications.markConfirmed(proposal.id, transferId)
+        } catch (markError: Exception) {
+            runCatching { ledger.deleteTransfer(transferId) }
+            throw markError
+        }
+    }
+
+    private fun PendingProposal.localDate() =
+        Instant.ofEpochMilli(postedAt).atZone(zoneId).toLocalDate()
 }
 
-fun canConfirm(proposal: PendingProposal): Boolean = proposal.kind != ProposalKind.TRANSFERENCIA
-
-private fun PendingProposal.transactionType(): TransactionType? = when (kind) {
+private fun ProposalKind.transactionType(): TransactionType = when (this) {
     ProposalKind.GASTO -> TransactionType.GASTO
     ProposalKind.INGRESO -> TransactionType.INGRESO
-    ProposalKind.TRANSFERENCIA -> null
+    ProposalKind.TRANSFERENCIA -> error("Una transferencia no se guarda como movimiento")
+}
+
+private fun ProposalKind.categoryKind(): CategoryKind = when (this) {
+    ProposalKind.GASTO -> CategoryKind.GASTO
+    ProposalKind.INGRESO -> CategoryKind.INGRESO
+    ProposalKind.TRANSFERENCIA -> error("Una transferencia no tiene categoría")
 }
