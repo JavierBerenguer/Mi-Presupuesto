@@ -3,7 +3,7 @@
     <string name="notif_settings_title">Notificaciones bancarias</string>
     <string name="notif_proposals_title">Propuestas pendientes</string>
     <string name="notif_access_title">Acceso a notificaciones</string>
-    <string name="notif_access_explanation">Si activas el acceso, Mi Patrimonio podrá leer localmente las notificaciones de las aplicaciones bancarias que autorices para proponerte movimientos. El registro automático está desactivado por defecto y se configura para cada aplicación. Nunca se envía nada fuera de tu dispositivo.</string>
+    <string name="notif_access_explanation">Si activas el acceso, Mi Patrimonio podrá leer localmente las notificaciones de las aplicaciones bancarias que autorices y crear apuntes automáticamente. Puedes configurar el registro para cada aplicación. Nunca se envía nada fuera de tu dispositivo.</string>
     <string name="notif_access_enabled">Acceso concedido</string>
     <string name="notif_access_disabled">Acceso no concedido</string>
     <string name="notif_enable_access">Abrir ajustes para activar</string>
@@ -18,7 +18,7 @@
     <string name="notif_auto_confirm_off">Desactivado</string>
     <string name="notif_auto_confirm_safe">Solo confianza alta o media</string>
     <string name="notif_auto_confirm_all">Todas, incluida confianza baja</string>
-    <string name="notif_auto_confirm_warning">Una notificación no garantiza que la operación sea definitiva. Las transferencias nunca se registran automáticamente.</string>
+    <string name="notif_auto_confirm_warning">Una notificación no garantiza que la operación sea definitiva. Los apuntes se crean automáticamente y puedes editarlos o borrarlos en Movimientos. Las transferencias nunca se registran automáticamente.</string>
 
     <string name="notif_diagnostics_title">Diagnóstico de notificaciones</string>
     <string name="notif_diagnostics_save_text">Guardar el texto de las notificaciones de apps autorizadas para depuración (se borra a las 24 h)</string>

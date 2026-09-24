@@ -70,20 +70,34 @@ class NotificationRepository(
         require(normalizedPackageName.isNotEmpty()) { "El paquete de la aplicación es obligatorio" }
         val normalizedAccountId = accountId?.trim()?.takeIf { it.isNotEmpty() }
         val existing = notificationDao.getAuthorizationRule(normalizedPackageName)
+        val autoConfirmMode = when {
+            authorized && (existing == null || existing.autoConfirmMode == AutoConfirmMode.OFF.name) ->
+                AutoConfirmMode.TODAS.name
+            else -> existing?.autoConfirmMode ?: AutoConfirmMode.OFF.name
+        }
         notificationDao.upsertAuthorizationRule(
             NotificationAuthorizationEntity(
                 normalizedPackageName,
                 authorized,
                 normalizedAccountId,
                 existing?.createdAt ?: clock(),
-                existing?.autoConfirmMode ?: AutoConfirmMode.OFF.name,
+                autoConfirmMode,
             ),
         )
     }
 
     suspend fun updateAuthorized(packageName: String, authorized: Boolean) = db.withTransaction {
         val existing = notificationDao.getAuthorizationRule(packageName) ?: return@withTransaction
-        notificationDao.upsertAuthorizationRule(existing.copy(authorized = authorized))
+        val autoConfirmMode = if (
+            authorized && !existing.authorized && existing.autoConfirmMode == AutoConfirmMode.OFF.name
+        ) {
+            AutoConfirmMode.TODAS.name
+        } else {
+            existing.autoConfirmMode
+        }
+        notificationDao.upsertAuthorizationRule(
+            existing.copy(authorized = authorized, autoConfirmMode = autoConfirmMode),
+        )
     }
 
     suspend fun updateAccount(packageName: String, accountId: String?) = db.withTransaction {

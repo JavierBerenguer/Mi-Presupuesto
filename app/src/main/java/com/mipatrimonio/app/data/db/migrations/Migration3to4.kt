@@ -10,6 +10,9 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
                 "ADD COLUMN `autoConfirmMode` TEXT NOT NULL DEFAULT 'OFF'",
         )
         db.execSQL(
+            "UPDATE `notification_authorization` SET `autoConfirmMode` = 'TODAS' WHERE `authorized` = 1",
+        )
+        db.execSQL(
             """
             CREATE TABLE IF NOT EXISTS `notification_diagnostic` (
                 `id` TEXT NOT NULL,

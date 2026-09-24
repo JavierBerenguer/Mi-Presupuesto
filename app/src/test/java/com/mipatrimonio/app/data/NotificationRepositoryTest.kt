@@ -69,6 +69,23 @@ class NotificationRepositoryTest {
         assertTrue(!rules.single().authorized)
         assertNull(rules.single().accountId)
         assertEquals(10_000L, rules.single().createdAt)
+        assertEquals(AutoConfirmMode.TODAS, rules.single().autoConfirmMode)
+    }
+
+    @Test
+    fun `autorizar app nueva activa todas y reautorizar conserva el modo`() = runBlocking<Unit> {
+        repository.ensureKnown(PACKAGE)
+
+        repository.updateAuthorized(PACKAGE, true)
+        assertEquals(AutoConfirmMode.TODAS, repository.authorizationRules.first().single().autoConfirmMode)
+
+        repository.updateAutoConfirmMode(PACKAGE, AutoConfirmMode.SOLO_SEGURAS)
+        repository.updateAuthorized(PACKAGE, false)
+        repository.updateAuthorized(PACKAGE, true)
+
+        val rule = repository.authorizationRules.first().single()
+        assertTrue(rule.authorized)
+        assertEquals(AutoConfirmMode.SOLO_SEGURAS, rule.autoConfirmMode)
     }
 
     @Test
@@ -177,7 +194,6 @@ class NotificationRepositoryTest {
     fun `modo todas autoanota baja y la doble entrega crea un solo movimiento`() = runBlocking<Unit> {
         saveAccount("account-1", "EUR")
         repository.setAuthorized(PACKAGE, true, "account-1")
-        repository.updateAutoConfirmMode(PACKAGE, AutoConfirmMode.TODAS)
         val notification = BankNotification(PACKAGE, "", "Saldo disponible 20 EUR", 1_000L)
 
         repository.ingest(notification)

@@ -16,6 +16,7 @@ import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.model.CategoryKind
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
+import com.mipatrimonio.app.domain.notifications.AutoConfirmMode
 import com.mipatrimonio.app.domain.notifications.BankNotification
 import com.mipatrimonio.app.domain.notifications.GenericSpanishParser
 import com.mipatrimonio.app.domain.notifications.NotificationEngine
@@ -297,6 +298,8 @@ class PendingProposalsViewModelTest {
 
     private suspend fun proposal(text: String, accountId: String?): PendingProposal {
         notifications.setAuthorized(PACKAGE, true, accountId)
+        // Estos tests cubren la revisión manual: se desactiva la autoanotación (por defecto TODAS al autorizar).
+        notifications.updateAutoConfirmMode(PACKAGE, AutoConfirmMode.OFF)
         val outcome = notifications.ingest(BankNotification(PACKAGE, "Aviso", text, 1_000L))
         return (outcome as NotificationOutcome.Nueva).let {
             notifications.pendingProposals.first().single { proposal -> proposal.id == it.propuesta.id }

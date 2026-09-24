@@ -66,6 +66,7 @@ class NotificationSettingsViewModelTest {
         var rule = notifications.authorizationRules.first().single()
         assertTrue(rule.authorized)
         assertNull(rule.accountId)
+        assertEquals(AutoConfirmMode.TODAS, rule.autoConfirmMode)
 
         viewModel.setAccount(PACKAGE, "account-1")
         advanceUntilIdle()
@@ -78,6 +79,7 @@ class NotificationSettingsViewModelTest {
         rule = notifications.authorizationRules.first().single()
         assertFalse(rule.authorized)
         assertEquals("account-1", rule.accountId)
+        assertEquals(AutoConfirmMode.TODAS, rule.autoConfirmMode)
 
         viewModel.setAccount(PACKAGE, null)
         advanceUntilIdle()

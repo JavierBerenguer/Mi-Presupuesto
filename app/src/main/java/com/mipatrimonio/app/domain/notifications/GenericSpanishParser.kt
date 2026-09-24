@@ -32,6 +32,7 @@ class GenericSpanishParser : BankNotificationParser {
         val merchant = extractMerchant(notification.text)
             ?: extractMerchantFromTitle(notification.title, notification.packageName)
         val confidence = when {
+            classification.isBizum -> Confidence.MEDIA
             classification.kind == ProposalKind.TRANSFERENCIA || classification.isFallback -> Confidence.BAJA
             merchant != null -> Confidence.ALTA
             else -> Confidence.MEDIA
@@ -84,6 +85,14 @@ class GenericSpanishParser : BankNotificationParser {
     }
 
     private fun classify(content: String, amount: ExtractedAmount): Classification = when {
+        BIZUM_KEYWORD.containsMatchIn(content) -> Classification(
+            kind = if (INCOME_KEYWORDS.containsMatchIn(content) || amount.hasExplicitPlus) {
+                ProposalKind.INGRESO
+            } else {
+                ProposalKind.GASTO
+            },
+            isBizum = true,
+        )
         TRANSFER_KEYWORDS.containsMatchIn(content) -> Classification(ProposalKind.TRANSFERENCIA)
         INCOME_KEYWORDS.containsMatchIn(content) || amount.hasExplicitPlus -> Classification(ProposalKind.INGRESO)
         EXPENSE_KEYWORDS.containsMatchIn(content) || amount.hasExplicitMinus -> Classification(ProposalKind.GASTO)
@@ -130,6 +139,7 @@ class GenericSpanishParser : BankNotificationParser {
     private data class Classification(
         val kind: ProposalKind,
         val isFallback: Boolean = false,
+        val isBizum: Boolean = false,
     )
 
     private companion object {
@@ -155,11 +165,12 @@ class GenericSpanishParser : BankNotificationParser {
             "(?i)(?:$NUMBER\\s*(?!(?:EUR|USD|GBP)\\b)[A-Z]{3}\\b|(?!(?:EUR|USD|GBP)\\b)[A-Z]{3}\\s*$NUMBER)",
         )
         val TRANSFER_KEYWORDS = Regex(
-            "\\b(transferencia|bizum|traspaso|plan\\s+de\\s+inversi[oó]n|ahorro\\s+autom[aá]tico|round[ -]?up|saveback|inversi[oó]n|aportaci[oó]n)\\b",
+            "\\b(transferencia|traspaso|plan\\s+de\\s+inversi[oó]n|ahorro\\s+autom[aá]tico|round[ -]?up|saveback|inversi[oó]n|aportaci[oó]n)\\b",
             RegexOption.IGNORE_CASE,
         )
+        val BIZUM_KEYWORD = Regex("\\bbizum\\b", RegexOption.IGNORE_CASE)
         val INCOME_KEYWORDS = Regex(
-            "\\b(ingreso|abono|n[oó]mina|devoluci[oó]n|reembolso|recibid[oa]s?|recibes|dividendos?|intereses)\\b",
+            "\\b(ingreso|abono|n[oó]mina|devoluci[oó]n|reembolso|recibid[oa]s?|recibes|te\\s+ha\\s+enviado|dividendos?|intereses)\\b",
             RegexOption.IGNORE_CASE,
         )
         val EXPENSE_KEYWORDS = Regex("\\b(compra|pago|cargo|recibo|domiciliaci[oó]n)\\b", RegexOption.IGNORE_CASE)

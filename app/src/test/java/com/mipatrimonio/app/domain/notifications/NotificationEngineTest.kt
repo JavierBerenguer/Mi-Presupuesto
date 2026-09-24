@@ -63,6 +63,35 @@ class NotificationEngineTest {
     }
 
     @Test
+    fun `bizum nunca genera transferencia y mantiene confianza media`() {
+        listOf(
+            "Bizum de Ana +3 €" to ProposalKind.INGRESO,
+            "Bizum de Ana 7 €" to ProposalKind.GASTO,
+            "Bizum de Ana -7 €" to ProposalKind.GASTO,
+        ).forEach { (text, expectedKind) ->
+            val outcome = engine.process(notification(text), setOf(PACKAGE), { "a1" }, emptyList())
+            val proposal = (outcome as NotificationOutcome.Nueva).propuesta
+
+            assertEquals(text, expectedKind, proposal.kind)
+            assertEquals(text, Confidence.MEDIA, proposal.confidence)
+        }
+    }
+
+    @Test
+    fun `plan de inversion permanece como transferencia`() {
+        val outcome = engine.process(
+            notification("Plan de inversión 50 €"),
+            setOf(PACKAGE),
+            { "a1" },
+            emptyList(),
+        )
+        val proposal = (outcome as NotificationOutcome.Nueva).propuesta
+
+        assertEquals(ProposalKind.TRANSFERENCIA, proposal.kind)
+        assertEquals(Confidence.BAJA, proposal.confidence)
+    }
+
+    @Test
     fun `crea propuesta nueva con cuenta nullable`() {
         val outcome = engine.process(notification("Compra de 2,00 €"), setOf(PACKAGE), { null }, emptyList())
         val proposal = (outcome as NotificationOutcome.Nueva).propuesta

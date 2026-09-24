@@ -38,7 +38,8 @@ class Migration3to4Test {
                             )
                             db.execSQL(
                                 "INSERT INTO notification_authorization VALUES " +
-                                    "('app.bank', 1, 'account-1', 1234)",
+                                    "('app.bank', 1, 'account-1', 1234), " +
+                                    "('app.other', 0, NULL, 5678)",
                             )
                         }
 
@@ -68,7 +69,15 @@ class Migration3to4Test {
             assertEquals(1, cursor.getInt(0))
             assertEquals("account-1", cursor.getString(1))
             assertEquals(1234L, cursor.getLong(2))
-            assertEquals("OFF", cursor.getString(3))
+            assertEquals("TODAS", cursor.getString(3))
+        }
+        db.query(
+            "SELECT authorized, autoConfirmMode " +
+                "FROM notification_authorization WHERE packageName = 'app.other'",
+        ).use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(0, cursor.getInt(0))
+            assertEquals("OFF", cursor.getString(1))
         }
         db.query("PRAGMA table_info(notification_diagnostic)").use { cursor ->
             val columns = buildSet {

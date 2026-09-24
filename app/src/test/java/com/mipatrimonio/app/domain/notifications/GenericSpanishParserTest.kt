@@ -59,6 +59,23 @@ class GenericSpanishParserTest {
     }
 
     @Test
+    fun `clasifica bizum por signo o palabras de ingreso con confianza media`() {
+        val cases = listOf(
+            "Bizum de Ana +3 €" to ProposalKind.INGRESO,
+            "Bizum de Ana 7 €" to ProposalKind.GASTO,
+            "Bizum de Ana -7 €" to ProposalKind.GASTO,
+            "Has recibido un Bizum de Ana de 9 €" to ProposalKind.INGRESO,
+            "Ana te ha enviado un Bizum de 11 €" to ProposalKind.INGRESO,
+        )
+
+        cases.forEach { (text, expectedKind) ->
+            val parsed = parse(text)
+            assertEquals(text, expectedKind, parsed?.kind)
+            assertEquals(text, Confidence.MEDIA, parsed?.confidence)
+        }
+    }
+
+    @Test
     fun `clasifica palabras de gasto e ingreso`() {
         assertEquals(ProposalKind.GASTO, parse("Pago de 10 EUR")?.kind)
         listOf("Ingreso", "abono", "nómina", "devolución", "reembolso", "importe recibido", "recibes", "dividendo", "intereses")
@@ -68,7 +85,6 @@ class GenericSpanishParserTest {
     @Test
     fun `clasifica operaciones internas como transferencia de confianza baja`() {
         listOf(
-            "Bizum enviado",
             "Transferencia emitida",
             "Traspaso realizado",
             "Plan de inversión programado",
