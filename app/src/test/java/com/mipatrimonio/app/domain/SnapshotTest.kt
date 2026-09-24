@@ -42,6 +42,25 @@ class SnapshotTest {
     }
 
     @Test
+    fun `transferencia al broker y compra reducen patrimonio solo por comisiones`() {
+        val bank = account("bank", initial = 1_000_00)
+        val broker = account("broker", type = com.mipatrimonio.app.domain.model.AccountType.INVERSION)
+        val transfer = transfer("bank", "broker", 500_00)
+        val purchase = op(OperationType.COMPRA, "4", "100", fees = 10_00, accountId = "broker")
+        val price = AssetPrice("asset1", BigDecimal("100"), "EUR", 0, PriceSource.MANUAL)
+
+        val snapshot = SnapshotBuilder.build(
+            "EUR", listOf(bank, broker), emptyList(), listOf(transfer), listOf(portfolio), listOf(asset),
+            listOf(purchase), mapOf("asset1" to price),
+        )
+
+        assertEquals(500_00L, snapshot.balances.first { it.account.id == "bank" }.balanceMinor)
+        assertEquals(90_00L, snapshot.balances.first { it.account.id == "broker" }.balanceMinor)
+        assertEquals(400_00L, snapshot.netWorth.investmentsMinor)
+        assertEquals(990_00L, snapshot.netWorth.totalMinor)
+    }
+
+    @Test
     fun `activo sin cotizacion se informa y no se valora`() {
         val s = SnapshotBuilder.build(
             "EUR", emptyList(), emptyList(), emptyList(), listOf(portfolio), listOf(asset),

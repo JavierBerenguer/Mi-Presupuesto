@@ -8,6 +8,8 @@ import com.mipatrimonio.app.data.repository.InvestmentRepository
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.domain.calc.BalanceCalculator
 import com.mipatrimonio.app.domain.calc.InvalidOperationException
+import com.mipatrimonio.app.domain.calc.InvalidInvestmentAccountException
+import com.mipatrimonio.app.domain.calc.InvestmentAccountError
 import com.mipatrimonio.app.domain.calc.PositionCalculator
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountType
@@ -62,7 +64,7 @@ class RepositoryTest {
 
     private suspend fun balance(id: String): Long {
         val acc = ledger.accounts.first().first { it.id == id }
-        return BalanceCalculator.balance(acc, ledger.transactions.first(), ledger.transfers.first())
+        return BalanceCalculator.balance(acc, ledger.transactions.first(), ledger.transfers.first(), investments.operations.first())
     }
 
     @Test
@@ -149,6 +151,47 @@ class RepositoryTest {
         assertThrows(InvalidOperationException::class.java) {
             runBlocking { investments.deleteOperation(investments.operations.first().first { it.id == "o1" }) }
         }
+    }
+
+    @Test
+    fun `operacion vinculada valida divisa y se refleja al editar y eliminar`() = runBlocking<Unit> {
+        ledger.saveAccount(account("eur", initial = 1_000_00))
+        ledger.saveAccount(account("usd", currency = "USD"))
+        investments.savePortfolio(Portfolio("p1", "Principal", 1, defaultAccountId = "eur"))
+        investments.saveAsset(Asset("as1", "ETF Mundo", "IWDA", "", AssetType.ETF, "XAMS", "EUR"))
+        fun purchase(price: String, accountId: String?) = InvestmentOperation(
+            "o1", "p1", "as1", OperationType.COMPRA, LocalDate.of(2026, 1, 1), BigDecimal("2"),
+            BigDecimal(price), 1_00, "EUR", "", 1, accountId,
+        )
+
+        val mismatch = assertThrows(InvalidInvestmentAccountException::class.java) {
+            runBlocking { investments.addOperation(purchase("100", "usd")) }
+        }
+        assertTrue(mismatch.reason is InvestmentAccountError.CurrencyMismatch)
+
+        investments.addOperation(purchase("100", "eur"))
+        assertEquals(799_00L, balance("eur"))
+        investments.addOperation(purchase("120", "eur"))
+        assertEquals(759_00L, balance("eur"))
+        investments.deleteOperation(investments.operations.first().single())
+        assertEquals(1_000_00L, balance("eur"))
+    }
+
+    @Test
+    fun `operacion sin cuenta conserva el comportamiento anterior y cartera guarda sugerencia`() = runBlocking<Unit> {
+        ledger.saveAccount(account("a1", initial = 100_00))
+        val portfolio = Portfolio("p1", "Principal", 1, defaultAccountId = "a1")
+        investments.savePortfolio(portfolio)
+        investments.saveAsset(Asset("as1", "ETF", "X", "", AssetType.ETF, "", "EUR"))
+        investments.addOperation(
+            InvestmentOperation(
+                "o1", "p1", "as1", OperationType.COMPRA, LocalDate.of(2026, 1, 1), BigDecimal.ONE,
+                BigDecimal.TEN, 0, "EUR", "", 1, accountId = null,
+            ),
+        )
+
+        assertEquals("a1", investments.portfolios.first().single().defaultAccountId)
+        assertEquals(100_00L, balance("a1"))
     }
 
     @Test

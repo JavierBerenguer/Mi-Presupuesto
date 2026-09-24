@@ -6,6 +6,7 @@ import com.mipatrimonio.app.data.repository.InvestmentRepository
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
 import com.mipatrimonio.app.domain.calc.PositionCalculator
+import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Asset
 import com.mipatrimonio.app.domain.model.AssetPrice
 import com.mipatrimonio.app.domain.model.AssetType
@@ -26,6 +27,7 @@ import kotlinx.coroutines.launch
 data class InvestmentsUiState(
     val snapshot: FinanceSnapshot? = null,
     val portfolios: List<Portfolio> = emptyList(),
+    val accounts: List<Account> = emptyList(),
     val assets: List<Asset> = emptyList(),
     val operationsByPosition: Map<Pair<String, String>, List<InvestmentOperation>> = emptyMap(),
     val latestPrices: Map<String, AssetPrice> = emptyMap(),
@@ -78,6 +80,7 @@ class InvestmentsViewModel(
         InvestmentsUiState(
             snapshot = snapshot,
             portfolios = investmentValues.portfolios.sortedWith(compareBy({ it.createdAt }, { it.name })),
+            accounts = ledgerValues.accounts.sortedWith(compareBy({ it.archived }, { it.createdAt }, { it.name })),
             assets = investmentValues.assets.sortedWith(compareBy({ it.name }, { it.ticker })),
             operationsByPosition = investmentValues.operations
                 .groupBy { it.portfolioId to it.assetId }
@@ -101,13 +104,14 @@ class InvestmentsViewModel(
         initialValue = InvestmentsUiState(),
     )
 
-    fun savePortfolio(name: String, onResult: (String?) -> Unit) {
+    fun savePortfolio(name: String, defaultAccountId: String?, onResult: (String?) -> Unit) {
         launchAction(onResult) {
             investments.savePortfolio(
                 Portfolio(
                     id = UUID.randomUUID().toString(),
                     name = name.trim(),
                     createdAt = System.currentTimeMillis(),
+                    defaultAccountId = defaultAccountId,
                 ),
             )
         }
@@ -145,6 +149,7 @@ class InvestmentsViewModel(
         quantity: BigDecimal,
         unitPrice: BigDecimal,
         feesMinor: Long,
+        accountId: String?,
         note: String,
         onResult: (String?) -> Unit,
     ) {
@@ -160,6 +165,7 @@ class InvestmentsViewModel(
             currency = asset.currency,
             note = note.trim(),
             createdAt = System.currentTimeMillis(),
+            accountId = accountId,
         )
         PositionCalculator.validate(operation)?.let {
             onResult(it)

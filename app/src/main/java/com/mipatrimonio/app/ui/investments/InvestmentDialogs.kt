@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import com.mipatrimonio.app.R
 import com.mipatrimonio.app.domain.model.Asset
 import com.mipatrimonio.app.domain.model.AssetType
+import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Currencies
 import com.mipatrimonio.app.domain.model.MoneyMath
 import com.mipatrimonio.app.domain.model.OperationType
@@ -35,10 +36,12 @@ import java.time.LocalDate
 
 @Composable
 fun PortfolioDialog(
+    accounts: List<Account>,
     onDismiss: () -> Unit,
-    onSave: (String, (String?) -> Unit) -> Unit,
+    onSave: (String, String?, (String?) -> Unit) -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
+    var defaultAccount by remember { mutableStateOf<Account?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     val blankNameError = stringResource(R.string.inv_error_name_required)
 
@@ -55,6 +58,14 @@ fun PortfolioDialog(
                     isError = error != null,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                DropdownField(
+                    label = stringResource(R.string.inv_default_account),
+                    options = accounts,
+                    selected = defaultAccount,
+                    optionLabel = { stringResource(R.string.inv_account_option, it.name, it.currency) },
+                    onSelected = { defaultAccount = it },
+                    noneLabel = stringResource(R.string.inv_no_account),
+                )
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
         },
@@ -63,7 +74,7 @@ fun PortfolioDialog(
                 if (name.isBlank()) {
                     error = blankNameError
                 } else {
-                    onSave(name) { result ->
+                    onSave(name, defaultAccount?.id) { result ->
                         if (result == null) onDismiss() else error = result
                     }
                 }
@@ -170,6 +181,7 @@ fun AssetDialog(
 fun OperationDialog(
     portfolios: List<Portfolio>,
     assets: List<Asset>,
+    accounts: List<Account>,
     initialPortfolioId: String?,
     initialAssetId: String?,
     onDismiss: () -> Unit,
@@ -183,6 +195,7 @@ fun OperationDialog(
         BigDecimal,
         BigDecimal,
         Long,
+        String?,
         String,
         (String?) -> Unit,
     ) -> Unit,
@@ -212,6 +225,11 @@ fun OperationDialog(
         mutableStateOf(portfolios.firstOrNull { it.id == initialPortfolioId } ?: portfolios.first())
     }
     var asset by remember { mutableStateOf(assets.firstOrNull { it.id == initialAssetId } ?: assets.first()) }
+    fun eligibleAccounts(selectedAsset: Asset): List<Account> =
+        accounts.filter { !it.archived && it.currency == selectedAsset.currency }
+    fun suggestedAccount(selectedPortfolio: Portfolio, selectedAsset: Asset): Account? =
+        eligibleAccounts(selectedAsset).firstOrNull { it.id == selectedPortfolio.defaultAccountId }
+    var account by remember { mutableStateOf(suggestedAccount(portfolio, asset)) }
     var type by remember { mutableStateOf(OperationType.COMPRA) }
     var date by remember { mutableStateOf(LocalDate.now()) }
     var quantityText by remember { mutableStateOf("") }
@@ -237,7 +255,12 @@ fun OperationDialog(
                     options = portfolios,
                     selected = portfolio,
                     optionLabel = { it.name },
-                    onSelected = { it?.let { selected -> portfolio = selected } },
+                    onSelected = { selected ->
+                        selected?.let {
+                            portfolio = it
+                            account = suggestedAccount(it, asset)
+                        }
+                    },
                 )
                 DropdownField(
                     label = stringResource(R.string.inv_asset),
@@ -246,7 +269,14 @@ fun OperationDialog(
                     optionLabel = {
                         stringResource(R.string.inv_asset_option, it.name, it.ticker, it.currency)
                     },
-                    onSelected = { it?.let { selected -> asset = selected; error = null } },
+                    onSelected = { selected ->
+                        selected?.let {
+                            asset = it
+                            account = account?.takeIf { current -> current in eligibleAccounts(it) }
+                                ?: suggestedAccount(portfolio, it)
+                            error = null
+                        }
+                    },
                 )
                 Text(
                     stringResource(R.string.inv_operation_currency, asset.currency),
@@ -263,6 +293,14 @@ fun OperationDialog(
                             error = null
                         }
                     },
+                )
+                DropdownField(
+                    label = stringResource(R.string.inv_account),
+                    options = eligibleAccounts(asset),
+                    selected = account,
+                    optionLabel = { stringResource(R.string.inv_account_option, it.name, it.currency) },
+                    onSelected = { account = it; error = null },
+                    noneLabel = stringResource(R.string.inv_no_account),
                 )
                 DateField(stringResource(R.string.inv_date), date, onChange = { date = it })
                 AmountField(
@@ -327,7 +365,7 @@ fun OperationDialog(
                             error = amountTooLargeError
                             return@TextButton
                         }
-                        onSave(portfolio, asset, type, date, quantity, price, feesMinor, note) { result ->
+                        onSave(portfolio, asset, type, date, quantity, price, feesMinor, account?.id, note) { result ->
                             if (result == null) onDismiss() else error = result
                         }
                     }

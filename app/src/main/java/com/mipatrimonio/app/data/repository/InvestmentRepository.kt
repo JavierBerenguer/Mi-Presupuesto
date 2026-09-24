@@ -5,6 +5,9 @@ import com.mipatrimonio.app.data.db.AppDatabase
 import com.mipatrimonio.app.data.db.AssetPriceEntity
 import com.mipatrimonio.app.data.db.toDomain
 import com.mipatrimonio.app.data.db.toEntity
+import com.mipatrimonio.app.domain.calc.BalanceCalculator
+import com.mipatrimonio.app.domain.calc.InvalidInvestmentAccountException
+import com.mipatrimonio.app.domain.calc.InvestmentAccountError
 import com.mipatrimonio.app.domain.calc.PositionCalculator
 import com.mipatrimonio.app.domain.model.Asset
 import com.mipatrimonio.app.domain.model.AssetPrice
@@ -33,6 +36,9 @@ class InvestmentRepository(
 
     suspend fun savePortfolio(portfolio: Portfolio) {
         require(portfolio.name.isNotBlank()) { "El nombre de la cartera es obligatorio" }
+        portfolio.defaultAccountId?.let { accountId ->
+            require(db.accountDao().getById(accountId) != null) { "La cuenta predeterminada no existe" }
+        }
         dao.upsertPortfolio(portfolio.toEntity())
     }
 
@@ -45,6 +51,12 @@ class InvestmentRepository(
     suspend fun addOperation(operation: InvestmentOperation) = db.withTransaction {
         val asset = dao.getAsset(operation.assetId) ?: throw IllegalArgumentException("El activo no existe")
         require(asset.currency == operation.currency) { "La divisa de la operación debe ser la del activo" }
+        operation.accountId?.let { accountId ->
+            val account = db.accountDao().getById(accountId)?.toDomain()
+                ?: throw InvalidInvestmentAccountException(InvestmentAccountError.AccountNotFound)
+            BalanceCalculator.validateInvestmentAccount(operation, account)
+                ?.let { throw InvalidInvestmentAccountException(it) }
+        }
         val existing = dao.operationsFor(operation.portfolioId, operation.assetId).map { it.toDomain() }
         PositionCalculator.compute(existing.filter { it.id != operation.id } + operation)
         dao.upsertOperation(operation.toEntity())

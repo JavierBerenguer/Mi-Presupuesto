@@ -97,6 +97,7 @@ data class PortfolioEntity(
     @PrimaryKey val id: String,
     val name: String,
     val createdAt: Long,
+    val defaultAccountId: String?,
 )
 
 @Entity(tableName = "asset", indices = [Index("isin")])
@@ -116,8 +117,9 @@ data class AssetEntity(
     foreignKeys = [
         ForeignKey(PortfolioEntity::class, ["id"], ["portfolioId"], onDelete = ForeignKey.RESTRICT),
         ForeignKey(AssetEntity::class, ["id"], ["assetId"], onDelete = ForeignKey.RESTRICT),
+        ForeignKey(AccountEntity::class, ["id"], ["accountId"], onDelete = ForeignKey.RESTRICT),
     ],
-    indices = [Index("portfolioId"), Index("assetId")],
+    indices = [Index("portfolioId"), Index("assetId"), Index("accountId")],
 )
 data class InvestmentOperationEntity(
     @PrimaryKey val id: String,
@@ -131,6 +133,7 @@ data class InvestmentOperationEntity(
     val currency: String,
     val note: String,
     val createdAt: Long,
+    val accountId: String?,
 )
 
 /** Historial de precios: cada actualización añade una fila; el precio vigente es la de mayor `asOfEpochMillis`. */

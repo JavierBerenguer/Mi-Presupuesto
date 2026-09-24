@@ -48,7 +48,9 @@ object SnapshotBuilder {
         operations: List<InvestmentOperation>,
         prices: Map<String, AssetPrice>,
     ): FinanceSnapshot {
-        val balances = accounts.map { AccountBalance(it, BalanceCalculator.balance(it, transactions, transfers)) }
+        val balances = accounts.map {
+            AccountBalance(it, BalanceCalculator.balance(it, transactions, transfers, operations))
+        }
         val portfolioById = portfolios.associateBy { it.id }
         val assetById = assets.associateBy { it.id }
 

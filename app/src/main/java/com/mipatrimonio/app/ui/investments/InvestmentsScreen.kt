@@ -125,8 +125,9 @@ fun InvestmentsScreen(
 
     if (showPortfolioDialog) {
         PortfolioDialog(
+            accounts = state.accounts.filterNot { it.archived },
             onDismiss = { showPortfolioDialog = false },
-            onSave = { name, onResult -> viewModel.savePortfolio(name, onResult) },
+            onSave = { name, accountId, onResult -> viewModel.savePortfolio(name, accountId, onResult) },
         )
     }
     if (showAssetDialog) {
@@ -143,6 +144,7 @@ fun InvestmentsScreen(
             OperationDialog(
                 portfolios = state.portfolios,
                 assets = state.assets,
+                accounts = state.accounts,
                 initialPortfolioId = operationPortfolioId,
                 initialAssetId = operationAssetId,
                 onDismiss = { operationDialogOpen = false },
@@ -154,7 +156,7 @@ fun InvestmentsScreen(
                     operationDialogOpen = false
                     showAssetDialog = true
                 },
-                onSave = { portfolio, asset, type, date, quantity, price, fees, note, onResult ->
+                onSave = { portfolio, asset, type, date, quantity, price, fees, accountId, note, onResult ->
                     viewModel.addOperation(
                         portfolio,
                         asset,
@@ -163,6 +165,7 @@ fun InvestmentsScreen(
                         quantity,
                         price,
                         fees,
+                        accountId,
                         note,
                         onResult,
                     )

@@ -37,6 +37,10 @@
     <string name="inv_update_price">Actualizar precio</string>
 
     <string name="inv_portfolio_name">Nombre de la cartera</string>
+    <string name="inv_default_account">Cuenta por defecto</string>
+    <string name="inv_account">Cuenta</string>
+    <string name="inv_no_account">Sin cuenta</string>
+    <string name="inv_account_option">%1$s · %2$s</string>
     <string name="inv_asset_name">Nombre del activo</string>
     <string name="inv_ticker">Ticker</string>
     <string name="inv_ticker_not_identifier">El ticker no identifica de forma única un activo.</string>

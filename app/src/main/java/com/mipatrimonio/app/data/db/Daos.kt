@@ -76,6 +76,9 @@ interface InvestmentDao {
     @Query("SELECT * FROM portfolio ORDER BY createdAt")
     fun observePortfolios(): Flow<List<PortfolioEntity>>
 
+    @Query("SELECT * FROM portfolio WHERE id = :id")
+    suspend fun getPortfolio(id: String): PortfolioEntity?
+
     @Upsert
     suspend fun upsertPortfolio(entity: PortfolioEntity)
 

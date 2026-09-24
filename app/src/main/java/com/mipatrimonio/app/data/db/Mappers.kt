@@ -47,20 +47,20 @@ fun Transfer.toEntity(updatedAt: Long) = TransferEntity(
 fun BudgetEntity.toDomain() = Budget(id, categoryId, BudgetPeriod.valueOf(period), limitMinor, currency, archived)
 fun Budget.toEntity(createdAt: Long) = BudgetEntity(id, categoryId, period.name, limitMinor, currency, archived, createdAt)
 
-fun PortfolioEntity.toDomain() = Portfolio(id, name, createdAt)
-fun Portfolio.toEntity() = PortfolioEntity(id, name, createdAt)
+fun PortfolioEntity.toDomain() = Portfolio(id, name, createdAt, defaultAccountId)
+fun Portfolio.toEntity() = PortfolioEntity(id, name, createdAt, defaultAccountId)
 
 fun AssetEntity.toDomain() = Asset(id, name, ticker, isin, AssetType.valueOf(type), market, currency)
 fun Asset.toEntity(createdAt: Long) = AssetEntity(id, name, ticker, isin, type.name, market, currency, createdAt)
 
 fun InvestmentOperationEntity.toDomain() = InvestmentOperation(
     id, portfolioId, assetId, OperationType.valueOf(type), LocalDate.ofEpochDay(epochDay),
-    BigDecimal(quantity), BigDecimal(unitPrice), feesMinor, currency, note, createdAt,
+    BigDecimal(quantity), BigDecimal(unitPrice), feesMinor, currency, note, createdAt, accountId,
 )
 
 fun InvestmentOperation.toEntity() = InvestmentOperationEntity(
     id, portfolioId, assetId, type.name, date.toEpochDay(),
-    quantity.toPlainString(), unitPrice.toPlainString(), feesMinor, currency, note, createdAt,
+    quantity.toPlainString(), unitPrice.toPlainString(), feesMinor, currency, note, createdAt, accountId,
 )
 
 fun AssetPriceEntity.toDomain() = AssetPrice(assetId, BigDecimal(price), currency, asOfEpochMillis, PriceSource.valueOf(source))

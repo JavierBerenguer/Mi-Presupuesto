@@ -5,6 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.mipatrimonio.app.data.db.migrations.MIGRATION_1_2
+import com.mipatrimonio.app.data.db.migrations.MIGRATION_2_3
 
 @Database(
     entities = [
@@ -20,7 +21,7 @@ import com.mipatrimonio.app.data.db.migrations.MIGRATION_1_2
         NotificationAuthorizationEntity::class,
         PendingProposalEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -38,7 +39,7 @@ abstract class AppDatabase : RoomDatabase() {
         /** Las migraciones futuras se añaden con `.addMigrations(...)`; nunca `fallbackToDestructiveMigration`. */
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, NAME)
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
     }
 }

@@ -46,8 +46,10 @@ object TestData {
         date: LocalDate = LocalDate.of(2026, 1, 1),
         createdAt: Long = counter++.toLong(),
         currency: String = "EUR",
+        accountId: String? = null,
     ) = InvestmentOperation(
         "o${counter++}", "p1", "asset1", type, date, BigDecimal(qty), BigDecimal(price), fees, currency, "", createdAt,
+        accountId,
     )
 
     private var counter = 0

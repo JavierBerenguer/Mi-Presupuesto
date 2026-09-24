@@ -74,7 +74,12 @@ data class Budget(
     val archived: Boolean,
 )
 
-data class Portfolio(val id: String, val name: String, val createdAt: Long)
+data class Portfolio(
+    val id: String,
+    val name: String,
+    val createdAt: Long,
+    val defaultAccountId: String? = null,
+)
 
 enum class AssetType { ACCION, ETF, FONDO_INDEXADO, FONDO_INVERSION, CRIPTO }
 
@@ -93,7 +98,8 @@ enum class OperationType { COMPRA, VENTA, DIVIDENDO, COMISION }
 
 /**
  * Operación de inversión. Importe bruto = [quantity] × [unitPrice] (en divisa del activo).
- * [feesMinor]: comisiones en compra/venta; retención en dividendos.
+ * [feesMinor]: comisiones en compra/venta y retención en dividendos. En una COMISION,
+ * el importe es el bruto ([quantity] × [unitPrice]) y [feesMinor] no forma parte del importe.
  */
 data class InvestmentOperation(
     val id: String,
@@ -107,6 +113,7 @@ data class InvestmentOperation(
     val currency: String,
     val note: String,
     val createdAt: Long,
+    val accountId: String? = null,
 )
 
 enum class PriceSource { MANUAL, PROVEEDOR }
