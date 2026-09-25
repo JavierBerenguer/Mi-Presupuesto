@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nav_presupuesto">Presupuesto</string>
+    <string name="nav_cartera">Cartera</string>
+    <string name="nav_mas">Más</string>
+    <string name="more_accounts">Cuentas</string>
+    <string name="more_no_accounts">Todavía no hay cuentas.</string>
+    <string name="more_add_first_account">Añadir la primera cuenta</string>
+    <string name="more_total">Total por divisa</string>
+    <string name="more_import_export">Importar y exportar</string>
+    <string name="more_coming_soon">Próximamente</string>
+</resources>

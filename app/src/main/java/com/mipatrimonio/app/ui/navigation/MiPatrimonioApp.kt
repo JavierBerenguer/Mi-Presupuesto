@@ -5,9 +5,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -25,11 +22,13 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.mipatrimonio.app.R
 import com.mipatrimonio.app.ui.budgets.BudgetsScreen
+import com.mipatrimonio.app.ui.components.BottomNavBar
 import com.mipatrimonio.app.ui.home.HomeScreen
 import com.mipatrimonio.app.ui.investments.InvestmentsScreen
 import com.mipatrimonio.app.ui.movements.MovementsScreen
 import com.mipatrimonio.app.ui.movements.TransactionFormScreen
 import com.mipatrimonio.app.ui.movements.TransferFormScreen
+import com.mipatrimonio.app.ui.more.MoreScreen
 import com.mipatrimonio.app.ui.networth.NetWorthScreen
 import com.mipatrimonio.app.ui.settings.AccountsScreen
 import com.mipatrimonio.app.ui.settings.CategoriesScreen
@@ -59,39 +58,17 @@ fun MiPatrimonioApp() {
                         }
                     }
                 },
-                actions = {
-                    if (isMain) {
-                        IconButton(onClick = { navController.navigate(Destino.Ajustes.ruta) }) {
-                            Icon(Destino.Ajustes.icono, contentDescription = stringResource(Destino.Ajustes.titulo))
-                        }
-                    }
-                },
             )
         },
         bottomBar = {
-            if (isMain) {
-                NavigationBar {
-                    Destino.principales.forEach { item ->
-                        NavigationBarItem(
-                            selected = item == destino,
-                            onClick = {
-                                navController.navigate(item.ruta) {
-                                    popUpTo(Destino.Inicio.ruta) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            icon = { Icon(item.icono, contentDescription = null) },
-                            label = {
-                                Text(
-                                    stringResource(item.titulo),
-                                    maxLines = 1,
-                                    style = MaterialTheme.typography.labelSmall,
-                                )
-                            },
-                        )
+            destino?.takeIf { isMain }?.let { selected ->
+                BottomNavBar(selected = selected, onSelected = { item ->
+                    navController.navigate(item.ruta) {
+                        popUpTo(Destino.rutaInicial) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
                     }
-                }
+                })
             }
         },
     ) { padding ->
@@ -106,6 +83,8 @@ private fun titleFor(route: String?, isEditing: Boolean, destino: Destino?): Int
     route == Rutas.NOTIFICACIONES -> R.string.notif_settings_title
     route == Rutas.PROPUESTAS -> R.string.notif_proposals_title
     route == Rutas.DIAGNOSTICO_NOTIFICACIONES -> R.string.notif_diagnostics_title
+    route == Rutas.PATRIMONIO -> R.string.nav_patrimonio
+    route == Rutas.AJUSTES -> R.string.nav_ajustes
     route == Rutas.MOVIMIENTO -> if (isEditing) R.string.nav_editar_movimiento else R.string.nav_nuevo_movimiento
     route == Rutas.TRANSFERENCIA -> if (isEditing) R.string.nav_editar_transferencia else R.string.nav_nueva_transferencia
     else -> R.string.app_name
@@ -117,7 +96,7 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
     fun idOf(entry: androidx.navigation.NavBackStackEntry): String? =
         entry.arguments?.getString("id")?.takeIf { it != Rutas.NUEVO }
 
-    NavHost(navController, startDestination = Destino.Inicio.ruta, modifier = modifier) {
+    NavHost(navController, startDestination = Destino.rutaInicial, modifier = modifier) {
         composable(Destino.Inicio.ruta) {
             HomeScreen(onOpenAccounts = { navController.navigate(Rutas.CUENTAS) })
         }
@@ -130,10 +109,20 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
                 onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
             )
         }
-        composable(Destino.Presupuestos.ruta) { BudgetsScreen() }
-        composable(Destino.Inversiones.ruta) { InvestmentsScreen() }
-        composable(Destino.Patrimonio.ruta) { NetWorthScreen() }
-        composable(Destino.Ajustes.ruta) {
+        composable(Destino.Presupuesto.ruta) { BudgetsScreen() }
+        composable(Destino.Cartera.ruta) { InvestmentsScreen() }
+        composable(Destino.Mas.ruta) {
+            MoreScreen(
+                onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
+                onOpenNetWorth = { navController.navigate(Rutas.PATRIMONIO) },
+                onOpenCategories = { navController.navigate(Rutas.CATEGORIAS) },
+                onOpenNotifications = { navController.navigate(Rutas.NOTIFICACIONES) },
+                onOpenProposals = { navController.navigate(Rutas.PROPUESTAS) },
+                onOpenSettings = { navController.navigate(Rutas.AJUSTES) },
+            )
+        }
+        composable(Rutas.PATRIMONIO) { NetWorthScreen() }
+        composable(Rutas.AJUSTES) {
             SettingsScreen(
                 onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
                 onOpenCategories = { navController.navigate(Rutas.CATEGORIAS) },

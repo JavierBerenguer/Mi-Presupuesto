@@ -4,49 +4,92 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
-private val Esmeralda = Color(0xFF3DDC97)
-private val EsmeraldaOscuro = Color(0xFF0B7A55)
+@Immutable
+data class MiPatrimonioExtraColors(
+    val expense: Color,
+    val chipBackground: Color,
+    val track: Color,
+    val chartAccent: Color,
+    val chartSecondary: Color,
+    val surfaceVariant: Color,
+)
+
+private val DarkExtras = MiPatrimonioExtraColors(
+    expense = ExpenseDark,
+    chipBackground = DarkChipBackground,
+    track = DarkOutline,
+    chartAccent = AccentGold,
+    chartSecondary = ChartSage,
+    surfaceVariant = DarkSurfaceVariant,
+)
+
+private val LightExtras = MiPatrimonioExtraColors(
+    expense = ExpenseLight,
+    chipBackground = LightChipBackground,
+    track = LightOutline,
+    chartAccent = Color(0xFF8A6208),
+    chartSecondary = Color(0xFF39715F),
+    surfaceVariant = LightSurfaceVariant,
+)
+
+val LocalMiPatrimonioExtraColors = staticCompositionLocalOf { DarkExtras }
+
+val MaterialTheme.extras: MiPatrimonioExtraColors
+    @Composable get() = LocalMiPatrimonioExtraColors.current
 
 private val EsquemaOscuro = darkColorScheme(
-    primary = Esmeralda,
-    onPrimary = Color(0xFF00382A),
-    primaryContainer = Color(0xFF14503D),
-    onPrimaryContainer = Color(0xFFB8F5DA),
-    secondary = Color(0xFF8FB8FF),
-    background = Color(0xFF0E1512),
-    onBackground = Color(0xFFE0E9E4),
-    surface = Color(0xFF0E1512),
-    onSurface = Color(0xFFE0E9E4),
-    surfaceVariant = Color(0xFF1B2620),
-    onSurfaceVariant = Color(0xFFBFCAC3),
-    error = Color(0xFFFF8A80),
+    primary = DarkPrimary,
+    onPrimary = Color(0xFF073426),
+    primaryContainer = DarkPrimaryContainer,
+    onPrimaryContainer = Color(0xFFB5E8D5),
+    secondary = ChartSage,
+    onSecondary = Color(0xFF12372C),
+    background = DarkBackground,
+    onBackground = DarkOnSurface,
+    surface = DarkSurface,
+    onSurface = DarkOnSurface,
+    surfaceVariant = DarkSurfaceVariant,
+    onSurfaceVariant = DarkOnSurfaceVariant,
+    outline = DarkOutline,
+    error = ExpenseDark,
 )
 
 private val EsquemaClaro = lightColorScheme(
-    primary = EsmeraldaOscuro,
+    primary = LightPrimary,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFB8F5DA),
-    onPrimaryContainer = Color(0xFF002116),
-    secondary = Color(0xFF2E5AA8),
-    background = Color(0xFFF6FBF8),
-    onBackground = Color(0xFF171D1A),
-    surface = Color(0xFFF6FBF8),
-    onSurface = Color(0xFF171D1A),
-    surfaceVariant = Color(0xFFDCE5DF),
-    onSurfaceVariant = Color(0xFF404943),
-    error = Color(0xFFBA1A1A),
+    primaryContainer = LightPrimaryContainer,
+    onPrimaryContainer = Color(0xFF0C382A),
+    secondary = Color(0xFF39715F),
+    onSecondary = Color.White,
+    background = LightBackground,
+    onBackground = LightOnSurface,
+    surface = LightSurface,
+    onSurface = LightOnSurface,
+    surfaceVariant = LightSurfaceVariant,
+    onSurfaceVariant = LightOnSurfaceVariant,
+    outline = LightOutline,
+    error = ExpenseLight,
 )
 
-/** Modo oscuro por defecto; el claro es opcional. */
+/** Modo oscuro por defecto; el claro se conserva como opción de ajustes. */
 @Composable
 fun MiPatrimonioTheme(
     modoOscuro: Boolean = true,
     content: @Composable () -> Unit,
 ) {
-    MaterialTheme(
-        colorScheme = if (modoOscuro) EsquemaOscuro else EsquemaClaro,
-        content = content,
-    )
+    CompositionLocalProvider(
+        LocalMiPatrimonioExtraColors provides if (modoOscuro) DarkExtras else LightExtras,
+    ) {
+        MaterialTheme(
+            colorScheme = if (modoOscuro) EsquemaOscuro else EsquemaClaro,
+            typography = MiPatrimonioTypography,
+            shapes = MiPatrimonioShapes,
+            content = content,
+        )
+    }
 }
