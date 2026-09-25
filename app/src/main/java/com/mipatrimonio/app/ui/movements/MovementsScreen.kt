@@ -25,7 +25,6 @@ import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -70,10 +69,8 @@ import java.time.LocalDate
 
 @Composable
 fun MovementsScreen(
-    onNewTransaction: () -> Unit,
-    onEditTransaction: (String) -> Unit,
-    onNewTransfer: () -> Unit,
-    onEditTransfer: (String) -> Unit,
+    onNewEntry: () -> Unit,
+    onEditEntry: (String) -> Unit,
     onOpenAccounts: () -> Unit,
     viewModel: MovementsViewModel = appViewModel { c -> MovementsViewModel(c.ledger, c.settings) },
 ) {
@@ -121,8 +118,7 @@ fun MovementsScreen(
                         items = state.visibleItems,
                         accounts = state.accounts,
                         categories = state.categories,
-                        onEditTransaction = onEditTransaction,
-                        onEditTransfer = onEditTransfer,
+                        onEditEntry = onEditEntry,
                         onDuplicate = viewModel::duplicate,
                         onDelete = { pendingDelete = it },
                     )
@@ -130,9 +126,7 @@ fun MovementsScreen(
             }
         }
         NewMovementButton(
-            transferEnabled = state.activeAccounts.size >= 2,
-            onNewTransaction = onNewTransaction,
-            onNewTransfer = onNewTransfer,
+            onNewEntry = onNewEntry,
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
         )
     }
@@ -231,8 +225,7 @@ private fun MovementList(
     items: List<MovementItem>,
     accounts: List<Account>,
     categories: List<Category>,
-    onEditTransaction: (String) -> Unit,
-    onEditTransfer: (String) -> Unit,
+    onEditEntry: (String) -> Unit,
     onDuplicate: (com.mipatrimonio.app.domain.model.Transaction) -> Unit,
     onDelete: (MovementItem) -> Unit,
 ) {
@@ -250,8 +243,8 @@ private fun MovementList(
                 categoriesById = categoriesById,
                 onEdit = {
                     when (item) {
-                        is MovementItem.Tx -> onEditTransaction(item.transaction.id)
-                        is MovementItem.Move -> onEditTransfer(item.transfer.id)
+                        is MovementItem.Tx -> onEditEntry(item.transaction.id)
+                        is MovementItem.Move -> onEditEntry(item.transfer.id)
                     }
                 },
                 onDuplicate = { (item as? MovementItem.Tx)?.transaction?.let(onDuplicate) },
@@ -401,43 +394,12 @@ private fun movementPresentation(
 
 @Composable
 private fun NewMovementButton(
-    transferEnabled: Boolean,
-    onNewTransaction: () -> Unit,
-    onNewTransfer: () -> Unit,
+    onNewEntry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var expanded by remember { mutableStateOf(false) }
     Box(modifier) {
-        FloatingActionButton(onClick = { expanded = true }) {
+        FloatingActionButton(onClick = onNewEntry) {
             Icon(Icons.Outlined.Add, contentDescription = stringResource(R.string.mov_new))
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.mov_new_transaction)) },
-                onClick = {
-                    expanded = false
-                    onNewTransaction()
-                },
-            )
-            DropdownMenuItem(
-                text = {
-                    Column {
-                        Text(stringResource(R.string.mov_new_transfer))
-                        if (!transferEnabled) {
-                            Text(
-                                stringResource(R.string.mov_transfer_disabled),
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                    }
-                },
-                leadingIcon = { Icon(Icons.Outlined.SwapHoriz, contentDescription = null) },
-                enabled = transferEnabled,
-                onClick = {
-                    expanded = false
-                    onNewTransfer()
-                },
-            )
         }
     }
 }

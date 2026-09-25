@@ -25,9 +25,8 @@ import com.mipatrimonio.app.ui.budgets.BudgetsScreen
 import com.mipatrimonio.app.ui.components.BottomNavBar
 import com.mipatrimonio.app.ui.home.HomeScreen
 import com.mipatrimonio.app.ui.investments.InvestmentsScreen
+import com.mipatrimonio.app.ui.movements.EntryFormScreen
 import com.mipatrimonio.app.ui.movements.MovementsScreen
-import com.mipatrimonio.app.ui.movements.TransactionFormScreen
-import com.mipatrimonio.app.ui.movements.TransferFormScreen
 import com.mipatrimonio.app.ui.more.MoreScreen
 import com.mipatrimonio.app.ui.networth.NetWorthScreen
 import com.mipatrimonio.app.ui.settings.AccountsScreen
@@ -43,22 +42,24 @@ fun MiPatrimonioApp() {
     val navController = rememberNavController()
     val entry by navController.currentBackStackEntryAsState()
     val route = entry?.destination?.route
-    val isEditing = entry?.arguments?.getString("id").let { it != null && it != Rutas.NUEVO }
     val destino = Destino.entries.firstOrNull { it.ruta == route }
     val isMain = destino != null && destino in Destino.principales
+    val hasOwnTopBar = route == Rutas.APUNTE
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(titleFor(route, isEditing, destino))) },
-                navigationIcon = {
-                    if (route != null && !isMain) {
-                        IconButton(onClick = { navController.popBackStack() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
+            if (!hasOwnTopBar) {
+                TopAppBar(
+                    title = { Text(stringResource(titleFor(route, destino))) },
+                    navigationIcon = {
+                        if (route != null && !isMain) {
+                            IconButton(onClick = { navController.popBackStack() }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
+                            }
                         }
-                    }
-                },
-            )
+                    },
+                )
+            }
         },
         bottomBar = {
             destino?.takeIf { isMain }?.let { selected ->
@@ -76,7 +77,7 @@ fun MiPatrimonioApp() {
     }
 }
 
-private fun titleFor(route: String?, isEditing: Boolean, destino: Destino?): Int = when {
+private fun titleFor(route: String?, destino: Destino?): Int = when {
     destino != null -> destino.titulo
     route == Rutas.CUENTAS -> R.string.nav_cuentas
     route == Rutas.CATEGORIAS -> R.string.nav_categorias
@@ -85,8 +86,6 @@ private fun titleFor(route: String?, isEditing: Boolean, destino: Destino?): Int
     route == Rutas.DIAGNOSTICO_NOTIFICACIONES -> R.string.notif_diagnostics_title
     route == Rutas.PATRIMONIO -> R.string.nav_patrimonio
     route == Rutas.AJUSTES -> R.string.nav_ajustes
-    route == Rutas.MOVIMIENTO -> if (isEditing) R.string.nav_editar_movimiento else R.string.nav_nuevo_movimiento
-    route == Rutas.TRANSFERENCIA -> if (isEditing) R.string.nav_editar_transferencia else R.string.nav_nueva_transferencia
     else -> R.string.app_name
 }
 
@@ -102,10 +101,8 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
         }
         composable(Destino.Movimientos.ruta) {
             MovementsScreen(
-                onNewTransaction = { navController.navigate(Rutas.movimiento(null)) },
-                onEditTransaction = { navController.navigate(Rutas.movimiento(it)) },
-                onNewTransfer = { navController.navigate(Rutas.transferencia(null)) },
-                onEditTransfer = { navController.navigate(Rutas.transferencia(it)) },
+                onNewEntry = { navController.navigate(Rutas.apunte(null)) },
+                onEditEntry = { navController.navigate(Rutas.apunte(it)) },
                 onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
             )
         }
@@ -139,11 +136,12 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
         }
         composable(Rutas.DIAGNOSTICO_NOTIFICACIONES) { NotificationDiagnosticsScreen() }
         composable(Rutas.PROPUESTAS) { PendingProposalsScreen() }
-        composable(Rutas.MOVIMIENTO, idArg) { entry ->
-            TransactionFormScreen(transactionId = idOf(entry), onDone = { navController.popBackStack() })
-        }
-        composable(Rutas.TRANSFERENCIA, idArg) { entry ->
-            TransferFormScreen(transferId = idOf(entry), onDone = { navController.popBackStack() })
+        composable(Rutas.APUNTE, idArg) { entry ->
+            EntryFormScreen(
+                entryId = idOf(entry),
+                onDone = { navController.popBackStack() },
+                onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
+            )
         }
     }
 }

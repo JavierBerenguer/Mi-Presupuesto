@@ -224,8 +224,9 @@ class PendingProposalsViewModelTest {
         viewModel.requestConfirmation(expense.id)
         viewModel.confirm(ProposalConfirmation(ProposalKind.GASTO, "from"))
         advanceUntilIdle()
-        assertTrue(ledger.transactions.first().isEmpty())
+        // El error se publica después del rollback: se espera primero para evitar una carrera con el hilo de Room.
         assertNotNull(viewModel.uiState.first { it.error is PendingProposalError.Repository }.error)
+        assertTrue(ledger.transactions.first().isEmpty())
         assertEquals(ProposalStatus.PENDIENTE.name, storedStatus(expense.id).first)
 
         removeConfirmationFailureTrigger()
@@ -235,8 +236,8 @@ class PendingProposalsViewModelTest {
         viewModel.requestConfirmation(transfer.id)
         viewModel.confirm(ProposalConfirmation(ProposalKind.TRANSFERENCIA, "from", "to"))
         advanceUntilIdle()
-        assertTrue(ledger.transfers.first().isEmpty())
         assertNotNull(viewModel.uiState.first { it.error is PendingProposalError.Repository }.error)
+        assertTrue(ledger.transfers.first().isEmpty())
         assertEquals(ProposalStatus.PENDIENTE.name, storedStatus(transfer.id).first)
     }
 

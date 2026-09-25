@@ -35,9 +35,7 @@ object Rutas {
     const val PATRIMONIO = "patrimonio"
     const val AJUSTES = "ajustes"
     const val DIAGNOSTICO_NOTIFICACIONES = "diagnostico-notificaciones"
-    const val MOVIMIENTO = "movimiento/{id}"
-    const val TRANSFERENCIA = "transferencia/{id}"
+    const val APUNTE = "apunte/{id}"
 
-    fun movimiento(id: String?) = "movimiento/${id ?: NUEVO}"
-    fun transferencia(id: String?) = "transferencia/${id ?: NUEVO}"
+    fun apunte(id: String?) = "apunte/${id ?: NUEVO}"
 }
