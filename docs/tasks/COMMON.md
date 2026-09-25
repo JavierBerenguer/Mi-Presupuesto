@@ -38,3 +38,6 @@ Resumen; lista de archivos creados/modificados; comandos ejecutados con su resul
 - Los ViewModels usan `stateIn(WhileSubscribed)`. En los tests: `@RunWith(RobolectricTestRunner::class)`, `Dispatchers.setMain(UnconfinedTestDispatcher())` en `@Before` y `resetMain()` en `@After`, `runTest { … }` en cada test (NUNCA `runBlocking` en el cuerpo de un test: con Robolectric bloquea el hilo principal y el test se cuelga).
 - Leer el estado con `viewModel.uiState.first { condición }` (nunca `.value` sin recolector) y esperar al estado final antes de comprobar la base de datos.
 - Antes de entregar, revisa a mano cada llamada a Compose: `Modifier.padding` acepta `(start, top, end, bottom)` o `(horizontal, vertical)` pero no mezclados; las referencias a propiedades (`Account::name`) no sirven donde se espera una lambda `(T) -> String` composable: usa `{ it.name }`. No puedes compilar: relee el código en busca de errores de sintaxis y de tipos.
+
+## Pantallas de primer nivel con cabecera propia (lección de T-028)
+Si una pantalla dibuja su propio título (Fraunces 28 sp) debe: (a) añadirse a `hasOwnTopBar` en `ui/navigation/MiPatrimonioApp.kt` (si no, aparece un segundo título en la barra superior) y (b) aplicar `Modifier.statusBarsPadding()` en su contenedor raíz (si no, el título queda bajo la barra de estado).
