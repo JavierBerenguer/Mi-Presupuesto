@@ -59,4 +59,10 @@ class BudgetRulesTest {
         assertEquals(101, consumedPercent(1.01))
         assertEquals(0, consumedPercent(-0.5))
     }
+
+    @Test
+    fun `noventa exacto no avisa y por encima si`() {
+        assertFalse(usesExpenseWarning(status(budget("1", "a"), 0.9)))
+        assertTrue(usesExpenseWarning(status(budget("2", "a"), 0.901)))
+    }
 }

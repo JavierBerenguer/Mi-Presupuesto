@@ -41,6 +41,7 @@ fun DonutChart(
     description: String,
     emptyText: String,
     modifier: Modifier = Modifier,
+    showLegend: Boolean = true,
 ) {
     val positiveSlices = remember(slices) { slices.filter { it.valueMinor > 0L } }
     val semanticModifier = modifier.semantics(mergeDescendants = true) {
@@ -112,13 +113,15 @@ fun DonutChart(
             )
         }
 
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            positiveSlices.forEachIndexed { index, slice ->
-                DonutLegendItem(
-                    slice = slice,
-                    value = formatValue(slice.valueMinor),
-                    percentage = formatPercentage(percentages[index], percentageFormat),
-                )
+        if (showLegend) {
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                positiveSlices.forEachIndexed { index, slice ->
+                    DonutLegendItem(
+                        slice = slice,
+                        value = formatValue(slice.valueMinor),
+                        percentage = formatPercentage(percentages[index], percentageFormat),
+                    )
+                }
             }
         }
     }

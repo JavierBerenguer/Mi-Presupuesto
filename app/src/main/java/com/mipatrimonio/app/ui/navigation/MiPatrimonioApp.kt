@@ -44,7 +44,8 @@ fun MiPatrimonioApp() {
     val route = entry?.destination?.route
     val destino = Destino.entries.firstOrNull { it.ruta == route }
     val isMain = destino != null && destino in Destino.principales
-    val hasOwnTopBar = route == Rutas.APUNTE || destino == Destino.Inicio || destino == Destino.Movimientos
+    val hasOwnTopBar = route == Rutas.APUNTE || destino == Destino.Inicio || destino == Destino.Movimientos ||
+        destino == Destino.Presupuesto
 
     Scaffold(
         contentWindowInsets = if (hasOwnTopBar) WindowInsets(0) else ScaffoldDefaults.contentWindowInsets,

@@ -1,6 +1,7 @@
 package com.mipatrimonio.app.ui.movements
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -35,6 +36,7 @@ import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -307,7 +309,11 @@ private fun DayGroup(
                 else AmountText(group.balanceMinor, baseCurrency, AmountKind.NEUTRAL, style = MaterialTheme.typography.titleSmall)
             }
         }
-        Card(Modifier.fillMaxWidth()) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        ) {
             group.items.forEach { item ->
                 MovementRow(
                     item, accountsById, categoriesById, hideAmounts,

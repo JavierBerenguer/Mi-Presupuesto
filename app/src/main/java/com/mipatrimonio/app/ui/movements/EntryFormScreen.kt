@@ -431,7 +431,11 @@ private fun LabeledAmountField(
         EntryKind.TRANSFER -> MaterialTheme.colorScheme.onSurface
     }
     FormRow(label = label, minHeight = 64.dp) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.End,
+        ) {
             Text(sign, style = amountTextStyle(amountColor), color = amountColor)
             InlineTextField(
                 value = value,
@@ -441,7 +445,7 @@ private fun LabeledAmountField(
                 accessibilityLabel = label,
                 textStyle = amountTextStyle(if (isError) MaterialTheme.colorScheme.error else amountColor),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f, fill = false),
             )
             currency?.let {
                 Text(

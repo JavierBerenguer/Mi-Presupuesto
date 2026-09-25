@@ -35,7 +35,10 @@
     <string name="ini_period_6m">6M</string>
     <string name="ini_period_1y">1A</string>
     <string name="ini_period_variation">%1$s%2$s en el periodo</string>
-    <string name="ini_automatic_count"><xliff:g id="count">%1$d</xliff:g> apuntes creados desde notificaciones</string>
+    <plurals name="ini_automatic_count">
+        <item quantity="one">%1$d apunte creado desde notificaciones</item>
+        <item quantity="other">%1$d apuntes creados desde notificaciones</item>
+    </plurals>
     <string name="ini_automatic_help">Rev&#237;salos o corr&#237;gelos cuando quieras</string>
     <string name="ini_open_automatic">Abrir movimientos autom&#225;ticos</string>
     <string name="ini_saving">Ahorro</string>

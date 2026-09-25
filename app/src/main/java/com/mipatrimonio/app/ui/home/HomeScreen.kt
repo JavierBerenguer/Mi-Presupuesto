@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -57,6 +58,7 @@ import com.mipatrimonio.app.ui.components.ProgressBar
 import com.mipatrimonio.app.ui.components.SectionCard
 import com.mipatrimonio.app.ui.components.Sparkline
 import com.mipatrimonio.app.ui.theme.LargeAmountStyle
+import com.mipatrimonio.app.ui.theme.extras
 
 private val NO_CATEGORY_COLOR = Color(0xFF8D99AE)
 @Composable
@@ -183,7 +185,9 @@ private fun NetWorthHeader(state: HomeState, format: (Long) -> String, onHideCha
             Text(format(state.displayedNetWorthMinor), style = LargeAmountStyle)
             Surface(
                 color = if (state.displayedVariationMinor >= 0) MaterialTheme.colorScheme.primaryContainer
-                else MaterialTheme.colorScheme.errorContainer,
+                else MaterialTheme.extras.expense.copy(alpha = 0.20f),
+                contentColor = if (state.displayedVariationMinor >= 0) MaterialTheme.colorScheme.primary
+                else MaterialTheme.extras.expense,
                 shape = MaterialTheme.shapes.large,
             ) {
                 val sign = if (state.displayedVariationMinor >= 0) "+" else "−"
@@ -235,7 +239,7 @@ private fun AutomaticMovementsCard(count: Int, onClick: () -> Unit) {
     SectionCard(Modifier.clickable(onClick = onClick)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(stringResource(R.string.ini_automatic_count, count), style = MaterialTheme.typography.titleMedium)
+                Text(pluralStringResource(R.plurals.ini_automatic_count, count, count), style = MaterialTheme.typography.titleMedium)
                 Text(
                     stringResource(R.string.ini_automatic_help),
                     style = MaterialTheme.typography.bodySmall,

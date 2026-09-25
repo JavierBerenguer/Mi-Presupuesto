@@ -1,25 +1,54 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="pres_title">Presupuesto</string>
+    <string name="pres_segment_budgets">Presupuestos</string>
+    <string name="pres_segment_statistics">Estadísticas</string>
+    <string name="pres_stats_expenses">Gastos</string>
+    <string name="pres_stats_income">Ingresos</string>
+    <string name="pres_previous_month">Mes anterior</string>
+    <string name="pres_next_month">Mes siguiente</string>
     <string name="pres_global">Presupuesto global</string>
     <string name="pres_global_option">Global (todos los gastos)</string>
     <string name="pres_category_path">%1$s › %2$s</string>
-    <string name="pres_empty">Todavía no has configurado presupuestos. Fija un límite mensual o anual para controlar tus gastos.</string>
+    <string name="pres_no_category">Sin categoría</string>
+    <string name="pres_no_global">No hay un presupuesto global mensual para este mes.</string>
+    <string name="pres_no_categories">Aún no hay presupuestos por categoría.</string>
+    <string name="pres_create">Crear presupuesto</string>
     <string name="pres_new">Nuevo presupuesto</string>
     <string name="pres_edit">Editar presupuesto</string>
     <string name="pres_period">Periodo</string>
     <string name="pres_category">Categoría</string>
     <string name="pres_limit">Límite</string>
-    <string name="pres_period_range">%1$s · %2$s – %3$s</string>
-    <string name="pres_level_ok">En orden</string>
-    <string name="pres_level_warning">Cerca del límite</string>
-    <string name="pres_level_over">Superado</string>
-    <string name="pres_percent">%1$d %% consumido</string>
-    <string name="pres_spent_of">Gastado %1$s de %2$s</string>
-    <string name="pres_available">Disponible: %1$s</string>
+    <string name="pres_remaining">Te quedan</string>
+    <string name="pres_spent">Gastado %1$s</string>
+    <string name="pres_percent_short">%1$d %%</string>
+    <string name="pres_by_category">Por categoría</string>
+    <string name="pres_other_budgets">Otros presupuestos</string>
+    <string name="pres_global_annual">Presupuesto global · Anual</string>
+    <string name="pres_covered">Cubierto</string>
+    <string name="pres_left">Quedan %1$s</string>
     <string name="pres_over_by">Superado en %1$s</string>
-    <string name="pres_excluded">%1$d gastos en otra divisa no se han contabilizado.</string>
+    <string name="pres_amount_of">%1$s de %2$s</string>
+    <string name="pres_other">Otros</string>
+    <string name="pres_stats_empty">No hay datos para este mes.</string>
+    <string name="pres_transfer_note">Las transferencias entre tus cuentas no cuentan como gasto ni ingreso.</string>
+    <string name="pres_stats_summary_item">%1$s %2$d %%</string>
+    <string name="pres_stats_expenses_description">Gastos: %1$s</string>
+    <string name="pres_stats_income_description">Ingresos: %1$s</string>
     <string name="pres_delete_title">Eliminar presupuesto</string>
     <string name="pres_delete_text">Se eliminará el presupuesto «%1$s». Tus movimientos no se modifican.</string>
     <string name="pres_error_limit">Introduce un límite mayor que cero.</string>
     <string name="pres_error_duplicate">Ya existe un presupuesto activo con esa categoría y ese periodo.</string>
+    <plurals name="pres_limit_days">
+        <item quantity="one">de %1$s · %2$d día restante</item>
+        <item quantity="other">de %1$s · %2$d días restantes</item>
+    </plurals>
+    <plurals name="pres_excluded">
+        <item quantity="one">%1$d gasto en otra divisa no se ha contabilizado.</item>
+        <item quantity="other">%1$d gastos en otra divisa no se han contabilizado.</item>
+    </plurals>
+    <plurals name="pres_stats_excluded">
+        <item quantity="one">%1$d movimiento en otra divisa no se ha contabilizado.</item>
+        <item quantity="other">%1$d movimientos en otra divisa no se han contabilizado.</item>
+    </plurals>
 </resources>
