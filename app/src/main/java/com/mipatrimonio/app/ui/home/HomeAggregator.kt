@@ -16,6 +16,7 @@ import com.mipatrimonio.app.domain.model.InvestmentOperation
 import com.mipatrimonio.app.domain.model.Portfolio
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.Transfer
+import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.usecase.AssetShare
 import com.mipatrimonio.app.domain.usecase.HistoryCalculator
 import com.mipatrimonio.app.domain.usecase.NetWorthPoint
@@ -29,6 +30,7 @@ data class BudgetRemaining(val remainingMinor: Long, val currency: String)
 
 data class HomeState(
     val hasAccounts: Boolean,
+    val hasFinancialData: Boolean,
     val baseCurrency: String,
     val netWorth: NetWorth,
     val monthTotals: PeriodTotals,
@@ -39,6 +41,13 @@ data class HomeState(
     val monthlySeries: List<MonthTotals>,
     val expenseByCategory: List<CategorySpend>,
     val assetShares: List<AssetShare>,
+    val includeAccounts: Boolean,
+    val includeInvestments: Boolean,
+    val hideAmounts: Boolean,
+    val automaticTransactionsCount: Int,
+    val spentIncomePercent: Int?,
+    val displayedNetWorthMinor: Long,
+    val displayedVariationMinor: Long,
 )
 
 /**
@@ -74,23 +83,50 @@ fun buildHomeState(
     prices: Map<String, AssetPrice>,
     today: LocalDate,
     period: Period,
+    includeAccounts: Boolean = true,
+    includeInvestments: Boolean = true,
+    hideAmounts: Boolean = false,
 ): HomeState {
     val snapshot = SnapshotBuilder.build(
         baseCurrency, accounts, transactions, transfers, portfolios, assets, operations, prices,
     )
     val firstActivity = (transactions.map { it.date } + transfers.map { it.date } + operations.map { it.date }).minOrNull()
     val thisMonth = YearMonth.from(today)
+    val componentSeries = HistoryCalculator.netWorthComponentsSeries(
+        baseCurrency, accounts, transactions, transfers, assets, operations,
+        HistoryCalculator.sampleDates(period, today, firstActivity),
+    )
+    val filteredSeries = componentSeries.map { point ->
+        NetWorthPoint(
+            point.date,
+            Math.addExact(
+                if (includeAccounts) point.accountsMinor else 0L,
+                if (includeInvestments) point.investmentsMinor else 0L,
+            ),
+        )
+    }
+    val displayedNetWorth = Math.addExact(
+        if (includeAccounts) snapshot.netWorth.cashMinor else 0L,
+        if (includeInvestments) snapshot.netWorth.investmentsMinor else 0L,
+    )
+    val spentPercent = StatsCalculator.totals(
+        transactions, baseCurrency, StatsCalculator.monthRange(thisMonth),
+    ).let { totals ->
+        if (totals.incomeMinor <= 0L) null else
+            java.math.BigDecimal(totals.expenseMinor)
+                .multiply(java.math.BigDecimal(100))
+                .divide(java.math.BigDecimal(totals.incomeMinor), 0, java.math.RoundingMode.HALF_UP)
+                .toInt()
+    }
     return HomeState(
         hasAccounts = accounts.any { !it.archived },
+        hasFinancialData = accounts.any { !it.archived } || operations.isNotEmpty(),
         baseCurrency = baseCurrency,
         netWorth = snapshot.netWorth,
         monthTotals = StatsCalculator.totals(transactions, baseCurrency, StatsCalculator.monthRange(thisMonth)),
         budgetRemaining = budgetRemaining(budgets, transactions, categories, baseCurrency, today),
         period = period,
-        netWorthSeries = HistoryCalculator.netWorthSeries(
-            baseCurrency, accounts, transactions, transfers, assets, operations,
-            HistoryCalculator.sampleDates(period, today, firstActivity),
-        ),
+        netWorthSeries = filteredSeries,
         monthlySeries = StatsCalculator.monthlySeries(
             transactions, baseCurrency, thisMonth, period.barMonths(today, firstActivity),
         ),
@@ -98,5 +134,16 @@ fun buildHomeState(
             transactions, categories, baseCurrency, period.range(today, firstActivity),
         ),
         assetShares = assetDistribution(snapshot.netWorth),
+        includeAccounts = includeAccounts,
+        includeInvestments = includeInvestments,
+        hideAmounts = hideAmounts,
+        automaticTransactionsCount = transactions.count {
+            it.source == TransactionSource.NOTIFICACION &&
+                !it.date.isBefore(today.minusDays(6)) && !it.date.isAfter(today)
+        },
+        spentIncomePercent = spentPercent,
+        displayedNetWorthMinor = displayedNetWorth,
+        displayedVariationMinor = if (filteredSeries.size < 2) 0L else
+            Math.subtractExact(filteredSeries.last().totalMinor, filteredSeries.first().totalMinor),
     )
 }

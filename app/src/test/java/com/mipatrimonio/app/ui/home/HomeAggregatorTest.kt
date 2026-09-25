@@ -3,12 +3,21 @@ package com.mipatrimonio.app.ui.home
 import com.mipatrimonio.app.domain.TestData.account
 import com.mipatrimonio.app.domain.TestData.category
 import com.mipatrimonio.app.domain.TestData.tx
+import com.mipatrimonio.app.domain.TestData.op
+import com.mipatrimonio.app.domain.model.Asset
+import com.mipatrimonio.app.domain.model.AssetType
+import com.mipatrimonio.app.domain.model.AssetPrice
+import com.mipatrimonio.app.domain.model.PriceSource
 import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.BudgetPeriod
 import com.mipatrimonio.app.domain.model.TransactionType.GASTO
 import com.mipatrimonio.app.domain.model.TransactionType.INGRESO
+import com.mipatrimonio.app.domain.model.TransactionSource
+import com.mipatrimonio.app.domain.model.OperationType
+import com.mipatrimonio.app.domain.model.Portfolio
 import com.mipatrimonio.app.domain.usecase.Period
 import java.time.LocalDate
+import java.math.BigDecimal
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -103,5 +112,46 @@ class HomeAggregatorTest {
         assertEquals(0L, s.netWorth.totalMinor)
         assertEquals(setOf("USD"), s.netWorth.excludedCurrencies)
         assertTrue(s.hasAccounts)
+    }
+
+    @Test
+    fun `filtros de patrimonio seleccionan cuentas inversiones o ambos`() {
+        val asset = Asset("asset1", "Fondo", "F", "", AssetType.FONDO_INDEXADO, "", "EUR")
+        val operation = op(OperationType.COMPRA, "2", "50", date = today)
+        fun filtered(accounts: Boolean, investments: Boolean) = buildHomeState(
+            "EUR", listOf(account(initial = 40_00)), emptyList(), emptyList(), cats, emptyList(),
+            listOf(Portfolio("p1", "Principal", 0)), listOf(asset), listOf(operation),
+            mapOf("asset1" to AssetPrice("asset1", BigDecimal("50"), "EUR", 0, PriceSource.MANUAL)),
+            today, Period.MES, accounts, investments,
+        )
+
+        assertEquals(40_00L, filtered(true, false).displayedNetWorthMinor)
+        assertEquals(100_00L, filtered(false, true).displayedNetWorthMinor)
+        assertEquals(140_00L, filtered(true, true).displayedNetWorthMinor)
+        assertTrue(filtered(false, true).netWorthSeries.all { it.totalMinor >= 0L })
+        val investmentsOnly = buildHomeState(
+            "EUR", emptyList(), emptyList(), emptyList(), cats, emptyList(),
+            listOf(Portfolio("p1", "Principal", 0)), listOf(asset), listOf(operation), emptyMap(),
+            today, Period.MES,
+        )
+        assertFalse(investmentsOnly.hasAccounts)
+        assertTrue(investmentsOnly.hasFinancialData)
+    }
+
+    @Test
+    fun `cuenta automaticos de siete dias y calcula porcentaje gastado`() {
+        val income = tx(INGRESO, 1_000_00, date = today)
+        val expense = tx(GASTO, 255_00, date = today.minusDays(2)).copy(source = TransactionSource.NOTIFICACION)
+        val old = tx(GASTO, 1_00, date = today.minusDays(7)).copy(source = TransactionSource.NOTIFICACION)
+        val future = tx(GASTO, 1_00, date = today.plusDays(1)).copy(source = TransactionSource.NOTIFICACION)
+        val s = state(listOf(income, expense, old, future))
+
+        assertEquals(1, s.automaticTransactionsCount)
+        assertEquals(26, s.spentIncomePercent)
+    }
+
+    @Test
+    fun `sin ingresos no muestra porcentaje gastado`() {
+        assertNull(state(listOf(tx(GASTO, 10_00, date = today))).spentIncomePercent)
     }
 }

@@ -4,6 +4,7 @@ import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionType
+import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.Transfer
 import java.text.Normalizer
 import java.time.LocalDate
@@ -37,11 +38,42 @@ data class MovementFilters(
     val minAmountMinor: Long? = null,
     val maxAmountMinor: Long? = null,
     val sort: MovementSort = MovementSort.FECHA_DESC,
+    val source: SourceFilter = SourceFilter.TODOS,
 )
 
 enum class KindFilter { TODOS, INGRESOS, GASTOS, TRANSFERENCIAS }
 
 enum class MovementSort { FECHA_DESC, FECHA_ASC, IMPORTE_DESC, IMPORTE_ASC }
+
+enum class SourceFilter { TODOS, MANUAL, AUTOMATICOS, IMPORTADOS, RECURRENTES }
+
+data class MovementDayGroup(
+    val date: LocalDate,
+    val items: List<MovementItem>,
+    val balanceMinor: Long,
+    val excludedCount: Int,
+)
+
+fun groupMovementsByDay(items: List<MovementItem>, baseCurrency: String): List<MovementDayGroup> =
+    items.groupBy(MovementItem::date).entries
+        .sortedByDescending { it.key }
+        .map { (date, dayItems) ->
+            var balance = 0L
+            var excluded = 0
+            dayItems.forEach { item ->
+                val tx = (item as? MovementItem.Tx)?.transaction ?: return@forEach
+                if (tx.currency != baseCurrency) {
+                    excluded++
+                } else {
+                    balance = if (tx.type == TransactionType.INGRESO) {
+                        Math.addExact(balance, tx.amountMinor)
+                    } else {
+                        Math.subtractExact(balance, tx.amountMinor)
+                    }
+                }
+            }
+            MovementDayGroup(date, dayItems, balance, excluded)
+        }
 
 fun applyFilters(
     items: List<MovementItem>,
@@ -56,6 +88,7 @@ fun applyFilters(
 
     return items.asSequence()
         .filter { item -> matchesKind(item, filters.kind) }
+        .filter { item -> matchesSource(item, filters.source) }
         .filter { item -> matchesAccount(item, filters.accountId) }
         .filter { item -> matchesCategory(item, includedCategoryIds) }
         .filter { item -> filters.from == null || !item.date.isBefore(filters.from) }
@@ -69,6 +102,18 @@ fun applyFilters(
         }
         .toList()
         .sortedWith(filters.sort.comparator())
+}
+
+val MovementItem.isAutomatic: Boolean
+    get() = this is MovementItem.Tx && transaction.source == TransactionSource.NOTIFICACION
+
+private fun matchesSource(item: MovementItem, source: SourceFilter): Boolean = when (source) {
+    SourceFilter.TODOS -> true
+    SourceFilter.MANUAL -> item is MovementItem.Move ||
+        item is MovementItem.Tx && item.transaction.source == TransactionSource.MANUAL
+    SourceFilter.AUTOMATICOS -> item is MovementItem.Tx && item.transaction.source == TransactionSource.NOTIFICACION
+    SourceFilter.IMPORTADOS -> item is MovementItem.Tx && item.transaction.source == TransactionSource.IMPORTACION
+    SourceFilter.RECURRENTES -> item is MovementItem.Tx && item.transaction.source == TransactionSource.RECURRENTE
 }
 
 private fun matchesKind(item: MovementItem, kind: KindFilter): Boolean = when (kind) {

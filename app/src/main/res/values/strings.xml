@@ -14,4 +14,7 @@
     <string name="nav_editar_movimiento">Editar movimiento</string>
     <string name="nav_nueva_transferencia">Nueva transferencia</string>
     <string name="nav_editar_transferencia">Editar transferencia</string>
+    <string name="common_hidden_amount">&#8226;&#8226;&#8226;&#8226;</string>
+    <string name="common_generic_category_mark">&#8226;</string>
+    <string name="common_transfer_mark">&#8596;</string>
 </resources>

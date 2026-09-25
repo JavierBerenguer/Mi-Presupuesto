@@ -21,11 +21,12 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 class HomeViewModel(
     ledger: LedgerRepository,
     investments: InvestmentRepository,
-    settings: SettingsRepository,
+    private val settings: SettingsRepository,
 ) : ViewModel() {
     private data class LedgerData(
         val accounts: List<Account>,
@@ -69,6 +70,9 @@ class HomeViewModel(
             prices = inv.prices,
             today = LocalDate.now(),
             period = period,
+            includeAccounts = config.netWorthIncludeAccounts,
+            includeInvestments = config.netWorthIncludeInvestments,
+            hideAmounts = config.hideAmounts,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -78,5 +82,14 @@ class HomeViewModel(
 
     fun selectPeriod(period: Period) {
         selectedPeriod.value = period
+    }
+
+    fun setHideAmounts(hidden: Boolean) {
+        viewModelScope.launch { settings.setHideAmounts(hidden) }
+    }
+
+    fun setNetWorthIncludes(accounts: Boolean, investments: Boolean) {
+        if (!accounts && !investments) return
+        viewModelScope.launch { settings.setNetWorthIncludes(accounts, investments) }
     }
 }

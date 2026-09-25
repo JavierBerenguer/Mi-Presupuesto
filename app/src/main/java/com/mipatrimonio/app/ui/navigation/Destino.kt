@@ -27,6 +27,7 @@ enum class Destino(val ruta: String, @StringRes val titulo: Int, val icono: Imag
 
 /** Rutas secundarias (con flecha atrás y sin barra inferior). */
 object Rutas {
+    const val MOVEMENT_SOURCE_KEY = "movement_source"
     const val NUEVO = "nuevo"
     const val CUENTAS = "cuentas"
     const val CATEGORIAS = "categorias"

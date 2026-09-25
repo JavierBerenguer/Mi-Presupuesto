@@ -111,4 +111,20 @@
     <string name="mov_no_categories_found">No hay categorías que coincidan con la búsqueda.</string>
     <string name="mov_expand_category">Mostrar subcategorías</string>
     <string name="mov_collapse_category">Ocultar subcategorías</string>
+    <string name="mov_kind_transfers_short">Transf.</string>
+    <string name="mov_previous_month">Mes anterior</string>
+    <string name="mov_next_month">Mes siguiente</string>
+    <string name="mov_no_movements_month">No hay movimientos en este mes.</string>
+    <string name="mov_day_balance">Saldo del d&#237;a</string>
+    <string name="mov_day_excluded">%1$d en otra divisa</string>
+    <string name="mov_auto">Auto</string>
+    <string name="mov_row_metadata">%1$s &#183; %2$s</string>
+    <string name="mov_subcategory_label">%1$s (%2$s)</string>
+    <string name="mov_transfer_accounts">%1$s &#8594; %2$s</string>
+    <string name="mov_filter_source">Origen</string>
+    <string name="mov_source_all">Todos</string>
+    <string name="mov_source_manual">Manual</string>
+    <string name="mov_source_automatic">Autom&#225;ticos (notificaciones)</string>
+    <string name="mov_source_imported">Importados</string>
+    <string name="mov_source_recurring">Recurrentes</string>
 </resources>

@@ -11,15 +11,30 @@ import kotlinx.coroutines.flow.map
 
 private val Context.settingsStore by preferencesDataStore(name = "settings")
 
-data class Settings(val baseCurrency: String, val darkMode: Boolean)
+data class Settings(
+    val baseCurrency: String,
+    val darkMode: Boolean,
+    val hideAmounts: Boolean = false,
+    val netWorthIncludeAccounts: Boolean = true,
+    val netWorthIncludeInvestments: Boolean = true,
+)
 
 class SettingsRepository(private val context: Context) {
     private val baseCurrencyKey = stringPreferencesKey("base_currency")
     private val darkModeKey = booleanPreferencesKey("dark_mode")
+    private val hideAmountsKey = booleanPreferencesKey("hide_amounts")
+    private val includeAccountsKey = booleanPreferencesKey("net_worth_include_accounts")
+    private val includeInvestmentsKey = booleanPreferencesKey("net_worth_include_investments")
 
     /** Modo oscuro activado por defecto; divisa base EUR por defecto. */
     val settings: Flow<Settings> = context.settingsStore.data.map { p ->
-        Settings(p[baseCurrencyKey] ?: Currencies.EUR, p[darkModeKey] ?: true)
+        Settings(
+            baseCurrency = p[baseCurrencyKey] ?: Currencies.EUR,
+            darkMode = p[darkModeKey] ?: true,
+            hideAmounts = p[hideAmountsKey] ?: false,
+            netWorthIncludeAccounts = p[includeAccountsKey] ?: true,
+            netWorthIncludeInvestments = p[includeInvestmentsKey] ?: true,
+        )
     }
 
     suspend fun setBaseCurrency(code: String) {
@@ -28,5 +43,17 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setDarkMode(enabled: Boolean) {
         context.settingsStore.edit { it[darkModeKey] = enabled }
+    }
+
+    suspend fun setHideAmounts(enabled: Boolean) {
+        context.settingsStore.edit { it[hideAmountsKey] = enabled }
+    }
+
+    suspend fun setNetWorthIncludes(accounts: Boolean, investments: Boolean) {
+        require(accounts || investments) { "Debe incluirse al menos un componente del patrimonio" }
+        context.settingsStore.edit {
+            it[includeAccountsKey] = accounts
+            it[includeInvestmentsKey] = investments
+        }
     }
 }

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="ini_welcome_empty">Bienvenido a Mi Patrimonio. Crea tu primera cuenta para empezar a registrar tus finanzas.</string>
     <string name="ini_create_account">Crear cuenta</string>
     <string name="ini_networth">Patrimonio neto</string>
@@ -25,4 +25,19 @@
     <string name="ini_no_category">Sin categoría</string>
     <string name="ini_investments_label">Inversiones</string>
     <string name="ini_total">Total</string>
+    <string name="ini_add_to_networth">Sumar al patrimonio</string>
+    <string name="ini_accounts">Cuentas</string>
+    <string name="ini_hide_amounts">Ocultar importes</string>
+    <string name="ini_show_amounts">Mostrar importes</string>
+    <string name="ini_period_max">M&#225;x</string>
+    <string name="ini_period_1m">1M</string>
+    <string name="ini_period_3m">3M</string>
+    <string name="ini_period_6m">6M</string>
+    <string name="ini_period_1y">1A</string>
+    <string name="ini_period_variation">%1$s%2$s en el periodo</string>
+    <string name="ini_automatic_count"><xliff:g id="count">%1$d</xliff:g> apuntes creados desde notificaciones</string>
+    <string name="ini_automatic_help">Rev&#237;salos o corr&#237;gelos cuando quieras</string>
+    <string name="ini_open_automatic">Abrir movimientos autom&#225;ticos</string>
+    <string name="ini_saving">Ahorro</string>
+    <string name="ini_spent_percent">%1$d %% de los ingresos gastado</string>
 </resources>

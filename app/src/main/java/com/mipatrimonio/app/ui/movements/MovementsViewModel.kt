@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.YearMonth
 import java.util.UUID
 
 data class MovementsUiState(
@@ -26,6 +27,9 @@ data class MovementsUiState(
     val filters: MovementFilters = MovementFilters(),
     val baseCurrency: String = "EUR",
     val error: String? = null,
+    val selectedMonth: YearMonth = YearMonth.now(),
+    val dayGroups: List<MovementDayGroup> = emptyList(),
+    val hideAmounts: Boolean = false,
 ) {
     val activeAccounts: List<Account> get() = accounts.filterNot(Account::archived)
     val hasActiveFilters: Boolean get() = filters != MovementFilters()
@@ -40,10 +44,12 @@ class MovementsViewModel(
         val categories: List<Category>,
         val items: List<MovementItem>,
         val baseCurrency: String,
+        val hideAmounts: Boolean,
     )
 
     private val filters = MutableStateFlow(MovementFilters())
     private val error = MutableStateFlow<String?>(null)
+    private val selectedMonth = MutableStateFlow(YearMonth.now())
 
     private val sourceData = combine(
         ledger.accounts,
@@ -57,19 +63,30 @@ class MovementsViewModel(
             categories = categories,
             items = transactions.map(MovementItem::Tx) + transfers.map(MovementItem::Move),
             baseCurrency = currentSettings.baseCurrency,
+            hideAmounts = currentSettings.hideAmounts,
         )
     }
 
-    val uiState: StateFlow<MovementsUiState> = combine(sourceData, filters, error) { data, currentFilters, currentError ->
+    val uiState: StateFlow<MovementsUiState> = combine(
+        sourceData, filters, error, selectedMonth,
+    ) { data, currentFilters, currentError, month ->
+        val monthFilters = currentFilters.copy(
+            from = maxOf(currentFilters.from ?: month.atDay(1), month.atDay(1)),
+            to = minOf(currentFilters.to ?: month.atEndOfMonth(), month.atEndOfMonth()),
+        )
+        val visible = applyFilters(data.items, monthFilters, data.accounts, data.categories)
         MovementsUiState(
             isLoading = false,
             accounts = data.accounts,
             categories = data.categories,
             allItems = data.items,
-            visibleItems = applyFilters(data.items, currentFilters, data.accounts, data.categories),
+            visibleItems = visible,
             filters = currentFilters,
             baseCurrency = data.baseCurrency,
             error = currentError,
+            selectedMonth = month,
+            dayGroups = groupMovementsByDay(visible, data.baseCurrency),
+            hideAmounts = data.hideAmounts,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -91,6 +108,18 @@ class MovementsViewModel(
 
     fun clearFilters() {
         filters.value = MovementFilters()
+    }
+
+    fun previousMonth() {
+        selectedMonth.value = selectedMonth.value.minusMonths(1)
+    }
+
+    fun nextMonth() {
+        selectedMonth.value = selectedMonth.value.plusMonths(1)
+    }
+
+    fun setSource(source: SourceFilter) {
+        filters.value = filters.value.copy(source = source)
     }
 
     fun clearError() {

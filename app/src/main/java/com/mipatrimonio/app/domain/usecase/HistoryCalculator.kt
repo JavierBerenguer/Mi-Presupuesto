@@ -14,6 +14,14 @@ import java.time.YearMonth
 
 data class NetWorthPoint(val date: LocalDate, val totalMinor: Long)
 
+data class NetWorthComponentsPoint(
+    val date: LocalDate,
+    val accountsMinor: Long,
+    val investmentsMinor: Long,
+) {
+    val totalMinor: Long get() = Math.addExact(accountsMinor, investmentsMinor)
+}
+
 /**
  * Evolución del patrimonio en divisa base. Política explícita y consistente:
  *  - Efectivo: saldo inicial de las cuentas activas + movimientos y transferencias con fecha ≤ la del punto.
@@ -29,21 +37,37 @@ object HistoryCalculator {
         assets: List<Asset>,
         operations: List<InvestmentOperation>,
         dates: List<LocalDate>,
-    ): List<NetWorthPoint> {
+    ): List<NetWorthPoint> = netWorthComponentsSeries(
+        baseCurrency, accounts, transactions, transfers, assets, operations, dates,
+    ).map { NetWorthPoint(it.date, it.totalMinor) }
+
+    fun netWorthComponentsSeries(
+        baseCurrency: String,
+        accounts: List<Account>,
+        transactions: List<Transaction>,
+        transfers: List<Transfer>,
+        assets: List<Asset>,
+        operations: List<InvestmentOperation>,
+        dates: List<LocalDate>,
+    ): List<NetWorthComponentsPoint> {
         val active = accounts.filter { !it.archived && it.currency == baseCurrency }
         val ids = active.map { it.id }.toSet()
-        val initial = active.sumOf { it.initialBalanceMinor }
+        val initial = active.fold(0L) { total, account -> Math.addExact(total, account.initialBalanceMinor) }
         val assetById = assets.filter { it.currency == baseCurrency }.associateBy { it.id }
         return dates.map { date ->
             var cash = initial
             for (t in transactions) {
                 if (t.date > date || t.accountId !in ids) continue
-                cash += if (t.type == TransactionType.INGRESO) t.amountMinor else -t.amountMinor
+                cash = if (t.type == TransactionType.INGRESO) {
+                    Math.addExact(cash, t.amountMinor)
+                } else {
+                    Math.subtractExact(cash, t.amountMinor)
+                }
             }
             for (tr in transfers) {
                 if (tr.date > date) continue
-                if (tr.toAccountId in ids) cash += tr.toAmountMinor
-                if (tr.fromAccountId in ids) cash -= tr.fromAmountMinor
+                if (tr.toAccountId in ids) cash = Math.addExact(cash, tr.toAmountMinor)
+                if (tr.fromAccountId in ids) cash = Math.subtractExact(cash, tr.fromAmountMinor)
             }
             var invested = 0L
             operations.filter { it.date <= date && it.assetId in assetById }
@@ -54,9 +78,9 @@ object HistoryCalculator {
                     } catch (_: InvalidOperationException) {
                         return@forEach
                     }
-                    invested += MoneyMath.toMinor(position.costBasis, baseCurrency)
+                    invested = Math.addExact(invested, MoneyMath.toMinor(position.costBasis, baseCurrency))
                 }
-            NetWorthPoint(date, cash + invested)
+            NetWorthComponentsPoint(date, cash, invested)
         }
     }
 

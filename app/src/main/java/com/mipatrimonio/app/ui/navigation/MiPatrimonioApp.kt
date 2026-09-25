@@ -26,6 +26,7 @@ import com.mipatrimonio.app.ui.home.HomeScreen
 import com.mipatrimonio.app.ui.investments.InvestmentsScreen
 import com.mipatrimonio.app.ui.movements.EntryFormScreen
 import com.mipatrimonio.app.ui.movements.MovementsScreen
+import com.mipatrimonio.app.ui.movements.SourceFilter
 import com.mipatrimonio.app.ui.more.MoreScreen
 import com.mipatrimonio.app.ui.networth.NetWorthScreen
 import com.mipatrimonio.app.ui.settings.AccountsScreen
@@ -43,7 +44,7 @@ fun MiPatrimonioApp() {
     val route = entry?.destination?.route
     val destino = Destino.entries.firstOrNull { it.ruta == route }
     val isMain = destino != null && destino in Destino.principales
-    val hasOwnTopBar = route == Rutas.APUNTE
+    val hasOwnTopBar = route == Rutas.APUNTE || destino == Destino.Inicio || destino == Destino.Movimientos
 
     Scaffold(
         contentWindowInsets = if (hasOwnTopBar) WindowInsets(0) else ScaffoldDefaults.contentWindowInsets,
@@ -95,13 +96,24 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
 
     NavHost(navController, startDestination = Destino.rutaInicial, modifier = modifier) {
         composable(Destino.Inicio.ruta) {
-            HomeScreen(onOpenAccounts = { navController.navigate(Rutas.CUENTAS) })
+            HomeScreen(
+                onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
+                onOpenAutomaticMovements = {
+                    navController.navigate(Destino.Movimientos.ruta) { launchSingleTop = true }
+                    navController.currentBackStackEntry?.savedStateHandle?.set(
+                        Rutas.MOVEMENT_SOURCE_KEY,
+                        SourceFilter.AUTOMATICOS.name,
+                    )
+                },
+            )
         }
-        composable(Destino.Movimientos.ruta) {
+        composable(Destino.Movimientos.ruta) { entry ->
             MovementsScreen(
                 onNewEntry = { navController.navigate(Rutas.apunte(null)) },
                 onEditEntry = { navController.navigate(Rutas.apunte(it)) },
                 onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
+                initialSource = entry.savedStateHandle.remove<String>(Rutas.MOVEMENT_SOURCE_KEY)
+                    ?.let(SourceFilter::valueOf),
             )
         }
         composable(Destino.Presupuesto.ruta) { BudgetsScreen() }

@@ -34,10 +34,11 @@ class MovementFiltersTest {
         description: String = "",
         merchant: String = "",
         createdAt: Long = 0,
+        source: TransactionSource = TransactionSource.MANUAL,
     ) = MovementItem.Tx(
         Transaction(
             id, type, amount, "EUR", LocalDate.of(2026, 3, day), account, category, description, merchant, "",
-            TransactionSource.MANUAL, createdAt, createdAt,
+            source, createdAt, createdAt,
         ),
     )
 
@@ -121,5 +122,46 @@ class MovementFiltersTest {
         )
         val sorted = applyFilters(tie, MovementFilters(), accounts, categories).map { (it as MovementItem.Tx).transaction.id }
         assertEquals(listOf("nuevo", "viejo"), sorted)
+    }
+
+    @Test
+    fun `filtro de origen distingue automaticos y excluye transferencias`() {
+        val sourced = items + listOf(
+            tx("auto", TransactionType.GASTO, 1_00, 6, source = TransactionSource.NOTIFICACION),
+            tx("import", TransactionType.GASTO, 1_00, 7, source = TransactionSource.IMPORTACION),
+            tx("rec", TransactionType.GASTO, 1_00, 8, source = TransactionSource.RECURRENTE),
+        )
+        fun sourceIds(source: SourceFilter) = applyFilters(
+            sourced, MovementFilters(source = source), accounts, categories,
+        ).map {
+            when (it) {
+                is MovementItem.Tx -> it.transaction.id
+                is MovementItem.Move -> it.transfer.id
+            }
+        }
+
+        assertEquals(listOf("auto"), sourceIds(SourceFilter.AUTOMATICOS))
+        assertEquals(listOf("import"), sourceIds(SourceFilter.IMPORTADOS))
+        assertEquals(listOf("rec"), sourceIds(SourceFilter.RECURRENTES))
+        assertEquals(listOf("g2", "t1", "i1", "g1"), sourceIds(SourceFilter.MANUAL))
+    }
+
+    @Test
+    fun `agrupa por dia y el saldo ignora transferencias y otras divisas`() {
+        val day = LocalDate.of(2026, 3, 4)
+        val mixed = listOf(
+            tx("income", TransactionType.INGRESO, 100_00, 4),
+            tx("expense", TransactionType.GASTO, 30_00, 4),
+            transfer("transfer", "a1", "a2", 500_00, 4),
+            MovementItem.Tx(
+                Transaction("usd", TransactionType.INGRESO, 999_00, "USD", day, "a1", null, "", "", "", TransactionSource.MANUAL, 0, 0),
+            ),
+        )
+        val group = groupMovementsByDay(mixed, "EUR").single()
+
+        assertEquals(70_00L, group.balanceMinor)
+        assertEquals(1, group.excludedCount)
+        assertEquals(4, group.items.size)
+        assertEquals(0L, groupMovementsByDay(listOf(transfer("only", "a1", "a2", 999_00, 5)), "EUR").single().balanceMinor)
     }
 }

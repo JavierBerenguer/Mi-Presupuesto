@@ -381,13 +381,14 @@ fun AddFab(
     contentDescription: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    bottomPadding: androidx.compose.ui.unit.Dp = 88.dp,
     containerColor: Color = MaterialTheme.colorScheme.primary,
     contentColor: Color = MaterialTheme.colorScheme.onPrimary,
 ) {
     Box(modifier.fillMaxSize()) {
         FloatingActionButton(
             onClick = onClick,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 88.dp).size(56.dp),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = bottomPadding).size(56.dp),
             containerColor = containerColor,
             contentColor = contentColor,
         ) {
