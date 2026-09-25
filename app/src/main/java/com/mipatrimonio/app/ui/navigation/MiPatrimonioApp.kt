@@ -1,13 +1,11 @@
 package com.mipatrimonio.app.ui.navigation
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -23,6 +21,7 @@ import androidx.navigation.navArgument
 import com.mipatrimonio.app.R
 import com.mipatrimonio.app.ui.budgets.BudgetsScreen
 import com.mipatrimonio.app.ui.components.BottomNavBar
+import com.mipatrimonio.app.ui.components.SecondaryTopBar
 import com.mipatrimonio.app.ui.home.HomeScreen
 import com.mipatrimonio.app.ui.investments.InvestmentsScreen
 import com.mipatrimonio.app.ui.movements.EntryFormScreen
@@ -47,18 +46,17 @@ fun MiPatrimonioApp() {
     val hasOwnTopBar = route == Rutas.APUNTE
 
     Scaffold(
+        contentWindowInsets = if (hasOwnTopBar) WindowInsets(0) else ScaffoldDefaults.contentWindowInsets,
         topBar = {
             if (!hasOwnTopBar) {
-                TopAppBar(
-                    title = { Text(stringResource(titleFor(route, destino))) },
-                    navigationIcon = {
-                        if (route != null && !isMain) {
-                            IconButton(onClick = { navController.popBackStack() }) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
-                            }
-                        }
-                    },
-                )
+                if (route != null && !isMain) {
+                    SecondaryTopBar(
+                        title = stringResource(titleFor(route, destino)),
+                        onBack = { navController.popBackStack() },
+                    )
+                } else {
+                    TopAppBar(title = { Text(stringResource(titleFor(route, destino))) })
+                }
             }
         },
         bottomBar = {
@@ -141,6 +139,7 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
                 entryId = idOf(entry),
                 onDone = { navController.popBackStack() },
                 onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
+                onOpenCategories = { navController.navigate(Rutas.CATEGORIAS) },
             )
         }
     }

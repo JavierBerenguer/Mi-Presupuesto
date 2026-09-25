@@ -1,21 +1,31 @@
 package com.mipatrimonio.app.ui.movements
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material.icons.outlined.Done
 import androidx.compose.material.icons.outlined.ErrorOutline
@@ -23,18 +33,22 @@ import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.SwapVert
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -45,18 +59,26 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mipatrimonio.app.R
-import com.mipatrimonio.app.ui.common.DropdownField
 import com.mipatrimonio.app.ui.common.EmptyState
 import com.mipatrimonio.app.ui.common.LoadingBox
 import com.mipatrimonio.app.ui.common.appViewModel
 import com.mipatrimonio.app.ui.common.formatDate
-import com.mipatrimonio.app.ui.components.SectionCard
+import com.mipatrimonio.app.ui.components.SecondaryTopBar
 import com.mipatrimonio.app.ui.components.SegmentedControl
+import com.mipatrimonio.app.ui.theme.Fraunces
 import com.mipatrimonio.app.ui.theme.extras
 import java.time.Instant
 import java.time.ZoneOffset
@@ -66,6 +88,7 @@ fun EntryFormScreen(
     entryId: String?,
     onDone: () -> Unit,
     onOpenAccounts: () -> Unit,
+    onOpenCategories: () -> Unit,
     viewModel: EntryFormViewModel = appViewModel { container -> EntryFormViewModel(container.ledger, entryId) },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -97,6 +120,7 @@ fun EntryFormScreen(
                 showCategoryPicker = false
             },
             onBack = { showCategoryPicker = false },
+            onNewCategory = onOpenCategories,
         )
     } else {
         EntryFormScaffold(
@@ -148,17 +172,11 @@ private fun EntryFormScaffold(
     onRequestClear: () -> Unit,
 ) {
     Scaffold(
+        contentWindowInsets = WindowInsets(0),
         topBar = {
-            TopAppBar(
-                title = { Text(entryTitle(state)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Outlined.ArrowBack,
-                            contentDescription = stringResource(R.string.common_back),
-                        )
-                    }
-                },
+            SecondaryTopBar(
+                title = entryTitle(state),
+                onBack = onBack,
                 actions = {
                     if (!state.isEditing && !state.isLoading && !state.notFound) {
                         IconButton(onClick = { viewModel.save(addAnother = true) }, enabled = !state.isSaving) {
@@ -176,6 +194,15 @@ private fun EntryFormScaffold(
                     }
                 },
             )
+        },
+        bottomBar = {
+            if (!state.isLoading && !state.notFound && state.activeAccounts.isNotEmpty()) {
+                EntryActionBar(
+                    onClear = onRequestClear,
+                    onSave = { viewModel.save() },
+                    saveEnabled = !state.isSaving,
+                )
+            }
         },
     ) { padding ->
         when {
@@ -246,20 +273,23 @@ private fun EntryFormContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        SectionCard {
+        FormCard {
             LabeledTextField(
                 label = stringResource(R.string.mov_title),
                 value = values.title,
                 onValueChange = viewModel::setTitle,
             )
             if (values.kind != EntryKind.TRANSFER) {
+                FormDivider()
                 LabeledTextField(
                     label = stringResource(R.string.mov_comment),
                     value = values.comment,
                     onValueChange = viewModel::setComment,
                 )
             }
+            FormDivider()
             DateRow(values.date, viewModel::setDate)
+            FormDivider()
             LabeledAmountField(
                 label = if (values.kind == EntryKind.TRANSFER) {
                     stringResource(R.string.mov_from_amount)
@@ -269,10 +299,14 @@ private fun EntryFormContent(
                 value = values.amount,
                 currency = state.selectedAccount?.currency,
                 isError = state.error == EntryFormError.INVALID_AMOUNT,
+                kind = values.kind,
+                sign = if (values.kind == EntryKind.INCOME) "+" else "−",
                 onValueChange = viewModel::setAmount,
             )
             if (values.kind != EntryKind.TRANSFER) {
+                FormDivider()
                 CategoryRow(state, onChooseCategory, onClear = { viewModel.setCategory(null) })
+                FormDivider()
                 AccountDropdown(
                     label = stringResource(R.string.mov_account),
                     accounts = state.activeAccounts,
@@ -280,59 +314,75 @@ private fun EntryFormContent(
                     onSelected = { viewModel.setAccount(it) },
                 )
             } else {
+                FormDivider()
                 AccountDropdown(
-                    label = stringResource(R.string.mov_from_account),
+                    label = stringResource(R.string.mov_origin),
                     accounts = state.activeAccounts,
                     selected = state.selectedAccount,
                     onSelected = { viewModel.setAccount(it) },
                 )
+                FormDivider()
                 OutlinedButton(
                     onClick = viewModel::swapAccounts,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).heightIn(min = 48.dp),
                 ) {
                     Icon(Icons.Outlined.SwapVert, contentDescription = null)
                     Text(stringResource(R.string.mov_swap_accounts), Modifier.padding(start = 8.dp))
                 }
+                FormDivider()
                 AccountDropdown(
-                    label = stringResource(R.string.mov_to_account),
+                    label = stringResource(R.string.mov_destination),
                     accounts = state.destinationAccounts,
                     selected = state.selectedDestinationAccount,
                     onSelected = { viewModel.setDestinationAccount(it) },
                 )
+                FormDivider()
                 LabeledAmountField(
                     label = stringResource(R.string.mov_to_amount),
                     value = values.destinationAmount,
                     currency = state.selectedDestinationAccount?.currency,
                     enabled = state.isCrossCurrency,
                     isError = state.error == EntryFormError.DESTINATION_AMOUNT_REQUIRED,
+                    kind = values.kind,
+                    sign = "+",
                     onValueChange = viewModel::setDestinationAmount,
                 )
                 state.exchangeRate?.let { rate ->
+                    FormDivider()
                     Text(
                         stringResource(R.string.mov_exchange_rate, rate),
+                        modifier = Modifier.padding(16.dp),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
             }
         }
         if (values.kind != EntryKind.TRANSFER) {
-            SectionCard {
-                TextButton(
-                    onClick = { moreDetails = !moreDetails },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                ) {
-                    Text(stringResource(R.string.mov_more_details), Modifier.weight(1f))
-                    Icon(
-                        if (moreDetails) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                        contentDescription = null,
-                    )
-                }
-                if (moreDetails) {
-                    LabeledTextField(
-                        label = stringResource(R.string.mov_merchant),
-                        value = values.merchant,
-                        onValueChange = viewModel::setMerchant,
-                    )
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+            ) {
+                Column {
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { moreDetails = !moreDetails }
+                            .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(stringResource(R.string.mov_more_details), Modifier.weight(1f))
+                        Icon(
+                            if (moreDetails) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                            contentDescription = null,
+                        )
+                    }
+                    if (moreDetails) {
+                        FormDivider()
+                        LabeledTextField(
+                            label = stringResource(R.string.mov_merchant),
+                            value = values.merchant,
+                            onValueChange = viewModel::setMerchant,
+                        )
+                    }
                 }
             }
         }
@@ -348,28 +398,18 @@ private fun EntryFormContent(
         if (state.saveFailed) {
             Text(stringResource(R.string.mov_save_error), color = MaterialTheme.colorScheme.error)
         }
-        OutlinedButton(
-            onClick = onRequestClear,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-        ) {
-            Icon(Icons.Outlined.Clear, contentDescription = null)
-            Text(stringResource(R.string.mov_clear_form), Modifier.padding(start = 8.dp))
-        }
     }
 }
 
 @Composable
 private fun LabeledTextField(label: String, value: String, onValueChange: (String) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().heightIn(min = 48.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(label, Modifier.width(104.dp), style = MaterialTheme.typography.labelLarge)
-        OutlinedTextField(
+    FormRow(label = label) {
+        InlineTextField(
             value = value,
             onValueChange = onValueChange,
-            singleLine = true,
-            modifier = Modifier.weight(1f),
+            placeholder = label,
+            accessibilityLabel = label,
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }
@@ -381,26 +421,41 @@ private fun LabeledAmountField(
     currency: String?,
     enabled: Boolean = true,
     isError: Boolean,
+    kind: EntryKind,
+    sign: String,
     onValueChange: (String) -> Unit,
 ) {
-    Row(
-        Modifier.fillMaxWidth().heightIn(min = 48.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(label, Modifier.width(104.dp), style = MaterialTheme.typography.labelLarge)
-        OutlinedTextField(
-            value = value,
-            onValueChange = onValueChange,
-            enabled = enabled,
-            isError = isError,
-            singleLine = true,
-            suffix = currency?.let { { Text(it) } },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            modifier = Modifier.weight(1f),
-        )
+    val amountColor = when (kind) {
+        EntryKind.EXPENSE -> MaterialTheme.extras.expense
+        EntryKind.INCOME -> MaterialTheme.colorScheme.primary
+        EntryKind.TRANSFER -> MaterialTheme.colorScheme.onSurface
+    }
+    FormRow(label = label, minHeight = 64.dp) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(sign, style = amountTextStyle(amountColor), color = amountColor)
+            InlineTextField(
+                value = value,
+                onValueChange = onValueChange,
+                enabled = enabled,
+                placeholder = stringResource(R.string.mov_amount_placeholder),
+                accessibilityLabel = label,
+                textStyle = amountTextStyle(if (isError) MaterialTheme.colorScheme.error else amountColor),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.weight(1f),
+            )
+            currency?.let {
+                Text(
+                    it,
+                    modifier = Modifier.padding(start = 6.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AccountDropdown(
     label: String,
@@ -408,19 +463,41 @@ private fun AccountDropdown(
     selected: com.mipatrimonio.app.domain.model.Account?,
     onSelected: (String?) -> Unit,
 ) {
-    Row(
-        Modifier.fillMaxWidth().heightIn(min = 48.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(label, Modifier.width(104.dp), style = MaterialTheme.typography.labelLarge)
-        DropdownField(
-            label = "",
-            options = accounts,
-            selected = selected,
-            optionLabel = { it.name },
-            onSelected = { onSelected(it?.id) },
-            modifier = Modifier.weight(1f),
-        )
+    var expanded by remember { mutableStateOf(false) }
+    FormRow(label = label) {
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = it },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                    .semantics { contentDescription = label },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    selected?.name.orEmpty(),
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.End,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    color = if (selected == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                )
+                Icon(Icons.Outlined.ChevronRight, contentDescription = null)
+            }
+            ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                accounts.forEach { account ->
+                    DropdownMenuItem(
+                        text = { Text(account.name) },
+                        onClick = {
+                            onSelected(account.id)
+                            expanded = false
+                        },
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -428,13 +505,15 @@ private fun AccountDropdown(
 @Composable
 private fun DateRow(date: java.time.LocalDate, onChange: (java.time.LocalDate) -> Unit) {
     var open by rememberSaveable { mutableStateOf(false) }
-    Row(
-        Modifier.fillMaxWidth().heightIn(min = 48.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(stringResource(R.string.mov_date), Modifier.width(104.dp), style = MaterialTheme.typography.labelLarge)
-        OutlinedButton(onClick = { open = true }, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
-            Text(formatDate(date))
+    val label = stringResource(R.string.mov_date)
+    FormRow(label = label) {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { open = true }
+                .semantics { contentDescription = label },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(formatDate(date), Modifier.weight(1f), textAlign = TextAlign.End)
+            Icon(Icons.Outlined.ChevronRight, contentDescription = null)
         }
     }
     if (open) {
@@ -460,21 +539,145 @@ private fun DateRow(date: java.time.LocalDate, onChange: (java.time.LocalDate) -
 
 @Composable
 private fun CategoryRow(state: EntryFormUiState, onChoose: () -> Unit, onClear: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().heightIn(min = 48.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(stringResource(R.string.mov_category), Modifier.width(104.dp), style = MaterialTheme.typography.labelLarge)
-        OutlinedButton(onClick = onChoose, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+    val label = stringResource(R.string.mov_category)
+    FormRow(label = label) {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClick = onChoose)
+                .semantics { contentDescription = label },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(
                 state.selectedCategory?.let { categoryPath(it, state.categories) }
                     ?: stringResource(R.string.mov_category_unassigned),
                 modifier = Modifier.weight(1f),
+                textAlign = TextAlign.End,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                color = if (state.selectedCategory == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
             )
+            if (state.values.categoryId != null) {
+                IconButton(onClick = onClear, modifier = Modifier.size(48.dp)) {
+                    Icon(Icons.Outlined.Clear, contentDescription = stringResource(R.string.mov_clear_category))
+                }
+            }
+            Icon(Icons.Outlined.ChevronRight, contentDescription = null)
         }
-        if (state.values.categoryId != null) {
-            IconButton(onClick = onClear) {
-                Icon(Icons.Outlined.Clear, contentDescription = stringResource(R.string.mov_clear_category))
+    }
+}
+
+@Composable
+private fun FormCard(content: @Composable () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+    ) {
+        Column(content = { content() })
+    }
+}
+
+@Composable
+private fun FormRow(
+    label: String,
+    minHeight: androidx.compose.ui.unit.Dp = 52.dp,
+    content: @Composable RowScope.() -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = minHeight).padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            label,
+            Modifier.width(96.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 2,
+        )
+        content()
+    }
+}
+
+@Composable
+private fun FormDivider() {
+    HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outline)
+}
+
+@Composable
+private fun InlineTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    accessibilityLabel: String,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    textStyle: TextStyle = MaterialTheme.typography.bodyLarge.copy(
+        color = MaterialTheme.colorScheme.onSurface,
+        textAlign = TextAlign.End,
+    ),
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+) {
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier.heightIn(min = 48.dp).semantics { contentDescription = accessibilityLabel },
+        enabled = enabled,
+        singleLine = true,
+        textStyle = textStyle,
+        keyboardOptions = keyboardOptions,
+        cursorBrush = SolidColor(textStyle.color),
+        decorationBox = { inner ->
+            Box(contentAlignment = Alignment.CenterEnd) {
+                if (value.isEmpty()) {
+                    Text(
+                        placeholder,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = textStyle,
+                        maxLines = 1,
+                    )
+                }
+                inner()
+            }
+        },
+    )
+}
+
+private fun amountTextStyle(color: androidx.compose.ui.graphics.Color) = TextStyle(
+    fontFamily = Fraunces,
+    fontWeight = FontWeight.SemiBold,
+    fontSize = 26.sp,
+    lineHeight = 32.sp,
+    color = color,
+    textAlign = TextAlign.End,
+    fontFeatureSettings = "tnum",
+)
+
+@Composable
+private fun EntryActionBar(onClear: () -> Unit, onSave: () -> Unit, saveEnabled: Boolean) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().imePadding(),
+        color = MaterialTheme.colorScheme.surface,
+    ) {
+        Column {
+            HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outline)
+            Row(
+                Modifier.fillMaxWidth().navigationBarsPadding().padding(20.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedButton(onClick = onClear, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+                    Text(stringResource(R.string.mov_clear_form), maxLines = 2, textAlign = TextAlign.Center)
+                }
+                Button(
+                    onClick = onSave,
+                    enabled = saveEnabled,
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                ) {
+                    Text(
+                        stringResource(R.string.common_save),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
             }
         }
     }

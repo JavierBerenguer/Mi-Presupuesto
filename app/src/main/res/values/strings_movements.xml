@@ -50,6 +50,7 @@
     <string name="mov_edit_transaction_title">Editar movimiento</string>
     <string name="mov_transaction_type">Tipo de movimiento</string>
     <string name="mov_amount">Importe</string>
+    <string name="mov_amount_placeholder">0</string>
     <string name="mov_account">Cuenta</string>
     <string name="mov_category_optional">Categoría (opcional)</string>
     <string name="mov_date">Fecha</string>
@@ -65,6 +66,8 @@
     <string name="mov_edit_transfer_title">Editar transferencia</string>
     <string name="mov_from_account">Cuenta de origen</string>
     <string name="mov_to_account">Cuenta de destino</string>
+    <string name="mov_origin">Origen</string>
+    <string name="mov_destination">Destino</string>
     <string name="mov_from_amount">Importe de origen</string>
     <string name="mov_to_amount">Importe de destino</string>
     <string name="mov_exchange_rate">Tipo de cambio (destino/origen): %1$s</string>
