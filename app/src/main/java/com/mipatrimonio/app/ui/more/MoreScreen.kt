@@ -20,11 +20,17 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -36,6 +42,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mipatrimonio.app.R
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountType
+import com.mipatrimonio.app.domain.model.Currencies
+import com.mipatrimonio.app.ui.common.AmountField
+import com.mipatrimonio.app.ui.common.DropdownField
+import com.mipatrimonio.app.ui.common.label
 import com.mipatrimonio.app.ui.common.LoadingBox
 import com.mipatrimonio.app.ui.common.appViewModel
 import com.mipatrimonio.app.ui.components.AmountKind
@@ -51,21 +61,104 @@ fun MoreScreen(
     onOpenNotifications: () -> Unit,
     onOpenProposals: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenInvestments: () -> Unit,
     viewModel: MoreViewModel = appViewModel { c -> MoreViewModel(c.ledger, c.investments) },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var showAddMenu by remember { mutableStateOf(false) }
+    var showAccountDialog by remember { mutableStateOf(false) }
     if (state.isLoading) {
         LoadingBox()
         return
     }
     MoreContent(
         state,
-        onOpenAccounts,
+        { showAddMenu = true },
         onOpenNetWorth,
         onOpenCategories,
         onOpenNotifications,
         onOpenProposals,
         onOpenSettings,
+    )
+    if (showAddMenu) AlertDialog(
+        onDismissRequest = { showAddMenu = false },
+        title = { Text(stringResource(R.string.more_add_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(
+                    onClick = { showAddMenu = false; showAccountDialog = true },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                ) { Text(stringResource(R.string.more_add_account)) }
+                TextButton(
+                    onClick = { showAddMenu = false; onOpenInvestments() },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                ) { Text(stringResource(R.string.more_add_portfolio)) }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = { showAddMenu = false }) { Text(stringResource(R.string.common_cancel)) }
+        },
+    )
+    if (showAccountDialog) AddAccountDialog(
+        onDismiss = { showAccountDialog = false },
+        onSave = { name, type, currency, initial, linked, result ->
+            viewModel.createAccount(name, type, currency, initial, linked, result)
+        },
+    )
+}
+
+@Composable
+private fun AddAccountDialog(
+    onDismiss: () -> Unit,
+    onSave: (String, AccountType, String, String, Boolean, (MoreAccountError?) -> Unit) -> Unit,
+) {
+    var name by remember { mutableStateOf("") }
+    var type by remember { mutableStateOf(AccountType.CORRIENTE) }
+    var currency by remember { mutableStateOf(Currencies.EUR) }
+    var initial by remember { mutableStateOf("") }
+    var linked by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<MoreAccountError?>(null) }
+    val errorText = when (val current = error) {
+        MoreAccountError.BlankName -> stringResource(R.string.more_error_name)
+        MoreAccountError.InvalidBalance -> stringResource(R.string.more_error_balance)
+        MoreAccountError.BalanceTooLarge -> stringResource(R.string.more_error_balance_large)
+        is MoreAccountError.Repository -> current.message.ifBlank { stringResource(R.string.more_error_saving) }
+        null -> null
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.more_add_account)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(name, { name = it; error = null }, label = { Text(stringResource(R.string.more_account_name)) })
+                DropdownField(
+                    stringResource(R.string.more_account_type), AccountType.entries, type,
+                    { it.label() }, { it?.let { selected -> type = selected; linked = false } },
+                )
+                DropdownField(
+                    stringResource(R.string.more_account_currency), Currencies.comunes, currency,
+                    { it }, { it?.let { selected -> currency = selected } },
+                )
+                AmountField(
+                    stringResource(R.string.more_initial_balance),
+                    initial,
+                    { initial = it; error = null },
+                    suffix = currency,
+                )
+                if (type == AccountType.INVERSION) Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(linked, { linked = it })
+                    Text(stringResource(R.string.more_create_linked_portfolio), modifier = Modifier.weight(1f))
+                }
+                errorText?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(name, type, currency, initial, linked) { result -> if (result == null) onDismiss() else error = result } }) {
+                Text(stringResource(R.string.common_save))
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     )
 }
 

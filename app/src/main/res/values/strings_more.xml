@@ -9,4 +9,16 @@
     <string name="more_total">Total por divisa</string>
     <string name="more_import_export">Importar y exportar</string>
     <string name="more_coming_soon">Próximamente</string>
+    <string name="more_add_title">Añadir cuenta o cartera</string>
+    <string name="more_add_account">Cuenta</string>
+    <string name="more_add_portfolio">Cartera de inversión</string>
+    <string name="more_account_name">Nombre</string>
+    <string name="more_account_type">Tipo de cuenta</string>
+    <string name="more_account_currency">Divisa</string>
+    <string name="more_initial_balance">Saldo inicial</string>
+    <string name="more_create_linked_portfolio">¿Crear también una cartera vinculada?</string>
+    <string name="more_error_name">El nombre es obligatorio.</string>
+    <string name="more_error_balance">El saldo inicial no es válido.</string>
+    <string name="more_error_balance_large">El saldo inicial es demasiado grande.</string>
+    <string name="more_error_saving">No se pudo guardar la cuenta.</string>
 </resources>

@@ -24,6 +24,7 @@ import com.mipatrimonio.app.ui.components.BottomNavBar
 import com.mipatrimonio.app.ui.components.SecondaryTopBar
 import com.mipatrimonio.app.ui.home.HomeScreen
 import com.mipatrimonio.app.ui.investments.InvestmentsScreen
+import com.mipatrimonio.app.ui.investments.AssetDetailScreen
 import com.mipatrimonio.app.ui.movements.EntryFormScreen
 import com.mipatrimonio.app.ui.movements.MovementsScreen
 import com.mipatrimonio.app.ui.movements.SourceFilter
@@ -45,7 +46,7 @@ fun MiPatrimonioApp() {
     val destino = Destino.entries.firstOrNull { it.ruta == route }
     val isMain = destino != null && destino in Destino.principales
     val hasOwnTopBar = route == Rutas.APUNTE || destino == Destino.Inicio || destino == Destino.Movimientos ||
-        destino == Destino.Presupuesto
+        destino == Destino.Presupuesto || destino == Destino.Cartera
 
     Scaffold(
         contentWindowInsets = if (hasOwnTopBar) WindowInsets(0) else ScaffoldDefaults.contentWindowInsets,
@@ -86,6 +87,7 @@ private fun titleFor(route: String?, destino: Destino?): Int = when {
     route == Rutas.DIAGNOSTICO_NOTIFICACIONES -> R.string.notif_diagnostics_title
     route == Rutas.PATRIMONIO -> R.string.nav_patrimonio
     route == Rutas.AJUSTES -> R.string.nav_ajustes
+    route == Rutas.ACTIVO -> R.string.inv_asset_detail_title
     else -> R.string.app_name
 }
 
@@ -118,7 +120,13 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
             )
         }
         composable(Destino.Presupuesto.ruta) { BudgetsScreen() }
-        composable(Destino.Cartera.ruta) { InvestmentsScreen() }
+        composable(Destino.Cartera.ruta) { entry ->
+            InvestmentsScreen(
+                onOpenAssetDetail = { portfolioId, assetId -> navController.navigate(Rutas.activo(portfolioId, assetId)) },
+                onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
+                initialNewPortfolio = entry.savedStateHandle.remove<Boolean>(Rutas.CREATE_PORTFOLIO_KEY) == true,
+            )
+        }
         composable(Destino.Mas.ruta) {
             MoreScreen(
                 onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
@@ -127,6 +135,10 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
                 onOpenNotifications = { navController.navigate(Rutas.NOTIFICACIONES) },
                 onOpenProposals = { navController.navigate(Rutas.PROPUESTAS) },
                 onOpenSettings = { navController.navigate(Rutas.AJUSTES) },
+                onOpenInvestments = {
+                    navController.navigate(Destino.Cartera.ruta) { launchSingleTop = true }
+                    navController.currentBackStackEntry?.savedStateHandle?.set(Rutas.CREATE_PORTFOLIO_KEY, true)
+                },
             )
         }
         composable(Rutas.PATRIMONIO) { NetWorthScreen() }
@@ -153,6 +165,18 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
                 onDone = { navController.popBackStack() },
                 onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
                 onOpenCategories = { navController.navigate(Rutas.CATEGORIAS) },
+            )
+        }
+        composable(
+            Rutas.ACTIVO,
+            arguments = listOf(
+                navArgument("portfolioId") { type = NavType.StringType },
+                navArgument("assetId") { type = NavType.StringType },
+            ),
+        ) { entry ->
+            AssetDetailScreen(
+                portfolioId = entry.arguments?.getString("portfolioId").orEmpty(),
+                assetId = entry.arguments?.getString("assetId").orEmpty(),
             )
         }
     }

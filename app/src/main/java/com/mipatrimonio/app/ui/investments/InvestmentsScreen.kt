@@ -1,554 +1,315 @@
 package com.mipatrimonio.app.ui.investments
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AddBusiness
-import androidx.compose.material.icons.filled.AttachMoney
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Paid
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.ShowChart
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mipatrimonio.app.R
-import com.mipatrimonio.app.domain.model.Asset
-import com.mipatrimonio.app.domain.model.InvestmentOperation
+import com.mipatrimonio.app.domain.model.AssetType
 import com.mipatrimonio.app.domain.model.MoneyMath
-import com.mipatrimonio.app.domain.model.OperationType
-import com.mipatrimonio.app.domain.model.Portfolio
+import com.mipatrimonio.app.domain.usecase.PortfolioValueSeries
 import com.mipatrimonio.app.domain.usecase.PositionRow
-import com.mipatrimonio.app.ui.common.ConfirmDialog
-import com.mipatrimonio.app.ui.common.EmptyState
-import com.mipatrimonio.app.ui.common.LoadingBox
-import com.mipatrimonio.app.ui.common.MoneyColors
-import com.mipatrimonio.app.ui.common.MoneyText
-import com.mipatrimonio.app.ui.common.SectionCard
-import com.mipatrimonio.app.ui.common.appViewModel
-import com.mipatrimonio.app.ui.common.formatDate
-import com.mipatrimonio.app.ui.common.label
+import com.mipatrimonio.app.ui.common.*
+import com.mipatrimonio.app.ui.common.charts.ChartPoint
+import com.mipatrimonio.app.ui.common.charts.LineChart
+import com.mipatrimonio.app.ui.components.PillTabs
+import com.mipatrimonio.app.ui.components.ProgressBar
+import com.mipatrimonio.app.ui.components.SectionCard
+import com.mipatrimonio.app.ui.components.SegmentedControl
+import com.mipatrimonio.app.ui.theme.LargeAmountStyle
 import java.math.BigDecimal
-import java.text.DecimalFormat
+import java.math.RoundingMode
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.text.NumberFormat
 import java.util.Locale
 
 @Composable
 fun InvestmentsScreen(
-    viewModel: InvestmentsViewModel = appViewModel { c ->
-        InvestmentsViewModel(c.ledger, c.investments, c.settings)
-    },
+    onOpenAssetDetail: (String, String) -> Unit = { _, _ -> },
+    onOpenAccounts: () -> Unit = {},
+    initialNewPortfolio: Boolean = false,
+    viewModel: InvestmentsViewModel = appViewModel { c -> InvestmentsViewModel(c.ledger, c.investments, c.settings) },
 ) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
-    var fabExpanded by remember { mutableStateOf(false) }
-    var showPortfolioDialog by remember { mutableStateOf(false) }
-    var showAssetDialog by remember { mutableStateOf(false) }
-    var operationDialogOpen by remember { mutableStateOf(false) }
-    var operationPortfolioId by remember { mutableStateOf<String?>(null) }
-    var operationAssetId by remember { mutableStateOf<String?>(null) }
-    var priceDialogOpen by remember { mutableStateOf(false) }
-    var priceAssetId by remember { mutableStateOf<String?>(null) }
-    var selectedPosition by remember { mutableStateOf<PositionRow?>(null) }
-    var deleteCandidate by remember { mutableStateOf<InvestmentOperation?>(null) }
-    var detailError by remember { mutableStateOf<String?>(null) }
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var portfolioDialog by rememberSaveable { mutableStateOf(initialNewPortfolio) }
+    var assetDialog by rememberSaveable { mutableStateOf(false) }
+    var operationDialog by rememberSaveable { mutableStateOf(false) }
+    var priceDialog by rememberSaveable { mutableStateOf(false) }
+    var menu by rememberSaveable { mutableStateOf(false) }
+    var section by rememberSaveable { mutableIntStateOf(0) }
+    var range by rememberSaveable { mutableIntStateOf(2) }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().statusBarsPadding()) {
         when {
             state.isLoading -> LoadingBox()
-            state.portfolios.isEmpty() -> EmptyState(
-                icon = Icons.Filled.ShowChart,
-                message = stringResource(R.string.inv_empty_portfolios),
-                actionLabel = stringResource(R.string.inv_new_portfolio),
-                onAction = { showPortfolioDialog = true },
-            )
-            else -> InvestmentsContent(
-                state = state,
-                onPositionClick = {
-                    detailError = null
-                    selectedPosition = it
-                },
-            )
-        }
-
-        if (!state.isLoading) {
-            InvestmentFabMenu(
-                expanded = fabExpanded,
-                onExpandedChange = { fabExpanded = it },
-                onNewPortfolio = { showPortfolioDialog = true },
-                onNewAsset = { showAssetDialog = true },
-                onNewOperation = {
-                    operationPortfolioId = null
-                    operationAssetId = null
-                    operationDialogOpen = true
-                },
-                onUpdatePrice = {
-                    priceAssetId = null
-                    priceDialogOpen = true
-                },
-                modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
-            )
-        }
-    }
-
-    if (showPortfolioDialog) {
-        PortfolioDialog(
-            accounts = state.accounts.filterNot { it.archived },
-            onDismiss = { showPortfolioDialog = false },
-            onSave = { name, accountId, onResult -> viewModel.savePortfolio(name, accountId, onResult) },
-        )
-    }
-    if (showAssetDialog) {
-        AssetDialog(
-            assets = state.assets,
-            onDismiss = { showAssetDialog = false },
-            onSave = { name, ticker, isin, type, market, currency, onResult ->
-                viewModel.saveAsset(name, ticker, isin, type, market, currency, onResult)
-            },
-        )
-    }
-    if (operationDialogOpen) {
-        key(operationPortfolioId, operationAssetId) {
-            OperationDialog(
-                portfolios = state.portfolios,
-                assets = state.assets,
-                accounts = state.accounts,
-                initialPortfolioId = operationPortfolioId,
-                initialAssetId = operationAssetId,
-                onDismiss = { operationDialogOpen = false },
-                onCreatePortfolio = {
-                    operationDialogOpen = false
-                    showPortfolioDialog = true
-                },
-                onCreateAsset = {
-                    operationDialogOpen = false
-                    showAssetDialog = true
-                },
-                onSave = { portfolio, asset, type, date, quantity, price, fees, accountId, note, onResult ->
-                    viewModel.addOperation(
-                        portfolio,
-                        asset,
-                        type,
-                        date,
-                        quantity,
-                        price,
-                        fees,
-                        accountId,
-                        note,
-                        onResult,
-                    )
-                },
-            )
-        }
-    }
-    if (priceDialogOpen) {
-        key(priceAssetId) {
-            ManualPriceDialog(
-                assets = state.assets,
-                initialAssetId = priceAssetId,
-                onDismiss = { priceDialogOpen = false },
-                onCreateAsset = {
-                    priceDialogOpen = false
-                    showAssetDialog = true
-                },
-                onSave = { asset, price, onResult -> viewModel.setManualPrice(asset, price, onResult) },
-            )
-        }
-    }
-
-    selectedPosition?.let { row ->
-        PositionDetailDialog(
-            row = row,
-            operations = state.operationsByPosition[row.portfolio.id to row.asset.id].orEmpty(),
-            error = detailError,
-            onDismiss = { selectedPosition = null },
-            onDelete = { deleteCandidate = it },
-            onNewOperation = {
-                selectedPosition = null
-                operationPortfolioId = row.portfolio.id
-                operationAssetId = row.asset.id
-                operationDialogOpen = true
-            },
-            onUpdatePrice = {
-                selectedPosition = null
-                priceAssetId = row.asset.id
-                priceDialogOpen = true
-            },
-        )
-    }
-    deleteCandidate?.let { operation ->
-        ConfirmDialog(
-            title = stringResource(R.string.inv_delete_operation_title),
-            text = stringResource(R.string.inv_delete_operation_message),
-            onConfirm = {
-                viewModel.deleteOperation(operation) { error ->
-                    if (error == null) {
-                        deleteCandidate = null
-                        detailError = null
-                    } else {
-                        deleteCandidate = null
-                        detailError = error
-                    }
+            state.portfolios.isEmpty() -> Column(
+                Modifier.fillMaxSize().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                EmptyState(
+                    icon = Icons.Default.ShowChart,
+                    message = stringResource(R.string.inv_empty_portfolios_explanation),
+                    actionLabel = stringResource(R.string.inv_new_portfolio),
+                    onAction = { portfolioDialog = true },
+                )
+                TextButton(onClick = onOpenAccounts, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text(stringResource(R.string.inv_new_investment_account))
                 }
-            },
-            onDismiss = { deleteCandidate = null },
-        )
+            }
+            else -> PortfolioContent(
+                state, section, range, { section = it }, { range = it }, viewModel::selectPortfolio,
+                { priceDialog = true }, { onOpenAssetDetail(it.portfolio.id, it.asset.id) },
+            )
+        }
+        if (!state.isLoading) Box(Modifier.align(Alignment.BottomEnd).padding(16.dp)) {
+            FloatingActionButton({ menu = true }, Modifier.size(56.dp)) {
+                Icon(Icons.Default.Add, stringResource(R.string.inv_add_action))
+            }
+            DropdownMenu(menu, { menu = false }) {
+                DropdownMenuItem({ Text(stringResource(R.string.inv_new_operation)) }, { menu = false; operationDialog = true })
+                DropdownMenuItem({ Text(stringResource(R.string.inv_new_asset)) }, { menu = false; assetDialog = true })
+                DropdownMenuItem({ Text(stringResource(R.string.inv_new_portfolio)) }, { menu = false; portfolioDialog = true })
+            }
+        }
     }
+    if (portfolioDialog) PortfolioDialog(
+        state.accounts.filterNot { it.archived }, { portfolioDialog = false },
+        { name, account, result -> viewModel.savePortfolio(name, account, result) },
+    )
+    if (assetDialog) AssetDialog(
+        state.assets, { assetDialog = false },
+        { name, ticker, isin, type, market, currency, result ->
+            viewModel.saveAsset(name, ticker, isin, type, market, currency, result)
+        },
+    )
+    if (operationDialog) OperationDialog(
+        state.portfolios, state.assets, state.accounts, state.selectedPortfolioId, null,
+        { operationDialog = false },
+        { operationDialog = false; portfolioDialog = true },
+        { operationDialog = false; assetDialog = true },
+        { portfolio, asset, type, date, quantity, price, fees, account, note, result ->
+            viewModel.addOperation(portfolio, asset, type, date, quantity, price, fees, account, note, result)
+        },
+    )
+    if (priceDialog) ManualPriceDialog(
+        state.assets, state.selectedPositions.singleOrNull()?.asset?.id, { priceDialog = false },
+        { priceDialog = false; assetDialog = true },
+        { asset, price, result -> viewModel.setManualPrice(asset, price, result) },
+    )
 }
 
 @Composable
-private fun InvestmentsContent(state: InvestmentsUiState, onPositionClick: (PositionRow) -> Unit) {
+private fun PortfolioContent(
+    state: InvestmentsUiState,
+    section: Int,
+    rangeIndex: Int,
+    onSection: (Int) -> Unit,
+    onRange: (Int) -> Unit,
+    onSelect: (String?) -> Unit,
+    onPrice: () -> Unit,
+    onPosition: (PositionRow) -> Unit,
+) {
     val snapshot = state.snapshot ?: return
-    val summaryByPortfolio = state.summaries.associateBy { it.portfolio.id }
-    val positionsByPortfolio = snapshot.openPositions.groupBy { it.portfolio.id }
+    val summary = state.selectedPortfolioId?.let { id -> state.summaries.firstOrNull { it.portfolio.id == id } }
+    val value = summary?.valueMinor ?: state.summaries.sumOf { it.valueMinor }
+    val cost = state.selectedPositions.filter { it.asset.currency == snapshot.baseCurrency }.fold(0L) { sum, row ->
+        Math.addExact(sum, MoneyMath.toMinor(row.valuation.position.costBasis, snapshot.baseCurrency))
+    }
+    val pct = if (cost == 0L) null else BigDecimal(state.totalReturnMinor).multiply(BigDecimal(100))
+        .divide(BigDecimal(cost), 2, RoundingMode.HALF_EVEN)
+    val range = PortfolioRange.entries[rangeIndex.coerceIn(PortfolioRange.entries.indices)]
+    val chart = chartPoints(state, range)
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            start = 16.dp,
-            top = 16.dp,
-            end = 16.dp,
-            bottom = 88.dp,
-        ),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 88.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            InvestmentHeader(state)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.nav_cartera), style = MaterialTheme.typography.headlineLarge, modifier = Modifier.weight(1f))
+                IconButton(onPrice, Modifier.size(48.dp)) { Icon(Icons.Default.Refresh, stringResource(R.string.inv_update_price)) }
+            }
+            PortfolioSelector(state, onSelect)
         }
-        items(state.portfolios, key = { it.id }) { portfolio ->
-            PortfolioCard(
-                portfolio = portfolio,
-                summary = summaryByPortfolio[portfolio.id],
-                positions = positionsByPortfolio[portfolio.id].orEmpty(),
-                baseCurrency = snapshot.baseCurrency,
-                onPositionClick = onPositionClick,
-            )
-        }
-    }
-}
-
-@Composable
-private fun InvestmentHeader(state: InvestmentsUiState) {
-    val snapshot = state.snapshot ?: return
-    SectionCard(title = stringResource(R.string.inv_summary_title)) {
-        SummaryMoneyRow(
-            label = stringResource(R.string.inv_total_value),
-            minor = snapshot.netWorth.investmentsMinor,
-            currency = snapshot.baseCurrency,
-            emphasized = true,
-        )
-        SummaryMoneyRow(stringResource(R.string.inv_total_cost), state.totalCostMinor, snapshot.baseCurrency)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(stringResource(R.string.inv_unrealized_gain))
-            Column(horizontalAlignment = Alignment.End) {
-                SignedMoneyText(state.totalUnrealizedMinor, snapshot.baseCurrency)
-                Text(
-                    state.totalUnrealizedPct?.let { signedPercentage(it) }
-                        ?: stringResource(R.string.inv_percentage_unavailable),
-                    color = amountColor(state.totalUnrealizedMinor),
-                    style = MaterialTheme.typography.bodySmall,
+        item {
+            Text(stringResource(R.string.inv_portfolio_value), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(money(value, snapshot.baseCurrency, state.hideAmounts), style = LargeAmountStyle)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Metric(stringResource(R.string.inv_today), stringResource(R.string.inv_not_available))
+                Metric(
+                    stringResource(R.string.inv_total_return),
+                    signedMoney(state.totalReturnMinor, snapshot.baseCurrency, state.hideAmounts),
+                    pct?.let(::signedPercentage),
                 )
             }
+            Text(stringResource(R.string.inv_simple_return_cost), style = MaterialTheme.typography.bodySmall)
+            if (state.unpricedAssets.isNotEmpty()) Warning(stringResource(R.string.inv_unpriced_warning, state.unpricedAssets.joinToString()))
+            if (state.excludedCurrencies.isNotEmpty()) Warning(stringResource(R.string.inv_excluded_warning, state.excludedCurrencies.joinToString()))
         }
-        Text(
-            stringResource(R.string.inv_simple_return_legend),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        if (state.unpricedAssets.isNotEmpty()) {
-            Text(
-                stringResource(R.string.inv_unpriced_warning, state.unpricedAssets.joinToString()),
-                color = MoneyColors.warning,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-        if (state.excludedCurrencies.isNotEmpty()) {
-            Text(
-                stringResource(R.string.inv_excluded_warning, state.excludedCurrencies.joinToString()),
-                color = MoneyColors.warning,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-    }
-}
-
-@Composable
-private fun SummaryMoneyRow(label: String, minor: Long, currency: String, emphasized: Boolean = false) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, fontWeight = if (emphasized) FontWeight.SemiBold else FontWeight.Normal)
-        MoneyText(
-            minor = minor,
-            currency = currency,
-            style = if (emphasized) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge,
-        )
-    }
-}
-
-@Composable
-private fun PortfolioCard(
-    portfolio: Portfolio,
-    summary: PortfolioSummary?,
-    positions: List<PositionRow>,
-    baseCurrency: String,
-    onPositionClick: (PositionRow) -> Unit,
-) {
-    SectionCard(title = portfolio.name) {
-        SummaryMoneyRow(stringResource(R.string.inv_portfolio_value), summary?.valueMinor ?: 0L, baseCurrency)
-        SummaryMoneyRow(stringResource(R.string.inv_realized_gain), summary?.realizedMinor ?: 0L, baseCurrency)
-        SummaryMoneyRow(stringResource(R.string.inv_net_dividends), summary?.dividendsNetMinor ?: 0L, baseCurrency)
-        HorizontalDivider(Modifier.padding(vertical = 4.dp))
-        Text(stringResource(R.string.inv_open_positions), style = MaterialTheme.typography.labelLarge)
-        if (positions.isEmpty()) {
-            Text(
-                stringResource(R.string.inv_empty_positions),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        } else {
-            positions.forEachIndexed { index, position ->
-                if (index > 0) HorizontalDivider()
-                PositionItem(position, onClick = { onPositionClick(position) })
-            }
-        }
-    }
-}
-
-@Composable
-private fun PositionItem(row: PositionRow, onClick: () -> Unit) {
-    val position = row.valuation.position
-    Column(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Text(
-            stringResource(R.string.inv_asset_name_ticker, row.asset.name, row.asset.ticker),
-            style = MaterialTheme.typography.titleSmall,
-        )
-        Text(
-            stringResource(R.string.inv_quantity_value, MoneyMath.formatQuantity(position.quantity)),
-            style = MaterialTheme.typography.bodySmall,
-        )
-        Text(
-            stringResource(
-                R.string.inv_average_price_value,
-                position.averagePrice?.let { formatDecimalMoney(it, row.asset.currency) }
-                    ?: stringResource(R.string.inv_not_available),
-            ),
-            style = MaterialTheme.typography.bodySmall,
-        )
-        val priceText = row.price?.let { price ->
-            val age = priceAgeDays(price.asOfEpochMillis, System.currentTimeMillis())
-            val ageText = if (age == 0L) {
-                stringResource(R.string.inv_updated_today)
-            } else {
-                pluralStringResource(R.plurals.inv_updated_days, age.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(), age)
-            }
-            stringResource(
-                R.string.inv_current_price_value,
-                formatDecimalMoney(price.price, row.asset.currency),
-                ageText,
-            )
-        } ?: stringResource(R.string.inv_without_price)
-        Text(priceText, style = MaterialTheme.typography.bodySmall)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(stringResource(R.string.inv_position_value))
-            row.valueMinor?.let { MoneyText(it, row.asset.currency) }
-                ?: Text(stringResource(R.string.inv_not_available))
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(stringResource(R.string.inv_unrealized_short))
-            val unrealizedMinor = row.valuation.unrealizedPnl?.let { MoneyMath.toMinor(it, row.asset.currency) }
-            if (unrealizedMinor == null) {
-                Text(stringResource(R.string.inv_not_available))
-            } else {
-                Column(horizontalAlignment = Alignment.End) {
-                    SignedMoneyText(unrealizedMinor, row.asset.currency)
-                    Text(
-                        row.valuation.unrealizedReturnPct?.let { signedPercentage(it) }
-                            ?: stringResource(R.string.inv_percentage_unavailable),
-                        color = amountColor(unrealizedMinor),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PositionDetailDialog(
-    row: PositionRow,
-    operations: List<InvestmentOperation>,
-    error: String?,
-    onDismiss: () -> Unit,
-    onDelete: (InvestmentOperation) -> Unit,
-    onNewOperation: () -> Unit,
-    onUpdatePrice: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.inv_history_title, row.asset.name, row.portfolio.name)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                if (operations.isEmpty()) {
-                    Text(stringResource(R.string.inv_empty_history))
-                } else {
-                    LazyColumn(Modifier.height(300.dp)) {
-                        items(operations, key = { it.id }) { operation ->
-                            OperationHistoryItem(operation, onDelete)
-                            HorizontalDivider()
-                        }
-                    }
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    TextButton(onClick = onNewOperation) { Text(stringResource(R.string.inv_new_operation)) }
-                    TextButton(onClick = onUpdatePrice) { Text(stringResource(R.string.inv_update_price)) }
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_close)) } },
-    )
-}
-
-@Composable
-private fun OperationHistoryItem(operation: InvestmentOperation, onDelete: (InvestmentOperation) -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f).padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(operation.type.label(), fontWeight = FontWeight.SemiBold)
-            Text(formatDate(operation.date), style = MaterialTheme.typography.bodySmall)
-            Text(
-                stringResource(
-                    R.string.inv_operation_amount,
-                    MoneyMath.formatQuantity(operation.quantity),
-                    formatDecimalMoney(operation.unitPrice, operation.currency),
+        item {
+            PillTabs(
+                listOf(
+                    stringResource(R.string.inv_range_day),
+                    stringResource(R.string.inv_range_week),
+                    stringResource(R.string.inv_range_month),
+                    stringResource(R.string.inv_range_year),
+                    stringResource(R.string.inv_range_max),
                 ),
-                style = MaterialTheme.typography.bodySmall,
+                rangeIndex,
+                onRange,
             )
-            if (operation.feesMinor != 0L) {
+            Spacer(Modifier.height(8.dp))
+            LineChart(
+                if (chart.size >= 2) chart else emptyList(),
+                { money(it, snapshot.baseCurrency, state.hideAmounts) },
+                stringResource(R.string.inv_chart_description),
+                stringResource(R.string.inv_chart_not_enough_data),
+            )
+        }
+        item {
+            SegmentedControl(
+                listOf(
+                    stringResource(R.string.inv_tab_positions),
+                    stringResource(R.string.inv_tab_distribution),
+                    stringResource(R.string.inv_tab_dividends),
+                ),
+                section,
+                onSection,
+            )
+        }
+        when (PortfolioSection.entries[section.coerceIn(PortfolioSection.entries.indices)]) {
+            PortfolioSection.POSICIONES -> {
+                if (state.selectedPositions.isEmpty()) item { Text(stringResource(R.string.inv_empty_positions)) }
+                items(state.selectedPositions, key = { "${it.portfolio.id}:${it.asset.id}" }) { PositionCard(it, state.hideAmounts, onPosition) }
+            }
+            PortfolioSection.DISTRIBUCION -> {
+                item { AllocationGroup(stringResource(R.string.inv_distribution_type), state.allocationsByType, state.hideAmounts) }
+                item { AllocationGroup(stringResource(R.string.inv_distribution_portfolio), state.allocationsByPortfolio, state.hideAmounts) }
+                item { AllocationGroup(stringResource(R.string.inv_distribution_currency), state.allocationsByCurrency, state.hideAmounts) }
+            }
+            PortfolioSection.DIVIDENDOS -> dividends(state)
+        }
+    }
+}
+
+@Composable
+private fun PortfolioSelector(state: InvestmentsUiState, onSelect: (String?) -> Unit) {
+    var open by rememberSaveable { mutableStateOf(false) }
+    val name = state.portfolios.firstOrNull { it.id == state.selectedPortfolioId }?.name
+        ?: stringResource(R.string.inv_aggregate_all)
+    Box {
+        TextButton({ open = true }, Modifier.heightIn(min = 48.dp)) { Text(name) }
+        DropdownMenu(open, { open = false }) {
+            DropdownMenuItem({ Text(stringResource(R.string.inv_aggregate_all)) }, { open = false; onSelect(null) })
+            state.portfolios.forEach { portfolio ->
+                DropdownMenuItem({ Text(portfolio.name) }, { open = false; onSelect(portfolio.id) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun PositionCard(row: PositionRow, hidden: Boolean, onClick: (PositionRow) -> Unit) {
+    SectionCard(Modifier.clickable { onClick(row) }) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Column(Modifier.weight(1f)) {
+                Text(row.asset.name, style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.inv_shares, MoneyMath.formatQuantity(row.valuation.position.quantity)))
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(row.valueMinor?.let { money(it, row.asset.currency, hidden) } ?: stringResource(R.string.inv_without_price))
+                val percentage = row.valuation.unrealizedReturnPct
                 Text(
-                    stringResource(R.string.inv_operation_fees, MoneyMath.format(operation.feesMinor, operation.currency)),
-                    style = MaterialTheme.typography.bodySmall,
+                    percentage?.let(::signedPercentage) ?: stringResource(R.string.inv_percentage_unavailable),
+                    color = signColor(percentage?.signum() ?: 0),
+                    fontWeight = FontWeight.SemiBold,
                 )
             }
-            if (operation.note.isNotBlank()) Text(operation.note, style = MaterialTheme.typography.bodySmall)
-        }
-        IconButton(onClick = { onDelete(operation) }) {
-            Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.inv_delete_operation))
         }
     }
 }
 
 @Composable
-private fun InvestmentFabMenu(
-    expanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
-    onNewPortfolio: () -> Unit,
-    onNewAsset: () -> Unit,
-    onNewOperation: () -> Unit,
-    onUpdatePrice: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Box(modifier) {
-        DropdownMenu(expanded = expanded, onDismissRequest = { onExpandedChange(false) }) {
-            InvestmentMenuItem(Icons.Filled.AddBusiness, R.string.inv_new_portfolio) {
-                onExpandedChange(false)
-                onNewPortfolio()
+private fun AllocationGroup(title: String, values: List<AllocationItem>, hidden: Boolean) {
+    SectionCard(title = title) {
+        if (values.isEmpty()) Text(stringResource(R.string.inv_no_distribution))
+        val total = values.sumOf { it.valueMinor }
+        values.forEach { item ->
+            val assetType = AssetType.entries.firstOrNull { it.name == item.label }
+            val label = if (assetType != null) assetType.label() else item.label
+            val fraction = if (total == 0L) 0f else BigDecimal(item.valueMinor).divide(BigDecimal(total), 4, RoundingMode.HALF_EVEN).toFloat()
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(label)
+                Text(if (hidden) stringResource(R.string.common_hidden_amount) else "${(fraction * 100).toInt()} %")
             }
-            InvestmentMenuItem(Icons.Filled.Paid, R.string.inv_new_asset) {
-                onExpandedChange(false)
-                onNewAsset()
-            }
-            InvestmentMenuItem(Icons.Filled.Edit, R.string.inv_new_operation) {
-                onExpandedChange(false)
-                onNewOperation()
-            }
-            InvestmentMenuItem(Icons.Filled.AttachMoney, R.string.inv_update_price) {
-                onExpandedChange(false)
-                onUpdatePrice()
-            }
-        }
-        FloatingActionButton(onClick = { onExpandedChange(!expanded) }) {
-            Icon(
-                if (expanded) Icons.Filled.MoreVert else Icons.Filled.Add,
-                contentDescription = stringResource(R.string.inv_actions),
-            )
+            ProgressBar(fraction)
         }
     }
 }
 
-@Composable
-private fun InvestmentMenuItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    labelRes: Int,
-    onClick: () -> Unit,
-) {
-    DropdownMenuItem(
-        text = { Text(stringResource(labelRes)) },
-        leadingIcon = { Icon(icon, contentDescription = null) },
-        onClick = onClick,
-    )
+private fun androidx.compose.foundation.lazy.LazyListScope.dividends(state: InvestmentsUiState) {
+    val currency = state.snapshot?.baseCurrency ?: return
+    val year = LocalDate.now().year
+    item {
+        SectionCard(title = stringResource(R.string.inv_dividends_year, year)) {
+            Text(money(state.dividends.filter { it.date.year == year }.sumOf { it.netMinor }, currency, state.hideAmounts))
+        }
+    }
+    if (state.dividends.isEmpty()) item { Text(stringResource(R.string.inv_no_dividends)) }
+    items(state.dividends) { dividend ->
+        SectionCard(title = dividend.assetName) {
+            Text(dividend.date.toString())
+            Text(stringResource(R.string.inv_dividend_gross, money(dividend.grossMinor, currency, state.hideAmounts)))
+            Text(stringResource(R.string.inv_dividend_withholding, money(dividend.withholdingMinor, currency, state.hideAmounts)))
+            Text(stringResource(R.string.inv_dividend_net, money(dividend.netMinor, currency, state.hideAmounts)))
+        }
+    }
 }
 
-@Composable
-private fun SignedMoneyText(minor: Long, currency: String) {
-    Text(
-        text = if (minor > 0) {
-            stringResource(R.string.inv_positive_amount, MoneyMath.format(minor, currency))
-        } else {
-            MoneyMath.format(minor, currency)
-        },
-        color = amountColor(minor),
-    )
+private fun chartPoints(state: InvestmentsUiState, range: PortfolioRange): List<ChartPoint> {
+    val zone = ZoneId.systemDefault()
+    val today = LocalDate.now()
+    val start = rangeStart(range, today)
+    val ids = state.selectedPositions.mapTo(hashSetOf()) { it.asset.id }
+    val prices = state.latestPrices.values.filter { it.assetId in ids }
+    val dates = (state.selectedOperations.map { it.date } + prices.map {
+        Instant.ofEpochMilli(it.asOfEpochMillis).atZone(zone).toLocalDate()
+    } + today).distinct().filter { start == null || it >= start }
+    val currency = state.snapshot?.baseCurrency ?: return emptyList()
+    return PortfolioValueSeries.calculate(dates, state.selectedOperations, prices, zone).map {
+        ChartPoint(it.date.format(DateTimeFormatter.ofPattern("d MMM", Locale("es", "ES"))), MoneyMath.toMinor(it.value, currency))
+    }
 }
 
-private fun amountColor(minor: Long): Color = when {
-    minor > 0 -> MoneyColors.positive
-    minor < 0 -> MoneyColors.negative
-    else -> Color.Unspecified
+@Composable private fun Metric(label: String, value: String, detail: String? = null) = Column {
+    Text(label, style = MaterialTheme.typography.labelMedium)
+    Text(value, style = MaterialTheme.typography.titleMedium)
+    detail?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
 }
-
-private fun formatDecimalMoney(value: BigDecimal, currency: String): String =
-    MoneyMath.format(MoneyMath.toMinor(value, currency), currency)
-
+@Composable private fun Warning(text: String) = Text(text, color = MoneyColors.warning, style = MaterialTheme.typography.bodySmall)
+private fun money(value: Long, currency: String, hidden: Boolean) = if (hidden) "••••" else MoneyMath.format(value, currency)
+private fun signedMoney(value: Long, currency: String, hidden: Boolean) = if (hidden) "••••" else (if (value > 0) "+" else "") + MoneyMath.format(value, currency)
 private fun signedPercentage(value: BigDecimal): String {
-    val formatter = (NumberFormat.getPercentInstance(Locale.forLanguageTag("es-ES")) as DecimalFormat).apply {
-        minimumFractionDigits = 2
-        maximumFractionDigits = 2
-        isGroupingUsed = true
-        positivePrefix = "+"
-    }
-    return formatter.format(value.movePointLeft(2))
+    val formatter = NumberFormat.getNumberInstance(Locale("es", "ES")).apply { minimumFractionDigits = 2; maximumFractionDigits = 2 }
+    return (if (value.signum() > 0) "+" else "") + formatter.format(value) + " %"
 }
+@Composable private fun signColor(sign: Int): Color = when { sign > 0 -> MoneyColors.positive; sign < 0 -> MoneyColors.negative; else -> MaterialTheme.colorScheme.onSurfaceVariant }

@@ -84,6 +84,28 @@ class MoreViewModelTest {
         )
     }
 
+    @Test
+    fun `cuenta de inversion puede crear cartera vinculada`() = runTest {
+        val viewModel = MoreViewModel(ledger, investments)
+
+        viewModel.createAccount("Broker", AccountType.INVERSION, "EUR", "100", true) {}
+
+        val account = ledger.accounts.first { it.isNotEmpty() }.single()
+        val portfolio = investments.portfolios.first { it.isNotEmpty() }.single()
+        assertEquals(account.id, portfolio.defaultAccountId)
+        assertEquals("Broker", portfolio.name)
+    }
+
+    @Test
+    fun `cuenta de inversion puede crearse sin cartera vinculada`() = runTest {
+        val viewModel = MoreViewModel(ledger, investments)
+
+        viewModel.createAccount("Broker", AccountType.INVERSION, "EUR", "", false) {}
+
+        ledger.accounts.first { it.isNotEmpty() }
+        assertTrue(investments.portfolios.first().isEmpty())
+    }
+
     private fun account(
         id: String,
         name: String,

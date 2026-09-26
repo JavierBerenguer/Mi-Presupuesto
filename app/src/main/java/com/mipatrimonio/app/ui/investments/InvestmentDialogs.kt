@@ -25,6 +25,7 @@ import com.mipatrimonio.app.domain.model.AssetType
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Currencies
 import com.mipatrimonio.app.domain.model.MoneyMath
+import com.mipatrimonio.app.domain.model.InvestmentOperation
 import com.mipatrimonio.app.domain.model.OperationType
 import com.mipatrimonio.app.domain.model.Portfolio
 import com.mipatrimonio.app.ui.common.AmountField
@@ -199,6 +200,7 @@ fun OperationDialog(
         String,
         (String?) -> Unit,
     ) -> Unit,
+    existingOperation: InvestmentOperation? = null,
 ) {
     if (portfolios.isEmpty()) {
         MissingDataDialog(
@@ -229,13 +231,17 @@ fun OperationDialog(
         accounts.filter { !it.archived && it.currency == selectedAsset.currency }
     fun suggestedAccount(selectedPortfolio: Portfolio, selectedAsset: Asset): Account? =
         eligibleAccounts(selectedAsset).firstOrNull { it.id == selectedPortfolio.defaultAccountId }
-    var account by remember { mutableStateOf(suggestedAccount(portfolio, asset)) }
-    var type by remember { mutableStateOf(OperationType.COMPRA) }
-    var date by remember { mutableStateOf(LocalDate.now()) }
-    var quantityText by remember { mutableStateOf("") }
-    var priceText by remember { mutableStateOf("") }
-    var feesText by remember { mutableStateOf("") }
-    var note by remember { mutableStateOf("") }
+    var account by remember(existingOperation?.id) {
+        mutableStateOf(eligibleAccounts(asset).firstOrNull { it.id == existingOperation?.accountId } ?: suggestedAccount(portfolio, asset))
+    }
+    var type by remember(existingOperation?.id) { mutableStateOf(existingOperation?.type ?: OperationType.COMPRA) }
+    var date by remember(existingOperation?.id) { mutableStateOf(existingOperation?.date ?: LocalDate.now()) }
+    var quantityText by remember(existingOperation?.id) { mutableStateOf(existingOperation?.quantity?.toPlainString().orEmpty()) }
+    var priceText by remember(existingOperation?.id) { mutableStateOf(existingOperation?.unitPrice?.toPlainString().orEmpty()) }
+    var feesText by remember(existingOperation?.id) {
+        mutableStateOf(existingOperation?.let { MoneyMath.toDecimal(it.feesMinor, it.currency).toPlainString() }.orEmpty())
+    }
+    var note by remember(existingOperation?.id) { mutableStateOf(existingOperation?.note.orEmpty()) }
     var error by remember { mutableStateOf<String?>(null) }
     val quantityError = stringResource(R.string.inv_error_quantity_positive)
     val priceError = stringResource(R.string.inv_error_price_non_negative)
@@ -244,7 +250,7 @@ fun OperationDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.inv_new_operation)) },
+        title = { Text(stringResource(if (existingOperation == null) R.string.inv_new_operation else R.string.inv_edit_operation)) },
         text = {
             Column(
                 Modifier.verticalScroll(rememberScrollState()),

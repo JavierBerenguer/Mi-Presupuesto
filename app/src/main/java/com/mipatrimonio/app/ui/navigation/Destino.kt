@@ -28,6 +28,7 @@ enum class Destino(val ruta: String, @StringRes val titulo: Int, val icono: Imag
 /** Rutas secundarias (con flecha atrás y sin barra inferior). */
 object Rutas {
     const val MOVEMENT_SOURCE_KEY = "movement_source"
+    const val CREATE_PORTFOLIO_KEY = "create_portfolio"
     const val NUEVO = "nuevo"
     const val CUENTAS = "cuentas"
     const val CATEGORIAS = "categorias"
@@ -37,6 +38,8 @@ object Rutas {
     const val AJUSTES = "ajustes"
     const val DIAGNOSTICO_NOTIFICACIONES = "diagnostico-notificaciones"
     const val APUNTE = "apunte/{id}"
+    const val ACTIVO = "activo/{portfolioId}/{assetId}"
 
     fun apunte(id: String?) = "apunte/${id ?: NUEVO}"
+    fun activo(portfolioId: String, assetId: String) = "activo/$portfolioId/$assetId"
 }

@@ -17,6 +17,7 @@ data class Settings(
     val hideAmounts: Boolean = false,
     val netWorthIncludeAccounts: Boolean = true,
     val netWorthIncludeInvestments: Boolean = true,
+    val selectedPortfolioId: String? = null,
 )
 
 class SettingsRepository(private val context: Context) {
@@ -25,6 +26,7 @@ class SettingsRepository(private val context: Context) {
     private val hideAmountsKey = booleanPreferencesKey("hide_amounts")
     private val includeAccountsKey = booleanPreferencesKey("net_worth_include_accounts")
     private val includeInvestmentsKey = booleanPreferencesKey("net_worth_include_investments")
+    private val selectedPortfolioIdKey = stringPreferencesKey("selected_portfolio_id")
 
     /** Modo oscuro activado por defecto; divisa base EUR por defecto. */
     val settings: Flow<Settings> = context.settingsStore.data.map { p ->
@@ -34,6 +36,7 @@ class SettingsRepository(private val context: Context) {
             hideAmounts = p[hideAmountsKey] ?: false,
             netWorthIncludeAccounts = p[includeAccountsKey] ?: true,
             netWorthIncludeInvestments = p[includeInvestmentsKey] ?: true,
+            selectedPortfolioId = p[selectedPortfolioIdKey]?.takeIf { it.isNotBlank() },
         )
     }
 
@@ -54,6 +57,12 @@ class SettingsRepository(private val context: Context) {
         context.settingsStore.edit {
             it[includeAccountsKey] = accounts
             it[includeInvestmentsKey] = investments
+        }
+    }
+
+    suspend fun setSelectedPortfolioId(portfolioId: String?) {
+        context.settingsStore.edit { preferences ->
+            preferences[selectedPortfolioIdKey] = portfolioId.orEmpty()
         }
     }
 }

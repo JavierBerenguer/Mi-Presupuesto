@@ -21,6 +21,8 @@ import java.util.UUID
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -37,6 +39,15 @@ data class InvestmentsUiState(
     val totalUnrealizedPct: BigDecimal? = null,
     val excludedCurrencies: Set<String> = emptySet(),
     val unpricedAssets: List<String> = emptyList(),
+    val selectedPortfolioId: String? = null,
+    val hideAmounts: Boolean = false,
+    val selectedPositions: List<com.mipatrimonio.app.domain.usecase.PositionRow> = emptyList(),
+    val selectedOperations: List<InvestmentOperation> = emptyList(),
+    val allocationsByType: List<AllocationItem> = emptyList(),
+    val allocationsByPortfolio: List<AllocationItem> = emptyList(),
+    val allocationsByCurrency: List<AllocationItem> = emptyList(),
+    val dividends: List<DividendItem> = emptyList(),
+    val totalReturnMinor: Long = 0L,
 ) {
     val isLoading: Boolean get() = snapshot == null
 }
@@ -44,7 +55,7 @@ data class InvestmentsUiState(
 class InvestmentsViewModel(
     private val ledger: LedgerRepository,
     private val investments: InvestmentRepository,
-    settings: SettingsRepository,
+    private val settings: SettingsRepository,
 ) : ViewModel() {
     private val ledgerData = combine(
         ledger.accounts,
@@ -61,7 +72,17 @@ class InvestmentsViewModel(
         InvestmentData(portfolios, assets, operations, prices)
     }
 
-    val state: StateFlow<InvestmentsUiState> = combine(
+    init {
+        viewModelScope.launch {
+            combine(investments.portfolios, settings.settings) { portfolios, current ->
+                current.selectedPortfolioId?.takeUnless { id -> portfolios.any { it.id == id } }
+            }.distinctUntilChanged().collect { invalidId ->
+                if (invalidId != null) settings.setSelectedPortfolioId(null)
+            }
+        }
+    }
+
+    val uiState: StateFlow<InvestmentsUiState> = combine(
         ledgerData,
         investmentData,
         settings.settings,
@@ -77,6 +98,15 @@ class InvestmentsViewModel(
             prices = investmentValues.prices,
         )
         val summaries = summarize(snapshot.positions, currentSettings.baseCurrency)
+        val selectedPortfolioId = currentSettings.selectedPortfolioId
+            ?.takeIf { id -> investmentValues.portfolios.any { it.id == id } }
+        val selectedRows = snapshot.positions.filter { selectedPortfolioId == null || it.portfolio.id == selectedPortfolioId }
+        val selectedOperations = investmentValues.operations.filter {
+            selectedPortfolioId == null || it.portfolioId == selectedPortfolioId
+        }
+        val selectedSummaries = summaries.filter {
+            selectedPortfolioId == null || it.portfolio.id == selectedPortfolioId
+        }
         InvestmentsUiState(
             snapshot = snapshot,
             portfolios = investmentValues.portfolios.sortedWith(compareBy({ it.createdAt }, { it.name })),
@@ -95,14 +125,33 @@ class InvestmentsViewModel(
             totalCostMinor = summaries.fold(0L) { total, summary -> addExact(total, summary.costMinor) },
             totalUnrealizedMinor = summaries.fold(0L) { total, summary -> addExact(total, summary.unrealizedMinor) },
             totalUnrealizedPct = totalUnrealizedPct(snapshot.positions, currentSettings.baseCurrency),
-            excludedCurrencies = summaries.flatMapTo(sortedSetOf()) { it.excludedCurrencies },
-            unpricedAssets = summaries.flatMap { it.unpricedAssets }.distinct().sorted(),
+            excludedCurrencies = selectedSummaries.flatMapTo(sortedSetOf()) { it.excludedCurrencies },
+            unpricedAssets = selectedSummaries.flatMap { it.unpricedAssets }.distinct().sorted(),
+            selectedPortfolioId = selectedPortfolioId,
+            hideAmounts = currentSettings.hideAmounts,
+            selectedPositions = selectedRows.filter { it.isOpen },
+            selectedOperations = selectedOperations,
+            allocationsByType = allocationByType(selectedRows, currentSettings.baseCurrency),
+            allocationsByPortfolio = allocationByPortfolio(selectedRows, currentSettings.baseCurrency),
+            allocationsByCurrency = allocationByCurrency(selectedRows),
+            dividends = dividendItems(
+                selectedOperations,
+                investmentValues.assets.associate { it.id to it.name },
+                currentSettings.baseCurrency,
+            ),
+            totalReturnMinor = totalReturnMinor(selectedRows, currentSettings.baseCurrency),
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = InvestmentsUiState(),
     )
+
+    val state: StateFlow<InvestmentsUiState> = uiState
+
+    fun selectPortfolio(portfolioId: String?) {
+        viewModelScope.launch { settings.setSelectedPortfolioId(portfolioId) }
+    }
 
     fun savePortfolio(name: String, defaultAccountId: String?, onResult: (String?) -> Unit) {
         launchAction(onResult) {
