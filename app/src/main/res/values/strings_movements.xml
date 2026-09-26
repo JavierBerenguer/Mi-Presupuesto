@@ -84,7 +84,7 @@
     <string name="mov_edit_income">Editar ingreso</string>
     <string name="mov_entry_not_found">El apunte solicitado no existe.</string>
     <string name="mov_title">Título</string>
-    <string name="mov_comment">Comentario</string>
+    <string name="mov_comment">Detalle</string>
     <string name="mov_category">Categoría</string>
     <string name="mov_category_unassigned">Sin asignar</string>
     <string name="mov_more_details">Más detalles</string>

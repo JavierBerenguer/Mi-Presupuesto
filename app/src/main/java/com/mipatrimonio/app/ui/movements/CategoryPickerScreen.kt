@@ -305,7 +305,7 @@ private fun UnderlineTabs(
                     .semantics { selected = isSelected },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                Box(Modifier.fillMaxWidth().heightIn(min = 46.dp), contentAlignment = Alignment.Center) {
                     Text(
                         option,
                         color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
