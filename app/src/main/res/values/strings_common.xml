@@ -36,6 +36,7 @@
     <string name="common_asset_fondo_indexado">Fondo indexado</string>
     <string name="common_asset_fondo_inversion">Fondo de inversión</string>
     <string name="common_asset_cripto">Criptomoneda</string>
+    <string name="common_asset_prestamo_p2p">Préstamo P2P</string>
 
     <string name="common_period_mensual">Mensual</string>
     <string name="common_period_anual">Anual</string>

@@ -115,7 +115,7 @@ data class Portfolio(
     val defaultAccountId: String? = null,
 )
 
-enum class AssetType { ACCION, ETF, FONDO_INDEXADO, FONDO_INVERSION, CRIPTO }
+enum class AssetType { ACCION, ETF, FONDO_INDEXADO, FONDO_INVERSION, CRIPTO, PRESTAMO_P2P }
 
 /** El ticker no es identificador universal: la identidad es [id] (más ISIN/mercado cuando existan). */
 data class Asset(

@@ -155,6 +155,30 @@ class RepositoryTest {
     }
 
     @Test
+    fun `prestamo p2p se persiste y admite todas las operaciones de inversion`() = runBlocking<Unit> {
+        investments.savePortfolio(Portfolio("p1", "Préstamos", 1))
+        val asset = Asset("p2p1", "Préstamo Mintos", "P2P", "", AssetType.PRESTAMO_P2P, "", "EUR")
+        investments.saveAsset(asset)
+
+        fun operation(id: String, type: OperationType, quantity: String, price: String, day: Int) =
+            InvestmentOperation(
+                id, "p1", asset.id, type, LocalDate.of(2026, 1, day), BigDecimal(quantity),
+                BigDecimal(price), 0, "EUR", "", day.toLong(),
+            )
+
+        investments.addOperation(operation("compra", OperationType.COMPRA, "10", "100", 1))
+        investments.addOperation(operation("dividendo", OperationType.DIVIDENDO, "1", "5", 2))
+        investments.addOperation(operation("comision", OperationType.COMISION, "1", "2", 3))
+        investments.addOperation(operation("venta", OperationType.VENTA, "2", "100", 4))
+
+        assertEquals(asset, investments.assets.first().single())
+        assertEquals(
+            setOf(OperationType.COMPRA, OperationType.DIVIDENDO, OperationType.COMISION, OperationType.VENTA),
+            investments.operations.first().mapTo(mutableSetOf()) { it.type },
+        )
+    }
+
+    @Test
     fun `operacion vinculada valida divisa y se refleja al editar y eliminar`() = runBlocking<Unit> {
         ledger.saveAccount(account("eur", initial = 1_000_00))
         ledger.saveAccount(account("usd", currency = "USD"))

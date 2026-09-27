@@ -31,4 +31,28 @@ class InvestmentBreakdownsTest {
 
         assertEquals(3_300L, totalReturnMinor(listOf(row), "EUR"))
     }
+
+    @Test
+    fun `prestamo p2p aparece como categoria propia en la distribucion por tipo`() {
+        val position = Position(
+            quantity = BigDecimal.TEN,
+            costBasis = BigDecimal("1000"),
+            realizedPnl = BigDecimal.ZERO,
+            dividendsNet = BigDecimal.ZERO,
+            otherFees = BigDecimal.ZERO,
+            realizedCostBasis = BigDecimal.ZERO,
+            capitalizedFees = BigDecimal.ZERO,
+        )
+        val row = PositionRow(
+            Portfolio("portfolio", "Cartera", 1L),
+            Asset("p2p", "Préstamo", "P2P", "", AssetType.PRESTAMO_P2P, "", "EUR"),
+            PositionCalculator.value(position, BigDecimal("110")),
+            null,
+        )
+
+        assertEquals(
+            listOf(AllocationItem(AssetType.PRESTAMO_P2P.name, 110_000L)),
+            allocationByType(listOf(row), "EUR"),
+        )
+    }
 }

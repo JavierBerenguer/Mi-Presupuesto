@@ -1,5 +1,6 @@
 package com.mipatrimonio.app.ui.common
 
+import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.mipatrimonio.app.R
@@ -43,16 +44,18 @@ fun OperationType.label(): String = stringResource(
     },
 )
 
+@StringRes
+internal fun AssetType.labelResource(): Int = when (this) {
+    AssetType.ACCION -> R.string.common_asset_accion
+    AssetType.ETF -> R.string.common_asset_etf
+    AssetType.FONDO_INDEXADO -> R.string.common_asset_fondo_indexado
+    AssetType.FONDO_INVERSION -> R.string.common_asset_fondo_inversion
+    AssetType.CRIPTO -> R.string.common_asset_cripto
+    AssetType.PRESTAMO_P2P -> R.string.common_asset_prestamo_p2p
+}
+
 @Composable
-fun AssetType.label(): String = stringResource(
-    when (this) {
-        AssetType.ACCION -> R.string.common_asset_accion
-        AssetType.ETF -> R.string.common_asset_etf
-        AssetType.FONDO_INDEXADO -> R.string.common_asset_fondo_indexado
-        AssetType.FONDO_INVERSION -> R.string.common_asset_fondo_inversion
-        AssetType.CRIPTO -> R.string.common_asset_cripto
-    },
-)
+fun AssetType.label(): String = stringResource(labelResource())
 
 @Composable
 fun BudgetPeriod.label(): String = stringResource(
