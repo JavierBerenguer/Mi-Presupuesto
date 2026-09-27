@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accounts_filter_active">Activas</string>
+    <string name="accounts_filter_archived">Archivadas</string>
+    <string name="accounts_filter_all">Todas</string>
+    <string name="accounts_empty">No hay cuentas en este filtro.</string>
+    <string name="accounts_new">Nueva cuenta</string>
+    <string name="accounts_edit">Editar cuenta</string>
+    <string name="accounts_name">Nombre</string>
+    <string name="accounts_type">Tipo de cuenta</string>
+    <string name="accounts_currency">Divisa</string>
+    <string name="accounts_initial_balance">Saldo inicial</string>
+    <string name="accounts_details">%1$s · %2$s</string>
+    <string name="accounts_status_active">Activa</string>
+    <string name="accounts_status_archived">Archivada</string>
+    <string name="accounts_edit_description">Editar %1$s</string>
+    <string name="accounts_currency_locked">La divisa no se puede cambiar porque la cuenta tiene movimientos, transferencias u operaciones de inversión.</string>
+    <string name="accounts_archived_balance_warning">Archivada con saldo: sigue computando</string>
+    <string name="accounts_archive_title">Archivar cuenta</string>
+    <string name="accounts_restore_title">Reactivar cuenta</string>
+    <string name="accounts_archive_message">¿Quieres archivar «%1$s»? Dejará de ofrecerse en los formularios y su cartera perderá la cuenta por defecto.</string>
+    <string name="accounts_restore_message">¿Quieres reactivar «%1$s»?</string>
+    <string name="accounts_delete_title">Eliminar cuenta</string>
+    <string name="accounts_delete_message">¿Quieres eliminar definitivamente «%1$s»? Esta acción no se puede deshacer.</string>
+    <string name="accounts_delete_blocked">«%1$s» no se puede eliminar porque tiene datos asociados:</string>
+    <string name="accounts_dependency_transactions">Movimientos: %1$d</string>
+    <string name="accounts_dependency_transfers">Transferencias: %1$d</string>
+    <string name="accounts_dependency_operations">Operaciones de inversión: %1$d</string>
+    <string name="accounts_dependency_portfolios">Carteras asociadas: %1$d</string>
+    <string name="accounts_dependency_apps">Apps de notificaciones: %1$d</string>
+    <string name="accounts_loading_dependencies">Comprobando datos asociados…</string>
+</resources>
