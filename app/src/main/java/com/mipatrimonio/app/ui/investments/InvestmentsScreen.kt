@@ -131,8 +131,7 @@ private fun PortfolioContent(
     onPosition: (PositionRow) -> Unit,
 ) {
     val snapshot = state.snapshot ?: return
-    val summary = state.selectedPortfolioId?.let { id -> state.summaries.firstOrNull { it.portfolio.id == id } }
-    val value = summary?.valueMinor ?: state.summaries.sumOf { it.valueMinor }
+    val value = state.totalValueMinor
     val cost = state.selectedPositions.filter { it.asset.currency == snapshot.baseCurrency }.fold(0L) { sum, row ->
         Math.addExact(sum, MoneyMath.toMinor(row.valuation.position.costBasis, snapshot.baseCurrency))
     }
@@ -168,6 +167,24 @@ private fun PortfolioContent(
             Text(stringResource(R.string.inv_simple_return_cost), style = MaterialTheme.typography.bodySmall)
             if (state.unpricedAssets.isNotEmpty()) Warning(stringResource(R.string.inv_unpriced_warning, state.unpricedAssets.joinToString()))
             if (state.excludedCurrencies.isNotEmpty()) Warning(stringResource(R.string.inv_excluded_warning, state.excludedCurrencies.joinToString()))
+        }
+        item {
+            SectionCard(title = stringResource(R.string.inv_profitability_title)) {
+                DataRow(stringResource(R.string.inv_total_cost_label), money(state.totalCostMinor, snapshot.baseCurrency, state.hideAmounts))
+                DataRow(stringResource(R.string.inv_current_value_label), money(state.totalValueMinor, snapshot.baseCurrency, state.hideAmounts))
+                PerformanceRow(
+                    stringResource(R.string.inv_unrealized_gain),
+                    signedMoney(state.totalUnrealizedMinor, snapshot.baseCurrency, state.hideAmounts),
+                    state.totalUnrealizedPct,
+                )
+                PerformanceRow(
+                    stringResource(R.string.inv_realized_gain),
+                    signedMoney(state.totalRealizedMinor, snapshot.baseCurrency, state.hideAmounts),
+                    state.totalRealizedPct,
+                )
+                DataRow(stringResource(R.string.inv_dividends_collected), money(state.totalDividendsNetMinor, snapshot.baseCurrency, state.hideAmounts))
+                DataRow(stringResource(R.string.inv_total_fees), money(state.totalFeesMinor, snapshot.baseCurrency, state.hideAmounts))
+            }
         }
         item {
             PillTabs(
@@ -309,6 +326,19 @@ private fun chartPoints(state: InvestmentsUiState, range: PortfolioRange): List<
     Text(value, style = MaterialTheme.typography.titleMedium)
     detail?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
 }
+@Composable private fun DataRow(label: String, value: String) = Row(
+    Modifier.fillMaxWidth().heightIn(min = 48.dp),
+    horizontalArrangement = Arrangement.SpaceBetween,
+    verticalAlignment = Alignment.CenterVertically,
+) { Text(label); Text(value) }
+@Composable private fun PerformanceRow(label: String, value: String, percentage: BigDecimal?) = DataRow(
+    label,
+    stringResource(
+        R.string.inv_amount_percentage,
+        value,
+        percentage?.let(::signedPercentage) ?: stringResource(R.string.inv_percentage_unavailable),
+    ),
+)
 @Composable private fun Warning(text: String) = Text(text, color = MoneyColors.warning, style = MaterialTheme.typography.bodySmall)
 private fun money(value: Long, currency: String, hidden: Boolean) = if (hidden) "••••" else MoneyMath.format(value, currency)
 private fun signedMoney(value: Long, currency: String, hidden: Boolean) = if (hidden) "••••" else (if (value > 0) "+" else "") + MoneyMath.format(value, currency)

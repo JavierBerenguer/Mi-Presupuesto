@@ -13,7 +13,10 @@ data class PortfolioSummary(
     val unrealizedMinor: Long,
     val unrealizedPct: BigDecimal?,
     val realizedMinor: Long,
+    val realizedCostBasisMinor: Long,
+    val realizedPct: BigDecimal?,
     val dividendsNetMinor: Long,
+    val totalFeesMinor: Long,
     val excludedCurrencies: Set<String>,
     val unpricedAssets: List<String>,
 )
@@ -26,7 +29,11 @@ fun summarize(rows: List<PositionRow>, baseCurrency: String): List<PortfolioSumm
         var costMinor = 0L
         var unrealizedMinor = 0L
         var realizedMinor = 0L
+        var realizedCostBasisMinor = 0L
         var dividendsNetMinor = 0L
+        var totalFeesMinor = 0L
+        var realized = BigDecimal.ZERO
+        var realizedCostBasis = BigDecimal.ZERO
         var valuedCost = BigDecimal.ZERO
         var valuedUnrealized = BigDecimal.ZERO
 
@@ -39,12 +46,19 @@ fun summarize(rows: List<PositionRow>, baseCurrency: String): List<PortfolioSumm
             val position = row.valuation.position
             realizedMinor = addExact(
                 realizedMinor,
-                MoneyMath.toMinor(position.realizedPnl.subtract(position.otherFees), baseCurrency),
+                MoneyMath.toMinor(position.realizedPnl, baseCurrency),
+            )
+            realizedCostBasisMinor = addExact(
+                realizedCostBasisMinor,
+                MoneyMath.toMinor(position.realizedCostBasis, baseCurrency),
             )
             dividendsNetMinor = addExact(
                 dividendsNetMinor,
                 MoneyMath.toMinor(position.dividendsNet, baseCurrency),
             )
+            totalFeesMinor = addExact(totalFeesMinor, MoneyMath.toMinor(position.totalFees, baseCurrency))
+            realized = realized.add(position.realizedPnl)
+            realizedCostBasis = realizedCostBasis.add(position.realizedCostBasis)
 
             if (!row.isOpen) return@forEach
 
@@ -72,7 +86,10 @@ fun summarize(rows: List<PositionRow>, baseCurrency: String): List<PortfolioSumm
                 .multiply(BigDecimal(100))
                 .setScale(2, RoundingMode.HALF_EVEN),
             realizedMinor = realizedMinor,
+            realizedCostBasisMinor = realizedCostBasisMinor,
+            realizedPct = percentage(realized, realizedCostBasis),
             dividendsNetMinor = dividendsNetMinor,
+            totalFeesMinor = totalFeesMinor,
             excludedCurrencies = excludedCurrencies,
             unpricedAssets = unpricedAssets.distinct().sorted(),
         )
@@ -94,6 +111,22 @@ fun totalUnrealizedPct(rows: List<PositionRow>, baseCurrency: String): BigDecima
         .multiply(BigDecimal(100))
         .setScale(2, RoundingMode.HALF_EVEN)
 }
+
+fun totalRealizedPct(rows: List<PositionRow>, baseCurrency: String): BigDecimal? {
+    var realized = BigDecimal.ZERO
+    var basis = BigDecimal.ZERO
+    rows.filter { it.asset.currency == baseCurrency }.forEach { row ->
+        realized = realized.add(row.valuation.position.realizedPnl)
+        basis = basis.add(row.valuation.position.realizedCostBasis)
+    }
+    return percentage(realized, basis)
+}
+
+private fun percentage(result: BigDecimal, basis: BigDecimal): BigDecimal? =
+    if (basis.signum() <= 0) null else result
+        .divide(basis, MoneyMath.CONTEXT)
+        .multiply(BigDecimal(100))
+        .setScale(2, RoundingMode.HALF_EVEN)
 
 internal fun addExact(left: Long, right: Long): Long = Math.addExact(left, right)
 

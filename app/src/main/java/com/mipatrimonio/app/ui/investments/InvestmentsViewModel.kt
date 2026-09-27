@@ -38,6 +38,11 @@ data class InvestmentsUiState(
     val totalCostMinor: Long = 0L,
     val totalUnrealizedMinor: Long = 0L,
     val totalUnrealizedPct: BigDecimal? = null,
+    val totalValueMinor: Long = 0L,
+    val totalRealizedMinor: Long = 0L,
+    val totalRealizedPct: BigDecimal? = null,
+    val totalDividendsNetMinor: Long = 0L,
+    val totalFeesMinor: Long = 0L,
     val excludedCurrencies: Set<String> = emptySet(),
     val unpricedAssets: List<String> = emptyList(),
     val selectedPortfolioId: String? = null,
@@ -125,9 +130,14 @@ class InvestmentsViewModel(
                 },
             latestPrices = investmentValues.prices,
             summaries = summaries,
-            totalCostMinor = summaries.fold(0L) { total, summary -> addExact(total, summary.costMinor) },
-            totalUnrealizedMinor = summaries.fold(0L) { total, summary -> addExact(total, summary.unrealizedMinor) },
-            totalUnrealizedPct = totalUnrealizedPct(snapshot.positions, currentSettings.baseCurrency),
+            totalCostMinor = selectedSummaries.sumField(PortfolioSummary::costMinor),
+            totalUnrealizedMinor = selectedSummaries.sumField(PortfolioSummary::unrealizedMinor),
+            totalUnrealizedPct = totalUnrealizedPct(selectedRows, currentSettings.baseCurrency),
+            totalValueMinor = selectedSummaries.sumField(PortfolioSummary::valueMinor),
+            totalRealizedMinor = selectedSummaries.sumField(PortfolioSummary::realizedMinor),
+            totalRealizedPct = totalRealizedPct(selectedRows, currentSettings.baseCurrency),
+            totalDividendsNetMinor = selectedSummaries.sumField(PortfolioSummary::dividendsNetMinor),
+            totalFeesMinor = selectedSummaries.sumField(PortfolioSummary::totalFeesMinor),
             excludedCurrencies = selectedSummaries.flatMapTo(sortedSetOf()) { it.excludedCurrencies },
             unpricedAssets = selectedSummaries.flatMap { it.unpricedAssets }.distinct().sorted(),
             selectedPortfolioId = selectedPortfolioId,
@@ -275,3 +285,6 @@ private data class InvestmentData(
     val operations: List<InvestmentOperation>,
     val prices: Map<String, AssetPrice>,
 )
+
+private fun List<PortfolioSummary>.sumField(value: (PortfolioSummary) -> Long): Long =
+    fold(0L) { total, summary -> addExact(total, value(summary)) }

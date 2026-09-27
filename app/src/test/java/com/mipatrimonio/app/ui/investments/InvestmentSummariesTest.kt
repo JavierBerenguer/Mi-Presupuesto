@@ -23,6 +23,8 @@ class InvestmentSummariesTest {
             realized = "25",
             dividends = "10",
             otherFees = "5",
+            realizedCostBasis = "50",
+            capitalizedFees = "2",
         )
 
         val result = summarize(listOf(row), EUR).single()
@@ -31,8 +33,11 @@ class InvestmentSummariesTest {
         assertEquals(100_000L, result.costMinor)
         assertEquals(50_000L, result.unrealizedMinor)
         assertEquals(BigDecimal("50.00"), result.unrealizedPct)
-        assertEquals(2_000L, result.realizedMinor)
+        assertEquals(2_500L, result.realizedMinor)
+        assertEquals(5_000L, result.realizedCostBasisMinor)
+        assertEquals(BigDecimal("50.00"), result.realizedPct)
         assertEquals(1_000L, result.dividendsNetMinor)
+        assertEquals(700L, result.totalFeesMinor)
     }
 
     @Test
@@ -57,6 +62,7 @@ class InvestmentSummariesTest {
         assertEquals(0L, result.costMinor)
         assertEquals(0L, result.unrealizedMinor)
         assertEquals(setOf("USD"), result.excludedCurrencies)
+        assertEquals(0L, result.totalFeesMinor)
     }
 
     @Test
@@ -88,6 +94,28 @@ class InvestmentSummariesTest {
     }
 
     @Test
+    fun `sin ventas la rentabilidad realizada es nula y las comisiones siguen visibles`() {
+        val result = summarize(
+            listOf(row(quantity = "1", cost = "10", price = null, otherFees = "2", capitalizedFees = "1")),
+            EUR,
+        ).single()
+
+        assertNull(result.realizedPct)
+        assertEquals(300L, result.totalFeesMinor)
+    }
+
+    @Test
+    fun `porcentaje realizado agregado usa solo posiciones en divisa base`() {
+        val rows = listOf(
+            row("0", "0", null, realized = "20", realizedCostBasis = "80"),
+            row("0", "0", null, currency = "USD", realized = "100", realizedCostBasis = "100"),
+        )
+
+        assertEquals(BigDecimal("25.00"), totalRealizedPct(rows, EUR))
+        assertNull(totalRealizedPct(listOf(row("1", "10", null)), EUR))
+    }
+
+    @Test
     fun `antiguedad de hoy es cero`() {
         assertEquals(0L, priceAgeDays(asOfEpochMillis = 1_000L, nowMillis = 80_000_000L))
     }
@@ -105,6 +133,8 @@ class InvestmentSummariesTest {
         realized: String = "0",
         dividends: String = "0",
         otherFees: String = "0",
+        realizedCostBasis: String = "0",
+        capitalizedFees: String = "0",
     ): PositionRow {
         val asset = Asset("asset", "Activo", "ACT", "", AssetType.ACCION, "", currency)
         val portfolio = Portfolio("portfolio", "Cartera", 1L)
@@ -114,6 +144,8 @@ class InvestmentSummariesTest {
             realizedPnl = BigDecimal(realized),
             dividendsNet = BigDecimal(dividends),
             otherFees = BigDecimal(otherFees),
+            realizedCostBasis = BigDecimal(realizedCostBasis),
+            capitalizedFees = BigDecimal(capitalizedFees),
         )
         val decimalPrice = price?.let(::BigDecimal)
         val assetPrice = decimalPrice?.let { AssetPrice(asset.id, it, currency, 1L, PriceSource.MANUAL) }

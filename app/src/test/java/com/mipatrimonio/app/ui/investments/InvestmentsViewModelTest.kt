@@ -89,6 +89,30 @@ class InvestmentsViewModelTest {
         assertEquals(850L, state.dividends.single().netMinor)
     }
 
+    @Test fun `publica desglose de rentabilidad y comisiones de la seleccion`() = runTest {
+        settings.setSelectedPortfolioId(null)
+        investments.savePortfolio(Portfolio("p1", "Principal", 1))
+        investments.saveAsset(Asset("a1", "ETF Mundo", "ETF", "", AssetType.ETF, "XETRA", "EUR"))
+        investments.addOperation(op("buy", OperationType.COMPRA, "10", "10", 100))
+        investments.addOperation(op("sale", OperationType.VENTA, "4", "15", 50))
+        investments.addOperation(op("div", OperationType.DIVIDENDO, "10", "1", 150))
+        investments.addOperation(op("fee", OperationType.COMISION, "1", "2", 0))
+        investments.setManualPrice("a1", BigDecimal("12"), "EUR")
+
+        val state = InvestmentsViewModel(ledger, investments, settings).uiState.first {
+            !it.isLoading && it.totalFeesMinor == 350L
+        }
+
+        assertEquals(6_060L, state.totalCostMinor)
+        assertEquals(7_200L, state.totalValueMinor)
+        assertEquals(1_140L, state.totalUnrealizedMinor)
+        assertEquals(BigDecimal("18.81"), state.totalUnrealizedPct)
+        assertEquals(1_910L, state.totalRealizedMinor)
+        assertEquals(BigDecimal("47.28"), state.totalRealizedPct)
+        assertEquals(850L, state.totalDividendsNetMinor)
+        assertEquals(350L, state.totalFeesMinor)
+    }
+
     @Test fun `nueva operacion usa la hora actual por defecto`() = runTest {
         val portfolio = Portfolio("p1", "Principal", 1)
         val asset = Asset("a1", "ETF Mundo", "ETF", "", AssetType.ETF, "XETRA", "EUR")
@@ -104,6 +128,24 @@ class InvestmentsViewModelTest {
 
         val operation = investments.operations.first { it.isNotEmpty() }.single()
         assertEquals(LocalTime.of(14, 37, 21), operation.time)
+    }
+
+    @Test fun `cartera sin operaciones publica desglose a cero y porcentajes nulos`() = runTest {
+        settings.setSelectedPortfolioId(null)
+        investments.savePortfolio(Portfolio("p1", "Principal", 1))
+
+        val state = InvestmentsViewModel(ledger, investments, settings).uiState.first {
+            !it.isLoading && it.portfolios.size == 1
+        }
+
+        assertEquals(0L, state.totalCostMinor)
+        assertEquals(0L, state.totalValueMinor)
+        assertEquals(0L, state.totalUnrealizedMinor)
+        assertNull(state.totalUnrealizedPct)
+        assertEquals(0L, state.totalRealizedMinor)
+        assertNull(state.totalRealizedPct)
+        assertEquals(0L, state.totalDividendsNetMinor)
+        assertEquals(0L, state.totalFeesMinor)
     }
 
     private fun op(id: String, type: OperationType, quantity: String, price: String, fees: Long) = InvestmentOperation(

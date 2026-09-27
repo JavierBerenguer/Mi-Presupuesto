@@ -28,6 +28,10 @@ class PositionTest {
         assertNum("10", p.quantity)
         assertNum("501", p.costBasis)
         assertNum("50.1", p.averagePrice)
+        assertNum("1", p.capitalizedFees)
+        assertNum("1", p.totalFees)
+        assertNum("0", p.realizedCostBasis)
+        assertNull(p.realizedReturnPct)
     }
 
     @Test
@@ -53,6 +57,8 @@ class PositionTest {
         assertNum("0", p.quantity)
         assertNum("0", p.costBasis)
         assertNum("6", p.realizedPnl)
+        assertNum("30", p.realizedCostBasis)
+        assertNum("20.00", p.realizedReturnPct)
         assertNull(p.averagePrice)
     }
 
@@ -128,6 +134,7 @@ class PositionTest {
         assertNum("10", p.quantity)
         assertNum("100", p.costBasis)
         assertNum("2", p.otherFees)
+        assertNum("2", p.totalFees)
         assertNum("4.05", PositionCalculator.compute(ops).dividendsNet) // recalcular no duplica
     }
 
@@ -140,7 +147,11 @@ class PositionTest {
         assertNum("25", v.unrealizedReturnPct)
         val sin = PositionCalculator.value(p, null)
         assertNull(sin.marketValue)
+        assertNull(sin.unrealizedPnl)
         assertNull(sin.unrealizedReturnPct)
+        assertNum("0", sin.position.realizedPnl)
+        assertNum("0", sin.position.dividendsNet)
+        assertNum("0", sin.position.totalFees)
     }
 
     @Test
@@ -158,6 +169,61 @@ class PositionTest {
 
     @Test
     fun `sin operaciones la posicion es vacia`() {
-        assertNum("0", PositionCalculator.compute(emptyList()).quantity)
+        val position = PositionCalculator.compute(emptyList())
+        assertNum("0", position.quantity)
+        assertNum("0", position.costBasis)
+        assertNum("0", position.realizedPnl)
+        assertNum("0", position.dividendsNet)
+        assertNum("0", position.otherFees)
+        assertNum("0", position.realizedCostBasis)
+        assertNum("0", position.capitalizedFees)
+        assertNum("0", position.totalFees)
+        assertNull(position.realizedReturnPct)
+    }
+
+    @Test
+    fun `ventas parciales acumulan coste realizado y comisiones sin alterar valores existentes`() {
+        val operations = listOf(
+            op(COMPRA, "10", "10", fees = 1_00),
+            op(VENTA, "4", "15", fees = 50),
+            op(VENTA, "6", "12", fees = 25),
+            op(DIVIDENDO, "1", "5", fees = 95),
+            op(COMISION, "1", "2"),
+        )
+
+        val position = PositionCalculator.compute(operations)
+
+        assertNum("0", position.quantity)
+        assertNum("0", position.costBasis)
+        assertNum("30.25", position.realizedPnl)
+        assertNum("4.05", position.dividendsNet)
+        assertNum("2", position.otherFees)
+        assertNum("101", position.realizedCostBasis)
+        assertNum("1.75", position.capitalizedFees)
+        assertNum("3.75", position.totalFees)
+        assertNum("29.95", position.realizedReturnPct)
+    }
+
+    @Test
+    fun `los campos nuevos no cambian posicion ni valoracion existentes`() {
+        val operations = listOf(
+            op(COMPRA, "10", "10", fees = 1_00),
+            op(VENTA, "4", "15", fees = 50),
+            op(DIVIDENDO, "1", "5", fees = 95),
+            op(COMISION, "1", "2"),
+        )
+
+        val position = PositionCalculator.compute(operations)
+        val valuation = PositionCalculator.value(position, BigDecimal("12"))
+
+        assertNum("6", position.quantity)
+        assertNum("60.6", position.costBasis)
+        assertNum("10.1", position.averagePrice)
+        assertNum("19.1", position.realizedPnl)
+        assertNum("4.05", position.dividendsNet)
+        assertNum("2", position.otherFees)
+        assertNum("72", valuation.marketValue)
+        assertNum("11.4", valuation.unrealizedPnl)
+        assertNum("18.81", valuation.unrealizedReturnPct)
     }
 }

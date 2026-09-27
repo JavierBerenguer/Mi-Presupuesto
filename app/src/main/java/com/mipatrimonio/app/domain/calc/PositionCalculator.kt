@@ -24,11 +24,23 @@ data class Position(
     val realizedPnl: BigDecimal,
     val dividendsNet: BigDecimal,
     val otherFees: BigDecimal,
+    val realizedCostBasis: BigDecimal = BigDecimal.ZERO,
+    val capitalizedFees: BigDecimal = BigDecimal.ZERO,
 ) {
     val averagePrice: BigDecimal?
         get() = if (quantity.signum() == 0) null else costBasis.divide(quantity, MoneyMath.CONTEXT)
 
     val isOpen: Boolean get() = quantity.signum() > 0
+
+    /** Comisiones de compras y ventas más las operaciones de comisión sueltas. */
+    val totalFees: BigDecimal get() = capitalizedFees.add(otherFees)
+
+    /** Rentabilidad simple realizada sobre el coste retirado. Null cuando todavía no se ha vendido. */
+    val realizedReturnPct: BigDecimal?
+        get() = if (realizedCostBasis.signum() <= 0) null else realizedPnl
+            .divide(realizedCostBasis, MoneyMath.CONTEXT)
+            .multiply(BigDecimal(100))
+            .setScale(2, RoundingMode.HALF_EVEN)
 }
 
 data class PositionValuation(
@@ -58,6 +70,8 @@ object PositionCalculator {
         var realized = ZERO
         var dividends = ZERO
         var fees = ZERO
+        var realizedCostBasis = ZERO
+        var capitalizedFees = ZERO
         val ordered = operations.sortedWith(compareBy({ it.date }, { it.time }, { it.createdAt }))
         for (op in ordered) {
             validate(op)?.let { throw InvalidOperationException(it) }
@@ -67,12 +81,15 @@ object PositionCalculator {
                 OperationType.COMPRA -> {
                     qty = qty.add(op.quantity)
                     cost = cost.add(gross).add(opFees)
+                    capitalizedFees = capitalizedFees.add(opFees)
                 }
                 OperationType.VENTA -> {
                     if (op.quantity > qty) {
                         throw InvalidOperationException("No se puede vender más de lo que se posee")
                     }
                     val removedCost = cost.multiply(op.quantity).divide(qty, MoneyMath.CONTEXT)
+                    realizedCostBasis = realizedCostBasis.add(removedCost)
+                    capitalizedFees = capitalizedFees.add(opFees)
                     realized = realized.add(gross.subtract(opFees).subtract(removedCost))
                     qty = qty.subtract(op.quantity)
                     cost = if (qty.signum() == 0) ZERO else cost.subtract(removedCost)
@@ -81,7 +98,7 @@ object PositionCalculator {
                 OperationType.COMISION -> fees = fees.add(gross)
             }
         }
-        return Position(qty, cost, realized, dividends, fees)
+        return Position(qty, cost, realized, dividends, fees, realizedCostBasis, capitalizedFees)
     }
 
     fun value(position: Position, price: BigDecimal?): PositionValuation {

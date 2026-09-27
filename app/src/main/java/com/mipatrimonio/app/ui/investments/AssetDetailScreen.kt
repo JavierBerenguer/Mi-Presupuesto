@@ -93,6 +93,7 @@ private fun AssetDetailContent(
     val row = state.row
     val position = row?.valuation?.position
     val price = state.latestPrice
+    val unavailable = stringResource(R.string.inv_percentage_unavailable)
     var range by rememberSaveable { mutableIntStateOf(0) }
     val points = price?.let {
         listOf(ChartPoint(priceDate(it), MoneyMath.toMinor(it.price, asset.currency)))
@@ -135,12 +136,26 @@ private fun AssetDetailContent(
         }
         item {
             SectionCard(title = stringResource(R.string.inv_position_data)) {
-                DataRow(stringResource(R.string.inv_quantity), position?.quantity?.let(MoneyMath::formatQuantity) ?: "—")
-                DataRow(stringResource(R.string.inv_average_price_label), position?.averagePrice?.let { decimalMoney(it, asset.currency, state.hideAmounts) } ?: "—")
-                DataRow(stringResource(R.string.inv_total_cost_label), position?.costBasis?.let { decimalMoney(it, asset.currency, state.hideAmounts) } ?: "—")
-                DataRow(stringResource(R.string.inv_portfolio_value), row?.valueMinor?.let { detailMoney(it, asset.currency, state.hideAmounts) } ?: "—")
-                DataRow(stringResource(R.string.inv_unrealized_short), row?.valuation?.unrealizedPnl?.let { decimalMoney(it, asset.currency, state.hideAmounts) } ?: "—")
-                DataRow(stringResource(R.string.inv_simple_return_short), row?.valuation?.unrealizedReturnPct?.let { "$it %" } ?: "—")
+                DataRow(stringResource(R.string.inv_quantity), position?.quantity?.let(MoneyMath::formatQuantity) ?: unavailable)
+                DataRow(stringResource(R.string.inv_average_price_label), position?.averagePrice?.let { decimalMoney(it, asset.currency, state.hideAmounts) } ?: unavailable)
+            }
+        }
+        item {
+            SectionCard(title = stringResource(R.string.inv_profitability_title)) {
+                DataRow(stringResource(R.string.inv_total_cost_label), position?.costBasis?.let { decimalMoney(it, asset.currency, state.hideAmounts) } ?: unavailable)
+                DataRow(stringResource(R.string.inv_current_value_label), row?.valueMinor?.let { detailMoney(it, asset.currency, state.hideAmounts) } ?: unavailable)
+                PerformanceRow(
+                    stringResource(R.string.inv_unrealized_gain),
+                    row?.valuation?.unrealizedPnl?.let { decimalMoney(it, asset.currency, state.hideAmounts) } ?: unavailable,
+                    row?.valuation?.unrealizedReturnPct,
+                )
+                PerformanceRow(
+                    stringResource(R.string.inv_realized_gain),
+                    position?.realizedPnl?.let { decimalMoney(it, asset.currency, state.hideAmounts) } ?: unavailable,
+                    position?.realizedReturnPct,
+                )
+                DataRow(stringResource(R.string.inv_dividends_collected), position?.dividendsNet?.let { decimalMoney(it, asset.currency, state.hideAmounts) } ?: unavailable)
+                DataRow(stringResource(R.string.inv_total_fees), position?.totalFees?.let { decimalMoney(it, asset.currency, state.hideAmounts) } ?: unavailable)
             }
         }
         item {
@@ -200,7 +215,20 @@ private fun OperationRow(
     }
 }
 
-@Composable private fun DataRow(label: String, value: String) = Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(label); Text(value) }
+@Composable private fun DataRow(label: String, value: String) = Row(
+    Modifier.fillMaxWidth().heightIn(min = 48.dp),
+    horizontalArrangement = Arrangement.SpaceBetween,
+    verticalAlignment = Alignment.CenterVertically,
+) { Text(label); Text(value) }
+@Composable private fun PerformanceRow(label: String, value: String, percentage: BigDecimal?) = DataRow(
+    label,
+    stringResource(
+        R.string.inv_amount_percentage,
+        value,
+        percentage?.let { stringResource(R.string.inv_percentage_value, it) }
+            ?: stringResource(R.string.inv_percentage_unavailable),
+    ),
+)
 private fun detailMoney(value: Long, currency: String, hidden: Boolean) = if (hidden) "••••" else MoneyMath.format(value, currency)
 private fun decimalMoney(value: BigDecimal, currency: String, hidden: Boolean) = if (hidden) "••••" else MoneyMath.format(MoneyMath.toMinor(value, currency), currency)
 private fun priceDate(price: AssetPrice) = Instant.ofEpochMilli(price.asOfEpochMillis).atZone(ZoneId.systemDefault()).toLocalDate().toString()

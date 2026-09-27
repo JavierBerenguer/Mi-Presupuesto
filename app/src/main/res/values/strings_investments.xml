@@ -10,6 +10,12 @@
     <string name="inv_portfolio_value">Valor</string>
     <string name="inv_realized_gain">Resultado realizado</string>
     <string name="inv_net_dividends">Dividendos netos</string>
+    <string name="inv_profitability_title">Rentabilidad</string>
+    <string name="inv_current_value_label">Valor actual</string>
+    <string name="inv_dividends_collected">Dividendos cobrados</string>
+    <string name="inv_total_fees">Comisiones totales</string>
+    <string name="inv_amount_percentage">%1$s · %2$s</string>
+    <string name="inv_percentage_value">%1$s %%</string>
     <string name="inv_open_positions">Posiciones abiertas</string>
     <string name="inv_empty_positions">Esta cartera no tiene posiciones abiertas.</string>
     <string name="inv_empty_portfolios">Todavía no hay carteras de inversión.</string>

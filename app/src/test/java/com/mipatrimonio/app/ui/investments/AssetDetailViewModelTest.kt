@@ -61,6 +61,9 @@ class AssetDetailViewModelTest {
         assertEquals("Cuenta inversión", state.operations.single().accountId?.let { state.accountsById[it]?.name })
         assertEquals(0, BigDecimal("2").compareTo(state.row?.valuation?.position?.quantity))
         assertEquals(22_000L, state.row?.valueMinor)
+        assertEquals(0, BigDecimal("1").compareTo(state.row?.valuation?.position?.capitalizedFees))
+        assertEquals(0, BigDecimal("1").compareTo(state.row?.valuation?.position?.totalFees))
+        assertNull(state.row?.valuation?.position?.realizedReturnPct)
     }
 
     @Test fun `detalle sin cotizacion conserva precio nulo`() = runTest {
@@ -72,11 +75,36 @@ class AssetDetailViewModelTest {
                 BigDecimal.ONE, BigDecimal.TEN, 0, "EUR", "", 1,
             ),
         )
+        investments.addOperation(
+            InvestmentOperation(
+                "sale", "portfolio", "asset", OperationType.VENTA, LocalDate.of(2026, 1, 2),
+                BigDecimal.ONE, BigDecimal("12"), 0, "EUR", "", 2,
+            ),
+        )
+        investments.addOperation(
+            InvestmentOperation(
+                "dividend", "portfolio", "asset", OperationType.DIVIDENDO, LocalDate.of(2026, 1, 3),
+                BigDecimal.ONE, BigDecimal.ONE, 50, "EUR", "", 3,
+            ),
+        )
+        investments.addOperation(
+            InvestmentOperation(
+                "fee", "portfolio", "asset", OperationType.COMISION, LocalDate.of(2026, 1, 4),
+                BigDecimal.ONE, BigDecimal("2"), 0, "EUR", "", 4,
+            ),
+        )
 
-        val state = AssetDetailViewModel("portfolio", "asset", investments, ledger, settings).uiState.first { !it.isLoading }
+        val state = AssetDetailViewModel("portfolio", "asset", investments, ledger, settings).uiState.first {
+            !it.isLoading && it.operations.size == 4
+        }
 
         assertNull(state.latestPrice)
         assertNull(state.row?.valueMinor)
+        assertNull(state.row?.valuation?.unrealizedPnl)
+        assertEquals(0, BigDecimal("2").compareTo(state.row?.valuation?.position?.realizedPnl))
+        assertEquals(0, BigDecimal("20.00").compareTo(state.row?.valuation?.position?.realizedReturnPct))
+        assertEquals(0, BigDecimal("0.5").compareTo(state.row?.valuation?.position?.dividendsNet))
+        assertEquals(0, BigDecimal("2").compareTo(state.row?.valuation?.position?.totalFees))
     }
 
     @Test fun `historial usa fecha hora y createdAt en orden cronologico descendente`() = runTest {
