@@ -25,9 +25,9 @@ fun filterAssets(assets: List<ManagedAsset>, query: String, filter: AssetFilter)
     val matches = query.isBlank() || listOf(item.asset.name, item.asset.ticker, item.asset.isin, item.asset.market)
         .any { it.contains(query.trim(), ignoreCase = true) }
     matches && when (filter) {
-        AssetFilter.CON_POSICION -> item.quantity.signum() > 0
-        AssetFilter.SIN_POSICION -> item.quantity.signum() == 0
-        AssetFilter.ARCHIVADOS -> false
+        AssetFilter.CON_POSICION -> !item.asset.archived && item.quantity.signum() > 0
+        AssetFilter.SIN_POSICION -> !item.asset.archived && item.quantity.signum() == 0
+        AssetFilter.ARCHIVADOS -> item.asset.archived
     }
 }
 
@@ -95,6 +95,9 @@ class AssetsViewModel(
     }
 
     fun delete(asset: Asset, onDeleted: () -> Unit) = launchAction(onDeleted) { investments.deleteAsset(asset.id) }
+
+    fun setArchived(asset: Asset, archived: Boolean, onChanged: () -> Unit) =
+        launchAction(onChanged) { investments.setAssetArchived(asset.id, archived) }
 
     private fun launchAction(onSuccess: () -> Unit, action: suspend () -> Unit) {
         viewModelScope.launch {

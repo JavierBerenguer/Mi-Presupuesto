@@ -77,6 +77,31 @@ class AssetsViewModelTest {
         assertTrue(deleteFailure is IllegalArgumentException)
     }
 
+    @Test fun `archiva y reactiva conservando posicion e historial`() = runTest {
+        seedOperation()
+        val viewModel = AssetsViewModel(investments, settings)
+        val asset = viewModel.uiState.first { it.assets.isNotEmpty() }.assets.single().asset
+
+        viewModel.setArchived(asset, true) {}
+        val archived = viewModel.uiState.first { it.assets.single().asset.archived }
+        assertEquals("as1", filterAssets(archived.assets, "", AssetFilter.ARCHIVADOS).single().asset.id)
+        assertTrue(filterAssets(archived.assets, "", AssetFilter.CON_POSICION).isEmpty())
+        assertEquals(1, investments.assetDependencies("as1").operations)
+
+        val rejected = runCatching {
+            investments.addOperation(
+                InvestmentOperation(
+                    "op2", "p1", "as1", OperationType.COMPRA, LocalDate.of(2026, 2, 1),
+                    BigDecimal.ONE, BigDecimal.TEN, 0, "EUR", "", 2,
+                ),
+            )
+        }.exceptionOrNull()
+        assertTrue(rejected is IllegalArgumentException)
+
+        viewModel.setArchived(archived.assets.single().asset, false) {}
+        assertFalse(viewModel.uiState.first { !it.assets.single().asset.archived }.assets.single().asset.archived)
+    }
+
     @Test fun `eliminar activo sin operaciones borra sus precios en cascada`() = runTest {
         investments.saveAsset(asset())
         investments.setManualPrice("as1", BigDecimal.TEN, "EUR")

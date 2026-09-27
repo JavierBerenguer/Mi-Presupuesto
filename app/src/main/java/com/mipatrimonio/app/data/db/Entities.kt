@@ -91,6 +91,25 @@ data class BudgetEntity(
     val currency: String,
     val archived: Boolean,
     val createdAt: Long,
+    @ColumnInfo(defaultValue = "''") val name: String,
+    @ColumnInfo(defaultValue = "0") val startEpochDay: Long,
+    val endEpochDay: Long?,
+    @ColumnInfo(defaultValue = "90") val alertThresholdPct: Int,
+)
+
+@Entity(
+    tableName = "budget_category",
+    primaryKeys = ["budgetId", "categoryId"],
+    foreignKeys = [
+        ForeignKey(BudgetEntity::class, ["id"], ["budgetId"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(CategoryEntity::class, ["id"], ["categoryId"], onDelete = ForeignKey.RESTRICT),
+    ],
+    indices = [Index("budgetId"), Index("categoryId")],
+)
+data class BudgetCategoryEntity(
+    val budgetId: String,
+    val categoryId: String,
+    val includeSubcategories: Boolean,
 )
 
 @Entity(tableName = "portfolio")
@@ -111,6 +130,7 @@ data class AssetEntity(
     val market: String,
     val currency: String,
     val createdAt: Long,
+    @ColumnInfo(defaultValue = "0") val archived: Boolean,
 )
 
 @Entity(

@@ -62,7 +62,7 @@ fun AssetsScreen(viewModel: AssetsViewModel = appViewModel { c -> AssetsViewMode
             filter.ordinal, { filter = AssetFilter.entries[it] }, Modifier.padding(horizontal = 16.dp),
         )
         if (visible.isEmpty()) {
-            EmptyState(Icons.Default.Search, stringResource(if (filter == AssetFilter.ARCHIVADOS) R.string.inv_assets_archive_pending else R.string.inv_assets_empty))
+            EmptyState(Icons.Default.Search, stringResource(R.string.inv_assets_empty))
         } else {
             LazyColumn(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 88.dp),
@@ -96,14 +96,15 @@ fun AssetsScreen(viewModel: AssetsViewModel = appViewModel { c -> AssetsViewMode
         val deps = state.dependencies[asset.id]
         AlertDialog(
             onDismissRequest = { deleting = null },
-            title = { Text(stringResource(R.string.inv_delete_asset_title)) },
+            title = { Text(stringResource(if (asset.archived) R.string.inv_reactivate_asset_title else R.string.inv_manage_asset_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     when {
                         deps == null -> Text(stringResource(R.string.inv_assets_checking))
+                        asset.archived -> Text(stringResource(R.string.inv_reactivate_asset_message, asset.name))
                         deps.operations > 0 -> {
-                            Text(stringResource(R.string.inv_delete_asset_blocked, deps.operations))
-                            Text(stringResource(R.string.inv_assets_archive_pending))
+                            Text(stringResource(R.string.inv_archive_asset_message, asset.name))
+                            Text(stringResource(R.string.inv_archive_preserves_history, deps.operations))
                         }
                         else -> {
                             Text(stringResource(R.string.inv_delete_asset_message, asset.name))
@@ -113,7 +114,22 @@ fun AssetsScreen(viewModel: AssetsViewModel = appViewModel { c -> AssetsViewMode
                 }
             },
             confirmButton = {
-                if (deps?.canDelete == true) TextButton({ viewModel.delete(asset) { deleting = null; editing = null } }) { Text(stringResource(R.string.common_delete)) }
+                Row {
+                    if (asset.archived) {
+                        TextButton({ viewModel.setArchived(asset, false) { deleting = null; editing = null } }) {
+                            Text(stringResource(R.string.inv_reactivate_asset))
+                        }
+                    } else if (deps != null) {
+                        TextButton({ viewModel.setArchived(asset, true) { deleting = null; editing = null } }) {
+                            Text(stringResource(R.string.inv_archive_asset))
+                        }
+                        if (deps.canDelete) {
+                            TextButton({ viewModel.delete(asset) { deleting = null; editing = null } }) {
+                                Text(stringResource(R.string.common_delete))
+                            }
+                        }
+                    }
+                }
             },
             dismissButton = { TextButton({ deleting = null }) { Text(stringResource(R.string.common_cancel)) } },
         )

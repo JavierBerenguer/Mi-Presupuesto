@@ -144,6 +144,55 @@ class BudgetsViewModelTest {
         assertTrue(categoryOnly.statuses.none { it.budget.categoryId == null })
     }
 
+    @Test
+    fun `formulario valida nombre importe fechas unico y umbral y duplica`() = runTest {
+        val viewModel = BudgetFormViewModel(ledger, settings)
+        viewModel.uiState.first { !it.loading }
+        var result: BudgetSaveResult? = null
+        val valid = BudgetDraft(name = "Comida", amount = "100", currency = "EUR")
+
+        viewModel.save(valid.copy(name = "")) { result = it }
+        assertEquals(BudgetSaveResult.InvalidName, result)
+        viewModel.save(valid.copy(amount = "0")) { result = it }
+        assertEquals(BudgetSaveResult.InvalidLimit, result)
+        viewModel.save(valid.copy(endDate = valid.startDate.minusDays(1))) { result = it }
+        assertEquals(BudgetSaveResult.InvalidDates, result)
+        viewModel.save(valid.copy(period = BudgetPeriod.UNICO)) { result = it }
+        assertEquals(BudgetSaveResult.MissingUniqueEnd, result)
+        viewModel.save(valid.copy(alertThresholdPct = 49)) { result = it }
+        assertEquals(BudgetSaveResult.InvalidThreshold, result)
+
+        viewModel.save(valid) { result = it }
+        viewModel.uiState.first { it.budgets.any { budget -> budget.name == "Comida" } }
+        assertEquals(BudgetSaveResult.Success, result)
+        viewModel.save(valid) { result = it }
+        assertEquals(BudgetSaveResult.Duplicate, result)
+        val original = viewModel.uiState.first { it.budgets.size == 1 }.budgets.single()
+        viewModel.save(valid.copy(name = "Comida (copia)")) { result = it }
+        val duplicated = viewModel.uiState.first { it.budgets.size == 2 }
+        assertEquals(2, duplicated.budgets.size)
+        assertEquals(BudgetSaveResult.Success, result)
+    }
+
+    @Test
+    fun `detalle obtiene ventana historial movimientos y permite archivar con Room`() = runTest {
+        val date = LocalDate.of(2026, 3, 15)
+        ledger.saveBudget(
+            Budget(
+                "detail", "Comida", 500_00, "EUR", BudgetPeriod.MENSUAL,
+                LocalDate.of(2026, 1, 1), null, 90, emptyList(), false,
+            ),
+        )
+        ledger.saveTransaction(tx("detail-expense", 100_00, date, "eur", "EUR", null))
+        val viewModel = BudgetDetailViewModel(ledger, "detail") { date }
+        val state = viewModel.uiState.first { !it.loading && it.current?.spentMinor == 100_00L }
+        assertEquals(3, state.history.size)
+        assertEquals("detail-expense", state.transactions.single().id)
+
+        viewModel.archive()
+        assertTrue(ledger.budgets.first { list -> list.single().archived }.single().archived)
+    }
+
     private fun account(id: String, currency: String, initial: Long) =
         Account(id, "Cuenta $id", AccountType.CORRIENTE, currency, initial, false, 1)
 

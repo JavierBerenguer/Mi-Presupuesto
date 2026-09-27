@@ -12,22 +12,25 @@ import java.time.YearMonth
 /** Global primero; después por consumo descendente; desempate por nombre. */
 fun sortStatuses(statuses: List<BudgetStatus>, categoryName: (String?) -> String): List<BudgetStatus> =
     statuses.sortedWith(
-        compareBy<BudgetStatus> { it.budget.categoryId != null }
-            .thenByDescending { it.consumedRatio }
-            .thenBy { categoryName(it.budget.categoryId).lowercase() },
+        compareBy<BudgetStatus> { it.budget.categoryRules.isNotEmpty() }
+            .thenByDescending { it.percentage }
+            .thenBy { it.budget.name.lowercase() },
     )
 
 /** Dos presupuestos activos no pueden compartir categoría (o ser ambos globales) y periodo. */
 fun isDuplicate(existing: List<Budget>, candidate: Budget): Boolean =
     existing.any {
         it.id != candidate.id && !it.archived &&
-            it.categoryId == candidate.categoryId && it.period == candidate.period
+            it.name.equals(candidate.name, ignoreCase = true) && it.period == candidate.period &&
+            it.startDate == candidate.startDate && it.categoryRules.toSet() == candidate.categoryRules.toSet()
     }
 
 /** Porcentaje entero para mostrar; no interviene en importes. */
 fun consumedPercent(ratio: Double): Int = Math.round(ratio * 100).toInt().coerceAtLeast(0)
 
-fun usesExpenseWarning(status: BudgetStatus): Boolean = status.remainingMinor < 0 || status.consumedRatio > 0.9
+fun usesExpenseWarning(status: BudgetStatus): Boolean =
+    status.level != com.mipatrimonio.app.domain.calc.BudgetLevel.NORMAL ||
+        status.percentage >= status.budget.alertThresholdPct
 
 enum class StatisticsKind { GASTOS, INGRESOS }
 

@@ -103,7 +103,7 @@ fun InvestmentsScreen(
         },
     )
     if (operationDialog) OperationDialog(
-        state.portfolios, state.assets, state.accounts, state.selectedPortfolioId, null,
+        state.portfolios, state.assets.filterNot { it.archived }, state.accounts, state.selectedPortfolioId, null,
         { operationDialog = false },
         { operationDialog = false; portfolioDialog = true },
         { operationDialog = false; assetDialog = true },

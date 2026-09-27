@@ -131,7 +131,13 @@
     <string name="inv_assets_without_position">Sin posición</string>
     <string name="inv_assets_archived">Archivados</string>
     <string name="inv_assets_empty">No hay activos que coincidan.</string>
-    <string name="inv_assets_archive_pending">El archivado de activos necesita una migración de la base de datos.</string>
+    <string name="inv_manage_asset_title">Gestionar activo</string>
+    <string name="inv_archive_asset">Archivar</string>
+    <string name="inv_archive_asset_message">¿Quieres archivar «%1$s»?</string>
+    <string name="inv_archive_preserves_history">Sus %1$d operaciones, historial y valoración seguirán visibles.</string>
+    <string name="inv_reactivate_asset">Reactivar</string>
+    <string name="inv_reactivate_asset_title">Reactivar activo</string>
+    <string name="inv_reactivate_asset_message">¿Quieres volver a ofrecer «%1$s» al registrar operaciones?</string>
     <string name="inv_assets_identity">%1$s · %2$s</string>
     <string name="inv_assets_market">%1$s · %2$s · %3$s</string>
     <string name="inv_assets_value">Valor: %1$s</string>

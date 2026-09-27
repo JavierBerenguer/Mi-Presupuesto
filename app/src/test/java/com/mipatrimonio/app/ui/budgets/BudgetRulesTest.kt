@@ -61,8 +61,9 @@ class BudgetRulesTest {
     }
 
     @Test
-    fun `noventa exacto no avisa y por encima si`() {
-        assertFalse(usesExpenseWarning(status(budget("1", "a"), 0.9)))
+    fun `noventa exacto avisa y por debajo no`() {
+        assertFalse(usesExpenseWarning(status(budget("1", "a"), 0.894))) // 89.4 % redondea HALF_UP a 89
+        assertTrue(usesExpenseWarning(status(budget("1", "a"), 0.9)))
         assertTrue(usesExpenseWarning(status(budget("2", "a"), 0.901)))
     }
 }

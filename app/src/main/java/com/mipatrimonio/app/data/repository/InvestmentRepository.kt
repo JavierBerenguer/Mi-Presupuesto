@@ -76,9 +76,15 @@ class InvestmentRepository(
         db.openHelper.writableDatabase.execSQL("DELETE FROM asset WHERE id = ?", arrayOf(assetId))
     }
 
+    suspend fun setAssetArchived(assetId: String, archived: Boolean) = db.withTransaction {
+        val asset = dao.getAsset(assetId) ?: return@withTransaction
+        dao.upsertAsset(asset.copy(archived = archived))
+    }
+
     /** Añade una operación comprobando que el historial resultante sigue siendo válido (p. ej. sin ventas en descubierto). */
     suspend fun addOperation(operation: InvestmentOperation) = db.withTransaction {
         val asset = dao.getAsset(operation.assetId) ?: throw IllegalArgumentException("El activo no existe")
+        require(!asset.archived) { "El activo está archivado" }
         require(asset.currency == operation.currency) { "La divisa de la operación debe ser la del activo" }
         operation.accountId?.let { accountId ->
             val account = db.accountDao().getById(accountId)?.toDomain()

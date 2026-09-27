@@ -172,11 +172,12 @@ class LedgerTest {
     }
 
     @Test
-    fun `presupuesto avisa al 80 por ciento y marca superado`() {
+    fun `presupuesto avisa al 90 por ciento y marca superado`() {
         val cats = emptyList<com.mipatrimonio.app.domain.model.Category>()
         val budget = Budget("b1", null, BudgetPeriod.MENSUAL, 100_00, "EUR", false)
         val ref = LocalDate.of(2026, 3, 15)
-        assertEquals(BudgetLevel.AVISO, BudgetCalculator.status(budget, listOf(tx(GASTO, 80_00)), cats, ref).level)
+        assertEquals(BudgetLevel.NORMAL, BudgetCalculator.status(budget, listOf(tx(GASTO, 80_00)), cats, ref).level)
+        assertEquals(BudgetLevel.AVISO, BudgetCalculator.status(budget, listOf(tx(GASTO, 90_00)), cats, ref).level)
         assertEquals(BudgetLevel.AVISO, BudgetCalculator.status(budget, listOf(tx(GASTO, 100_00)), cats, ref).level)
         val over = BudgetCalculator.status(budget, listOf(tx(GASTO, 100_01)), cats, ref)
         assertEquals(BudgetLevel.SUPERADO, over.level)

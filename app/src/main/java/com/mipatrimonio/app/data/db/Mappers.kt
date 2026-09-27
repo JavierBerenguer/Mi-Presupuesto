@@ -6,6 +6,7 @@ import com.mipatrimonio.app.domain.model.Asset
 import com.mipatrimonio.app.domain.model.AssetPrice
 import com.mipatrimonio.app.domain.model.AssetType
 import com.mipatrimonio.app.domain.model.Budget
+import com.mipatrimonio.app.domain.model.BudgetCategoryRule
 import com.mipatrimonio.app.domain.model.BudgetPeriod
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.model.CategoryKind
@@ -44,14 +45,29 @@ fun Transfer.toEntity(updatedAt: Long) = TransferEntity(
     id, fromAccountId, toAccountId, fromAmountMinor, toAmountMinor, date.toEpochDay(), description, createdAt, updatedAt,
 )
 
-fun BudgetEntity.toDomain() = Budget(id, categoryId, BudgetPeriod.valueOf(period), limitMinor, currency, archived)
-fun Budget.toEntity(createdAt: Long) = BudgetEntity(id, categoryId, period.name, limitMinor, currency, archived, createdAt)
+fun BudgetEntity.toDomain(rules: List<BudgetCategoryEntity>) = Budget(
+    id = id,
+    name = name,
+    limitMinor = limitMinor,
+    currency = currency,
+    period = BudgetPeriod.valueOf(period),
+    startDate = LocalDate.ofEpochDay(startEpochDay),
+    endDate = endEpochDay?.let(LocalDate::ofEpochDay),
+    alertThresholdPct = alertThresholdPct,
+    categoryRules = rules.map { BudgetCategoryRule(it.categoryId, it.includeSubcategories) },
+    archived = archived,
+)
+fun Budget.toEntity(createdAt: Long) = BudgetEntity(
+    id, null, period.name, limitMinor, currency, archived, createdAt, name,
+    startDate.toEpochDay(), endDate?.toEpochDay(), alertThresholdPct,
+)
+fun Budget.toRuleEntities() = categoryRules.map { BudgetCategoryEntity(id, it.categoryId, it.includeSubcategories) }
 
 fun PortfolioEntity.toDomain() = Portfolio(id, name, createdAt, defaultAccountId)
 fun Portfolio.toEntity() = PortfolioEntity(id, name, createdAt, defaultAccountId)
 
-fun AssetEntity.toDomain() = Asset(id, name, ticker, isin, AssetType.valueOf(type), market, currency)
-fun Asset.toEntity(createdAt: Long) = AssetEntity(id, name, ticker, isin, type.name, market, currency, createdAt)
+fun AssetEntity.toDomain() = Asset(id, name, ticker, isin, AssetType.valueOf(type), market, currency, archived)
+fun Asset.toEntity(createdAt: Long) = AssetEntity(id, name, ticker, isin, type.name, market, currency, createdAt, archived)
 
 fun InvestmentOperationEntity.toDomain() = InvestmentOperation(
     id, portfolioId, assetId, OperationType.valueOf(type), LocalDate.ofEpochDay(epochDay),

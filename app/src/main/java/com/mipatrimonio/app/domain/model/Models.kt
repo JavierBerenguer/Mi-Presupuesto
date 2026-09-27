@@ -62,17 +62,50 @@ data class Transfer(
     val createdAt: Long,
 )
 
-enum class BudgetPeriod { MENSUAL, ANUAL }
+enum class BudgetPeriod { SEMANAL, MENSUAL, TRIMESTRAL, SEMESTRAL, ANUAL, UNICO }
 
-/** Presupuesto global si [categoryId] es null; si no, de esa categoría y sus subcategorías. */
+data class BudgetCategoryRule(
+    val categoryId: String,
+    val includeSubcategories: Boolean,
+)
+
+/** Sin reglas de categoría significa que el presupuesto cubre todos los gastos. */
 data class Budget(
     val id: String,
-    val categoryId: String?,
-    val period: BudgetPeriod,
+    val name: String,
     val limitMinor: Long,
     val currency: String,
+    val period: BudgetPeriod,
+    val startDate: LocalDate,
+    val endDate: LocalDate?,
+    val alertThresholdPct: Int,
+    val categoryRules: List<BudgetCategoryRule>,
     val archived: Boolean,
-)
+) {
+    /** Compatibilidad de lectura para consumidores anteriores a Room v5. */
+    val categoryId: String? get() = categoryRules.singleOrNull()?.categoryId
+
+    /** Compatibilidad fuente para tests y consumidores que aún construyen el modelo v4. */
+    constructor(
+        id: String,
+        categoryId: String?,
+        period: BudgetPeriod,
+        limitMinor: Long,
+        currency: String,
+        archived: Boolean,
+    ) : this(
+        id = id,
+        name = if (categoryId == null) "Presupuesto global" else "Presupuesto",
+        limitMinor = limitMinor,
+        currency = currency,
+        period = period,
+        startDate = LocalDate.of(1970, 1, 1),
+        endDate = null,
+        alertThresholdPct = 90,
+        categoryRules = categoryId?.let { listOf(BudgetCategoryRule(it, true)) }.orEmpty(),
+        archived = archived,
+    )
+}
 
 data class Portfolio(
     val id: String,
@@ -92,6 +125,7 @@ data class Asset(
     val type: AssetType,
     val market: String,
     val currency: String,
+    val archived: Boolean = false,
 )
 
 enum class OperationType { COMPRA, VENTA, DIVIDENDO, COMISION }

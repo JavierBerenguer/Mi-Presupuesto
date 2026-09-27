@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.mipatrimonio.app.data.db.AppDatabase
 import com.mipatrimonio.app.data.db.toDomain
 import com.mipatrimonio.app.data.db.toEntity
+import com.mipatrimonio.app.data.db.toRuleEntities
 import com.mipatrimonio.app.domain.calc.BalanceCalculator
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Budget
@@ -11,6 +12,7 @@ import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.Transfer
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 
 data class AccountDependencies(
@@ -40,7 +42,12 @@ class LedgerRepository(
     val categories: Flow<List<Category>> = categoryDao.observeAll().map { l -> l.map { it.toDomain() } }
     val transactions: Flow<List<Transaction>> = transactionDao.observeAll().map { l -> l.map { it.toDomain() } }
     val transfers: Flow<List<Transfer>> = transferDao.observeAll().map { l -> l.map { it.toDomain() } }
-    val budgets: Flow<List<Budget>> = budgetDao.observeActive().map { l -> l.map { it.toDomain() } }
+    val budgets: Flow<List<Budget>> = combine(
+        budgetDao.observeAllEntities(), budgetDao.observeAllRules(),
+    ) { entities, rules ->
+        val rulesByBudget = rules.groupBy { it.budgetId }
+        entities.map { it.toDomain(rulesByBudget[it.id].orEmpty()) }
+    }
 
     suspend fun saveAccount(account: Account) = db.withTransaction {
         require(account.name.isNotBlank()) { "El nombre de la cuenta es obligatorio" }
@@ -108,9 +115,35 @@ class LedgerRepository(
 
     suspend fun deleteTransfer(id: String) = transferDao.delete(id)
 
-    suspend fun saveBudget(budget: Budget) {
+    suspend fun saveBudget(budget: Budget) = db.withTransaction {
+        require(budget.name.isNotBlank()) { "El nombre del presupuesto es obligatorio" }
         require(budget.limitMinor > 0) { "El límite debe ser mayor que cero" }
-        budgetDao.upsert(budget.toEntity(createdAt = clock()))
+        require(budget.alertThresholdPct in 50..100) { "El aviso debe estar entre el 50 % y el 100 %" }
+        require(budget.endDate == null || !budget.endDate.isBefore(budget.startDate)) {
+            "La fecha hasta no puede ser anterior a la fecha desde"
+        }
+        require(budget.period != com.mipatrimonio.app.domain.model.BudgetPeriod.UNICO || budget.endDate != null) {
+            "La fecha hasta es obligatoria para un presupuesto único"
+        }
+        val requestedIds = budget.categoryRules.map { it.categoryId }.distinct()
+        val requestedCategories = if (requestedIds.isEmpty()) emptyList() else categoryDao.getByIds(requestedIds)
+        require(requestedCategories.size == requestedIds.size && requestedCategories.all { it.kind == "GASTO" }) {
+            "Las categorías del presupuesto deben ser categorías de gasto"
+        }
+        // Una categoría archivada ya vinculada sigue computando (T-031); solo se rechazan altas nuevas.
+        val existingRuleIds = budgetDao.getRulesForBudget(budget.id).map { it.categoryId }.toSet()
+        require(requestedCategories.none { it.id !in existingRuleIds && it.archived }) {
+            "No puedes añadir una categoría archivada al presupuesto"
+        }
+        val createdAt = budgetDao.getById(budget.id)?.createdAt ?: clock()
+        budgetDao.upsert(budget.toEntity(createdAt))
+        budgetDao.deleteRules(budget.id)
+        budgetDao.insertRules(budget.toRuleEntities())
+    }
+
+    suspend fun setBudgetArchived(id: String, archived: Boolean) = db.withTransaction {
+        val existing = budgetDao.getById(id) ?: return@withTransaction
+        budgetDao.upsert(existing.copy(archived = archived))
     }
 
     suspend fun deleteBudget(id: String) = budgetDao.delete(id)

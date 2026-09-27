@@ -1,7 +1,10 @@
 package com.mipatrimonio.app.data.db
 
 import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
@@ -24,6 +27,9 @@ interface CategoryDao {
 
     @Query("SELECT COUNT(*) FROM category")
     suspend fun count(): Int
+
+    @Query("SELECT * FROM category WHERE id IN (:ids)")
+    suspend fun getByIds(ids: List<String>): List<CategoryEntity>
 
     @Upsert
     suspend fun upsert(entity: CategoryEntity)
@@ -67,11 +73,26 @@ interface TransferDao {
 
 @Dao
 interface BudgetDao {
-    @Query("SELECT * FROM budget WHERE archived = 0 ORDER BY createdAt")
-    fun observeActive(): Flow<List<BudgetEntity>>
+    @Query("SELECT * FROM budget ORDER BY archived, createdAt")
+    fun observeAllEntities(): Flow<List<BudgetEntity>>
+
+    @Query("SELECT * FROM budget_category ORDER BY budgetId, categoryId")
+    fun observeAllRules(): Flow<List<BudgetCategoryEntity>>
+
+    @Query("SELECT * FROM budget_category WHERE budgetId = :budgetId")
+    suspend fun getRulesForBudget(budgetId: String): List<BudgetCategoryEntity>
+
+    @Query("SELECT * FROM budget WHERE id = :id")
+    suspend fun getById(id: String): BudgetEntity?
 
     @Upsert
     suspend fun upsert(entity: BudgetEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertRules(rules: List<BudgetCategoryEntity>)
+
+    @Query("DELETE FROM budget_category WHERE budgetId = :budgetId")
+    suspend fun deleteRules(budgetId: String)
 
     @Query("DELETE FROM budget WHERE id = :id")
     suspend fun delete(id: String)
