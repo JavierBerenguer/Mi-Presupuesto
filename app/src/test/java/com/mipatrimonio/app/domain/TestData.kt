@@ -12,6 +12,7 @@ import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.model.Transfer
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.time.LocalTime
 
 object TestData {
     fun account(
@@ -47,9 +48,10 @@ object TestData {
         createdAt: Long = counter++.toLong(),
         currency: String = "EUR",
         accountId: String? = null,
+        time: LocalTime = LocalTime.MIDNIGHT,
     ) = InvestmentOperation(
         "o${counter++}", "p1", "asset1", type, date, BigDecimal(qty), BigDecimal(price), fees, currency, "", createdAt,
-        accountId,
+        accountId, time,
     )
 
     private var counter = 0

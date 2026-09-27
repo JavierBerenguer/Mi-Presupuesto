@@ -51,14 +51,14 @@ object PositionCalculator {
         else -> null
     }
 
-    /** Calcula la posición aplicando las operaciones en el orden dado (fecha, luego creación). */
+    /** Calcula la posición aplicando las operaciones por fecha, hora y, como desempate, creación. */
     fun compute(operations: List<InvestmentOperation>): Position {
         var qty = ZERO
         var cost = ZERO
         var realized = ZERO
         var dividends = ZERO
         var fees = ZERO
-        val ordered = operations.sortedWith(compareBy({ it.date }, { it.createdAt }))
+        val ordered = operations.sortedWith(compareBy({ it.date }, { it.time }, { it.createdAt }))
         for (op in ordered) {
             validate(op)?.let { throw InvalidOperationException(it) }
             val gross = op.quantity.multiply(op.unitPrice)

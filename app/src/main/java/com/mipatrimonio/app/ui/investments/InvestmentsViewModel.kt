@@ -17,6 +17,7 @@ import com.mipatrimonio.app.domain.usecase.FinanceSnapshot
 import com.mipatrimonio.app.domain.usecase.SnapshotBuilder
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.util.UUID
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -56,6 +57,7 @@ class InvestmentsViewModel(
     private val ledger: LedgerRepository,
     private val investments: InvestmentRepository,
     private val settings: SettingsRepository,
+    private val now: () -> LocalDateTime = { LocalDateTime.now() },
 ) : ViewModel() {
     private val ledgerData = combine(
         ledger.accounts,
@@ -117,6 +119,7 @@ class InvestmentsViewModel(
                 .mapValues { (_, operations) ->
                     operations.sortedWith(
                         compareByDescending<InvestmentOperation> { it.date }
+                            .thenByDescending { it.time }
                             .thenByDescending { it.createdAt },
                     )
                 },
@@ -201,13 +204,29 @@ class InvestmentsViewModel(
         accountId: String?,
         note: String,
         onResult: (String?) -> Unit,
+    ) = addOperation(
+        portfolio, asset, type, LocalDateTime.of(date, now().toLocalTime()), quantity,
+        unitPrice, feesMinor, accountId, note, onResult,
+    )
+
+    fun addOperation(
+        portfolio: Portfolio,
+        asset: Asset,
+        type: OperationType,
+        dateTime: LocalDateTime,
+        quantity: BigDecimal,
+        unitPrice: BigDecimal,
+        feesMinor: Long,
+        accountId: String?,
+        note: String,
+        onResult: (String?) -> Unit,
     ) {
         val operation = InvestmentOperation(
             id = UUID.randomUUID().toString(),
             portfolioId = portfolio.id,
             assetId = asset.id,
             type = type,
-            date = date,
+            date = dateTime.toLocalDate(),
             quantity = if (type == OperationType.COMISION) BigDecimal.ONE else quantity,
             unitPrice = unitPrice,
             feesMinor = if (type == OperationType.COMISION) 0L else feesMinor,
@@ -215,6 +234,7 @@ class InvestmentsViewModel(
             note = note.trim(),
             createdAt = System.currentTimeMillis(),
             accountId = accountId,
+            time = dateTime.toLocalTime(),
         )
         PositionCalculator.validate(operation)?.let {
             onResult(it)

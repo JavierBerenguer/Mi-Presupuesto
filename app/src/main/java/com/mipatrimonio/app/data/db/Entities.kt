@@ -155,6 +155,7 @@ data class InvestmentOperationEntity(
     val note: String,
     val createdAt: Long,
     val accountId: String?,
+    @ColumnInfo(defaultValue = "0") val secondOfDay: Int,
 )
 
 /** Historial de precios: cada actualización añade una fila; el precio vigente es la de mayor `asOfEpochMillis`. */

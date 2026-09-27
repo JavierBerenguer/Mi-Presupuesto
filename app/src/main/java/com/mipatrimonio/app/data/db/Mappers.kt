@@ -20,6 +20,7 @@ import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.model.Transfer
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.time.LocalTime
 
 fun AccountEntity.toDomain() = Account(id, name, AccountType.valueOf(type), currency, initialBalanceMinor, archived, createdAt)
 fun Account.toEntity(updatedAt: Long) = AccountEntity(id, name, type.name, currency, initialBalanceMinor, archived, createdAt, updatedAt)
@@ -72,11 +73,13 @@ fun Asset.toEntity(createdAt: Long) = AssetEntity(id, name, ticker, isin, type.n
 fun InvestmentOperationEntity.toDomain() = InvestmentOperation(
     id, portfolioId, assetId, OperationType.valueOf(type), LocalDate.ofEpochDay(epochDay),
     BigDecimal(quantity), BigDecimal(unitPrice), feesMinor, currency, note, createdAt, accountId,
+    LocalTime.ofSecondOfDay(secondOfDay.toLong()),
 )
 
 fun InvestmentOperation.toEntity() = InvestmentOperationEntity(
     id, portfolioId, assetId, type.name, date.toEpochDay(),
     quantity.toPlainString(), unitPrice.toPlainString(), feesMinor, currency, note, createdAt, accountId,
+    time.toSecondOfDay(),
 )
 
 fun AssetPriceEntity.toDomain() = AssetPrice(assetId, BigDecimal(price), currency, asOfEpochMillis, PriceSource.valueOf(source))

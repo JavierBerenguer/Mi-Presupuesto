@@ -2,6 +2,7 @@ package com.mipatrimonio.app.domain.model
 
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.time.LocalTime
 
 enum class AccountType { CORRIENTE, AHORRO, EFECTIVO, INVERSION, CRIPTO, OTRA }
 
@@ -148,6 +149,7 @@ data class InvestmentOperation(
     val note: String,
     val createdAt: Long,
     val accountId: String? = null,
+    val time: LocalTime = LocalTime.MIDNIGHT,
 )
 
 enum class PriceSource { MANUAL, PROVEEDOR }

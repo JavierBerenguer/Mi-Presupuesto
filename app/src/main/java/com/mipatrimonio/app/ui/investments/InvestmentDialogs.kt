@@ -39,6 +39,9 @@ import com.mipatrimonio.app.ui.common.label
 import com.mipatrimonio.app.ui.components.SegmentedControl
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun PortfolioDialog(
@@ -206,7 +209,7 @@ fun OperationDialog(
         Portfolio,
         Asset,
         OperationType,
-        LocalDate,
+        LocalDateTime,
         BigDecimal,
         BigDecimal,
         Long,
@@ -250,6 +253,10 @@ fun OperationDialog(
     }
     var type by remember(existingOperation?.id) { mutableStateOf(existingOperation?.type ?: OperationType.COMPRA) }
     var date by remember(existingOperation?.id) { mutableStateOf(existingOperation?.date ?: LocalDate.now()) }
+    var timeText by remember(existingOperation?.id) {
+        val initialTime = existingOperation?.time ?: LocalTime.now()
+        mutableStateOf(initialTime.format(OPERATION_TIME_FORMATTER))
+    }
     var quantityText by remember(existingOperation?.id) { mutableStateOf(existingOperation?.quantity?.toPlainString().orEmpty()) }
     var priceText by remember(existingOperation?.id) { mutableStateOf(existingOperation?.unitPrice?.toPlainString().orEmpty()) }
     var feesText by remember(existingOperation?.id) {
@@ -267,6 +274,7 @@ fun OperationDialog(
     val amountError = stringResource(R.string.inv_error_amount_positive)
     val amountFeesError = stringResource(R.string.inv_error_amount_greater_fees)
     val positivePriceError = stringResource(R.string.inv_error_price_positive)
+    val timeError = stringResource(R.string.inv_error_time_required)
     val sizingResult = if (indicateAmount && type in listOf(OperationType.COMPRA, OperationType.VENTA)) {
         val amount = MoneyMath.parse(amountText)
         val price = MoneyMath.parse(priceText)
@@ -358,6 +366,16 @@ fun OperationDialog(
                     noneLabel = stringResource(R.string.inv_no_account),
                 )
                 DateField(stringResource(R.string.inv_date), date, onChange = { date = it })
+                OutlinedTextField(
+                    value = timeText,
+                    onValueChange = { timeText = it; error = null },
+                    label = { Text(stringResource(R.string.inv_time)) },
+                    placeholder = { Text(stringResource(R.string.inv_time_placeholder)) },
+                    supportingText = { Text(stringResource(R.string.inv_time_help)) },
+                    singleLine = true,
+                    isError = timeText.toOperationTimeOrNull() == null,
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 if (indicateAmount && type in listOf(OperationType.COMPRA, OperationType.VENTA)) {
                     AmountField(
                         label = stringResource(if (type == OperationType.COMPRA) R.string.inv_total_amount else if (saleAmountKind == SaleAmountKind.NETO) R.string.inv_net_amount else R.string.inv_gross_amount),
@@ -430,6 +448,7 @@ fun OperationDialog(
                     MoneyMath.parse(quantityText)
                 }
                 val price = MoneyMath.parse(priceText)
+                val time = timeText.toOperationTimeOrNull()
                 val fees = if (feesText.isBlank() || type == OperationType.COMISION) {
                     BigDecimal.ZERO
                 } else {
@@ -447,6 +466,7 @@ fun OperationDialog(
                     quantity == null || quantity.signum() <= 0 -> error = quantityError
                     price == null || price.signum() < 0 -> error = priceError
                     fees == null || fees.signum() < 0 -> error = feesError
+                    time == null -> error = timeError
                     else -> {
                         val feesMinor = try {
                             MoneyMath.toMinor(fees, asset.currency)
@@ -454,7 +474,7 @@ fun OperationDialog(
                             error = amountTooLargeError
                             return@TextButton
                         }
-                        onSave(portfolio, asset, type, date, quantity, price, feesMinor, account?.id, note) { result ->
+                        onSave(portfolio, asset, type, LocalDateTime.of(date, time), quantity, price, feesMinor, account?.id, note) { result ->
                             if (result == null) onDismiss() else error = result
                         }
                     }
@@ -464,6 +484,11 @@ fun OperationDialog(
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     )
 }
+
+private val OPERATION_TIME_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+
+private fun String.toOperationTimeOrNull(): LocalTime? =
+    runCatching { LocalTime.parse(trim(), OPERATION_TIME_FORMATTER) }.getOrNull()
 
 @Composable
 fun ManualPriceDialog(

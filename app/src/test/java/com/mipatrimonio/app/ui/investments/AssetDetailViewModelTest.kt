@@ -8,6 +8,8 @@ import com.mipatrimonio.app.data.repository.*
 import com.mipatrimonio.app.domain.model.*
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -76,4 +78,47 @@ class AssetDetailViewModelTest {
         assertNull(state.latestPrice)
         assertNull(state.row?.valueMinor)
     }
+
+    @Test fun `historial usa fecha hora y createdAt en orden cronologico descendente`() = runTest {
+        investments.savePortfolio(Portfolio("portfolio", "Principal", 1))
+        investments.saveAsset(Asset("asset", "Fondo", "F", "", AssetType.FONDO_INVERSION, "", "EUR"))
+        listOf(
+            operation("late-created", LocalDate.of(2026, 1, 1), LocalTime.of(9, 0), 30),
+            operation("later-time", LocalDate.of(2026, 1, 1), LocalTime.of(10, 0), 10),
+            operation("early-created", LocalDate.of(2026, 1, 1), LocalTime.of(9, 0), 20),
+            operation("next-day", LocalDate.of(2026, 1, 2), LocalTime.of(0, 1), 1),
+        ).forEach { investments.addOperation(it) }
+
+        val state = AssetDetailViewModel("portfolio", "asset", investments, ledger, settings).uiState.first {
+            !it.isLoading && it.operations.size == 4
+        }
+
+        assertEquals(listOf("next-day", "later-time", "late-created", "early-created"), state.operations.map { it.id })
+    }
+
+    @Test fun `edicion conserva la hora seleccionada`() = runTest {
+        val portfolio = Portfolio("portfolio", "Principal", 1)
+        val asset = Asset("asset", "Fondo", "F", "", AssetType.FONDO_INVERSION, "", "EUR")
+        val existing = operation("operation", LocalDate.of(2026, 1, 1), LocalTime.MIDNIGHT, 1)
+        investments.savePortfolio(portfolio)
+        investments.saveAsset(asset)
+        investments.addOperation(existing)
+        val viewModel = AssetDetailViewModel("portfolio", "asset", investments, ledger, settings)
+
+        viewModel.updateOperation(
+            existing, portfolio, asset, OperationType.COMPRA,
+            LocalDateTime.of(2026, 1, 1, 16, 45), BigDecimal.ONE, BigDecimal.TEN,
+            0, null, "", {},
+        )
+
+        val updated = investments.operations.first { operations ->
+            operations.singleOrNull()?.time == LocalTime.of(16, 45)
+        }.single()
+        assertEquals(LocalTime.of(16, 45), updated.time)
+    }
+
+    private fun operation(id: String, date: LocalDate, time: LocalTime, createdAt: Long) = InvestmentOperation(
+        id, "portfolio", "asset", OperationType.COMPRA, date, BigDecimal.ONE, BigDecimal.TEN,
+        0, "EUR", "", createdAt, time = time,
+    )
 }

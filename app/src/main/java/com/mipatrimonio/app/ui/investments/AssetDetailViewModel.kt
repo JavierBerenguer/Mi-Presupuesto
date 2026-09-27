@@ -9,7 +9,7 @@ import com.mipatrimonio.app.domain.calc.PositionCalculator
 import com.mipatrimonio.app.domain.model.*
 import com.mipatrimonio.app.domain.usecase.PositionRow
 import java.math.BigDecimal
-import java.time.LocalDate
+import java.time.LocalDateTime
 import java.util.UUID
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -43,7 +43,11 @@ class AssetDetailViewModel(
         val portfolio = data.portfolios.firstOrNull { it.id == portfolioId }
         val asset = data.assets.firstOrNull { it.id == assetId }
         val operations = data.operations.filter { it.portfolioId == portfolioId && it.assetId == assetId }
-            .sortedWith(compareByDescending<InvestmentOperation> { it.date }.thenByDescending { it.createdAt })
+            .sortedWith(
+                compareByDescending<InvestmentOperation> { it.date }
+                    .thenByDescending { it.time }
+                    .thenByDescending { it.createdAt },
+            )
         val price = data.prices[assetId]?.takeIf { it.currency == asset?.currency }
         val row = if (portfolio != null && asset != null && operations.isNotEmpty()) {
             val position = PositionCalculator.compute(operations)
@@ -66,7 +70,7 @@ class AssetDetailViewModel(
         portfolio: Portfolio,
         asset: Asset,
         type: OperationType,
-        date: LocalDate,
+        dateTime: LocalDateTime,
         quantity: BigDecimal,
         unitPrice: BigDecimal,
         feesMinor: Long,
@@ -76,10 +80,10 @@ class AssetDetailViewModel(
     ) = launch(onResult) {
         investments.addOperation(
             InvestmentOperation(
-                UUID.randomUUID().toString(), portfolio.id, asset.id, type, date,
+                UUID.randomUUID().toString(), portfolio.id, asset.id, type, dateTime.toLocalDate(),
                 if (type == OperationType.COMISION) BigDecimal.ONE else quantity,
                 unitPrice, if (type == OperationType.COMISION) 0 else feesMinor,
-                asset.currency, note.trim(), System.currentTimeMillis(), accountId,
+                asset.currency, note.trim(), System.currentTimeMillis(), accountId, dateTime.toLocalTime(),
             ),
         )
     }
@@ -92,7 +96,7 @@ class AssetDetailViewModel(
         portfolio: Portfolio,
         asset: Asset,
         type: OperationType,
-        date: LocalDate,
+        dateTime: LocalDateTime,
         quantity: BigDecimal,
         unitPrice: BigDecimal,
         feesMinor: Long,
@@ -102,7 +106,8 @@ class AssetDetailViewModel(
     ) = launch(onResult) {
         investments.addOperation(
             existing.copy(
-                portfolioId = portfolio.id, assetId = asset.id, type = type, date = date,
+                portfolioId = portfolio.id, assetId = asset.id, type = type,
+                date = dateTime.toLocalDate(), time = dateTime.toLocalTime(),
                 quantity = if (type == OperationType.COMISION) BigDecimal.ONE else quantity,
                 unitPrice = unitPrice, feesMinor = if (type == OperationType.COMISION) 0 else feesMinor,
                 currency = asset.currency, accountId = accountId, note = note.trim(),

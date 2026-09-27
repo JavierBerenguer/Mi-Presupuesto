@@ -10,6 +10,8 @@ import com.mipatrimonio.app.data.repository.SettingsRepository
 import com.mipatrimonio.app.domain.model.*
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -85,6 +87,23 @@ class InvestmentsViewModelTest {
         assertEquals(1_000L, state.dividends.single().grossMinor)
         assertEquals(150L, state.dividends.single().withholdingMinor)
         assertEquals(850L, state.dividends.single().netMinor)
+    }
+
+    @Test fun `nueva operacion usa la hora actual por defecto`() = runTest {
+        val portfolio = Portfolio("p1", "Principal", 1)
+        val asset = Asset("a1", "ETF Mundo", "ETF", "", AssetType.ETF, "XETRA", "EUR")
+        investments.savePortfolio(portfolio)
+        investments.saveAsset(asset)
+        val current = LocalDateTime.of(2026, 4, 5, 14, 37, 21)
+        val viewModel = InvestmentsViewModel(ledger, investments, settings) { current }
+
+        viewModel.addOperation(
+            portfolio, asset, OperationType.COMPRA, current.toLocalDate(), BigDecimal.ONE,
+            BigDecimal.TEN, 0, null, "", {},
+        )
+
+        val operation = investments.operations.first { it.isNotEmpty() }.single()
+        assertEquals(LocalTime.of(14, 37, 21), operation.time)
     }
 
     private fun op(id: String, type: OperationType, quantity: String, price: String, fees: Long) = InvestmentOperation(

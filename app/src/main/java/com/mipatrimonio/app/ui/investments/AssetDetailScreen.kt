@@ -180,7 +180,13 @@ private fun OperationRow(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(operation.type.label(), style = MaterialTheme.typography.titleMedium)
-                Text(formatDate(operation.date))
+                Text(
+                    stringResource(
+                        R.string.inv_operation_date_time,
+                        formatDate(operation.date),
+                        operation.time.format(DateTimeFormatter.ofPattern("HH:mm")),
+                    ),
+                )
                 Text(account ?: stringResource(R.string.inv_no_account), style = MaterialTheme.typography.bodySmall)
                 Text((if (signed > 0) "+" else "") + detailMoney(signed, operation.currency, hidden))
             }

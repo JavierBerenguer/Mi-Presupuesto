@@ -84,6 +84,10 @@
     <string name="inv_operation_currency">Importes en %1$s</string>
     <string name="inv_operation_type">Tipo de operación</string>
     <string name="inv_date">Fecha</string>
+    <string name="inv_time">Hora</string>
+    <string name="inv_time_placeholder">HH:mm</string>
+    <string name="inv_time_help">Formato de 24 horas (HH:mm)</string>
+    <string name="inv_operation_date_time">%1$s · %2$s</string>
     <string name="inv_quantity">Cantidad</string>
     <string name="inv_unit_price">Precio unitario</string>
     <string name="inv_amount_per_share">Importe por título</string>
@@ -112,6 +116,7 @@
     <string name="inv_error_price_non_negative">El precio debe ser cero o mayor.</string>
     <string name="inv_error_price_positive">El precio debe ser mayor que cero.</string>
     <string name="inv_error_fees_non_negative">Las comisiones o la retención no pueden ser negativas.</string>
+    <string name="inv_error_time_required">Introduce una hora válida en formato HH:mm.</string>
     <string name="inv_error_amount_too_large">El importe es demasiado grande.</string>
     <string name="inv_asset_not_found">No se ha encontrado este activo en la cartera.</string>
     <string name="inv_enter_manual_price">Introducir precio manual</string>

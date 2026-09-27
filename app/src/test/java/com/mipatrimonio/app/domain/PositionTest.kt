@@ -9,6 +9,7 @@ import com.mipatrimonio.app.domain.model.OperationType.DIVIDENDO
 import com.mipatrimonio.app.domain.model.OperationType.VENTA
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.time.LocalTime
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -67,6 +68,56 @@ class PositionTest {
         val venta = op(VENTA, "1", "10", date = LocalDate.of(2026, 2, 1))
         val compra = op(COMPRA, "1", "10", date = LocalDate.of(2026, 1, 1))
         assertNum("0", PositionCalculator.compute(listOf(venta, compra)).quantity)
+    }
+
+    @Test
+    fun `la hora real ordena compras y venta del mismo dia`() {
+        val operations = listOf(
+            op(COMPRA, "10", "30", createdAt = 1, time = LocalTime.of(11, 0)),
+            op(VENTA, "5", "20", createdAt = 2, time = LocalTime.of(10, 0)),
+            op(COMPRA, "10", "10", createdAt = 3, time = LocalTime.of(9, 0)),
+        )
+
+        val position = PositionCalculator.compute(operations)
+
+        assertNum("350", position.costBasis)
+        assertNum("50", position.realizedPnl)
+    }
+
+    @Test
+    fun `editar la hora cambia el coste medio posterior a una venta`() {
+        val firstBuy = op(COMPRA, "10", "10", createdAt = 3, time = LocalTime.of(9, 0))
+        val sale = op(VENTA, "5", "20", createdAt = 2, time = LocalTime.of(10, 0))
+        val secondBuy = op(COMPRA, "10", "30", createdAt = 1, time = LocalTime.of(11, 0))
+
+        val beforeSale = PositionCalculator.compute(listOf(firstBuy, sale, secondBuy.copy(time = LocalTime.of(9, 30))))
+        val afterSale = PositionCalculator.compute(listOf(firstBuy, sale, secondBuy))
+
+        assertNum("300", beforeSale.costBasis)
+        assertNum("350", afterSale.costBasis)
+    }
+
+    @Test
+    fun `fecha prevalece entre 2359 y 0001 del dia siguiente`() {
+        val lateBuy = op(
+            COMPRA, "1", "10", date = LocalDate.of(2026, 1, 1),
+            createdAt = 2, time = LocalTime.of(23, 59),
+        )
+        val earlySale = op(
+            VENTA, "1", "12", date = LocalDate.of(2026, 1, 2),
+            createdAt = 1, time = LocalTime.of(0, 1),
+        )
+
+        assertNum("2", PositionCalculator.compute(listOf(earlySale, lateBuy)).realizedPnl)
+    }
+
+    @Test
+    fun `createdAt desempata operaciones con fecha y hora iguales`() {
+        val time = LocalTime.of(12, 0)
+        val sale = op(VENTA, "1", "12", createdAt = 2, time = time)
+        val buy = op(COMPRA, "1", "10", createdAt = 1, time = time)
+
+        assertNum("2", PositionCalculator.compute(listOf(sale, buy)).realizedPnl)
     }
 
     @Test
