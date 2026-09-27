@@ -13,6 +13,7 @@ import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.model.Transfer
 import java.time.LocalDate
+import java.time.YearMonth
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.Dispatchers
@@ -81,6 +82,47 @@ class MovementsViewModelTest {
         viewModel.previousMonth()
         val previous = viewModel.uiState.first { it.selectedMonth == java.time.YearMonth.from(today).minusMonths(1) }
         assertTrue(previous.dayGroups.isEmpty())
+    }
+
+    @Test
+    fun `setMonth cambia el mes y recalcula los apuntes como las flechas`() = runTest {
+        val targetMonth = YearMonth.now().minusMonths(4)
+        val targetDate = targetMonth.atDay(10)
+        ledger.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
+        ledger.saveTransaction(tx("target", TransactionType.GASTO, 25_00, targetDate, TransactionSource.MANUAL))
+        val viewModel = MovementsViewModel(ledger, settings)
+
+        viewModel.setMonth(targetMonth)
+        val selected = viewModel.uiState.first {
+            it.selectedMonth == targetMonth && it.visibleItems.singleOrNull()?.date == targetDate
+        }
+        assertEquals("target", (selected.visibleItems.single() as MovementItem.Tx).transaction.id)
+
+        viewModel.nextMonth()
+        val next = viewModel.uiState.first { it.selectedMonth == targetMonth.plusMonths(1) }
+        assertTrue(next.visibleItems.isEmpty())
+
+        viewModel.previousMonth()
+        val returned = viewModel.uiState.first {
+            it.selectedMonth == targetMonth && it.visibleItems.singleOrNull()?.date == targetDate
+        }
+        assertEquals("target", (returned.visibleItems.single() as MovementItem.Tx).transaction.id)
+    }
+
+    @Test
+    fun `expone la fecha de un apunte futuro en el estado`() = runTest {
+        val futureDate = LocalDate.now().plusDays(1)
+        ledger.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
+        ledger.saveTransaction(tx("future", TransactionType.INGRESO, 40_00, futureDate, TransactionSource.RECURRENTE))
+        val viewModel = MovementsViewModel(ledger, settings)
+
+        viewModel.setMonth(YearMonth.from(futureDate))
+        val state = viewModel.uiState.first {
+            it.selectedMonth == YearMonth.from(futureDate) && it.visibleItems.singleOrNull()?.date == futureDate
+        }
+
+        assertEquals(futureDate, state.visibleItems.single().date)
+        assertTrue(state.visibleItems.single().date.isAfter(LocalDate.now()))
     }
 
     private fun tx(id: String, type: TransactionType, amount: Long, date: LocalDate, source: TransactionSource) =

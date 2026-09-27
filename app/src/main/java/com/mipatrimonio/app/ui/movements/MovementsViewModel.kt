@@ -118,6 +118,10 @@ class MovementsViewModel(
         selectedMonth.value = selectedMonth.value.plusMonths(1)
     }
 
+    fun setMonth(month: YearMonth) {
+        selectedMonth.value = month
+    }
+
     fun setSource(source: SourceFilter) {
         filters.value = filters.value.copy(source = source)
     }

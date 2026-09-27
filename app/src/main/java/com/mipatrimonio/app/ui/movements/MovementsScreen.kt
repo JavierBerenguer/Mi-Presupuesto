@@ -83,8 +83,8 @@ import com.mipatrimonio.app.ui.components.AmountText
 import com.mipatrimonio.app.ui.components.SegmentedControl
 import com.mipatrimonio.app.ui.theme.extras
 import java.time.LocalDate
+import java.time.Month
 import java.time.YearMonth
-import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
@@ -136,7 +136,12 @@ fun MovementsScreen(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                 )
             }
-            MonthSelector(state.selectedMonth, viewModel::previousMonth, viewModel::nextMonth)
+            MonthSelector(
+                month = state.selectedMonth,
+                previous = viewModel::previousMonth,
+                next = viewModel::nextMonth,
+                onMonthSelected = viewModel::setMonth,
+            )
             SegmentedControl(
                 options = listOf(
                     stringResource(R.string.mov_kind_all),
@@ -229,17 +234,76 @@ private fun MovementHeader(onSearch: () -> Unit, onFilters: () -> Unit) {
 }
 
 @Composable
-private fun MonthSelector(month: YearMonth, previous: () -> Unit, next: () -> Unit) {
+private fun MonthSelector(
+    month: YearMonth,
+    previous: () -> Unit,
+    next: () -> Unit,
+    onMonthSelected: (YearMonth) -> Unit,
+) {
+    var showMonthMenu by remember { mutableStateOf(false) }
+    var showYearMenu by remember { mutableStateOf(false) }
+    val locale = remember { Locale("es", "ES") }
+    val currentYear = remember { YearMonth.now().year }
+    val selectableYears = remember(currentYear) { (currentYear - 10)..(currentYear + 2) }
+
     Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         IconButton(previous, Modifier.size(48.dp)) {
             Icon(Icons.AutoMirrored.Outlined.ArrowBack, stringResource(R.string.mov_previous_month))
         }
-        Text(
-            month.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale("es", "ES"))).replaceFirstChar(Char::titlecase),
-            modifier = Modifier.weight(1f),
-            textAlign = TextAlign.Center,
-            style = MaterialTheme.typography.titleMedium,
-        )
+        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.Center) {
+            Box {
+                TextButton(
+                    onClick = { showMonthMenu = true },
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) {
+                    Text(
+                        month.month.getDisplayName(TextStyle.FULL, locale).replaceFirstChar(Char::titlecase),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
+                DropdownMenu(
+                    expanded = showMonthMenu,
+                    onDismissRequest = { showMonthMenu = false },
+                ) {
+                    Month.entries.forEach { selectableMonth ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    selectableMonth.getDisplayName(TextStyle.FULL, locale)
+                                        .replaceFirstChar(Char::titlecase),
+                                )
+                            },
+                            onClick = {
+                                showMonthMenu = false
+                                onMonthSelected(YearMonth.of(month.year, selectableMonth))
+                            },
+                        )
+                    }
+                }
+            }
+            Box {
+                TextButton(
+                    onClick = { showYearMenu = true },
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) {
+                    Text(month.year.toString(), style = MaterialTheme.typography.titleMedium)
+                }
+                DropdownMenu(
+                    expanded = showYearMenu,
+                    onDismissRequest = { showYearMenu = false },
+                ) {
+                    selectableYears.reversed().forEach { selectableYear ->
+                        DropdownMenuItem(
+                            text = { Text(selectableYear.toString()) },
+                            onClick = {
+                                showYearMenu = false
+                                onMonthSelected(YearMonth.of(selectableYear, month.month))
+                            },
+                        )
+                    }
+                }
+            }
+        }
         IconButton(next, Modifier.size(48.dp)) {
             Icon(Icons.AutoMirrored.Outlined.ArrowForward, stringResource(R.string.mov_next_month))
         }
@@ -338,6 +402,8 @@ private fun MovementRow(
 ) {
     var showMenu by remember { mutableStateOf(false) }
     val p = movementPresentation(item, accountsById, categoriesById)
+    val isFuture = item.date.isAfter(LocalDate.now())
+    val primaryTextColor = if (isFuture) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
     Row(
         Modifier.fillMaxWidth().heightIn(min = 64.dp).clickable(onClick = onEdit).padding(start = 12.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -352,6 +418,7 @@ private fun MovementRow(
                     p.title,
                     modifier = Modifier.weight(1f, fill = false),
                     style = MaterialTheme.typography.titleMedium,
+                    color = primaryTextColor,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -369,15 +436,28 @@ private fun MovementRow(
                 }
             }
             Text(p.subtitle, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (isFuture) {
+                Text(
+                    stringResource(R.string.mov_future),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
         if (hideAmounts) {
-            Text(stringResource(R.string.common_hidden_amount), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = 4.dp))
+            Text(
+                stringResource(R.string.common_hidden_amount),
+                style = MaterialTheme.typography.titleSmall,
+                color = primaryTextColor,
+                modifier = Modifier.padding(horizontal = 4.dp),
+            )
         }
         else if (item is MovementItem.Move) {
             Text(
                 p.neutralAmount.orEmpty(),
                 modifier = Modifier.widthIn(max = 120.dp).horizontalScroll(rememberScrollState()),
                 style = MaterialTheme.typography.titleSmall,
+                color = primaryTextColor,
                 maxLines = 1,
             )
         } else {
@@ -387,6 +467,9 @@ private fun MovementRow(
                 p.kind,
                 modifier = Modifier.widthIn(max = 120.dp).horizontalScroll(rememberScrollState()),
                 style = MaterialTheme.typography.titleSmall,
+                incomeColor = if (isFuture) primaryTextColor else MaterialTheme.colorScheme.primary,
+                expenseColor = if (isFuture) primaryTextColor else MaterialTheme.extras.expense,
+                neutralColor = primaryTextColor,
             )
         }
         Box {
