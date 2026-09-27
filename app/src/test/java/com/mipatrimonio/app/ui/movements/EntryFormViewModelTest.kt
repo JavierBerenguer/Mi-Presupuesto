@@ -81,12 +81,14 @@ class EntryFormViewModelTest {
     }
 
     @Test
-    fun `guarda transferencia y no crea ingreso ni gasto`() = runTest {
+    fun `guarda transferencia categorizada sin crear ingreso ni gasto`() = runTest {
         ledger.saveAccount(account("eur-1"))
         ledger.saveAccount(account("eur-2"))
+        ledger.saveCategory(category("salary", CategoryKind.INGRESO))
         val viewModel = viewModel()
         viewModel.ready()
         viewModel.setKind(EntryKind.TRANSFER)
+        viewModel.setCategory("salary")
         viewModel.setAmount("25")
         viewModel.save()
         advanceUntilIdle()
@@ -95,6 +97,7 @@ class EntryFormViewModelTest {
         val transfer = ledger.transfers.first().single()
         assertEquals(2_500L, transfer.fromAmountMinor)
         assertEquals(2_500L, transfer.toAmountMinor)
+        assertEquals("salary", transfer.categoryId)
     }
 
     @Test
@@ -174,23 +177,64 @@ class EntryFormViewModelTest {
     }
 
     @Test
-    fun `cambiar tipo limpia categoria incompatible y una archivada existente se muestra con aviso`() = runTest {
+    fun `ofrece todas las categorias activas para cualquier tipo y permite cruzar sus tipos`() = runTest {
         ledger.saveAccount(account("a"))
+        ledger.saveAccount(account("b"))
         ledger.saveCategory(category("expense", CategoryKind.GASTO))
         ledger.saveCategory(category("income", CategoryKind.INGRESO))
-        val newEntry = viewModel()
-        newEntry.ready()
-        newEntry.setCategory("expense")
-        newEntry.setKind(EntryKind.INCOME)
-        assertNull(newEntry.uiState.value.values.categoryId)
 
-        ledger.saveCategory(category("archived", CategoryKind.GASTO, archived = true))
-        ledger.saveTransaction(transaction("old", TransactionType.GASTO, 100, "a", "archived"))
-        val editing = viewModel("old")
-        val state = editing.ready()
-        assertEquals("archived", state.selectedCategory?.id)
-        assertTrue(state.selectedCategoryIsArchived)
-        assertFalse(state.availableCategories.any { it.id == "archived" })
+        val viewModel = viewModel()
+        val expected = setOf("expense", "income")
+        assertEquals(expected, viewModel.ready().availableCategories.map { it.id }.toSet())
+        viewModel.setCategory("income")
+        viewModel.setAmount("1")
+        viewModel.save()
+        advanceUntilIdle()
+        assertEquals("income", ledger.transactions.first().single().categoryId)
+
+        val income = viewModel()
+        income.ready()
+        income.setKind(EntryKind.INCOME)
+        assertEquals(expected, income.uiState.value.availableCategories.map { it.id }.toSet())
+        income.setCategory("expense")
+        income.setAmount("2")
+        income.save()
+        advanceUntilIdle()
+        assertEquals("expense", ledger.transactions.first().first { it.type == TransactionType.INGRESO }.categoryId)
+
+        val transfer = viewModel()
+        transfer.ready()
+        transfer.setKind(EntryKind.TRANSFER)
+        assertEquals(expected, transfer.uiState.value.availableCategories.map { it.id }.toSet())
+    }
+
+    @Test
+    fun `edita transferencia para asignar y quitar categoria y conserva una archivada existente`() = runTest {
+        ledger.saveAccount(account("a"))
+        ledger.saveAccount(account("b"))
+        ledger.saveCategory(category("active", CategoryKind.GASTO))
+        ledger.saveCategory(category("archived", CategoryKind.INGRESO, archived = true))
+        ledger.saveTransfer(
+            Transfer("tr", "a", "b", 100, 100, fixedToday, "", 1, categoryId = "archived"),
+        )
+
+        val editing = viewModel("tr")
+        val initial = editing.ready()
+        assertEquals("archived", initial.selectedCategory?.id)
+        assertTrue(initial.selectedCategoryIsArchived)
+        assertFalse(initial.availableCategories.any { it.id == "archived" })
+
+        editing.setCategory("active")
+        editing.save()
+        advanceUntilIdle()
+        assertEquals("active", ledger.transfers.first().single().categoryId)
+
+        val removeCategory = viewModel("tr")
+        removeCategory.ready()
+        removeCategory.setCategory(null)
+        removeCategory.save()
+        advanceUntilIdle()
+        assertNull(ledger.transfers.first().single().categoryId)
     }
 
     @Test

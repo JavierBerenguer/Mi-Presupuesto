@@ -61,6 +61,7 @@ data class Transfer(
     val date: LocalDate,
     val description: String,
     val createdAt: Long,
+    val categoryId: String? = null,
 )
 
 enum class BudgetPeriod { SEMANAL, MENSUAL, TRIMESTRAL, SEMESTRAL, ANUAL, UNICO }

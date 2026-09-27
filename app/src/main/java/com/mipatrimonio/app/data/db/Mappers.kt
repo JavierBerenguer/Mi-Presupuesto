@@ -40,10 +40,12 @@ fun Transaction.toEntity() = TransactionEntity(
 
 fun TransferEntity.toDomain() = Transfer(
     id, fromAccountId, toAccountId, fromAmountMinor, toAmountMinor, LocalDate.ofEpochDay(epochDay), description, createdAt,
+    categoryId,
 )
 
 fun Transfer.toEntity(updatedAt: Long) = TransferEntity(
     id, fromAccountId, toAccountId, fromAmountMinor, toAmountMinor, date.toEpochDay(), description, createdAt, updatedAt,
+    categoryId,
 )
 
 fun BudgetEntity.toDomain(rules: List<BudgetCategoryEntity>) = Budget(

@@ -9,6 +9,7 @@ import com.mipatrimonio.app.data.db.migrations.MIGRATION_2_3
 import com.mipatrimonio.app.data.db.migrations.MIGRATION_3_4
 import com.mipatrimonio.app.data.db.migrations.MIGRATION_4_5
 import com.mipatrimonio.app.data.db.migrations.MIGRATION_5_6
+import com.mipatrimonio.app.data.db.migrations.MIGRATION_6_7
 
 @Database(
     entities = [
@@ -26,7 +27,7 @@ import com.mipatrimonio.app.data.db.migrations.MIGRATION_5_6
         PendingProposalEntity::class,
         NotificationDiagnosticEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -44,7 +45,14 @@ abstract class AppDatabase : RoomDatabase() {
         /** Las migraciones futuras se añaden con `.addMigrations(...)`; nunca `fallbackToDestructiveMigration`. */
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, NAME)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(
+                    MIGRATION_1_2,
+                    MIGRATION_2_3,
+                    MIGRATION_3_4,
+                    MIGRATION_4_5,
+                    MIGRATION_5_6,
+                    MIGRATION_6_7,
+                )
                 .build()
     }
 }

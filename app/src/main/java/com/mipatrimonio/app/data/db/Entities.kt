@@ -63,8 +63,9 @@ data class TransactionEntity(
     foreignKeys = [
         ForeignKey(AccountEntity::class, ["id"], ["fromAccountId"], onDelete = ForeignKey.RESTRICT),
         ForeignKey(AccountEntity::class, ["id"], ["toAccountId"], onDelete = ForeignKey.RESTRICT),
+        ForeignKey(CategoryEntity::class, ["id"], ["categoryId"], onDelete = ForeignKey.SET_NULL),
     ],
-    indices = [Index("fromAccountId"), Index("toAccountId")],
+    indices = [Index("fromAccountId"), Index("toAccountId"), Index("categoryId")],
 )
 data class TransferEntity(
     @PrimaryKey val id: String,
@@ -76,6 +77,7 @@ data class TransferEntity(
     val description: String,
     val createdAt: Long,
     val updatedAt: Long,
+    val categoryId: String?,
 )
 
 @Entity(

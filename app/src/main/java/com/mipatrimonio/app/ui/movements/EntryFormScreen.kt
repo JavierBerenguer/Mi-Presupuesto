@@ -303,10 +303,10 @@ private fun EntryFormContent(
                 sign = if (values.kind == EntryKind.INCOME) "+" else "−",
                 onValueChange = viewModel::setAmount,
             )
+            FormDivider()
+            CategoryRow(state, onChooseCategory, onClear = { viewModel.setCategory(null) })
+            FormDivider()
             if (values.kind != EntryKind.TRANSFER) {
-                FormDivider()
-                CategoryRow(state, onChooseCategory, onClear = { viewModel.setCategory(null) })
-                FormDivider()
                 AccountDropdown(
                     label = stringResource(R.string.mov_account),
                     accounts = state.activeAccounts,

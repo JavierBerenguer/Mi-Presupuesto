@@ -6,7 +6,6 @@ import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.domain.calc.BalanceCalculator
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.CategoryKind
 import com.mipatrimonio.app.domain.model.MoneyMath
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
@@ -75,10 +74,7 @@ data class EntryFormUiState(
             values.categoryId != null || values.title.isNotBlank() || values.comment.isNotBlank() ||
             values.merchant.isNotBlank()
     val availableCategories: List<Category>
-        get() {
-            val categoryKind = values.kind.categoryKind ?: return emptyList()
-            return categories.filter { !it.archived && it.kind == categoryKind }
-        }
+        get() = categories.filterNot(Category::archived)
     val destinationAccounts: List<Account>
         get() = activeAccounts.filter { it.id != values.accountId }
     val isCrossCurrency: Boolean
@@ -190,11 +186,6 @@ class EntryFormViewModel(
             val destinationId = current.destinationAccountId
                 ?.takeIf { it != sourceId && accounts.any { account -> account.id == it && !account.archived } }
                 ?: accounts.firstOrNull { !it.archived && it.id != sourceId }?.id
-            val categoryId = current.categoryId?.takeIf { id ->
-                val expectedKind = kind.categoryKind
-                expectedKind != null && sourceData.value?.categories
-                    ?.any { it.id == id && it.kind == expectedKind } == true
-            }
             current.copy(
                 kind = kind,
                 destinationAccountId = if (kind == EntryKind.TRANSFER) destinationId else current.destinationAccountId,
@@ -203,7 +194,6 @@ class EntryFormViewModel(
                 } else {
                     current.destinationAmount
                 },
-                categoryId = categoryId,
             )
         }
     }
@@ -264,11 +254,8 @@ class EntryFormViewModel(
     }
 
     fun setCategory(categoryId: String?) = updateValues { current ->
-        val expectedKind = current.kind.categoryKind
         val category = sourceData.value?.categories?.find { it.id == categoryId }
-        val validId = category?.id?.takeIf {
-            expectedKind != null && category.kind == expectedKind && !category.archived
-        }
+        val validId = category?.id?.takeIf { !category.archived }
         current.copy(categoryId = validId)
     }
     fun setDate(date: LocalDate) = updateValues { it.copy(date = date) }
@@ -343,6 +330,7 @@ class EntryFormViewModel(
                     date = current.date,
                     description = current.title,
                     createdAt = previous?.createdAt ?: clock(),
+                    categoryId = current.categoryId,
                 ),
             )
         }
@@ -395,7 +383,7 @@ class EntryFormViewModel(
     private fun frequentCategories(data: SourceData, kind: EntryKind): List<Category> {
         val transactionType = kind.transactionType ?: return emptyList()
         val activeById = data.categories
-            .filter { !it.archived && it.kind == kind.categoryKind }
+            .filterNot(Category::archived)
             .associateBy(Category::id)
         val cutoff = today().minusDays(89)
         return data.transactions
@@ -434,13 +422,6 @@ private val EntryKind.transactionType: TransactionType?
         EntryKind.TRANSFER -> null
     }
 
-private val EntryKind.categoryKind: CategoryKind?
-    get() = when (this) {
-        EntryKind.EXPENSE -> CategoryKind.GASTO
-        EntryKind.INCOME -> CategoryKind.INGRESO
-        EntryKind.TRANSFER -> null
-    }
-
 private fun Transaction.toFormValues() = EntryFormValues(
     kind = if (type == TransactionType.GASTO) EntryKind.EXPENSE else EntryKind.INCOME,
     amount = MoneyMath.toDecimal(amountMinor, currency).stripTrailingZeros().toPlainString().replace('.', ','),
@@ -460,6 +441,7 @@ private fun Transfer.toFormValues(accounts: List<Account>) = EntryFormValues(
         .stripTrailingZeros().toPlainString().replace('.', ','),
     accountId = fromAccountId,
     destinationAccountId = toAccountId,
+    categoryId = categoryId,
     date = date,
     title = description,
 )
