@@ -106,11 +106,12 @@ class RepositoryTest {
     }
 
     @Test
-    fun `no se puede cambiar la divisa de una cuenta existente ni usar una archivada`() {
+    fun `se puede cambiar divisa sin historial y no se puede usar una cuenta archivada`() {
         runBlocking { ledger.saveAccount(account("a1")) }
-        assertThrows(IllegalArgumentException::class.java) { runBlocking { ledger.saveAccount(account("a1", currency = "USD")) } }
+        runBlocking { ledger.saveAccount(account("a1", currency = "USD")) }
+        assertEquals("USD", runBlocking { ledger.accounts.first().single().currency })
         runBlocking { ledger.setAccountArchived("a1", true) }
-        assertThrows(IllegalArgumentException::class.java) { runBlocking { ledger.saveTransaction(tx("t", TransactionType.GASTO, 5, "a1")) } }
+        assertThrows(IllegalArgumentException::class.java) { runBlocking { ledger.saveTransaction(tx("t", TransactionType.GASTO, 5, "a1", "USD")) } }
     }
 
     @Test

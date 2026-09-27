@@ -13,6 +13,18 @@ import com.mipatrimonio.app.domain.model.Transfer
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
+data class AccountDependencies(
+    val transactions: Int,
+    val transfers: Int,
+    val investmentOperations: Int,
+    val portfolios: Int,
+    val notificationApps: Int,
+) {
+    val hasHistory: Boolean get() = transactions + transfers + investmentOperations > 0
+    val canDelete: Boolean
+        get() = transactions + transfers + investmentOperations + portfolios + notificationApps == 0
+}
+
 /** Cuentas, categorías, movimientos, transferencias y presupuestos. Valida antes de escribir. */
 class LedgerRepository(
     private val db: AppDatabase,
@@ -33,8 +45,10 @@ class LedgerRepository(
     suspend fun saveAccount(account: Account) = db.withTransaction {
         require(account.name.isNotBlank()) { "El nombre de la cuenta es obligatorio" }
         val existing = accountDao.getById(account.id)
-        if (existing != null) {
-            require(existing.currency == account.currency) { "No se puede cambiar la divisa de una cuenta existente" }
+        if (existing != null && existing.currency != account.currency) {
+            require(!accountDependenciesUnchecked(account.id).hasHistory) {
+                "No se puede cambiar la divisa de una cuenta con historial"
+            }
         }
         accountDao.upsert(account.toEntity(updatedAt = clock()))
     }
@@ -42,6 +56,31 @@ class LedgerRepository(
     suspend fun setAccountArchived(id: String, archived: Boolean) = db.withTransaction {
         val existing = accountDao.getById(id) ?: return@withTransaction
         accountDao.upsert(existing.copy(archived = archived, updatedAt = clock()))
+        if (archived) {
+            db.openHelper.writableDatabase.execSQL(
+                "UPDATE portfolio SET defaultAccountId = NULL WHERE defaultAccountId = ?",
+                arrayOf(id),
+            )
+        }
+    }
+
+    suspend fun accountDependencies(id: String): AccountDependencies = db.withTransaction {
+        accountDependenciesUnchecked(id)
+    }
+
+    private suspend fun accountDependenciesUnchecked(id: String): AccountDependencies =
+        AccountDependencies(
+            transactions = transactionDao.countForAccount(id),
+            transfers = transferDao.countForAccount(id),
+            investmentOperations = db.investmentDao().countOperationsForAccount(id),
+            portfolios = db.investmentDao().countPortfoliosForAccount(id),
+            notificationApps = db.notificationDao().countAuthorizationsForAccount(id),
+        )
+
+    suspend fun deleteAccount(id: String) = db.withTransaction {
+        val dependencies = accountDependenciesUnchecked(id)
+        require(dependencies.canDelete) { "La cuenta tiene datos asociados y no se puede eliminar" }
+        db.openHelper.writableDatabase.execSQL("DELETE FROM account WHERE id = ?", arrayOf(id))
     }
 
     suspend fun saveCategory(category: Category) {

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mipatrimonio.app.data.repository.InvestmentRepository
 import com.mipatrimonio.app.data.repository.LedgerRepository
+import com.mipatrimonio.app.data.repository.SettingsRepository
 import com.mipatrimonio.app.domain.calc.BalanceCalculator
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountType
@@ -30,6 +31,7 @@ data class MoreUiState(
     val isLoading: Boolean = true,
     val accounts: List<MoreAccountItem> = emptyList(),
     val totals: List<CurrencyTotal> = emptyList(),
+    val hideAmounts: Boolean = false,
 )
 
 sealed interface MoreAccountError {
@@ -42,13 +44,15 @@ sealed interface MoreAccountError {
 class MoreViewModel(
     private val ledger: LedgerRepository,
     private val investments: InvestmentRepository,
+    settings: SettingsRepository,
 ) : ViewModel() {
     val uiState: StateFlow<MoreUiState> = combine(
         ledger.accounts,
         ledger.transactions,
         ledger.transfers,
         investments.operations,
-    ) { accounts, transactions, transfers, operations ->
+        settings.settings,
+    ) { accounts, transactions, transfers, operations, currentSettings ->
         val accountItems = accounts
             .asSequence()
             .filterNot { it.archived }
@@ -66,7 +70,7 @@ class MoreViewModel(
                 CurrencyTotal(currency, items.fold(0L) { total, item -> Math.addExact(total, item.balanceMinor) })
             }
             .sortedBy { it.currency }
-        MoreUiState(isLoading = false, accounts = accountItems, totals = totals)
+        MoreUiState(isLoading = false, accounts = accountItems, totals = totals, hideAmounts = currentSettings.hideAmounts)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),

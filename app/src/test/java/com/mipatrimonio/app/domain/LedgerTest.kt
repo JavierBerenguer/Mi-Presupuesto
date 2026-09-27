@@ -238,19 +238,29 @@ class LedgerTest {
             AccountBalance(account("a1", type = AccountType.CORRIENTE), 1000_00),
             AccountBalance(account("a2", type = AccountType.INVERSION), 200_00), // efectivo del broker
             AccountBalance(account("a3", currency = "USD"), 999_00),
-            AccountBalance(account("a4", archived = true), 777_00),
+            AccountBalance(account("a4", archived = true), 777_00), // archivada CON saldo: sigue sumando (T-030 A.2)
         )
         val nw = NetWorthCalculator.compute(
             "EUR", balances,
             listOf(InvestmentValue("ETF", "EUR", 3000_00), InvestmentValue("Sin precio", "EUR", null)),
         )
-        assertEquals(1200_00L, nw.cashMinor)
+        assertEquals(1977_00L, nw.cashMinor)
         assertEquals(3000_00L, nw.investmentsMinor)
-        assertEquals(4200_00L, nw.totalMinor)
+        assertEquals(4977_00L, nw.totalMinor)
         assertEquals(setOf("USD"), nw.excludedCurrencies)
         assertEquals(listOf("Sin precio"), nw.unpricedAssets)
         assertTrue(nw.isPartial)
         assertTrue(nw.hasExclusions)
+    }
+
+    @Test
+    fun `patrimonio excluye cuenta archivada solo si su saldo es cero`() {
+        val balances = listOf(
+            AccountBalance(account("a1"), 500_00),
+            AccountBalance(account("a2", archived = true), 0L),
+        )
+        val nw = NetWorthCalculator.compute("EUR", balances, emptyList())
+        assertEquals(500_00L, nw.cashMinor)
     }
 
     @Test

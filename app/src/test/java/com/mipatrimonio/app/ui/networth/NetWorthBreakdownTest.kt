@@ -28,11 +28,11 @@ class NetWorthBreakdownTest {
         val balances = listOf(
             AccountBalance(account("a1"), 100_00),
             AccountBalance(account("a2", currency = "USD"), 50_00),
-            AccountBalance(account("a3", archived = true), 999_00),
+            AccountBalance(account("a3", archived = true), 999_00), // archivada CON saldo: sigue sumando (T-030 A.2)
         )
         val totals = byCurrency(balances, listOf(row("12")), "EUR")
         assertEquals(listOf("EUR", "USD"), totals.map { it.currency })
-        assertEquals(100_00L + 120_00L, totals[0].minor) // efectivo + posición 10×12 €
+        assertEquals(100_00L + 999_00L + 120_00L, totals[0].minor) // efectivo activo + archivada con saldo + posición 10×12 €
         assertEquals(50_00L, totals[1].minor)
     }
 

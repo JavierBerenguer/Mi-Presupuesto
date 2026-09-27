@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.ShowChart
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -44,6 +45,7 @@ import java.util.Locale
 fun InvestmentsScreen(
     onOpenAssetDetail: (String, String) -> Unit = { _, _ -> },
     onOpenAccounts: () -> Unit = {},
+    onOpenAssets: () -> Unit = {},
     initialNewPortfolio: Boolean = false,
     viewModel: InvestmentsViewModel = appViewModel { c -> InvestmentsViewModel(c.ledger, c.investments, c.settings) },
 ) {
@@ -76,7 +78,7 @@ fun InvestmentsScreen(
             }
             else -> PortfolioContent(
                 state, section, range, { section = it }, { range = it }, viewModel::selectPortfolio,
-                { priceDialog = true }, { onOpenAssetDetail(it.portfolio.id, it.asset.id) },
+                { priceDialog = true }, onOpenAssets, { onOpenAssetDetail(it.portfolio.id, it.asset.id) },
             )
         }
         if (!state.isLoading) Box(Modifier.align(Alignment.BottomEnd).padding(16.dp)) {
@@ -125,6 +127,7 @@ private fun PortfolioContent(
     onRange: (Int) -> Unit,
     onSelect: (String?) -> Unit,
     onPrice: () -> Unit,
+    onAssets: () -> Unit,
     onPosition: (PositionRow) -> Unit,
 ) {
     val snapshot = state.snapshot ?: return
@@ -146,6 +149,7 @@ private fun PortfolioContent(
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.nav_cartera), style = MaterialTheme.typography.headlineLarge, modifier = Modifier.weight(1f))
+                IconButton(onAssets, Modifier.size(48.dp)) { Icon(Icons.Default.List, stringResource(R.string.inv_manage_assets)) }
                 IconButton(onPrice, Modifier.size(48.dp)) { Icon(Icons.Default.Refresh, stringResource(R.string.inv_update_price)) }
             }
             PortfolioSelector(state, onSelect)

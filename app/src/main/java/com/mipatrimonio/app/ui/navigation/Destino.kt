@@ -31,6 +31,7 @@ object Rutas {
     const val CREATE_PORTFOLIO_KEY = "create_portfolio"
     const val NUEVO = "nuevo"
     const val CUENTAS = "cuentas"
+    const val ACTIVOS = "activos"
     const val CATEGORIAS = "categorias"
     const val NOTIFICACIONES = "notificaciones"
     const val PROPUESTAS = "propuestas"

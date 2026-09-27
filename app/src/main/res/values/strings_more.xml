@@ -21,4 +21,5 @@
     <string name="more_error_balance">El saldo inicial no es válido.</string>
     <string name="more_error_balance_large">El saldo inicial es demasiado grande.</string>
     <string name="more_error_saving">No se pudo guardar la cuenta.</string>
+    <string name="more_manage">Gestionar</string>
 </resources>

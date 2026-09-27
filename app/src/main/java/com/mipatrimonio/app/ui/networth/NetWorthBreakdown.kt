@@ -13,7 +13,7 @@ data class CurrencyTotal(val currency: String, val minor: Long)
  */
 fun byCurrency(balances: List<AccountBalance>, positions: List<PositionRow>, baseCurrency: String): List<CurrencyTotal> {
     val totals = sortedMapOf<String, Long>()
-    balances.filter { !it.account.archived }.forEach {
+    balances.filter { !it.account.archived || it.balanceMinor != 0L }.forEach {
         totals[it.account.currency] = (totals[it.account.currency] ?: 0L) + it.balanceMinor
     }
     positions.filter { it.isOpen }.forEach { row ->
@@ -30,7 +30,7 @@ fun byCurrency(balances: List<AccountBalance>, positions: List<PositionRow>, bas
 data class AccountShare(val account: Account, val balanceMinor: Long, val percent: Int?)
 
 fun accountShares(balances: List<AccountBalance>, baseCurrency: String): List<AccountShare> {
-    val active = balances.filter { !it.account.archived }
+    val active = balances.filter { !it.account.archived || it.balanceMinor != 0L }
     val positiveTotal = active.filter { it.account.currency == baseCurrency && it.balanceMinor > 0 }.sumOf { it.balanceMinor }
     return active.map { (account, balance) ->
         val percent = when {

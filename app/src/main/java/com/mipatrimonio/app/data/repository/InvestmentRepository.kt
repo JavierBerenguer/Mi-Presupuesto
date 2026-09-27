@@ -19,6 +19,13 @@ import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
+data class AssetDependencies(
+    val operations: Int,
+    val manualPrices: Int,
+) {
+    val canDelete: Boolean get() = operations == 0
+}
+
 class InvestmentRepository(
     private val db: AppDatabase,
     private val clock: () -> Long = System::currentTimeMillis,
@@ -44,7 +51,29 @@ class InvestmentRepository(
 
     suspend fun saveAsset(asset: Asset) {
         require(asset.name.isNotBlank()) { "El nombre del activo es obligatorio" }
-        dao.upsertAsset(asset.toEntity(createdAt = clock()))
+        val existing = dao.getAsset(asset.id)
+        if (existing != null && existing.currency != asset.currency) {
+            require(dao.countOperationsForAsset(asset.id) == 0) {
+                "No se puede cambiar la divisa de un activo con operaciones"
+            }
+        }
+        dao.upsertAsset(asset.toEntity(createdAt = existing?.createdAt ?: clock()))
+    }
+
+    suspend fun assetDependencies(assetId: String): AssetDependencies = db.withTransaction {
+        assetDependenciesUnchecked(assetId)
+    }
+
+    private suspend fun assetDependenciesUnchecked(assetId: String): AssetDependencies =
+        AssetDependencies(
+            operations = dao.countOperationsForAsset(assetId),
+            manualPrices = dao.countPricesForAsset(assetId),
+        )
+
+    suspend fun deleteAsset(assetId: String) = db.withTransaction {
+        val dependencies = assetDependenciesUnchecked(assetId)
+        require(dependencies.canDelete) { "El activo tiene operaciones y no se puede eliminar" }
+        db.openHelper.writableDatabase.execSQL("DELETE FROM asset WHERE id = ?", arrayOf(assetId))
     }
 
     /** Añade una operación comprobando que el historial resultante sigue siendo válido (p. ej. sin ventas en descubierto). */

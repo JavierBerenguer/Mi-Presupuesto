@@ -49,7 +49,7 @@ fun NetWorthScreen(
     val snapshot = s.snapshot
     val netWorth = snapshot.netWorth
     val currency = snapshot.baseCurrency
-    if (snapshot.balances.none { !it.account.archived } && snapshot.positions.isEmpty()) {
+    if (snapshot.balances.none { !it.account.archived || it.balanceMinor != 0L } && snapshot.positions.isEmpty()) {
         EmptyState(Icons.Outlined.AccountBalance, stringResource(R.string.pat_empty))
         return
     }

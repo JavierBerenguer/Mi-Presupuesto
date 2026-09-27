@@ -25,12 +25,13 @@ import com.mipatrimonio.app.ui.components.SecondaryTopBar
 import com.mipatrimonio.app.ui.home.HomeScreen
 import com.mipatrimonio.app.ui.investments.InvestmentsScreen
 import com.mipatrimonio.app.ui.investments.AssetDetailScreen
+import com.mipatrimonio.app.ui.investments.AssetsScreen
 import com.mipatrimonio.app.ui.movements.EntryFormScreen
 import com.mipatrimonio.app.ui.movements.MovementsScreen
 import com.mipatrimonio.app.ui.movements.SourceFilter
 import com.mipatrimonio.app.ui.more.MoreScreen
 import com.mipatrimonio.app.ui.networth.NetWorthScreen
-import com.mipatrimonio.app.ui.settings.AccountsScreen
+import com.mipatrimonio.app.ui.accounts.AccountsScreen
 import com.mipatrimonio.app.ui.settings.CategoriesScreen
 import com.mipatrimonio.app.ui.settings.NotificationSettingsScreen
 import com.mipatrimonio.app.ui.settings.NotificationDiagnosticsScreen
@@ -81,6 +82,7 @@ fun MiPatrimonioApp() {
 private fun titleFor(route: String?, destino: Destino?): Int = when {
     destino != null -> destino.titulo
     route == Rutas.CUENTAS -> R.string.nav_cuentas
+    route == Rutas.ACTIVOS -> R.string.inv_assets_title
     route == Rutas.CATEGORIAS -> R.string.nav_categorias
     route == Rutas.NOTIFICACIONES -> R.string.notif_settings_title
     route == Rutas.PROPUESTAS -> R.string.notif_proposals_title
@@ -124,6 +126,7 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
             InvestmentsScreen(
                 onOpenAssetDetail = { portfolioId, assetId -> navController.navigate(Rutas.activo(portfolioId, assetId)) },
                 onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
+                onOpenAssets = { navController.navigate(Rutas.ACTIVOS) },
                 initialNewPortfolio = entry.savedStateHandle.remove<Boolean>(Rutas.CREATE_PORTFOLIO_KEY) == true,
             )
         }
@@ -139,6 +142,7 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
                     navController.navigate(Destino.Cartera.ruta) { launchSingleTop = true }
                     navController.currentBackStackEntry?.savedStateHandle?.set(Rutas.CREATE_PORTFOLIO_KEY, true)
                 },
+                onOpenAssets = { navController.navigate(Rutas.ACTIVOS) },
             )
         }
         composable(Rutas.PATRIMONIO) { NetWorthScreen() }
@@ -151,6 +155,7 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
             )
         }
         composable(Rutas.CUENTAS) { AccountsScreen() }
+        composable(Rutas.ACTIVOS) { AssetsScreen() }
         composable(Rutas.CATEGORIAS) { CategoriesScreen() }
         composable(Rutas.NOTIFICACIONES) {
             NotificationSettingsScreen(

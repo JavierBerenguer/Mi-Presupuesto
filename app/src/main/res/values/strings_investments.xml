@@ -124,4 +124,39 @@
     <string name="inv_operations">Operaciones</string>
     <string name="inv_asset_detail_title">Detalle de activo</string>
     <string name="inv_edit_operation">Editar operación</string>
+    <string name="inv_manage_assets">Gestionar activos</string>
+    <string name="inv_assets_title">Activos</string>
+    <string name="inv_assets_search">Buscar por nombre, ticker, ISIN o mercado</string>
+    <string name="inv_assets_with_position">Con posición</string>
+    <string name="inv_assets_without_position">Sin posición</string>
+    <string name="inv_assets_archived">Archivados</string>
+    <string name="inv_assets_empty">No hay activos que coincidan.</string>
+    <string name="inv_assets_archive_pending">El archivado de activos necesita una migración de la base de datos.</string>
+    <string name="inv_assets_identity">%1$s · %2$s</string>
+    <string name="inv_assets_market">%1$s · %2$s · %3$s</string>
+    <string name="inv_assets_value">Valor: %1$s</string>
+    <string name="inv_assets_edit_description">Editar %1$s</string>
+    <string name="inv_edit_asset">Editar activo</string>
+    <string name="inv_asset_currency_locked">La divisa no se puede cambiar porque el activo tiene operaciones.</string>
+    <string name="inv_delete_asset_title">Eliminar activo</string>
+    <string name="inv_delete_asset_message">¿Quieres eliminar definitivamente «%1$s»?</string>
+    <string name="inv_delete_asset_blocked">No se puede eliminar: tiene %1$d operaciones.</string>
+    <string name="inv_delete_asset_prices">También se eliminarán %1$d precios manuales.</string>
+    <string name="inv_assets_checking">Comprobando datos asociados…</string>
+    <string name="inv_indicate">Indicar</string>
+    <string name="inv_indicate_quantity">Cantidad</string>
+    <string name="inv_indicate_amount">Importe</string>
+    <string name="inv_sale_amount_kind">El importe es</string>
+    <string name="inv_sale_gross">Bruto</string>
+    <string name="inv_sale_net">Neto</string>
+    <string name="inv_total_amount">Importe total desembolsado</string>
+    <string name="inv_gross_amount">Importe bruto de venta</string>
+    <string name="inv_net_amount">Importe neto recibido</string>
+    <string name="inv_invested_amount">Importe invertido: %1$s %2$s</string>
+    <string name="inv_buy_formula">Cantidad = (importe − comisión) / precio</string>
+    <string name="inv_sale_net_formula">Cantidad = (importe neto + comisión) / precio</string>
+    <string name="inv_sale_gross_formula">Cantidad = importe bruto / precio</string>
+    <string name="inv_rounding_difference">Diferencia por redondeo: %1$s %2$s</string>
+    <string name="inv_error_amount_positive">El importe debe ser mayor que cero.</string>
+    <string name="inv_error_amount_greater_fees">El importe debe ser mayor que la comisión.</string>
 </resources>

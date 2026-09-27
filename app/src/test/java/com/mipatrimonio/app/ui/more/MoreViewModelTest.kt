@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.mipatrimonio.app.data.db.AppDatabase
 import com.mipatrimonio.app.data.repository.InvestmentRepository
 import com.mipatrimonio.app.data.repository.LedgerRepository
+import com.mipatrimonio.app.data.repository.SettingsRepository
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountType
 import com.mipatrimonio.app.domain.model.Transaction
@@ -37,6 +38,7 @@ class MoreViewModelTest {
     private lateinit var db: AppDatabase
     private lateinit var ledger: LedgerRepository
     private lateinit var investments: InvestmentRepository
+    private lateinit var settings: SettingsRepository
 
     @Before
     fun setUp() {
@@ -45,6 +47,7 @@ class MoreViewModelTest {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
         ledger = LedgerRepository(db)
         investments = InvestmentRepository(db)
+        settings = SettingsRepository(context)
     }
 
     @After
@@ -55,7 +58,7 @@ class MoreViewModelTest {
 
     @Test
     fun `sin cuentas publica un estado vacio no cargando`() = runTest {
-        val state = MoreViewModel(ledger, investments).uiState.first { !it.isLoading }
+        val state = MoreViewModel(ledger, investments, settings).uiState.first { !it.isLoading }
 
         assertTrue(state.accounts.isEmpty())
         assertTrue(state.totals.isEmpty())
@@ -70,7 +73,7 @@ class MoreViewModelTest {
         ledger.saveTransaction(transaction("income", TransactionType.INGRESO, 30_00, "a"))
         ledger.saveTransaction(transaction("expense", TransactionType.GASTO, 5_00, "b"))
 
-        val state = MoreViewModel(ledger, investments).uiState.first {
+        val state = MoreViewModel(ledger, investments, settings).uiState.first {
             !it.isLoading && it.accounts.size == 3
         }
 
@@ -86,7 +89,7 @@ class MoreViewModelTest {
 
     @Test
     fun `cuenta de inversion puede crear cartera vinculada`() = runTest {
-        val viewModel = MoreViewModel(ledger, investments)
+        val viewModel = MoreViewModel(ledger, investments, settings)
 
         viewModel.createAccount("Broker", AccountType.INVERSION, "EUR", "100", true) {}
 
@@ -98,7 +101,7 @@ class MoreViewModelTest {
 
     @Test
     fun `cuenta de inversion puede crearse sin cartera vinculada`() = runTest {
-        val viewModel = MoreViewModel(ledger, investments)
+        val viewModel = MoreViewModel(ledger, investments, settings)
 
         viewModel.createAccount("Broker", AccountType.INVERSION, "EUR", "", false) {}
 

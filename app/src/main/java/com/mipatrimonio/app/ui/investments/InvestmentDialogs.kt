@@ -20,6 +20,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.mipatrimonio.app.R
+import com.mipatrimonio.app.domain.calc.SaleAmountKind
+import com.mipatrimonio.app.domain.calc.TradeSizingError
+import com.mipatrimonio.app.domain.calc.TradeSizingResult
+import com.mipatrimonio.app.domain.calc.calculateTradeSizing
 import com.mipatrimonio.app.domain.model.Asset
 import com.mipatrimonio.app.domain.model.AssetType
 import com.mipatrimonio.app.domain.model.Account
@@ -32,6 +36,7 @@ import com.mipatrimonio.app.ui.common.AmountField
 import com.mipatrimonio.app.ui.common.DateField
 import com.mipatrimonio.app.ui.common.DropdownField
 import com.mipatrimonio.app.ui.common.label
+import com.mipatrimonio.app.ui.components.SegmentedControl
 import java.math.BigDecimal
 import java.time.LocalDate
 
@@ -90,21 +95,25 @@ fun AssetDialog(
     assets: List<Asset>,
     onDismiss: () -> Unit,
     onSave: (String, String, String, AssetType, String, String, (String?) -> Unit) -> Unit,
+    existingAsset: Asset? = null,
+    hasOperations: Boolean = false,
+    externalError: String? = null,
+    onDelete: (() -> Unit)? = null,
 ) {
-    var name by remember { mutableStateOf("") }
-    var ticker by remember { mutableStateOf("") }
-    var isin by remember { mutableStateOf("") }
-    var type by remember { mutableStateOf(AssetType.ACCION) }
-    var market by remember { mutableStateOf("") }
-    var currency by remember { mutableStateOf(Currencies.EUR) }
+    var name by remember(existingAsset?.id) { mutableStateOf(existingAsset?.name.orEmpty()) }
+    var ticker by remember(existingAsset?.id) { mutableStateOf(existingAsset?.ticker.orEmpty()) }
+    var isin by remember(existingAsset?.id) { mutableStateOf(existingAsset?.isin.orEmpty()) }
+    var type by remember(existingAsset?.id) { mutableStateOf(existingAsset?.type ?: AssetType.ACCION) }
+    var market by remember(existingAsset?.id) { mutableStateOf(existingAsset?.market.orEmpty()) }
+    var currency by remember(existingAsset?.id) { mutableStateOf(existingAsset?.currency ?: Currencies.EUR) }
     var error by remember { mutableStateOf<String?>(null) }
     val blankNameError = stringResource(R.string.inv_error_name_required)
     val blankTickerError = stringResource(R.string.inv_error_ticker_required)
-    val duplicateIsin = isin.isNotBlank() && assets.any { it.isin.equals(isin.trim(), ignoreCase = true) }
+    val duplicateIsin = isin.isNotBlank() && assets.any { it.id != existingAsset?.id && it.isin.equals(isin.trim(), ignoreCase = true) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.inv_new_asset)) },
+        title = { Text(stringResource(if (existingAsset == null) R.string.inv_new_asset else R.string.inv_edit_asset)) },
         text = {
             Column(
                 Modifier.verticalScroll(rememberScrollState()),
@@ -159,8 +168,13 @@ fun AssetDialog(
                     selected = currency,
                     optionLabel = { it },
                     onSelected = { it?.let { selected -> currency = selected } },
+                    enabled = !hasOperations,
                 )
-                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                if (hasOperations) Text(stringResource(R.string.inv_asset_currency_locked), style = MaterialTheme.typography.bodySmall)
+                (error ?: externalError)?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                if (existingAsset != null && onDelete != null) {
+                    TextButton(onClick = onDelete) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) }
+                }
             }
         },
         confirmButton = {
@@ -242,11 +256,30 @@ fun OperationDialog(
         mutableStateOf(existingOperation?.let { MoneyMath.toDecimal(it.feesMinor, it.currency).toPlainString() }.orEmpty())
     }
     var note by remember(existingOperation?.id) { mutableStateOf(existingOperation?.note.orEmpty()) }
+    var indicateAmount by remember(existingOperation?.id) { mutableStateOf(false) }
+    var amountText by remember(existingOperation?.id) { mutableStateOf("") }
+    var saleAmountKind by remember(existingOperation?.id) { mutableStateOf(SaleAmountKind.NETO) }
     var error by remember { mutableStateOf<String?>(null) }
     val quantityError = stringResource(R.string.inv_error_quantity_positive)
     val priceError = stringResource(R.string.inv_error_price_non_negative)
     val feesError = stringResource(R.string.inv_error_fees_non_negative)
     val amountTooLargeError = stringResource(R.string.inv_error_amount_too_large)
+    val amountError = stringResource(R.string.inv_error_amount_positive)
+    val amountFeesError = stringResource(R.string.inv_error_amount_greater_fees)
+    val positivePriceError = stringResource(R.string.inv_error_price_positive)
+    val sizingResult = if (indicateAmount && type in listOf(OperationType.COMPRA, OperationType.VENTA)) {
+        val amount = MoneyMath.parse(amountText)
+        val price = MoneyMath.parse(priceText)
+        val fees = if (feesText.isBlank()) BigDecimal.ZERO else MoneyMath.parse(feesText)
+        if (amount != null && price != null && fees != null) {
+            calculateTradeSizing(type, amount, price, fees, saleAmountKind)
+        } else null
+    } else null
+    androidx.compose.runtime.LaunchedEffect(sizingResult) {
+        if (sizingResult is TradeSizingResult.Success) {
+            quantityText = sizingResult.sizing.quantity.toPlainString()
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -268,6 +301,22 @@ fun OperationDialog(
                         }
                     },
                 )
+                if (type == OperationType.COMPRA || type == OperationType.VENTA) {
+                    Text(stringResource(R.string.inv_indicate), style = MaterialTheme.typography.labelMedium)
+                    SegmentedControl(
+                        listOf(stringResource(R.string.inv_indicate_quantity), stringResource(R.string.inv_indicate_amount)),
+                        if (indicateAmount) 1 else 0,
+                        { indicateAmount = it == 1; error = null },
+                    )
+                    if (indicateAmount && type == OperationType.VENTA) {
+                        Text(stringResource(R.string.inv_sale_amount_kind), style = MaterialTheme.typography.labelMedium)
+                        SegmentedControl(
+                            listOf(stringResource(R.string.inv_sale_gross), stringResource(R.string.inv_sale_net)),
+                            if (saleAmountKind == SaleAmountKind.BRUTO) 0 else 1,
+                            { saleAmountKind = if (it == 0) SaleAmountKind.BRUTO else SaleAmountKind.NETO; error = null },
+                        )
+                    }
+                }
                 DropdownField(
                     label = stringResource(R.string.inv_asset),
                     options = assets,
@@ -309,6 +358,14 @@ fun OperationDialog(
                     noneLabel = stringResource(R.string.inv_no_account),
                 )
                 DateField(stringResource(R.string.inv_date), date, onChange = { date = it })
+                if (indicateAmount && type in listOf(OperationType.COMPRA, OperationType.VENTA)) {
+                    AmountField(
+                        label = stringResource(if (type == OperationType.COMPRA) R.string.inv_total_amount else if (saleAmountKind == SaleAmountKind.NETO) R.string.inv_net_amount else R.string.inv_gross_amount),
+                        value = amountText,
+                        onChange = { amountText = it; error = null },
+                        suffix = asset.currency,
+                    )
+                }
                 AmountField(
                     label = stringResource(R.string.inv_quantity),
                     value = if (type == OperationType.COMISION) BigDecimal.ONE.toPlainString() else quantityText,
@@ -338,6 +395,24 @@ fun OperationDialog(
                         suffix = asset.currency,
                     )
                 }
+                if (indicateAmount && sizingResult is TradeSizingResult.Success) {
+                    if (type == OperationType.COMPRA) Text(
+                        stringResource(R.string.inv_invested_amount, sizingResult.sizing.tradedAmount.stripTrailingZeros().toPlainString(), asset.currency),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Text(
+                        stringResource(
+                            if (type == OperationType.COMPRA) R.string.inv_buy_formula
+                            else if (saleAmountKind == SaleAmountKind.NETO) R.string.inv_sale_net_formula
+                            else R.string.inv_sale_gross_formula,
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    if (sizingResult.sizing.roundingDifference.signum() != 0) Text(
+                        stringResource(R.string.inv_rounding_difference, sizingResult.sizing.roundingDifference.stripTrailingZeros().toPlainString(), asset.currency),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
                 OutlinedTextField(
                     value = note,
                     onValueChange = { note = it },
@@ -361,6 +436,14 @@ fun OperationDialog(
                     MoneyMath.parse(feesText)
                 }
                 when {
+                    indicateAmount && type in listOf(OperationType.COMPRA, OperationType.VENTA) &&
+                        sizingResult is TradeSizingResult.Error -> error = when (sizingResult.reason) {
+                            TradeSizingError.AmountNotGreaterThanFees -> amountFeesError
+                            TradeSizingError.NonPositivePrice -> positivePriceError
+                            TradeSizingError.NegativeFees -> feesError
+                            else -> amountError
+                        }
+                    indicateAmount && type in listOf(OperationType.COMPRA, OperationType.VENTA) && sizingResult == null -> error = amountError
                     quantity == null || quantity.signum() <= 0 -> error = quantityError
                     price == null || price.signum() < 0 -> error = priceError
                     fees == null || fees.signum() < 0 -> error = feesError

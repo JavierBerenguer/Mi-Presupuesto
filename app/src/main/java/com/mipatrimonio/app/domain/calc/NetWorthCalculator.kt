@@ -33,6 +33,7 @@ data class NetWorth(
  * Patrimonio neto = activos − pasivos, en divisa base. Sin tipos de cambio solo se suman importes en
  * divisa base. El efectivo de las cuentas (incluidas las de inversión) se cuenta una vez como efectivo;
  * las posiciones se cuentan aparte a valor de mercado, por lo que no hay doble contabilización.
+ * Una cuenta archivada con saldo ≠ 0 sigue sumando (T-030 A.2); solo se excluye si su saldo es 0.
  */
 object NetWorthCalculator {
     fun compute(
@@ -44,7 +45,7 @@ object NetWorthCalculator {
         val byType = LinkedHashMap<AccountType, Long>()
         var cash = 0L
         for ((account, balance) in balances) {
-            if (account.archived) continue
+            if (account.archived && balance == 0L) continue
             if (account.currency != baseCurrency) {
                 excluded += account.currency
                 continue

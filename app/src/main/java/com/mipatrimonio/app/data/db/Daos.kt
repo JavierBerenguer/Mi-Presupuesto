@@ -45,6 +45,9 @@ interface TransactionDao {
 
     @Query("DELETE FROM txn WHERE id = :id")
     suspend fun delete(id: String)
+
+    @Query("SELECT COUNT(*) FROM txn WHERE accountId = :accountId")
+    suspend fun countForAccount(accountId: String): Int
 }
 
 @Dao
@@ -57,6 +60,9 @@ interface TransferDao {
 
     @Query("DELETE FROM transfer WHERE id = :id")
     suspend fun delete(id: String)
+
+    @Query("SELECT COUNT(*) FROM transfer WHERE fromAccountId = :accountId OR toAccountId = :accountId")
+    suspend fun countForAccount(accountId: String): Int
 }
 
 @Dao
@@ -82,6 +88,9 @@ interface InvestmentDao {
     @Upsert
     suspend fun upsertPortfolio(entity: PortfolioEntity)
 
+    @Query("SELECT COUNT(*) FROM portfolio WHERE defaultAccountId = :accountId")
+    suspend fun countPortfoliosForAccount(accountId: String): Int
+
     @Query("SELECT * FROM asset ORDER BY name")
     fun observeAssets(): Flow<List<AssetEntity>>
 
@@ -103,11 +112,20 @@ interface InvestmentDao {
     @Query("DELETE FROM investment_operation WHERE id = :id")
     suspend fun deleteOperation(id: String)
 
+    @Query("SELECT COUNT(*) FROM investment_operation WHERE accountId = :accountId")
+    suspend fun countOperationsForAccount(accountId: String): Int
+
+    @Query("SELECT COUNT(*) FROM investment_operation WHERE assetId = :assetId")
+    suspend fun countOperationsForAsset(assetId: String): Int
+
     @Query("SELECT * FROM asset_price ORDER BY asOfEpochMillis")
     fun observePrices(): Flow<List<AssetPriceEntity>>
 
     @Upsert
     suspend fun upsertPrice(entity: AssetPriceEntity)
+
+    @Query("SELECT COUNT(*) FROM asset_price WHERE assetId = :assetId")
+    suspend fun countPricesForAsset(assetId: String): Int
 }
 
 @Dao
@@ -123,6 +141,9 @@ interface NotificationDao {
 
     @Upsert
     suspend fun upsertAuthorizationRule(entity: NotificationAuthorizationEntity)
+
+    @Query("SELECT COUNT(*) FROM notification_authorization WHERE accountId = :accountId")
+    suspend fun countAuthorizationsForAccount(accountId: String): Int
 
     @Query("SELECT * FROM pending_proposal WHERE status = 'PENDIENTE' ORDER BY postedAt DESC, createdAt DESC")
     fun observePendingProposals(): Flow<List<PendingProposalEntity>>

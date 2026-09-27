@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.ImportExport
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material3.Icon
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
@@ -62,7 +63,8 @@ fun MoreScreen(
     onOpenProposals: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenInvestments: () -> Unit,
-    viewModel: MoreViewModel = appViewModel { c -> MoreViewModel(c.ledger, c.investments) },
+    onOpenAssets: () -> Unit,
+    viewModel: MoreViewModel = appViewModel { c -> MoreViewModel(c.ledger, c.investments, c.settings) },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showAddMenu by remember { mutableStateOf(false) }
@@ -73,12 +75,14 @@ fun MoreScreen(
     }
     MoreContent(
         state,
+        onOpenAccounts,
         { showAddMenu = true },
         onOpenNetWorth,
         onOpenCategories,
         onOpenNotifications,
         onOpenProposals,
         onOpenSettings,
+        onOpenAssets,
     )
     if (showAddMenu) AlertDialog(
         onDismissRequest = { showAddMenu = false },
@@ -166,11 +170,13 @@ private fun AddAccountDialog(
 private fun MoreContent(
     state: MoreUiState,
     onOpenAccounts: () -> Unit,
+    onAdd: () -> Unit,
     onOpenNetWorth: () -> Unit,
     onOpenCategories: () -> Unit,
     onOpenNotifications: () -> Unit,
     onOpenProposals: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenAssets: () -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -185,7 +191,10 @@ private fun MoreContent(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(stringResource(R.string.more_accounts), style = MaterialTheme.typography.titleLarge)
-                    TextButton(onClick = onOpenAccounts) { Text(stringResource(R.string.common_add)) }
+                    Row {
+                        TextButton(onClick = onOpenAccounts) { Text(stringResource(R.string.more_manage)) }
+                        TextButton(onClick = onAdd) { Text(stringResource(R.string.common_add)) }
+                    }
                 }
                 if (state.accounts.isEmpty()) {
                     Column(
@@ -198,16 +207,12 @@ private fun MoreContent(
                         TextButton(onClick = onOpenAccounts) { Text(stringResource(R.string.more_add_first_account)) }
                     }
                 } else {
-                    state.accounts.forEach { AccountRow(it) }
+                    state.accounts.forEach { AccountRow(it, state.hideAmounts) }
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
                         Text(stringResource(R.string.more_total), style = MaterialTheme.typography.labelMedium)
                         state.totals.forEach { total ->
-                            AmountText(
-                                total.amountMinor,
-                                total.currency,
-                                AmountKind.NEUTRAL,
-                                style = MaterialTheme.typography.titleLarge,
-                            )
+                            if (state.hideAmounts) Text(stringResource(R.string.common_hidden_amount), style = MaterialTheme.typography.titleLarge)
+                            else AmountText(total.amountMinor, total.currency, AmountKind.NEUTRAL, style = MaterialTheme.typography.titleLarge)
                         }
                     }
                 }
@@ -216,6 +221,7 @@ private fun MoreContent(
         item {
             SectionCard {
                 MoreLink(Icons.Default.AccountBalance, stringResource(R.string.nav_patrimonio), onOpenNetWorth)
+                MoreLink(Icons.Default.ShowChart, stringResource(R.string.inv_assets_title), onOpenAssets)
                 MoreLink(Icons.Default.Category, stringResource(R.string.nav_categorias), onOpenCategories)
                 MoreLink(Icons.Default.Notifications, stringResource(R.string.aj_bank_notifications), onOpenNotifications)
                 MoreLink(Icons.Default.Schedule, stringResource(R.string.aj_pending_proposals), onOpenProposals)
@@ -232,7 +238,7 @@ private fun MoreContent(
 }
 
 @Composable
-private fun AccountRow(item: MoreAccountItem) {
+private fun AccountRow(item: MoreAccountItem, hideAmounts: Boolean) {
     Row(
         Modifier.fillMaxWidth().heightIn(min = 56.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -241,12 +247,8 @@ private fun AccountRow(item: MoreAccountItem) {
             Text(item.account.name, style = MaterialTheme.typography.titleMedium)
             Text(item.account.currency, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        AmountText(
-            item.balanceMinor,
-            item.account.currency,
-            AmountKind.NEUTRAL,
-            style = MaterialTheme.typography.titleMedium,
-        )
+        if (hideAmounts) Text(stringResource(R.string.common_hidden_amount), style = MaterialTheme.typography.titleMedium)
+        else AmountText(item.balanceMinor, item.account.currency, AmountKind.NEUTRAL, style = MaterialTheme.typography.titleMedium)
     }
 }
 
@@ -291,7 +293,7 @@ private fun MoreDarkPreview() {
                 ),
                 totals = listOf(CurrencyTotal("EUR", 124050)),
             ),
-            {}, {}, {}, {}, {}, {},
+            {}, {}, {}, {}, {}, {}, {}, {},
         )
     }
 }
@@ -300,6 +302,6 @@ private fun MoreDarkPreview() {
 @Composable
 private fun MoreEmptyLightPreview() {
     MiPatrimonioTheme(modoOscuro = false) {
-        MoreContent(MoreUiState(isLoading = false), {}, {}, {}, {}, {}, {})
+        MoreContent(MoreUiState(isLoading = false), {}, {}, {}, {}, {}, {}, {}, {})
     }
 }
