@@ -397,4 +397,21 @@ El usuario aportó `datos-privados/inversiones-requisitos.md` (7 puntos: alta po
 - Petición del usuario mientras T-033 compilaba: añadir un tipo de activo para préstamos privados tipo Mintos, igual que ya existen Acción/ETF/Fondo indexado/Fondo de inversión/Cripto.
 - Ficha escrita: nuevo valor de enum `AssetType.PRESTAMO_P2P` (sin migración Room, el tipo se guarda como texto). Las operaciones ya existentes (compra/venta/dividendo/comisión) sirven tal cual para un préstamo P2P (compra=invertir, dividendo=interés cobrado, venta=reembolso/venta en secundario, comisión=comisión de plataforma) — sin campos nuevos de interés/plazo/riesgo por ahora, solo la categoría. Riesgo bajo.
 - **Renumeración:** la ficha de proveedores externos (OpenFIGI+Twelve Data+CoinGecko, permiso INTERNET) pasa a llamarse **T-035** (antes se mencionaba como «T-034» en la sección 30, ahora ocupado por los préstamos P2P).
-- **Próxima acción exacta:** lanzar T-034 a Codex (`-Base claude/fase-3-mvp`, usando el commit que quede tras integrar T-033) en cuanto T-033 esté aceptada e integrada — no lanzar dos Codex a la vez.
+- T-033 ACEPTADA e integrada (2026-09-27): commit `dfae690`. 274 tests OK (1 flaky no reproducible en `InvestmentsViewModelTest`, mismo patrón conocido, distinto test cada vez). `.kotlin/` añadido a `.gitignore` (aparecía como directorio sin trackear tras builds recientes de Gradle/Kotlin).
+- **INTERRUPCIÓN (2026-09-27 ~17:40): el PC se apagó inesperadamente** mientras compilaba T-033 en segundo plano. Al reanudar: `git status` mostraba el patch de T-033 aplicado pero sin commitear (exactamente el estado esperado, sin commits a medias ni corrupción); sin daemons de Gradle colgados. Se repitió `testDebugUnitTest assembleDebug`, verde, y se commiteó sin más incidencias. **Lección: el patch-apply + verificación antes de commitear es resistente a una caída de corriente** — no se perdió trabajo de Codex ni de Claude.
+- T-034 lanzado a Codex (base `dfae690`, correcta).
+
+## 33. Documento de cambios del usuario (sesión 6/7, 2026-09-27) — EN CURSO
+El usuario dejó `datos-privados/Documento de cambios/Documento.md` (+ 4 capturas de Mi Presupuesto en `figuras/`) con 2 bloques de peticiones:
+
+**Movimientos:**
+- Selector de mes/año interactivo (desplegable al pulsar, no solo flechas) → **T-035** (ficha escrita, sin dependencias externas, riesgo bajo).
+- Categorías independientes del tipo de apunte (hoy `Category.kind: CategoryKind` liga cada categoría a GASTO/INGRESO) → pendiente de ficha (T-036).
+- «Saldo actual» pulsable → pantalla de selección de QUÉ CUENTAS cuentan para el cálculo (checkboxes por cuenta, ver `figura2.jpg`) → pendiente de ficha (T-037). Distinto del filtro global Cuentas/Inversiones que ya existe en Inicio (T-027); esto es granular por cuenta y específico de Movimientos.
+- Botón de «modo de cálculo» junto a la lupa: Saldo actual/Saldo mensual/Gastos mensuales/Ingresos mensuales + opciones Saldo diario/Ocultar mov. futuros/Ignorar transferencias (ver `figura3.jpg`) → mismo T-037.
+- Apuntes futuros en gris → mismo T-035.
+
+**Más:**
+- Gestión de «órdenes permanentes» (movimientos recurrentes): formulario ampliado (periodo cantidad+tipo días/meses/años, fecha de expiración opcional, recordatorio con notificación push) — ver `figura4.jpg`. **Confirmado que NO existe nada de esto todavía** (ni domain ni Room). Es la FASE 7 del roadmap (CLAUDE.md §12/§25) → pendiente de ficha (T-038), la más grande y de más riesgo (Room nuevo, WorkManager, notificaciones).
+- **Plan de fichas:** T-035 (mes/año + futuros en gris) lista y en cola tras T-034. T-036 (categorías sin tipo), T-037 (selección de cuentas + modo de cálculo del saldo) y T-038 (recurrentes completas) pendientes de escribir; se escriben y lanzan en orden, un Codex a la vez, generando un APK verificado tras cada aceptación según pida el usuario.
+- **Próxima acción exacta:** esperar `docs/tasks/T-034.report.md`, aceptar, lanzar T-035; mientras tanto escribir T-036.
