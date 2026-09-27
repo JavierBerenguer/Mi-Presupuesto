@@ -369,4 +369,25 @@ Próxima acción: acordar con el usuario el rediseño de navegación (F-07) y di
   3. Test de porcentaje/redondeo NO afectado esta vez (a diferencia de T-031).
 - **Resultado final: 267 tests OK, `assembleDebug` OK.**
 - **T-032 ACEPTADA e integrada (2026-09-27)**, commit `8733d51` en `claude/fase-3-mvp`.
-- **Próxima acción exacta:** `git push origin claude/fase-3-mvp`. Backlog de inversión restante: solo **B2** (autorrelleno por ISIN vía proveedor externo), que requiere que el usuario decida proveedor/permiso INTERNET/coste antes de convertirlo en ficha — preguntar antes de avanzar ahí. Mientras tanto, valorar con el usuario si conviene una instalación/verificación manual en dispositivo real de T-030/T-031/T-032 juntas, o continuar con otras fases del roadmap (recurrentes, dividendos en UI, exportación, etc.).
+- T-032 subida a origin (commit 78d4d66).
+
+## 30. Requisitos detallados de inversión del usuario (sesión 6, 2026-09-27)
+El usuario aportó `datos-privados/inversiones-requisitos.md` (7 puntos: alta por ISIN, seguimiento de precios, rentabilidad detallada, clasificación de cartera por tipo/región/país/sector/industria/divisa/capitalización con look-through de ETF como mejora futura, multidivisa, carteras, offline).
+
+**Investigación de proveedores (WebSearch, 2026-09-27, no supuesta):**
+- ISIN → identidad (ticker/mercado): [OpenFIGI](https://www.openfigi.com/api/documentation) (Bloomberg), gratis, sin límite mensual, requiere clave gratuita para mejor rate-limit. No da precio.
+- Precio acciones/ETF/fondos: [Twelve Data](https://twelvedata.com/pricing), gratis 800 llamadas/día · 8/min, 50+ mercados; **filtrar por ISIN directamente requiere add-on de pago** → hay que resolver ISIN→ticker+mercado con OpenFIGI primero y pedir precio por ticker. Muchos mercados dan precio retrasado/cierre en el nivel gratuito, no tiempo real (hay que comprobarlo y mostrarlo, nunca afirmar tiempo real sin confirmar).
+- Precio cripto: [CoinGecko](https://www.coingecko.com/en/api) Demo, gratis, sin clave, 100 llamadas/min · 10.000/mes.
+- Clasificación sector/país/industria (composición de ETF): sin fuente gratuita fiable con buena cobertura (FMP/EODHD/Intrinio son de pago, ~20-50+ USD/mes). Confirma que el look-through de ETF no es viable gratis.
+
+**Decisiones del usuario (2026-09-27):**
+1. Autoriza añadir el permiso `INTERNET` al manifiesto (la app hasta ahora no lo tenía).
+2. Proveedores elegidos: **OpenFIGI + Twelve Data + CoinGecko** (todos gratuitos; el usuario debe crear sus propias cuentas/claves gratuitas de OpenFIGI y Twelve Data — Claude/Codex no puede inventarlas ni generarlas).
+3. Clasificación por sector/país/industria (punto 4 del documento): **NO se implementa por ahora**, ni siquiera manual. Punto 4 completo queda fuera de alcance hasta nueva decisión.
+- **Plan de fichas:** T-033 (rentabilidad detallada: coste, valor actual, no realizada, realizada con %, dividendos, comisiones — todo local, sin proveedor, sin bloqueo) lanzada ya. Proveedores externos (ISIN + precios + permiso INTERNET + almacenamiento seguro de las claves del usuario en Ajustes, Android Keystore/EncryptedSharedPreferences, WorkManager periódico) quedan para una ficha posterior (T-034), de riesgo alto por tocar red/seguridad/credenciales — el usuario deberá obtener sus claves gratuitas antes de la verificación final en dispositivo real (Codex no tiene acceso a red en su sandbox).
+- El «efecto de divisa» del punto 3 del documento (rentabilidad) queda explícitamente FUERA de T-033: depende de tener una fuente de tipos de cambio histórica, que es parte de la decisión de proveedores (T-034).
+
+## 31. T-033 — Rentabilidad detallada (sesión 6, 2026-09-27)
+- Ficha escrita: añade a `Position` (`domain/calc/PositionCalculator.kt`) los campos aditivos `realizedCostBasis`, `capitalizedFees`, `totalFees`, sin cambiar ninguna fórmula existente (regresión completa exigida). Rentabilidad realizada % (nueva, `null` si nunca se ha vendido, no `0%`). Comisiones totales (capitalizadas + sueltas) visibles como cifra propia en detalle de activo y resumen de cartera. Sin tocar divisa ni clasificación.
+- Lanzada a Codex con base explícita `claude/fase-3-mvp`.
+- **Próxima acción exacta:** esperar `docs/tasks/T-033.report.md`, revisar el diff (especial atención a que `costBasis`/`realizedPnl`/`dividendsNet`/`otherFees`/`unrealizedPnl`/`unrealizedReturnPct` no cambien de valor — regresión), ejecutar `gradlew testDebugUnitTest assembleDebug`, aceptar, y después preparar T-034 (proveedores OpenFIGI+Twelve Data+CoinGecko, permiso INTERNET, almacenamiento seguro de claves) pidiendo al usuario que obtenga sus claves gratuitas de OpenFIGI y Twelve Data antes de la verificación final.
