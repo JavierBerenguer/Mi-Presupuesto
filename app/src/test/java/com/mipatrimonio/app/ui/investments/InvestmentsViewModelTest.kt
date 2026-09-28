@@ -123,7 +123,7 @@ class InvestmentsViewModelTest {
         investments.savePortfolio(portfolio)
         investments.saveAsset(asset)
         val current = LocalDateTime.of(2026, 4, 5, 14, 37, 21)
-        val viewModel = InvestmentsViewModel(ledger, investments, settings) { current }
+        val viewModel = InvestmentsViewModel(ledger, investments, settings, now = { current })
 
         viewModel.addOperation(
             portfolio, asset, OperationType.COMPRA, current.toLocalDate(), BigDecimal.ONE,

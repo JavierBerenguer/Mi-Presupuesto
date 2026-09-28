@@ -176,4 +176,26 @@
     <string name="inv_rounding_difference">Diferencia por redondeo: %1$s %2$s</string>
     <string name="inv_error_amount_positive">El importe debe ser mayor que cero.</string>
     <string name="inv_error_amount_greater_fees">El importe debe ser mayor que la comisión.</string>
+    <string name="inv_quote_provider">Proveedor de cotización</string>
+    <string name="inv_provider_none">Ninguno</string>
+    <string name="inv_provider_twelve_data">Twelve Data</string>
+    <string name="inv_provider_coingecko">CoinGecko</string>
+    <string name="inv_quote_symbol">Símbolo o identificador</string>
+    <string name="inv_quote_mic">Mercado (MIC), opcional</string>
+    <string name="inv_error_quote_symbol_required">Escribe el símbolo o identificador del proveedor.</string>
+    <string name="inv_refresh_prices">Actualizar precios</string>
+    <string name="inv_refresh_no_providers">Configura un proveedor de cotización en un activo con posición abierta.</string>
+    <string name="inv_refresh_result">%1$d actualizados · %2$d fallidos</string>
+    <string name="inv_refresh_error">No se pudieron actualizar las cotizaciones.</string>
+    <string name="inv_price_metadata">%1$s · %2$s · %3$s · %4$s</string>
+    <string name="inv_price_delayed">Retrasado</string>
+    <string name="inv_price_close">Cierre</string>
+    <string name="inv_price_manual">Manual</string>
+    <string name="inv_price_old">Precio antiguo</string>
+    <string name="inv_price_provider">Proveedor</string>
+    <string name="inv_price_without_quality">Sin calidad indicada</string>
+    <string name="inv_age_minutes">hace %1$d min</string>
+    <string name="inv_age_hours">hace %1$d h</string>
+    <string name="inv_age_days">hace %1$d días</string>
+    <string name="inv_position_price_info">%1$s · %2$s · %3$s · %4$s</string>
 </resources>

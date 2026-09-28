@@ -133,6 +133,9 @@ data class AssetEntity(
     val currency: String,
     val createdAt: Long,
     @ColumnInfo(defaultValue = "0") val archived: Boolean,
+    val quoteProvider: String? = null,
+    val quoteSymbol: String? = null,
+    val quoteMic: String? = null,
 )
 
 @Entity(
@@ -173,6 +176,7 @@ data class AssetPriceEntity(
     val currency: String,
     val asOfEpochMillis: Long,
     val source: String,
+    val quality: String? = null,
 )
 
 @Entity(tableName = "notification_authorization")

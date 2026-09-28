@@ -10,6 +10,12 @@ import com.mipatrimonio.app.data.repository.NotificationRepository
 import com.mipatrimonio.app.data.repository.RecurringRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
 import com.mipatrimonio.app.data.work.RecurringReminderScheduler
+import com.mipatrimonio.app.data.work.QuoteRefreshWorker
+import com.mipatrimonio.app.data.quotes.CoinGeckoQuoteProvider
+import com.mipatrimonio.app.data.quotes.KeystoreSecretStore
+import com.mipatrimonio.app.data.quotes.QuoteRepository
+import com.mipatrimonio.app.data.quotes.TwelveDataQuoteProvider
+import com.mipatrimonio.app.data.quotes.UrlConnectionHttpClient
 import com.mipatrimonio.app.domain.notifications.GenericSpanishParser
 import com.mipatrimonio.app.domain.notifications.NotificationEngine
 import kotlinx.coroutines.CoroutineScope
@@ -26,6 +32,16 @@ class AppContainer(context: Context) {
     )
     val ledger = LedgerRepository(database)
     val investments = InvestmentRepository(database)
+    val quoteSecrets = KeystoreSecretStore(context.applicationContext)
+    private val quoteHttp = UrlConnectionHttpClient()
+    val quotes = QuoteRepository(
+        database,
+        investments,
+        listOf(
+            TwelveDataQuoteProvider(quoteHttp, quoteSecrets),
+            CoinGeckoQuoteProvider(quoteHttp, quoteSecrets),
+        ),
+    )
     val settings = SettingsRepository(context.applicationContext)
     val recurring = RecurringRepository(database)
     val recurringReminderScheduler = RecurringReminderScheduler(context.applicationContext, recurring)
@@ -44,6 +60,7 @@ class AppContainer(context: Context) {
         scope.launch { ledger.seedDefaultCategoriesIfEmpty() }
         recurringReminderScheduler.createChannel()
         RecurringReminderScheduler.enqueuePeriodic(context.applicationContext)
+        QuoteRefreshWorker.enqueuePeriodic(context.applicationContext)
         scope.launch {
             recurring.generatePending(
                 RecurringRepository.generationLimit(java.time.LocalDate.now()),

@@ -151,14 +151,26 @@ interface InvestmentDao {
     @Query("SELECT COUNT(*) FROM investment_operation WHERE assetId = :assetId")
     suspend fun countOperationsForAsset(assetId: String): Int
 
+    @Query("SELECT * FROM asset WHERE archived = 0 AND quoteProvider IS NOT NULL")
+    suspend fun getQuoteCandidates(): List<AssetEntity>
+
+    @Query("SELECT * FROM asset WHERE archived = 0")
+    suspend fun getActiveAssets(): List<AssetEntity>
+
+    @Query("SELECT * FROM investment_operation WHERE assetId = :assetId")
+    suspend fun operationsForAsset(assetId: String): List<InvestmentOperationEntity>
+
     @Query("SELECT * FROM asset_price ORDER BY asOfEpochMillis")
     fun observePrices(): Flow<List<AssetPriceEntity>>
 
     @Upsert
     suspend fun upsertPrice(entity: AssetPriceEntity)
 
-    @Query("SELECT COUNT(*) FROM asset_price WHERE assetId = :assetId")
+    @Query("SELECT COUNT(*) FROM asset_price WHERE assetId = :assetId AND source = 'MANUAL'")
     suspend fun countPricesForAsset(assetId: String): Int
+
+    @Query("SELECT COUNT(*) FROM asset_price WHERE assetId = :assetId")
+    suspend fun countAllPricesForAsset(assetId: String): Int
 }
 
 @Dao

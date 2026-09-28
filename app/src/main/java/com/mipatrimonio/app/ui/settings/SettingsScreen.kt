@@ -15,6 +15,10 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -44,7 +48,7 @@ fun SettingsScreen(
     onOpenCategories: () -> Unit,
     onOpenNotificationSettings: () -> Unit,
     onOpenPendingProposals: () -> Unit,
-    viewModel: SettingsViewModel = appViewModel { c -> SettingsViewModel(c.settings) },
+    viewModel: SettingsViewModel = appViewModel { c -> SettingsViewModel(c.settings, c.quoteSecrets) },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     if (state.isLoading) {
@@ -58,6 +62,8 @@ fun SettingsScreen(
     }
     val versionName = remember(context) { readVersionName(context) }
     var pendingCurrency by remember { mutableStateOf<String?>(null) }
+    var twelveKey by remember { mutableStateOf("") }
+    var coinGeckoKey by remember { mutableStateOf("") }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -113,6 +119,23 @@ fun SettingsScreen(
             }
         }
         item {
+            SectionCard(title = stringResource(R.string.aj_quotes)) {
+                Text(stringResource(R.string.aj_quotes_notice))
+                SecretEditor(
+                    stringResource(R.string.aj_twelve_data_key), state.twelveDataConfigured, twelveKey,
+                    { twelveKey = it }, { viewModel.saveTwelveDataKey(twelveKey); twelveKey = "" },
+                    viewModel::deleteTwelveDataKey,
+                )
+                Text(stringResource(R.string.aj_twelve_data_domain), style = MaterialTheme.typography.bodySmall)
+                SecretEditor(
+                    stringResource(R.string.aj_coingecko_key), state.coinGeckoConfigured, coinGeckoKey,
+                    { coinGeckoKey = it }, { viewModel.saveCoinGeckoKey(coinGeckoKey); coinGeckoKey = "" },
+                    viewModel::deleteCoinGeckoKey,
+                )
+                Text(stringResource(R.string.aj_coingecko_domain), style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        item {
             SectionCard(title = stringResource(R.string.aj_about)) {
                 Text(appName, style = MaterialTheme.typography.titleMedium)
                 Text(
@@ -137,6 +160,30 @@ fun SettingsScreen(
             },
             onDismiss = { pendingCurrency = null },
         )
+    }
+}
+
+@Composable
+private fun SecretEditor(
+    label: String,
+    configured: Boolean,
+    value: String,
+    onValueChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Text(if (configured) stringResource(R.string.aj_key_configured) else stringResource(R.string.aj_key_not_configured))
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        visualTransformation = PasswordVisualTransformation(),
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Button(onClick = onSave, enabled = value.isNotBlank()) { Text(stringResource(R.string.common_save)) }
+        if (configured) TextButton(onClick = onDelete) { Text(stringResource(R.string.common_delete)) }
     }
 }
 

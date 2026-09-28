@@ -9,6 +9,7 @@ import com.mipatrimonio.app.domain.calc.PositionCalculator
 import com.mipatrimonio.app.domain.model.Asset
 import com.mipatrimonio.app.domain.model.AssetType
 import com.mipatrimonio.app.domain.model.MoneyMath
+import com.mipatrimonio.app.domain.model.QuoteProvider
 import java.math.BigDecimal
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -89,9 +90,16 @@ class AssetsViewModel(
         type: AssetType,
         market: String,
         currency: String,
+        quoteProvider: QuoteProvider?,
+        quoteSymbol: String?,
+        quoteMic: String?,
         onSaved: () -> Unit,
     ) = launchAction(onSaved) {
-        investments.saveAsset(existing.copy(name = name.trim(), ticker = ticker.trim(), isin = isin.trim(), type = type, market = market.trim(), currency = currency))
+        investments.saveAsset(existing.copy(
+            name = name.trim(), ticker = ticker.trim(), isin = isin.trim(), type = type,
+            market = market.trim(), currency = currency, quoteProvider = quoteProvider,
+            quoteSymbol = quoteSymbol, quoteMic = quoteMic,
+        ))
     }
 
     fun delete(asset: Asset, onDeleted: () -> Unit) = launchAction(onDeleted) { investments.deleteAsset(asset.id) }

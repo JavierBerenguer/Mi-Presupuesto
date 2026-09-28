@@ -112,7 +112,25 @@ private fun AssetDetailContent(
                 TextButton(onPrice, Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.inv_enter_manual_price)) }
             } else {
                 Text(detailMoney(MoneyMath.toMinor(price.price, asset.currency), asset.currency, state.hideAmounts), style = MaterialTheme.typography.titleLarge)
-                Text(stringResource(R.string.inv_manual_price_date, priceDateTime(price)))
+                val age = priceAge(price.asOfEpochMillis, System.currentTimeMillis())
+                val ageText = when (age.unit) {
+                    PriceAgeUnit.MINUTES -> stringResource(R.string.inv_age_minutes, age.amount)
+                    PriceAgeUnit.HOURS -> stringResource(R.string.inv_age_hours, age.amount)
+                    PriceAgeUnit.DAYS -> stringResource(R.string.inv_age_days, age.amount)
+                }
+                val source = if (price.source == PriceSource.MANUAL) stringResource(R.string.inv_price_manual)
+                    else when (asset.quoteProvider) {
+                        QuoteProvider.TWELVE_DATA -> stringResource(R.string.inv_provider_twelve_data)
+                        QuoteProvider.COINGECKO -> stringResource(R.string.inv_provider_coingecko)
+                        null -> stringResource(R.string.inv_price_provider)
+                    }
+                val quality = when (price.quality) {
+                    PriceQuality.RETRASADO -> stringResource(R.string.inv_price_delayed)
+                    PriceQuality.CIERRE -> stringResource(R.string.inv_price_close)
+                    null -> stringResource(R.string.inv_price_without_quality)
+                }
+                Text(stringResource(R.string.inv_price_metadata, source, quality, priceDateTime(price), ageText))
+                if (age.old) Text(stringResource(R.string.inv_price_old), color = MaterialTheme.colorScheme.error)
             }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }

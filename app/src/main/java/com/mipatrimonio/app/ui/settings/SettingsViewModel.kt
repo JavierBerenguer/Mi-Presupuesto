@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mipatrimonio.app.data.repository.SettingsRepository
 import com.mipatrimonio.app.domain.model.Currencies
+import com.mipatrimonio.app.data.quotes.SecretStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -16,19 +17,28 @@ data class SettingsUiState(
     val darkMode: Boolean = true,
     val baseCurrency: String = Currencies.EUR,
     val errorMessage: String? = null,
+    val twelveDataConfigured: Boolean = false,
+    val coinGeckoConfigured: Boolean = false,
 )
 
 class SettingsViewModel(
     private val repository: SettingsRepository,
+    private val secrets: SecretStore? = null,
 ) : ViewModel() {
     private val errorMessage = MutableStateFlow<String?>(null)
 
-    val uiState: StateFlow<SettingsUiState> = combine(repository.settings, errorMessage) { settings, error ->
+    private val secretStatus = MutableStateFlow(false to false)
+
+    init { reloadSecretStatus() }
+
+    val uiState: StateFlow<SettingsUiState> = combine(repository.settings, errorMessage, secretStatus) { settings, error, status ->
         SettingsUiState(
             isLoading = false,
             darkMode = settings.darkMode,
             baseCurrency = settings.baseCurrency,
             errorMessage = error,
+            twelveDataConfigured = status.first,
+            coinGeckoConfigured = status.second,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -42,6 +52,33 @@ class SettingsViewModel(
                 .onSuccess { errorMessage.value = null }
                 .onFailure { errorMessage.value = it.message }
         }
+    }
+
+    fun saveTwelveDataKey(value: String) = saveSecret(SecretStore.TWELVE_DATA_KEY, value)
+    fun saveCoinGeckoKey(value: String) = saveSecret(SecretStore.COINGECKO_KEY, value)
+    fun deleteTwelveDataKey() = deleteSecret(SecretStore.TWELVE_DATA_KEY)
+    fun deleteCoinGeckoKey() = deleteSecret(SecretStore.COINGECKO_KEY)
+
+    private fun saveSecret(name: String, value: String) {
+        viewModelScope.launch {
+            runCatching { secrets?.put(name, value.trim()) }
+                .onSuccess { errorMessage.value = null; loadSecretStatus() }
+                .onFailure { errorMessage.value = it.message }
+        }
+    }
+
+    private fun deleteSecret(name: String) {
+        viewModelScope.launch {
+            runCatching { secrets?.remove(name) }
+                .onSuccess { errorMessage.value = null; loadSecretStatus() }
+                .onFailure { errorMessage.value = it.message }
+        }
+    }
+
+    private fun reloadSecretStatus() { viewModelScope.launch { loadSecretStatus() } }
+    private suspend fun loadSecretStatus() {
+        secretStatus.value = (secrets?.isConfigured(SecretStore.TWELVE_DATA_KEY) == true) to
+            (secrets?.isConfigured(SecretStore.COINGECKO_KEY) == true)
     }
 
     fun setBaseCurrency(code: String) {

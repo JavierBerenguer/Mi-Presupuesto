@@ -14,6 +14,7 @@ import com.mipatrimonio.app.domain.model.AssetPrice
 import com.mipatrimonio.app.domain.model.InvestmentOperation
 import com.mipatrimonio.app.domain.model.Portfolio
 import com.mipatrimonio.app.domain.model.PriceSource
+import com.mipatrimonio.app.domain.model.PriceQuality
 import java.math.BigDecimal
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
@@ -51,6 +52,17 @@ class InvestmentRepository(
 
     suspend fun saveAsset(asset: Asset) {
         require(asset.name.isNotBlank()) { "El nombre del activo es obligatorio" }
+        require(asset.quoteProvider == null || !asset.quoteSymbol.isNullOrBlank()) {
+            "El símbolo de cotización es obligatorio"
+        }
+        require(
+            when (asset.type) {
+                com.mipatrimonio.app.domain.model.AssetType.ACCION,
+                com.mipatrimonio.app.domain.model.AssetType.ETF -> asset.quoteProvider != com.mipatrimonio.app.domain.model.QuoteProvider.COINGECKO
+                com.mipatrimonio.app.domain.model.AssetType.CRIPTO -> asset.quoteProvider != com.mipatrimonio.app.domain.model.QuoteProvider.TWELVE_DATA
+                else -> asset.quoteProvider == null
+            },
+        ) { "El proveedor no es compatible con el tipo de activo" }
         val existing = dao.getAsset(asset.id)
         if (existing != null && existing.currency != asset.currency) {
             require(dao.countOperationsForAsset(asset.id) == 0) {
@@ -108,6 +120,24 @@ class InvestmentRepository(
         require(price.signum() > 0) { "El precio debe ser mayor que cero" }
         dao.upsertPrice(
             AssetPriceEntity(UUID.randomUUID().toString(), assetId, price.toPlainString(), currency, clock(), PriceSource.MANUAL.name),
+        )
+    }
+
+    suspend fun addProviderPrice(
+        assetId: String,
+        price: BigDecimal,
+        currency: String,
+        asOfEpochMillis: Long,
+        quality: PriceQuality,
+    ) {
+        require(price.signum() > 0) { "El precio debe ser mayor que cero" }
+        val asset = dao.getAsset(assetId) ?: throw IllegalArgumentException("El activo no existe")
+        require(asset.currency == currency) { "La divisa de la cotización no coincide con la del activo" }
+        dao.upsertPrice(
+            AssetPriceEntity(
+                UUID.randomUUID().toString(), assetId, price.toPlainString(), currency,
+                asOfEpochMillis, PriceSource.PROVEEDOR.name, quality.name,
+            ),
         )
     }
 }

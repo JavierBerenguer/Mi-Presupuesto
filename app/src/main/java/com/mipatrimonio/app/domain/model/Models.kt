@@ -145,6 +145,7 @@ data class Portfolio(
 )
 
 enum class AssetType { ACCION, ETF, FONDO_INDEXADO, FONDO_INVERSION, CRIPTO, PRESTAMO_P2P }
+enum class QuoteProvider { TWELVE_DATA, COINGECKO }
 
 /** El ticker no es identificador universal: la identidad es [id] (más ISIN/mercado cuando existan). */
 data class Asset(
@@ -156,6 +157,9 @@ data class Asset(
     val market: String,
     val currency: String,
     val archived: Boolean = false,
+    val quoteProvider: QuoteProvider? = null,
+    val quoteSymbol: String? = null,
+    val quoteMic: String? = null,
 )
 
 enum class OperationType { COMPRA, VENTA, DIVIDENDO, COMISION }
@@ -182,6 +186,7 @@ data class InvestmentOperation(
 )
 
 enum class PriceSource { MANUAL, PROVEEDOR }
+enum class PriceQuality { RETRASADO, CIERRE }
 
 data class AssetPrice(
     val assetId: String,
@@ -189,4 +194,5 @@ data class AssetPrice(
     val currency: String,
     val asOfEpochMillis: Long,
     val source: PriceSource,
+    val quality: PriceQuality? = null,
 )

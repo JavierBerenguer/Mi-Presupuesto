@@ -32,6 +32,7 @@ import com.mipatrimonio.app.domain.model.MoneyMath
 import com.mipatrimonio.app.domain.model.InvestmentOperation
 import com.mipatrimonio.app.domain.model.OperationType
 import com.mipatrimonio.app.domain.model.Portfolio
+import com.mipatrimonio.app.domain.model.QuoteProvider
 import com.mipatrimonio.app.ui.common.AmountField
 import com.mipatrimonio.app.ui.common.DateField
 import com.mipatrimonio.app.ui.common.DropdownField
@@ -97,7 +98,7 @@ fun PortfolioDialog(
 fun AssetDialog(
     assets: List<Asset>,
     onDismiss: () -> Unit,
-    onSave: (String, String, String, AssetType, String, String, (String?) -> Unit) -> Unit,
+    onSave: (String, String, String, AssetType, String, String, QuoteProvider?, String?, String?, (String?) -> Unit) -> Unit,
     existingAsset: Asset? = null,
     hasOperations: Boolean = false,
     externalError: String? = null,
@@ -109,9 +110,13 @@ fun AssetDialog(
     var type by remember(existingAsset?.id) { mutableStateOf(existingAsset?.type ?: AssetType.ACCION) }
     var market by remember(existingAsset?.id) { mutableStateOf(existingAsset?.market.orEmpty()) }
     var currency by remember(existingAsset?.id) { mutableStateOf(existingAsset?.currency ?: Currencies.EUR) }
+    var quoteProvider by remember(existingAsset?.id) { mutableStateOf(existingAsset?.quoteProvider) }
+    var quoteSymbol by remember(existingAsset?.id) { mutableStateOf(existingAsset?.quoteSymbol.orEmpty()) }
+    var quoteMic by remember(existingAsset?.id) { mutableStateOf(existingAsset?.quoteMic.orEmpty()) }
     var error by remember { mutableStateOf<String?>(null) }
     val blankNameError = stringResource(R.string.inv_error_name_required)
     val blankTickerError = stringResource(R.string.inv_error_ticker_required)
+    val blankQuoteSymbolError = stringResource(R.string.inv_error_quote_symbol_required)
     val duplicateIsin = isin.isNotBlank() && assets.any { it.id != existingAsset?.id && it.isin.equals(isin.trim(), ignoreCase = true) }
 
     AlertDialog(
@@ -156,7 +161,10 @@ fun AssetDialog(
                     options = AssetType.entries,
                     selected = type,
                     optionLabel = { it.label() },
-                    onSelected = { it?.let { selected -> type = selected } },
+                    onSelected = { it?.let { selected ->
+                        type = selected
+                        if (quoteProvider !in quoteProvidersFor(selected)) quoteProvider = null
+                    } },
                 )
                 OutlinedTextField(
                     value = market,
@@ -174,6 +182,31 @@ fun AssetDialog(
                     enabled = !hasOperations,
                 )
                 if (hasOperations) Text(stringResource(R.string.inv_asset_currency_locked), style = MaterialTheme.typography.bodySmall)
+                DropdownField(
+                    label = stringResource(R.string.inv_quote_provider),
+                    options = quoteProvidersFor(type),
+                    selected = quoteProvider,
+                    optionLabel = { provider -> when (provider) {
+                        QuoteProvider.TWELVE_DATA -> stringResource(R.string.inv_provider_twelve_data)
+                        QuoteProvider.COINGECKO -> stringResource(R.string.inv_provider_coingecko)
+                    } },
+                    onSelected = { quoteProvider = it },
+                    noneLabel = stringResource(R.string.inv_provider_none),
+                )
+                if (quoteProvider != null) OutlinedTextField(
+                    value = quoteSymbol,
+                    onValueChange = { quoteSymbol = it },
+                    label = { Text(stringResource(R.string.inv_quote_symbol)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (quoteProvider == QuoteProvider.TWELVE_DATA) OutlinedTextField(
+                    value = quoteMic,
+                    onValueChange = { quoteMic = it },
+                    label = { Text(stringResource(R.string.inv_quote_mic)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 (error ?: externalError)?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 if (existingAsset != null && onDelete != null) {
                     TextButton(onClick = onDelete) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) }
@@ -185,7 +218,12 @@ fun AssetDialog(
                 when {
                     name.isBlank() -> error = blankNameError
                     ticker.isBlank() -> error = blankTickerError
-                    else -> onSave(name, ticker, isin, type, market, currency) { result ->
+                    quoteProvider != null && quoteSymbol.isBlank() -> error = blankQuoteSymbolError
+                    else -> onSave(
+                        name, ticker, isin, type, market, currency, quoteProvider,
+                        quoteSymbol.trim().takeIf { quoteProvider != null },
+                        quoteMic.trim().takeIf { quoteProvider == QuoteProvider.TWELVE_DATA && it.isNotBlank() },
+                    ) { result ->
                         if (result == null) onDismiss() else error = result
                     }
                 }
@@ -193,6 +231,12 @@ fun AssetDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     )
+}
+
+private fun quoteProvidersFor(type: AssetType): List<QuoteProvider> = when (type) {
+    AssetType.ACCION, AssetType.ETF -> listOf(QuoteProvider.TWELVE_DATA)
+    AssetType.CRIPTO -> listOf(QuoteProvider.COINGECKO)
+    else -> emptyList()
 }
 
 @Composable

@@ -73,8 +73,14 @@ fun Budget.toRuleEntities() = categoryRules.map { BudgetCategoryEntity(id, it.ca
 fun PortfolioEntity.toDomain() = Portfolio(id, name, createdAt, defaultAccountId)
 fun Portfolio.toEntity() = PortfolioEntity(id, name, createdAt, defaultAccountId)
 
-fun AssetEntity.toDomain() = Asset(id, name, ticker, isin, AssetType.valueOf(type), market, currency, archived)
-fun Asset.toEntity(createdAt: Long) = AssetEntity(id, name, ticker, isin, type.name, market, currency, createdAt, archived)
+fun AssetEntity.toDomain() = Asset(
+    id, name, ticker, isin, AssetType.valueOf(type), market, currency, archived,
+    quoteProvider?.let(com.mipatrimonio.app.domain.model.QuoteProvider::valueOf), quoteSymbol, quoteMic,
+)
+fun Asset.toEntity(createdAt: Long) = AssetEntity(
+    id, name, ticker, isin, type.name, market, currency, createdAt, archived,
+    quoteProvider?.name, quoteSymbol, quoteMic,
+)
 
 fun InvestmentOperationEntity.toDomain() = InvestmentOperation(
     id, portfolioId, assetId, OperationType.valueOf(type), LocalDate.ofEpochDay(epochDay),
@@ -88,7 +94,10 @@ fun InvestmentOperation.toEntity() = InvestmentOperationEntity(
     time.toSecondOfDay(),
 )
 
-fun AssetPriceEntity.toDomain() = AssetPrice(assetId, BigDecimal(price), currency, asOfEpochMillis, PriceSource.valueOf(source))
+fun AssetPriceEntity.toDomain() = AssetPrice(
+    assetId, BigDecimal(price), currency, asOfEpochMillis, PriceSource.valueOf(source),
+    quality?.let(com.mipatrimonio.app.domain.model.PriceQuality::valueOf),
+)
 
 fun RecurringRuleEntity.toDomain() = RecurringRule(
     id = id,

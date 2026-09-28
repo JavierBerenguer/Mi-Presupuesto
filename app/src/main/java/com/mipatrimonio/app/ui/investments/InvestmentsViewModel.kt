@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.mipatrimonio.app.data.repository.InvestmentRepository
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
+import com.mipatrimonio.app.data.quotes.QuoteRepository
+import com.mipatrimonio.app.data.quotes.QuoteRefreshSummary
 import com.mipatrimonio.app.domain.calc.PositionCalculator
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Asset
@@ -13,6 +15,7 @@ import com.mipatrimonio.app.domain.model.AssetType
 import com.mipatrimonio.app.domain.model.InvestmentOperation
 import com.mipatrimonio.app.domain.model.OperationType
 import com.mipatrimonio.app.domain.model.Portfolio
+import com.mipatrimonio.app.domain.model.QuoteProvider
 import com.mipatrimonio.app.domain.usecase.FinanceSnapshot
 import com.mipatrimonio.app.domain.usecase.SnapshotBuilder
 import java.math.BigDecimal
@@ -63,6 +66,7 @@ class InvestmentsViewModel(
     private val investments: InvestmentRepository,
     private val settings: SettingsRepository,
     private val now: () -> LocalDateTime = { LocalDateTime.now() },
+    private val quotes: QuoteRepository? = null,
 ) : ViewModel() {
     private val ledgerData = combine(
         ledger.accounts,
@@ -187,6 +191,9 @@ class InvestmentsViewModel(
         type: AssetType,
         market: String,
         currency: String,
+        quoteProvider: QuoteProvider?,
+        quoteSymbol: String?,
+        quoteMic: String?,
         onResult: (String?) -> Unit,
     ) {
         launchAction(onResult) {
@@ -199,6 +206,9 @@ class InvestmentsViewModel(
                     type = type,
                     market = market.trim(),
                     currency = currency,
+                    quoteProvider = quoteProvider,
+                    quoteSymbol = quoteSymbol,
+                    quoteMic = quoteMic,
                 ),
             )
         }
@@ -260,6 +270,10 @@ class InvestmentsViewModel(
 
     fun setManualPrice(asset: Asset, price: BigDecimal, onResult: (String?) -> Unit) {
         launchAction(onResult) { investments.setManualPrice(asset.id, price, asset.currency) }
+    }
+
+    fun refreshPrices(onResult: (QuoteRefreshSummary?) -> Unit) {
+        viewModelScope.launch { onResult(runCatching { quotes?.refreshAll() }.getOrNull()) }
     }
 
     private fun launchAction(onResult: (String?) -> Unit, action: suspend () -> Unit) {

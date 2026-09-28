@@ -60,4 +60,12 @@
     <string name="aj_select_color">Seleccionar color %1$d</string>
     <string name="aj_error_blank_category_name">Escribe un nombre para la categoría.</string>
     <string name="aj_error_invalid_parent">La categoría padre no es válida.</string>
+    <string name="aj_quotes">Cotizaciones</string>
+    <string name="aj_quotes_notice">Los datos gratuitos pueden ir retrasados o corresponder al cierre. Nunca se consideran datos en tiempo real.</string>
+    <string name="aj_twelve_data_key">Clave de Twelve Data</string>
+    <string name="aj_coingecko_key">Clave Demo de CoinGecko (opcional)</string>
+    <string name="aj_twelve_data_domain">Obtén la clave en twelvedata.com</string>
+    <string name="aj_coingecko_domain">Obtén la clave Demo en coingecko.com</string>
+    <string name="aj_key_configured">Configurada</string>
+    <string name="aj_key_not_configured">No configurada</string>
 </resources>

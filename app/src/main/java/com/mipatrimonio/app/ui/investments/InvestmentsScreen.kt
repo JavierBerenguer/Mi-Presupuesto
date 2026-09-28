@@ -47,7 +47,7 @@ fun InvestmentsScreen(
     onOpenAccounts: () -> Unit = {},
     onOpenAssets: () -> Unit = {},
     initialNewPortfolio: Boolean = false,
-    viewModel: InvestmentsViewModel = appViewModel { c -> InvestmentsViewModel(c.ledger, c.investments, c.settings) },
+    viewModel: InvestmentsViewModel = appViewModel { c -> InvestmentsViewModel(c.ledger, c.investments, c.settings, quotes = c.quotes) },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var portfolioDialog by rememberSaveable { mutableStateOf(initialNewPortfolio) }
@@ -57,6 +57,7 @@ fun InvestmentsScreen(
     var menu by rememberSaveable { mutableStateOf(false) }
     var section by rememberSaveable { mutableIntStateOf(0) }
     var range by rememberSaveable { mutableIntStateOf(2) }
+    var refreshMessage by remember { mutableStateOf<String?>(null) }
 
     Box(Modifier.fillMaxSize().statusBarsPadding()) {
         when {
@@ -86,10 +87,26 @@ fun InvestmentsScreen(
                 Icon(Icons.Default.Add, stringResource(R.string.inv_add_action))
             }
             DropdownMenu(menu, { menu = false }) {
+                DropdownMenuItem({ Text(stringResource(R.string.inv_refresh_prices)) }, {
+                    menu = false
+                    if (state.selectedPositions.none { it.asset.quoteProvider != null }) {
+                        refreshMessage = "missing"
+                    } else viewModel.refreshPrices { summary ->
+                        refreshMessage = summary?.let { "${it.updated}:${it.failed}" } ?: "error"
+                    }
+                })
                 DropdownMenuItem({ Text(stringResource(R.string.inv_new_operation)) }, { menu = false; operationDialog = true })
                 DropdownMenuItem({ Text(stringResource(R.string.inv_new_asset)) }, { menu = false; assetDialog = true })
                 DropdownMenuItem({ Text(stringResource(R.string.inv_new_portfolio)) }, { menu = false; portfolioDialog = true })
             }
+        }
+        refreshMessage?.let { message ->
+            val text = when (message) {
+                "missing" -> stringResource(R.string.inv_refresh_no_providers)
+                "error" -> stringResource(R.string.inv_refresh_error)
+                else -> message.split(':').let { stringResource(R.string.inv_refresh_result, it[0].toInt(), it[1].toInt()) }
+            }
+            Snackbar(Modifier.align(Alignment.BottomCenter).padding(16.dp)) { Text(text) }
         }
     }
     if (portfolioDialog) PortfolioDialog(
@@ -98,8 +115,8 @@ fun InvestmentsScreen(
     )
     if (assetDialog) AssetDialog(
         state.assets, { assetDialog = false },
-        { name, ticker, isin, type, market, currency, result ->
-            viewModel.saveAsset(name, ticker, isin, type, market, currency, result)
+        { name, ticker, isin, type, market, currency, provider, symbol, mic, result ->
+            viewModel.saveAsset(name, ticker, isin, type, market, currency, provider, symbol, mic, result)
         },
     )
     if (operationDialog) OperationDialog(
@@ -220,7 +237,9 @@ private fun PortfolioContent(
         when (PortfolioSection.entries[section.coerceIn(PortfolioSection.entries.indices)]) {
             PortfolioSection.POSICIONES -> {
                 if (state.selectedPositions.isEmpty()) item { Text(stringResource(R.string.inv_empty_positions)) }
-                items(state.selectedPositions, key = { "${it.portfolio.id}:${it.asset.id}" }) { PositionCard(it, state.hideAmounts, onPosition) }
+                items(state.selectedPositions, key = { "${it.portfolio.id}:${it.asset.id}" }) {
+                    PositionCard(it, state.latestPrices[it.asset.id], state.hideAmounts, onPosition)
+                }
             }
             PortfolioSection.DISTRIBUCION -> {
                 item { AllocationGroup(stringResource(R.string.inv_distribution_type), state.allocationsByType, state.hideAmounts) }
@@ -249,12 +268,39 @@ private fun PortfolioSelector(state: InvestmentsUiState, onSelect: (String?) -> 
 }
 
 @Composable
-private fun PositionCard(row: PositionRow, hidden: Boolean, onClick: (PositionRow) -> Unit) {
+private fun PositionCard(
+    row: PositionRow,
+    price: com.mipatrimonio.app.domain.model.AssetPrice?,
+    hidden: Boolean,
+    onClick: (PositionRow) -> Unit,
+) {
     SectionCard(Modifier.clickable { onClick(row) }) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Column(Modifier.weight(1f)) {
                 Text(row.asset.name, style = MaterialTheme.typography.titleMedium)
                 Text(stringResource(R.string.inv_shares, MoneyMath.formatQuantity(row.valuation.position.quantity)))
+                price?.let {
+                    val age = priceAge(it.asOfEpochMillis, System.currentTimeMillis())
+                    val ageText = when (age.unit) {
+                        PriceAgeUnit.MINUTES -> stringResource(R.string.inv_age_minutes, age.amount)
+                        PriceAgeUnit.HOURS -> stringResource(R.string.inv_age_hours, age.amount)
+                        PriceAgeUnit.DAYS -> stringResource(R.string.inv_age_days, age.amount)
+                    }
+                    val source = if (it.source == com.mipatrimonio.app.domain.model.PriceSource.MANUAL) {
+                        stringResource(R.string.inv_price_manual)
+                    } else when (row.asset.quoteProvider) {
+                        com.mipatrimonio.app.domain.model.QuoteProvider.TWELVE_DATA -> stringResource(R.string.inv_provider_twelve_data)
+                        com.mipatrimonio.app.domain.model.QuoteProvider.COINGECKO -> stringResource(R.string.inv_provider_coingecko)
+                        null -> stringResource(R.string.inv_price_provider)
+                    }
+                    val quality = when (it.quality) {
+                        com.mipatrimonio.app.domain.model.PriceQuality.RETRASADO -> stringResource(R.string.inv_price_delayed)
+                        com.mipatrimonio.app.domain.model.PriceQuality.CIERRE -> stringResource(R.string.inv_price_close)
+                        null -> stringResource(R.string.inv_price_without_quality)
+                    }
+                    Text(stringResource(R.string.inv_position_price_info, source, quality, positionPriceDateTime(it), ageText))
+                    if (age.old) Text(stringResource(R.string.inv_price_old), color = MaterialTheme.colorScheme.error)
+                }
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(row.valueMinor?.let { money(it, row.asset.currency, hidden) } ?: stringResource(R.string.inv_without_price))
@@ -346,4 +392,7 @@ private fun signedPercentage(value: BigDecimal): String {
     val formatter = NumberFormat.getNumberInstance(Locale("es", "ES")).apply { minimumFractionDigits = 2; maximumFractionDigits = 2 }
     return (if (value.signum() > 0) "+" else "") + formatter.format(value) + " %"
 }
+private fun positionPriceDateTime(price: com.mipatrimonio.app.domain.model.AssetPrice) =
+    Instant.ofEpochMilli(price.asOfEpochMillis).atZone(ZoneId.systemDefault())
+        .format(DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm", Locale("es", "ES")))
 @Composable private fun signColor(sign: Int): Color = when { sign > 0 -> MoneyColors.positive; sign < 0 -> MoneyColors.negative; else -> MaterialTheme.colorScheme.onSurfaceVariant }
