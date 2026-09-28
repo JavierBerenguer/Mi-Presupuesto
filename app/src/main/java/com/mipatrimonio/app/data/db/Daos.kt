@@ -10,6 +10,15 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AccountDao {
+    @Query("SELECT * FROM account ORDER BY id")
+    suspend fun getAllForBackup(): List<AccountEntity>
+
+    @Query("DELETE FROM account")
+    suspend fun deleteAllForRestore()
+
+    @Insert
+    suspend fun insertAllForRestore(entities: List<AccountEntity>)
+
     @Query("SELECT * FROM account ORDER BY archived, createdAt")
     fun observeAll(): Flow<List<AccountEntity>>
 
@@ -22,6 +31,15 @@ interface AccountDao {
 
 @Dao
 interface CategoryDao {
+    @Query("SELECT * FROM category ORDER BY id")
+    suspend fun getAllForBackup(): List<CategoryEntity>
+
+    @Query("DELETE FROM category")
+    suspend fun deleteAllForRestore()
+
+    @Insert
+    suspend fun insertAllForRestore(entities: List<CategoryEntity>)
+
     @Query("SELECT * FROM category ORDER BY kind, sortOrder, name")
     fun observeAll(): Flow<List<CategoryEntity>>
 
@@ -40,6 +58,15 @@ interface CategoryDao {
 
 @Dao
 interface TransactionDao {
+    @Query("SELECT * FROM txn ORDER BY id")
+    suspend fun getAllForBackup(): List<TransactionEntity>
+
+    @Query("DELETE FROM txn")
+    suspend fun deleteAllForRestore()
+
+    @Insert
+    suspend fun insertAllForRestore(entities: List<TransactionEntity>)
+
     @Query("SELECT * FROM txn ORDER BY epochDay DESC, createdAt DESC")
     fun observeAll(): Flow<List<TransactionEntity>>
 
@@ -64,6 +91,15 @@ interface TransactionDao {
 
 @Dao
 interface TransferDao {
+    @Query("SELECT * FROM transfer ORDER BY id")
+    suspend fun getAllForBackup(): List<TransferEntity>
+
+    @Query("DELETE FROM transfer")
+    suspend fun deleteAllForRestore()
+
+    @Insert
+    suspend fun insertAllForRestore(entities: List<TransferEntity>)
+
     @Query("SELECT * FROM transfer ORDER BY epochDay DESC, createdAt DESC")
     fun observeAll(): Flow<List<TransferEntity>>
 
@@ -85,6 +121,24 @@ interface TransferDao {
 
 @Dao
 interface BudgetDao {
+    @Query("SELECT * FROM budget ORDER BY id")
+    suspend fun getAllForBackup(): List<BudgetEntity>
+
+    @Query("SELECT * FROM budget_category ORDER BY budgetId, categoryId")
+    suspend fun getAllRulesForBackup(): List<BudgetCategoryEntity>
+
+    @Query("DELETE FROM budget_category")
+    suspend fun deleteAllRulesForRestore()
+
+    @Query("DELETE FROM budget")
+    suspend fun deleteAllForRestore()
+
+    @Insert
+    suspend fun insertAllForRestore(entities: List<BudgetEntity>)
+
+    @Insert
+    suspend fun insertAllRulesForRestore(entities: List<BudgetCategoryEntity>)
+
     @Query("SELECT * FROM budget ORDER BY archived, createdAt")
     fun observeAllEntities(): Flow<List<BudgetEntity>>
 
@@ -112,6 +166,42 @@ interface BudgetDao {
 
 @Dao
 interface InvestmentDao {
+    @Query("SELECT * FROM portfolio ORDER BY id")
+    suspend fun getAllPortfoliosForBackup(): List<PortfolioEntity>
+
+    @Query("SELECT * FROM asset ORDER BY id")
+    suspend fun getAllAssetsForBackup(): List<AssetEntity>
+
+    @Query("SELECT * FROM investment_operation ORDER BY id")
+    suspend fun getAllOperationsForBackup(): List<InvestmentOperationEntity>
+
+    @Query("SELECT * FROM asset_price ORDER BY id")
+    suspend fun getAllPricesForBackup(): List<AssetPriceEntity>
+
+    @Query("DELETE FROM asset_price")
+    suspend fun deleteAllPricesForRestore()
+
+    @Query("DELETE FROM investment_operation")
+    suspend fun deleteAllOperationsForRestore()
+
+    @Query("DELETE FROM asset")
+    suspend fun deleteAllAssetsForRestore()
+
+    @Query("DELETE FROM portfolio")
+    suspend fun deleteAllPortfoliosForRestore()
+
+    @Insert
+    suspend fun insertAllPortfoliosForRestore(entities: List<PortfolioEntity>)
+
+    @Insert
+    suspend fun insertAllAssetsForRestore(entities: List<AssetEntity>)
+
+    @Insert
+    suspend fun insertAllOperationsForRestore(entities: List<InvestmentOperationEntity>)
+
+    @Insert
+    suspend fun insertAllPricesForRestore(entities: List<AssetPriceEntity>)
+
     @Query("SELECT * FROM portfolio ORDER BY createdAt")
     fun observePortfolios(): Flow<List<PortfolioEntity>>
 
@@ -175,6 +265,24 @@ interface InvestmentDao {
 
 @Dao
 interface NotificationDao {
+    @Query("SELECT * FROM notification_authorization ORDER BY packageName")
+    suspend fun getAllAuthorizationsForBackup(): List<NotificationAuthorizationEntity>
+
+    @Query("SELECT * FROM pending_proposal ORDER BY id")
+    suspend fun getAllProposalsForBackup(): List<PendingProposalEntity>
+
+    @Query("DELETE FROM pending_proposal")
+    suspend fun deleteAllProposalsForRestore()
+
+    @Query("DELETE FROM notification_authorization")
+    suspend fun deleteAllAuthorizationsForRestore()
+
+    @Insert
+    suspend fun insertAllAuthorizationsForRestore(entities: List<NotificationAuthorizationEntity>)
+
+    @Insert
+    suspend fun insertAllProposalsForRestore(entities: List<PendingProposalEntity>)
+
     @Query("SELECT * FROM notification_authorization ORDER BY createdAt, packageName")
     fun observeAuthorizationRules(): Flow<List<NotificationAuthorizationEntity>>
 
@@ -229,6 +337,15 @@ interface NotificationDao {
 
 @Dao
 interface RecurringRuleDao {
+    @Query("SELECT * FROM recurring_rule ORDER BY id")
+    suspend fun getAllForBackup(): List<RecurringRuleEntity>
+
+    @Query("DELETE FROM recurring_rule")
+    suspend fun deleteAllForRestore()
+
+    @Insert
+    suspend fun insertAllForRestore(entities: List<RecurringRuleEntity>)
+
     @Query("SELECT * FROM recurring_rule ORDER BY archived, startEpochDay, createdAt")
     fun observeAll(): Flow<List<RecurringRuleEntity>>
 

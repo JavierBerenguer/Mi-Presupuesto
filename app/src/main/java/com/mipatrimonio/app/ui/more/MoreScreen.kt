@@ -65,6 +65,7 @@ fun MoreScreen(
     onOpenInvestments: () -> Unit,
     onOpenAssets: () -> Unit,
     onOpenRecurring: () -> Unit,
+    onOpenBackup: () -> Unit,
     viewModel: MoreViewModel = appViewModel { c -> MoreViewModel(c.ledger, c.investments, c.settings) },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -85,6 +86,7 @@ fun MoreScreen(
         onOpenSettings,
         onOpenAssets,
         onOpenRecurring,
+        onOpenBackup,
     )
     if (showAddMenu) AlertDialog(
         onDismissRequest = { showAddMenu = false },
@@ -180,6 +182,7 @@ private fun MoreContent(
     onOpenSettings: () -> Unit,
     onOpenAssets: () -> Unit,
     onOpenRecurring: () -> Unit,
+    onOpenBackup: () -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -232,8 +235,7 @@ private fun MoreContent(
                 MoreLink(
                     Icons.Default.ImportExport,
                     stringResource(R.string.more_import_export),
-                    onClick = null,
-                    supportingText = stringResource(R.string.more_coming_soon),
+                    onClick = onOpenBackup,
                 )
                 MoreLink(Icons.Default.Settings, stringResource(R.string.nav_ajustes), onOpenSettings)
             }
@@ -297,7 +299,7 @@ private fun MoreDarkPreview() {
                 ),
                 totals = listOf(CurrencyTotal("EUR", 124050)),
             ),
-            {}, {}, {}, {}, {}, {}, {}, {}, {},
+            {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
         )
     }
 }
@@ -306,6 +308,6 @@ private fun MoreDarkPreview() {
 @Composable
 private fun MoreEmptyLightPreview() {
     MiPatrimonioTheme(modoOscuro = false) {
-        MoreContent(MoreUiState(isLoading = false), {}, {}, {}, {}, {}, {}, {}, {}, {})
+        MoreContent(MoreUiState(isLoading = false), {}, {}, {}, {}, {}, {}, {}, {}, {}, {})
     }
 }

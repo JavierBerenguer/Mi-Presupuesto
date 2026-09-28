@@ -12,6 +12,7 @@ import com.mipatrimonio.app.domain.model.Currencies
 import com.mipatrimonio.app.domain.calc.MovementsCalculationMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 
 private val Context.settingsStore by preferencesDataStore(name = "settings")
 
@@ -114,5 +115,45 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
 
     suspend fun setMovementsIgnoreTransfers(enabled: Boolean) {
         store.edit { it[movementsIgnoreTransfersKey] = enabled }
+    }
+
+    suspend fun exportForBackup(): Map<String, Any?> {
+        val value = settings.first()
+        return linkedMapOf(
+            "base_currency" to value.baseCurrency,
+            "dark_mode" to value.darkMode,
+            "hide_amounts" to value.hideAmounts,
+            "net_worth_include_accounts" to value.netWorthIncludeAccounts,
+            "net_worth_include_investments" to value.netWorthIncludeInvestments,
+            "selected_portfolio_id" to value.selectedPortfolioId,
+            "movements_included_account_ids" to value.movementsIncludedAccountIds.sorted(),
+            "movements_all_accounts" to value.movementsAllAccounts,
+            "movements_calculation_mode" to value.movementsCalculationMode.name,
+            "movements_daily_balance" to value.movementsDailyBalance,
+            "movements_hide_future" to value.movementsHideFuture,
+            "movements_ignore_transfers" to value.movementsIgnoreTransfers,
+        )
+    }
+
+    suspend fun applyBackup(values: Map<String, Any?>) {
+        store.edit { preferences ->
+            (values["base_currency"] as? String)?.let { preferences[baseCurrencyKey] = it }
+            (values["dark_mode"] as? Boolean)?.let { preferences[darkModeKey] = it }
+            (values["hide_amounts"] as? Boolean)?.let { preferences[hideAmountsKey] = it }
+            (values["net_worth_include_accounts"] as? Boolean)?.let { preferences[includeAccountsKey] = it }
+            (values["net_worth_include_investments"] as? Boolean)?.let { preferences[includeInvestmentsKey] = it }
+            if (values.containsKey("selected_portfolio_id")) {
+                preferences[selectedPortfolioIdKey] = (values["selected_portfolio_id"] as? String).orEmpty()
+            }
+            @Suppress("UNCHECKED_CAST")
+            (values["movements_included_account_ids"] as? Collection<String>)?.let {
+                preferences[movementsIncludedAccountIdsKey] = it.toSet()
+            }
+            (values["movements_all_accounts"] as? Boolean)?.let { preferences[movementsAllAccountsKey] = it }
+            (values["movements_calculation_mode"] as? String)?.let { preferences[movementsCalculationModeKey] = it }
+            (values["movements_daily_balance"] as? Boolean)?.let { preferences[movementsDailyBalanceKey] = it }
+            (values["movements_hide_future"] as? Boolean)?.let { preferences[movementsHideFutureKey] = it }
+            (values["movements_ignore_transfers"] as? Boolean)?.let { preferences[movementsIgnoreTransfersKey] = it }
+        }
     }
 }

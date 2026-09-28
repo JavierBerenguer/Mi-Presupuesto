@@ -4,6 +4,9 @@ import android.app.Application
 import android.content.Context
 import androidx.work.Configuration
 import com.mipatrimonio.app.data.db.AppDatabase
+import com.mipatrimonio.app.data.backup.BackupFileStore
+import com.mipatrimonio.app.data.backup.BackupRepository
+import com.mipatrimonio.app.data.backup.BackupService
 import com.mipatrimonio.app.data.repository.InvestmentRepository
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.NotificationRepository
@@ -51,6 +54,19 @@ class AppContainer(context: Context) {
     val settings = SettingsRepository(context.applicationContext)
     val recurring = RecurringRepository(database)
     val recurringReminderScheduler = RecurringReminderScheduler(context.applicationContext, recurring)
+    val backupFiles = BackupFileStore(context.applicationContext.contentResolver)
+    val backup = BackupService(
+        BackupRepository(
+            database,
+            settings,
+            context.applicationContext.packageManager
+                .getPackageInfo(context.applicationContext.packageName, 0).versionName.orEmpty(),
+        ),
+        afterRestore = {
+            recurring.generatePending(RecurringRepository.generationLimit(java.time.LocalDate.now()))
+            recurringReminderScheduler.scheduleAll()
+        },
+    )
     val notifications = NotificationRepository(
         database,
         NotificationEngine(listOf(GenericSpanishParser())),

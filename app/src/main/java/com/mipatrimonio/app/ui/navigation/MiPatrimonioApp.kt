@@ -39,6 +39,7 @@ import com.mipatrimonio.app.ui.settings.PendingProposalsScreen
 import com.mipatrimonio.app.ui.settings.SettingsScreen
 import com.mipatrimonio.app.ui.recurring.RecurringFormScreen
 import com.mipatrimonio.app.ui.recurring.RecurringListScreen
+import com.mipatrimonio.app.ui.backup.BackupScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -93,6 +94,7 @@ private fun titleFor(route: String?, destino: Destino?): Int = when {
     route == Rutas.AJUSTES -> R.string.nav_ajustes
     route == Rutas.ACTIVO -> R.string.inv_asset_detail_title
     route == Rutas.RECURRENTES -> R.string.recurring_title
+    route == Rutas.COPIAS -> R.string.backup_nav_title
     route == Rutas.RECURRENTE -> R.string.recurring_edit
     else -> R.string.app_name
 }
@@ -148,6 +150,7 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
                 },
                 onOpenAssets = { navController.navigate(Rutas.ACTIVOS) },
                 onOpenRecurring = { navController.navigate(Rutas.RECURRENTES) },
+                onOpenBackup = { navController.navigate(Rutas.COPIAS) },
             )
         }
         composable(Rutas.PATRIMONIO) { NetWorthScreen() }
@@ -175,6 +178,7 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
                 onEdit = { navController.navigate(Rutas.recurrente(it)) },
             )
         }
+        composable(Rutas.COPIAS) { BackupScreen() }
         composable(Rutas.RECURRENTE, idArg) { entry ->
             RecurringFormScreen(ruleId = idOf(entry), onDone = { navController.popBackStack() })
         }

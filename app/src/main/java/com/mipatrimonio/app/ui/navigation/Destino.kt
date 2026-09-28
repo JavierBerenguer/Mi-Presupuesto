@@ -39,6 +39,7 @@ object Rutas {
     const val AJUSTES = "ajustes"
     const val DIAGNOSTICO_NOTIFICACIONES = "diagnostico-notificaciones"
     const val RECURRENTES = "ordenes-permanentes"
+    const val COPIAS = "copias-seguridad"
     const val RECURRENTE = "orden-permanente/{id}"
     const val APUNTE = "apunte/{id}"
     const val ACTIVO = "activo/{portfolioId}/{assetId}"
