@@ -26,7 +26,7 @@ if ($LASTEXITCODE -ne 0) { throw "La rama base '$Base' no existe o no tiene comm
 $name = $Task.ToLower()
 if ($Slug) { $name = "$name-$Slug" }
 $branch = "codex/$name"
-$worktree = Join-Path (Split-Path $root -Parent) "worktrees\$name"
+$worktree = Join-Path $root ".local\worktrees\$name"
 
 if (-not (Test-Path $worktree)) {
   git worktree add -b $branch $worktree $Base

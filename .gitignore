@@ -26,3 +26,6 @@ docs/tasks/*.report.md
 
 # Datos financieros reales del usuario: nunca se suben a GitHub
 datos-privados/
+
+# Espacio de trabajo local (worktrees de Codex, parches, APKs entregados)
+.local/
