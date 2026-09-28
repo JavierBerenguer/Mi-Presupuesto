@@ -45,7 +45,7 @@ class TradeRepublicImportRepository(
                 db.investmentDao().getOperation(id) != null
             ) ids += id
         }
-        return TradeRepublicImportPlanner.plan(
+        val plan = TradeRepublicImportPlanner.plan(
             preview,
             TradeRepublicPlanningContext(
                 accountId = accountId,
@@ -56,6 +56,7 @@ class TradeRepublicImportRepository(
                 decisions = decisions,
             ),
         )
+        return withoutUnavailableCategories(plan)
     }
 
     suspend fun execute(plan: TradeRepublicImportPlan): ImportExecutionReport = db.withTransaction {
@@ -78,7 +79,12 @@ class TradeRepublicImportRepository(
         }
         plan.rows.filter { it.status == ImportRowStatus.CREATE }.forEach { row ->
             when (val record = row.record) {
-                is ImportRecord.Movement -> if (db.transactionDao().insertIfAbsent(record.value.toEntity()) != -1L) transactionCount++
+                is ImportRecord.Movement -> {
+                    val categoryId = record.value.categoryId?.let { id ->
+                        db.categoryDao().getByIds(listOf(id)).singleOrNull()?.takeUnless { it.archived }?.id
+                    }
+                    if (db.transactionDao().insertIfAbsent(record.value.copy(categoryId = categoryId).toEntity()) != -1L) transactionCount++
+                }
                 is ImportRecord.Operation -> if (db.investmentDao().insertOperationIfAbsent(record.value.toEntity()) != -1L) operationCount++
                 null -> Unit
             }
@@ -97,5 +103,16 @@ class TradeRepublicImportRepository(
             plan.rows.count { it.status != ImportRowStatus.CREATE } + plan.issues.size + plan.duplicateIdsInFile.size,
             omittedReasons,
         )
+    }
+
+    private suspend fun withoutUnavailableCategories(plan: TradeRepublicImportPlan): TradeRepublicImportPlan {
+        val categoryIds = plan.rows.mapNotNull { ((it.record as? ImportRecord.Movement)?.value?.categoryId) }.distinct()
+        if (categoryIds.isEmpty()) return plan
+        val activeIds = db.categoryDao().getByIds(categoryIds).filterNot { it.archived }.mapTo(hashSetOf()) { it.id }
+        return plan.copy(rows = plan.rows.map { row ->
+            val movement = (row.record as? ImportRecord.Movement)?.value ?: return@map row
+            if (movement.categoryId == null || movement.categoryId in activeIds) row
+            else row.copy(record = ImportRecord.Movement(movement.copy(categoryId = null)))
+        })
     }
 }

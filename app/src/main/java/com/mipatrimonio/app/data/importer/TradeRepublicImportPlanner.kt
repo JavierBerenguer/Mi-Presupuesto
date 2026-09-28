@@ -136,11 +136,12 @@ object TradeRepublicImportPlanner {
     ): PlannedImportRow {
         val type = if (cashEffect > 0) TransactionType.INGRESO else TransactionType.GASTO
         val categoryId = (decision as? ImportRowDecision.AsTransaction)?.categoryId ?: when {
-            row.rawType.equals("INTEREST_PAYMENT", true) -> "cat-intereses"
-            row.rawType.equals("DIVIDEND", true) -> "cat-dividendos"
-            type == TransactionType.INGRESO -> "cat-otros-ingresos"
+            row.rawType.equals("INTEREST_PAYMENT", true) -> "mp-ingresos-intereses"
+            row.rawType.equals("DIVIDEND", true) -> "mp-ingresos-dividendos"
+            row.rawType.equals("FEE", true) -> "mp-inversiones-comisiones"
+            type == TransactionType.INGRESO -> "mp-ingresos"
             row.rawType.uppercase(Locale.ROOT) in CARD_TYPES -> categoryIdForMcc(row.mccCode)
-            else -> "cat-otros"
+            else -> "mp-otros"
         }
         val value = Transaction(
             recordId(row.externalId), type, absExact(cashEffect), context.accountCurrency,
@@ -345,12 +346,19 @@ object TradeRepublicImportPlanner {
     private fun readableType(type: String) = type.lowercase(Locale.ROOT).replace('_', ' ').replaceFirstChar { it.titlecase(Locale.ROOT) }
 
     fun categoryIdForMcc(mcc: String?): String = when (mcc?.trim()?.toIntOrNull()) {
-        5411 -> "cat-alimentacion"
-        5812, 5814 -> "cat-ocio"
-        4111, 4121, 4131, 5541, 5542 -> "cat-transporte"
-        5912, 8011, 8062 -> "cat-salud"
-        in 5815..5818, 4899 -> "cat-suscripciones"
-        else -> "cat-otros"
+        5411 -> "mp-casa-alimentos"
+        5812, 5814 -> "mp-ocio-restaurante"
+        5813 -> "mp-ocio-bar"
+        4121 -> "mp-otros-taxi"
+        4111, 4131 -> "mp-otros-autobus"
+        4011, 4112 -> "mp-otros-tren"
+        5541, 5542 -> "mp-coche-gasolina"
+        7523 -> "mp-coche-parking"
+        5912 -> "mp-casa-farmacia"
+        8011, 8062 -> "mp-otros-medicamentos"
+        in 5815..5818, 4899 -> "mp-ocio-streaming"
+        4814 -> "mp-casa-telefono"
+        else -> "mp-otros"
     }.also { id -> check(DefaultCategories.all.any { it.id == id }) }
 
     fun recordId(externalId: String) = "import:tr:$externalId"

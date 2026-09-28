@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
@@ -31,6 +32,7 @@ data class Settings(
     val movementsIgnoreTransfers: Boolean = false,
     val tradeRepublicAccountId: String? = null,
     val tradeRepublicPortfolioId: String? = null,
+    val categoryCatalogVersion: Int = 0,
 )
 
 class SettingsRepository(private val store: DataStore<Preferences>) {
@@ -50,6 +52,7 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
     private val movementsIgnoreTransfersKey = booleanPreferencesKey("movements_ignore_transfers")
     private val tradeRepublicAccountIdKey = stringPreferencesKey("trade_republic_account_id")
     private val tradeRepublicPortfolioIdKey = stringPreferencesKey("trade_republic_portfolio_id")
+    private val categoryCatalogVersionKey = intPreferencesKey("category_catalog_version")
 
     /** Modo oscuro activado por defecto; divisa base EUR por defecto. */
     val settings: Flow<Settings> = store.data.map { p ->
@@ -70,6 +73,7 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
             movementsIgnoreTransfers = p[movementsIgnoreTransfersKey] ?: false,
             tradeRepublicAccountId = p[tradeRepublicAccountIdKey]?.takeIf(String::isNotBlank),
             tradeRepublicPortfolioId = p[tradeRepublicPortfolioIdKey]?.takeIf(String::isNotBlank),
+            categoryCatalogVersion = p[categoryCatalogVersionKey] ?: 0,
         )
     }
 
@@ -134,6 +138,10 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
         store.edit { it[tradeRepublicAccountIdKey] = accountId }
     }
 
+    suspend fun setCategoryCatalogVersion(version: Int) {
+        store.edit { it[categoryCatalogVersionKey] = version }
+    }
+
     suspend fun exportForBackup(): Map<String, Any?> {
         val value = settings.first()
         return linkedMapOf(
@@ -151,6 +159,7 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
             "movements_ignore_transfers" to value.movementsIgnoreTransfers,
             "trade_republic_account_id" to value.tradeRepublicAccountId,
             "trade_republic_portfolio_id" to value.tradeRepublicPortfolioId,
+            "category_catalog_version" to value.categoryCatalogVersion,
         ).filterValues { it != null }
     }
 
@@ -179,6 +188,8 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
             if (values.containsKey("trade_republic_portfolio_id")) {
                 preferences[tradeRepublicPortfolioIdKey] = (values["trade_republic_portfolio_id"] as? String).orEmpty()
             }
+            preferences[categoryCatalogVersionKey] =
+                (values["category_catalog_version"] as? Number)?.toInt() ?: 0
         }
     }
 }

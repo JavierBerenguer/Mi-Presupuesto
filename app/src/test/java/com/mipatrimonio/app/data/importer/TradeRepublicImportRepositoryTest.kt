@@ -54,6 +54,22 @@ class TradeRepublicImportRepositoryTest {
         assertEquals(3, ledger.transactions.first().size)
     }
 
+    @Test fun `categoria destino archivada deja el movimiento sin categoria`() = runBlocking<Unit> {
+        val foods = ledger.categories.first().single { it.id == "mp-casa-alimentos" }
+        ledger.saveCategory(foods.copy(archived = true))
+        val row = movement("card", ImportedKind.GASTO, -100).copy(
+            rawType = "CARD_TRANSACTION",
+            mccCode = "5411",
+        )
+        val repository = TradeRepublicImportRepository(db)
+
+        val plan = repository.plan(preview(row), "cash")
+
+        assertEquals(null, (plan.rows.single().record as ImportRecord.Movement).value.categoryId)
+        repository.execute(plan)
+        assertEquals(null, ledger.transactions.first().single().categoryId)
+    }
+
     @Test fun `invariante de caja incluye inversiones y evita doble contabilizacion`() = runBlocking<Unit> {
         val rows = listOf(
             operation("buy", ImportedKind.COMPRA, -1001, "10", "1", fee = 1),

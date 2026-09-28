@@ -13,6 +13,7 @@ import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.Transfer
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 data class AccountDependencies(
@@ -151,5 +152,21 @@ class LedgerRepository(
     /** Siembra las categorías iniciales una sola vez (identificadores estables). */
     suspend fun seedDefaultCategoriesIfEmpty() = db.withTransaction {
         if (categoryDao.count() == 0) categoryDao.upsertAll(DefaultCategories.all.mapIndexed { i, c -> c.toEntity(i) })
+    }
+
+    /** Actualiza una sola vez el catálogo predefinido sin alterar categorías del usuario ni historial. */
+    suspend fun updateDefaultCategoryCatalogIfNeeded(settings: SettingsRepository) {
+        if (settings.settings.first().categoryCatalogVersion >= DefaultCategories.CATALOG_VERSION) return
+        db.withTransaction {
+            val existingById = categoryDao.getAllForBackup().associateBy { it.id }
+            val missing = DefaultCategories.all.mapIndexedNotNull { index, category ->
+                category.takeIf { it.id !in existingById }?.toEntity(index)
+            }
+            if (missing.isNotEmpty()) categoryDao.upsertAll(missing)
+            DefaultCategories.legacyIds.mapNotNull(existingById::get).forEach { legacy ->
+                if (!legacy.archived) categoryDao.upsert(legacy.copy(archived = true))
+            }
+        }
+        settings.setCategoryCatalogVersion(DefaultCategories.CATALOG_VERSION)
     }
 }

@@ -42,10 +42,33 @@ class TradeRepublicImportPlannerTest {
         )
         val plan = plan(*types.mapIndexed { index, (type, amount) -> cash("row-$index", type, amount) }.toTypedArray())
         assertEquals(types.size, plan.toCreate)
-        assertEquals("cat-intereses", movement(plan, "row-2").categoryId)
-        assertEquals("cat-dividendos", movement(plan, "row-3").categoryId)
-        assertEquals("cat-otros-ingresos", movement(plan, "row-5").categoryId)
-        assertEquals("cat-otros", movement(plan, "row-4").categoryId)
+        assertEquals("mp-ingresos-intereses", movement(plan, "row-2").categoryId)
+        assertEquals("mp-ingresos-dividendos", movement(plan, "row-3").categoryId)
+        assertEquals("mp-ingresos", movement(plan, "row-5").categoryId)
+        assertEquals("mp-otros", movement(plan, "row-4").categoryId)
+        assertEquals("mp-inversiones-comisiones", movement(plan, "row-9").categoryId)
+    }
+
+    @Test fun `cada MCC usa la categoria nueva acordada`() {
+        val mappings = linkedMapOf(
+            "5411" to "mp-casa-alimentos",
+            "5812" to "mp-ocio-restaurante", "5814" to "mp-ocio-restaurante",
+            "5813" to "mp-ocio-bar", "4121" to "mp-otros-taxi",
+            "4111" to "mp-otros-autobus", "4131" to "mp-otros-autobus",
+            "4011" to "mp-otros-tren", "4112" to "mp-otros-tren",
+            "5541" to "mp-coche-gasolina", "5542" to "mp-coche-gasolina",
+            "7523" to "mp-coche-parking", "5912" to "mp-casa-farmacia",
+            "8011" to "mp-otros-medicamentos", "8062" to "mp-otros-medicamentos",
+            "4899" to "mp-ocio-streaming", "5815" to "mp-ocio-streaming",
+            "5816" to "mp-ocio-streaming", "5817" to "mp-ocio-streaming", "5818" to "mp-ocio-streaming",
+            "4814" to "mp-casa-telefono",
+        )
+
+        mappings.forEach { (mcc, expected) ->
+            assertEquals(expected, TradeRepublicImportPlanner.categoryIdForMcc(mcc))
+        }
+        assertEquals("mp-otros", TradeRepublicImportPlanner.categoryIdForMcc(null))
+        assertEquals("mp-otros", TradeRepublicImportPlanner.categoryIdForMcc("9999"))
     }
 
     @Test fun `descripcion CASH prioriza contraparte y referencia salvo en tarjeta`() {

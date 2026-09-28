@@ -76,6 +76,7 @@ class BackupJson {
                 JSONObject.NULL -> null
                 is JSONArray -> List(value.length()) { value.getString(it) }
                 is String, is Boolean -> value
+                is Number -> if (key == "category_catalog_version") value.toInt() else throw JSONException("Ajuste $key no válido")
                 else -> throw JSONException("Ajuste $key no válido")
             })
         }

@@ -68,6 +68,7 @@ class AppContainer(context: Context) {
                 .getPackageInfo(context.applicationContext.packageName, 0).versionName.orEmpty(),
         ),
         afterRestore = {
+            ledger.updateDefaultCategoryCatalogIfNeeded(settings)
             recurring.generatePending(RecurringRepository.generationLimit(java.time.LocalDate.now()))
             recurringReminderScheduler.scheduleAll()
         },
@@ -88,7 +89,9 @@ class AppContainer(context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     init {
-        scope.launch { ledger.seedDefaultCategoriesIfEmpty() }
+        scope.launch {
+            ledger.updateDefaultCategoryCatalogIfNeeded(settings)
+        }
         recurringReminderScheduler.createChannel()
         RecurringReminderScheduler.enqueuePeriodic(context.applicationContext)
         QuoteRefreshWorker.enqueuePeriodic(context.applicationContext)

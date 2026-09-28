@@ -46,4 +46,19 @@ class SettingsRepositoryMovementsTest {
         assertTrue(persisted.movementsHideFuture)
         assertTrue(persisted.movementsIgnoreTransfers)
     }
+
+    @Test
+    fun `version del catalogo se exporta aplica y persiste`() = runTest {
+        val repository = settingsRule.repository
+        assertEquals(0, repository.settings.first().categoryCatalogVersion)
+        repository.setCategoryCatalogVersion(2)
+
+        assertEquals(2, settingsRule.reopen().settings.first().categoryCatalogVersion)
+        assertEquals(2, repository.exportForBackup()["category_catalog_version"])
+
+        repository.applyBackup(mapOf("category_catalog_version" to 1))
+        assertEquals(1, repository.settings.first().categoryCatalogVersion)
+        repository.applyBackup(emptyMap())
+        assertEquals(0, repository.settings.first().categoryCatalogVersion)
+    }
 }
