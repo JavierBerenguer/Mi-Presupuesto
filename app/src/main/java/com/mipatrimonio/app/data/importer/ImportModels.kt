@@ -2,6 +2,7 @@ package com.mipatrimonio.app.data.importer
 
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.time.LocalTime
 
 enum class ImportedKind {
     GASTO,
@@ -19,6 +20,7 @@ enum class ImportedKind {
 data class ImportedMovement(
     val externalId: String,
     val date: LocalDate,
+    val time: LocalTime = LocalTime.MIDNIGHT,
     val kind: ImportedKind,
     val amountCents: Long,
     val currency: String?,
@@ -37,6 +39,7 @@ data class ImportedMovement(
     val needsReview: Boolean,
     val reviewReason: String?,
     val rawType: String,
+    val assetClass: String = "",
 )
 
 data class ImportIssue(

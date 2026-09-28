@@ -46,6 +46,7 @@ import java.time.format.DateTimeFormatter
 
 @Composable
 fun BackupScreen(
+    onOpenTradeRepublic: () -> Unit = {},
     viewModel: BackupViewModel = appViewModel { c ->
         BackupViewModel(c.backup, c.backupFiles, c.csvExport, c.csvExportFiles)
     },
@@ -97,6 +98,18 @@ fun BackupScreen(
                 Text(stringResource(R.string.backup_create_description))
                 Button(onClick = viewModel::openCreatePassword, enabled = !state.busy) {
                     Text(stringResource(R.string.backup_create_action))
+                }
+            }
+        }
+        SectionCard {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.FileDownload, contentDescription = null)
+                    Text(stringResource(R.string.import_tr_entry_title), style = MaterialTheme.typography.titleLarge)
+                }
+                Text(stringResource(R.string.import_tr_entry_description))
+                OutlinedButton(onClick = onOpenTradeRepublic, enabled = !state.busy) {
+                    Text(stringResource(R.string.import_tr_entry_title))
                 }
             }
         }

@@ -10,6 +10,8 @@ import com.mipatrimonio.app.data.backup.BackupService
 import com.mipatrimonio.app.data.export.CsvExportFileStore
 import com.mipatrimonio.app.data.export.CsvExportRepository
 import com.mipatrimonio.app.data.export.CsvExportService
+import com.mipatrimonio.app.data.importer.ImportFileStore
+import com.mipatrimonio.app.data.importer.TradeRepublicImportRepository
 import com.mipatrimonio.app.data.repository.InvestmentRepository
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.NotificationRepository
@@ -72,6 +74,8 @@ class AppContainer(context: Context) {
     )
     val csvExportFiles = CsvExportFileStore(context.applicationContext.contentResolver)
     val csvExport = CsvExportService(CsvExportRepository(database))
+    val importFiles = ImportFileStore(context.applicationContext.contentResolver)
+    val tradeRepublicImport = TradeRepublicImportRepository(database)
     val notifications = NotificationRepository(
         database,
         NotificationEngine(listOf(GenericSpanishParser())),

@@ -103,6 +103,9 @@ interface TransferDao {
     @Query("SELECT * FROM transfer ORDER BY epochDay DESC, createdAt DESC")
     fun observeAll(): Flow<List<TransferEntity>>
 
+    @Query("SELECT * FROM transfer WHERE id = :id")
+    suspend fun getById(id: String): TransferEntity?
+
     @Upsert
     suspend fun upsert(entity: TransferEntity)
 
@@ -220,6 +223,12 @@ interface InvestmentDao {
     @Query("SELECT * FROM asset WHERE id = :id")
     suspend fun getAsset(id: String): AssetEntity?
 
+    @Query("SELECT * FROM asset WHERE UPPER(REPLACE(isin, ' ', '')) = :normalizedIsin LIMIT 1")
+    suspend fun getAssetByNormalizedIsin(normalizedIsin: String): AssetEntity?
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertAssetIfAbsent(entity: AssetEntity): Long
+
     @Upsert
     suspend fun upsertAsset(entity: AssetEntity)
 
@@ -228,6 +237,12 @@ interface InvestmentDao {
 
     @Query("SELECT * FROM investment_operation WHERE portfolioId = :portfolioId AND assetId = :assetId")
     suspend fun operationsFor(portfolioId: String, assetId: String): List<InvestmentOperationEntity>
+
+    @Query("SELECT * FROM investment_operation WHERE id = :id")
+    suspend fun getOperation(id: String): InvestmentOperationEntity?
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertOperationIfAbsent(entity: InvestmentOperationEntity): Long
 
     @Upsert
     suspend fun upsertOperation(entity: InvestmentOperationEntity)

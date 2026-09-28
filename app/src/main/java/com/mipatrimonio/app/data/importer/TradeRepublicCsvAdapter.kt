@@ -3,6 +3,12 @@ package com.mipatrimonio.app.data.importer
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.LocalDate
+import java.time.Instant
+import java.time.LocalTime
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeParseException
 import java.util.Locale
 
@@ -29,12 +35,14 @@ class TradeRepublicCsvAdapter : BankCsvAdapter {
                 return@forEach
             }
 
-            val date = try {
+            val localDateTime = parseDateTime(row["datetime"])
+            val date = localDateTime?.toLocalDate() ?: try {
                 LocalDate.parse(row["date"].trim())
             } catch (_: DateTimeParseException) {
                 issues += ImportIssue(row.lineNumber, "La fecha está ausente o no tiene formato ISO válido.")
                 return@forEach
             }
+            val time = localDateTime?.toLocalTime() ?: LocalTime.MIDNIGHT
 
             val amountText = row["amount"]
             val amountCents = if (amountText.isBlank()) {
@@ -72,6 +80,7 @@ class TradeRepublicCsvAdapter : BankCsvAdapter {
             movements += ImportedMovement(
                 externalId = externalId,
                 date = date,
+                time = time,
                 kind = kind,
                 amountCents = amountCents,
                 currency = currency,
@@ -94,6 +103,7 @@ class TradeRepublicCsvAdapter : BankCsvAdapter {
                 needsReview = reviewReasons.isNotEmpty(),
                 reviewReason = reviewReasons.takeIf { it.isNotEmpty() }?.joinToString(" "),
                 rawType = rawType,
+                assetClass = row["asset_class"].trim(),
             )
         }
 
@@ -127,6 +137,16 @@ class TradeRepublicCsvAdapter : BankCsvAdapter {
         } catch (_: NumberFormatException) {
             null
         }
+    }
+
+    private fun parseDateTime(value: String): LocalDateTime? {
+        if (value.isBlank()) return null
+        val text = value.trim()
+        val instant = runCatching { Instant.parse(text) }.getOrNull()
+            ?: runCatching { OffsetDateTime.parse(text).toInstant() }.getOrNull()
+            ?: runCatching { LocalDateTime.parse(text).toInstant(ZoneOffset.UTC) }.getOrNull()
+            ?: return null
+        return instant.atZone(ZoneId.systemDefault()).toLocalDateTime()
     }
 
     private fun parseCentsOrNull(value: String): Long? {

@@ -29,6 +29,8 @@ data class Settings(
     val movementsDailyBalance: Boolean = true,
     val movementsHideFuture: Boolean = false,
     val movementsIgnoreTransfers: Boolean = false,
+    val tradeRepublicAccountId: String? = null,
+    val tradeRepublicPortfolioId: String? = null,
 )
 
 class SettingsRepository(private val store: DataStore<Preferences>) {
@@ -46,6 +48,8 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
     private val movementsDailyBalanceKey = booleanPreferencesKey("movements_daily_balance")
     private val movementsHideFutureKey = booleanPreferencesKey("movements_hide_future")
     private val movementsIgnoreTransfersKey = booleanPreferencesKey("movements_ignore_transfers")
+    private val tradeRepublicAccountIdKey = stringPreferencesKey("trade_republic_account_id")
+    private val tradeRepublicPortfolioIdKey = stringPreferencesKey("trade_republic_portfolio_id")
 
     /** Modo oscuro activado por defecto; divisa base EUR por defecto. */
     val settings: Flow<Settings> = store.data.map { p ->
@@ -64,6 +68,8 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
             movementsDailyBalance = p[movementsDailyBalanceKey] ?: true,
             movementsHideFuture = p[movementsHideFutureKey] ?: false,
             movementsIgnoreTransfers = p[movementsIgnoreTransfersKey] ?: false,
+            tradeRepublicAccountId = p[tradeRepublicAccountIdKey]?.takeIf(String::isNotBlank),
+            tradeRepublicPortfolioId = p[tradeRepublicPortfolioIdKey]?.takeIf(String::isNotBlank),
         )
     }
 
@@ -117,6 +123,13 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
         store.edit { it[movementsIgnoreTransfersKey] = enabled }
     }
 
+    suspend fun setTradeRepublicDestination(accountId: String, portfolioId: String) {
+        store.edit {
+            it[tradeRepublicAccountIdKey] = accountId
+            it[tradeRepublicPortfolioIdKey] = portfolioId
+        }
+    }
+
     suspend fun exportForBackup(): Map<String, Any?> {
         val value = settings.first()
         return linkedMapOf(
@@ -132,7 +145,9 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
             "movements_daily_balance" to value.movementsDailyBalance,
             "movements_hide_future" to value.movementsHideFuture,
             "movements_ignore_transfers" to value.movementsIgnoreTransfers,
-        )
+            "trade_republic_account_id" to value.tradeRepublicAccountId,
+            "trade_republic_portfolio_id" to value.tradeRepublicPortfolioId,
+        ).filterValues { it != null }
     }
 
     suspend fun applyBackup(values: Map<String, Any?>) {
@@ -154,6 +169,12 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
             (values["movements_daily_balance"] as? Boolean)?.let { preferences[movementsDailyBalanceKey] = it }
             (values["movements_hide_future"] as? Boolean)?.let { preferences[movementsHideFutureKey] = it }
             (values["movements_ignore_transfers"] as? Boolean)?.let { preferences[movementsIgnoreTransfersKey] = it }
+            if (values.containsKey("trade_republic_account_id")) {
+                preferences[tradeRepublicAccountIdKey] = (values["trade_republic_account_id"] as? String).orEmpty()
+            }
+            if (values.containsKey("trade_republic_portfolio_id")) {
+                preferences[tradeRepublicPortfolioIdKey] = (values["trade_republic_portfolio_id"] as? String).orEmpty()
+            }
         }
     }
 }
