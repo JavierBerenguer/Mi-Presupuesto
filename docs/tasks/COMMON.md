@@ -39,5 +39,9 @@ Resumen; lista de archivos creados/modificados; comandos ejecutados con su resul
 - Leer el estado con `viewModel.uiState.first { condición }` (nunca `.value` sin recolector) y esperar al estado final antes de comprobar la base de datos.
 - Antes de entregar, revisa a mano cada llamada a Compose: `Modifier.padding` acepta `(start, top, end, bottom)` o `(horizontal, vertical)` pero no mezclados; las referencias a propiedades (`Account::name`) no sirven donde se espera una lambda `(T) -> String` composable: usa `{ it.name }`. No puedes compilar: relee el código en busca de errores de sintaxis y de tipos.
 
+## Ajustes y aplicación en tests (obligatorio, lección de T-039)
+- **Nunca** `SettingsRepository(context)` en un test. Usa `@get:Rule val settingsRule = SettingsStoreRule()` (`app/src/test/.../testutil/SettingsStoreRule.kt`) y `settings = settingsRule.repository`: ajustes en memoria y propios de cada test. El DataStore real es un singleton de proceso: se filtraba entre tests, colgaba la suite y en Windows fallaba por bloqueo de fichero.
+- Los tests arrancan una `Application` vacía (`app/src/test/resources/robolectric.properties`), así que `MiPatrimonioApplication`/`AppContainer` NO existen en los tests. No dependas de ellos: construye repositorios y ViewModels directamente.
+
 ## Pantallas de primer nivel con cabecera propia (lección de T-028)
 Si una pantalla dibuja su propio título (Fraunces 28 sp) debe: (a) añadirse a `hasOwnTopBar` en `ui/navigation/MiPatrimonioApp.kt` (si no, aparece un segundo título en la barra superior) y (b) aplicar `Modifier.statusBarsPadding()` en su contenedor raíz (si no, el título queda bajo la barra de estado).
