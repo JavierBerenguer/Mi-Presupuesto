@@ -7,6 +7,7 @@ import com.mipatrimonio.app.data.db.AppDatabase
 import com.mipatrimonio.app.data.repository.InvestmentRepository
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
+import com.mipatrimonio.app.testutil.SettingsStoreRule
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountType
 import com.mipatrimonio.app.domain.model.Transaction
@@ -25,6 +26,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -34,6 +36,9 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class MoreViewModelTest {
+    @get:Rule
+    val settingsRule = SettingsStoreRule()
+
     private val dispatcher = UnconfinedTestDispatcher()
     private lateinit var db: AppDatabase
     private lateinit var ledger: LedgerRepository
@@ -47,7 +52,7 @@ class MoreViewModelTest {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
         ledger = LedgerRepository(db)
         investments = InvestmentRepository(db)
-        settings = SettingsRepository(context)
+        settings = settingsRule.repository
     }
 
     @After

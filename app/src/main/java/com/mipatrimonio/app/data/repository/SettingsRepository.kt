@@ -1,6 +1,8 @@
 package com.mipatrimonio.app.data.repository
 
 import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -28,7 +30,9 @@ data class Settings(
     val movementsIgnoreTransfers: Boolean = false,
 )
 
-class SettingsRepository(private val context: Context) {
+class SettingsRepository(private val store: DataStore<Preferences>) {
+    constructor(context: Context) : this(context.applicationContext.settingsStore)
+
     private val baseCurrencyKey = stringPreferencesKey("base_currency")
     private val darkModeKey = booleanPreferencesKey("dark_mode")
     private val hideAmountsKey = booleanPreferencesKey("hide_amounts")
@@ -43,7 +47,7 @@ class SettingsRepository(private val context: Context) {
     private val movementsIgnoreTransfersKey = booleanPreferencesKey("movements_ignore_transfers")
 
     /** Modo oscuro activado por defecto; divisa base EUR por defecto. */
-    val settings: Flow<Settings> = context.settingsStore.data.map { p ->
+    val settings: Flow<Settings> = store.data.map { p ->
         Settings(
             baseCurrency = p[baseCurrencyKey] ?: Currencies.EUR,
             darkMode = p[darkModeKey] ?: true,
@@ -63,52 +67,52 @@ class SettingsRepository(private val context: Context) {
     }
 
     suspend fun setBaseCurrency(code: String) {
-        context.settingsStore.edit { it[baseCurrencyKey] = code }
+        store.edit { it[baseCurrencyKey] = code }
     }
 
     suspend fun setDarkMode(enabled: Boolean) {
-        context.settingsStore.edit { it[darkModeKey] = enabled }
+        store.edit { it[darkModeKey] = enabled }
     }
 
     suspend fun setHideAmounts(enabled: Boolean) {
-        context.settingsStore.edit { it[hideAmountsKey] = enabled }
+        store.edit { it[hideAmountsKey] = enabled }
     }
 
     suspend fun setNetWorthIncludes(accounts: Boolean, investments: Boolean) {
         require(accounts || investments) { "Debe incluirse al menos un componente del patrimonio" }
-        context.settingsStore.edit {
+        store.edit {
             it[includeAccountsKey] = accounts
             it[includeInvestmentsKey] = investments
         }
     }
 
     suspend fun setSelectedPortfolioId(portfolioId: String?) {
-        context.settingsStore.edit { preferences ->
+        store.edit { preferences ->
             preferences[selectedPortfolioIdKey] = portfolioId.orEmpty()
         }
     }
 
     suspend fun setMovementsIncludedAccountIds(accountIds: Set<String>) {
-        context.settingsStore.edit { it[movementsIncludedAccountIdsKey] = accountIds }
+        store.edit { it[movementsIncludedAccountIdsKey] = accountIds }
     }
 
     suspend fun setMovementsAllAccounts(enabled: Boolean) {
-        context.settingsStore.edit { it[movementsAllAccountsKey] = enabled }
+        store.edit { it[movementsAllAccountsKey] = enabled }
     }
 
     suspend fun setMovementsCalculationMode(mode: MovementsCalculationMode) {
-        context.settingsStore.edit { it[movementsCalculationModeKey] = mode.name }
+        store.edit { it[movementsCalculationModeKey] = mode.name }
     }
 
     suspend fun setMovementsDailyBalance(enabled: Boolean) {
-        context.settingsStore.edit { it[movementsDailyBalanceKey] = enabled }
+        store.edit { it[movementsDailyBalanceKey] = enabled }
     }
 
     suspend fun setMovementsHideFuture(enabled: Boolean) {
-        context.settingsStore.edit { it[movementsHideFutureKey] = enabled }
+        store.edit { it[movementsHideFutureKey] = enabled }
     }
 
     suspend fun setMovementsIgnoreTransfers(enabled: Boolean) {
-        context.settingsStore.edit { it[movementsIgnoreTransfersKey] = enabled }
+        store.edit { it[movementsIgnoreTransfersKey] = enabled }
     }
 }

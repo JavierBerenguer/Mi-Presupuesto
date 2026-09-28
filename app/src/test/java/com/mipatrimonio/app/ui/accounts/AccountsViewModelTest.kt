@@ -8,6 +8,7 @@ import com.mipatrimonio.app.data.db.NotificationAuthorizationEntity
 import com.mipatrimonio.app.data.repository.InvestmentRepository
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
+import com.mipatrimonio.app.testutil.SettingsStoreRule
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountType
 import com.mipatrimonio.app.domain.model.Asset
@@ -34,6 +35,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -43,6 +45,9 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class AccountsViewModelTest {
+    @get:Rule
+    val settingsRule = SettingsStoreRule()
+
     private val dispatcher = UnconfinedTestDispatcher()
     private lateinit var db: AppDatabase
     private lateinit var ledger: LedgerRepository
@@ -55,7 +60,7 @@ class AccountsViewModelTest {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
         ledger = LedgerRepository(db) { 10L }
         investments = InvestmentRepository(db) { 10L }
-        settings = SettingsRepository(context)
+        settings = settingsRule.repository
     }
 
     @After fun tearDown() { db.close(); Dispatchers.resetMain() }

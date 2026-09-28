@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.mipatrimonio.app.data.db.AppDatabase
 import com.mipatrimonio.app.data.repository.*
+import com.mipatrimonio.app.testutil.SettingsStoreRule
 import com.mipatrimonio.app.domain.model.*
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -24,6 +25,9 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class AssetDetailViewModelTest {
+    @get:Rule
+    val settingsRule = SettingsStoreRule()
+
     private val dispatcher = UnconfinedTestDispatcher()
     private lateinit var db: AppDatabase
     private lateinit var ledger: LedgerRepository
@@ -36,7 +40,7 @@ class AssetDetailViewModelTest {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
         ledger = LedgerRepository(db)
         investments = InvestmentRepository(db) { 1_000L }
-        settings = SettingsRepository(context)
+        settings = settingsRule.repository
     }
 
     @After fun tearDown() { db.close(); Dispatchers.resetMain() }
