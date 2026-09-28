@@ -214,6 +214,9 @@ interface InvestmentDao {
     @Upsert
     suspend fun upsertPortfolio(entity: PortfolioEntity)
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertPortfolioIfAbsent(entity: PortfolioEntity): Long
+
     @Query("SELECT COUNT(*) FROM portfolio WHERE defaultAccountId = :accountId")
     suspend fun countPortfoliosForAccount(accountId: String): Int
 

@@ -3,7 +3,7 @@
     <string name="import_tr_nav_title">Importar Trade Republic</string>
     <string name="import_tr_entry_title">Importar Trade Republic</string>
     <string name="import_tr_entry_description">Revisa un CSV de Trade Republic antes de crear movimientos y operaciones.</string>
-    <string name="import_tr_intro">Elige la cuenta de efectivo y la cartera. No se creará nada hasta que confirmes la vista previa.</string>
+    <string name="import_tr_intro">Elige la cuenta de efectivo. Las operaciones irán a las carteras fijas de Trade Republic, que se crearán si faltan. No se creará nada hasta que confirmes.</string>
     <string name="import_tr_account">Cuenta de efectivo</string>
     <string name="import_tr_portfolio">Cartera</string>
     <string name="import_tr_select_account">Selecciona una cuenta</string>
@@ -17,12 +17,17 @@
     <string name="import_tr_count_existing">Ya importadas: %1$d</string>
     <string name="import_tr_count_review">A revisar: %1$d</string>
     <string name="import_tr_count_ignored">Ignoradas: %1$d</string>
+    <string name="import_tr_count_outside_scope">Fuera de alcance: %1$d</string>
+    <string name="import_tr_count_foreign_currency">Omitidas por divisa: %1$d</string>
     <string name="import_tr_count_errors">Con error o duplicadas: %1$d</string>
     <string name="import_tr_incoming">Entradas: %1$s</string>
     <string name="import_tr_outgoing">Salidas: %1$s</string>
     <string name="import_tr_issue">Línea %1$d: %2$s</string>
     <string name="import_tr_duplicate">Identificador duplicado en el fichero: %1$s</string>
     <string name="import_tr_ignore">Ignorar</string>
+    <string name="import_tr_ignore_all">Ignorar todo</string>
+    <string name="import_tr_accept_all">Aceptar todo</string>
+    <string name="import_tr_beta_warning">Versión beta: estos botones omiten todas las comprobaciones pendientes. Podrás cambiar después cada fila.</string>
     <string name="import_tr_as_movement">Ingreso/Gasto</string>
     <string name="import_tr_other_account">Transferencia con mi cuenta…</string>
     <string name="import_tr_category">Categoría si es ingreso/gasto</string>

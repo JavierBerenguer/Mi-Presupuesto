@@ -26,6 +26,7 @@ class TradeRepublicCsvAdapterTest {
         assertEquals(-1234L, movement.amountCents)
         assertEquals("Comercio Ejemplo", movement.description)
         assertEquals("5812", movement.mccCode)
+        assertEquals("CASH", movement.category)
         assertNull(movement.counterparty)
     }
 
@@ -67,14 +68,13 @@ class TradeRepublicCsvAdapterTest {
     }
 
     @Test
-    fun `transferencia requiere revision`() {
+    fun `transferencia CASH no requiere revision por ser transferencia`() {
         val movement = parse(
             row("transaction_id" to "transferencia-1", "type" to "TRANSFER_INSTANT_INBOUND", "amount" to "100"),
         ).movements.single()
 
         assertEquals(ImportedKind.TRANSFERENCIA, movement.kind)
-        assertTrue(movement.needsReview)
-        assertTrue(movement.reviewReason.orEmpty().contains("cuentas propias"))
+        assertFalse(movement.needsReview)
     }
 
     @Test
@@ -139,6 +139,25 @@ class TradeRepublicCsvAdapterTest {
         assertEquals(BigDecimal("0.123456789012345678"), movement.shares)
         assertEquals(BigDecimal("987.6543210987654321"), movement.price)
         assertEquals("XX0000000001", movement.isin)
+    }
+
+    @Test
+    fun `punto siempre es decimal y conserva cantidades exactas`() {
+        val preview = parse(
+            row("transaction_id" to "uno", "amount" to "1.500"),
+            row("transaction_id" to "dos", "amount" to "-1234.56"),
+            row("transaction_id" to "tres", "amount" to "1", "shares" to "0.0000012345"),
+        )
+        assertEquals(150L, preview.movements[0].amountCents)
+        assertEquals(-123456L, preview.movements[1].amountCents)
+        assertEquals(BigDecimal("0.0000012345"), preview.movements[2].shares)
+    }
+
+    @Test
+    fun `coma decimal es error de lectura y no se interpreta como miles`() {
+        val preview = parse(row("transaction_id" to "coma", "amount" to "1,50"))
+        assertTrue(preview.movements.isEmpty())
+        assertEquals(1, preview.issues.size)
     }
 
     @Test

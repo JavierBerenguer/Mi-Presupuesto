@@ -130,6 +130,10 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
         }
     }
 
+    suspend fun setTradeRepublicAccount(accountId: String) {
+        store.edit { it[tradeRepublicAccountIdKey] = accountId }
+    }
+
     suspend fun exportForBackup(): Map<String, Any?> {
         val value = settings.first()
         return linkedMapOf(

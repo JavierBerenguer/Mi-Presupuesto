@@ -33,13 +33,11 @@ class TradeRepublicImportRepository(
     suspend fun plan(
         preview: ImportPreview,
         accountId: String,
-        portfolioId: String,
         decisions: Map<String, ImportRowDecision> = emptyMap(),
     ): TradeRepublicImportPlan {
         val account = db.accountDao().getById(accountId)?.toDomain()
             ?: throw IllegalArgumentException("Selecciona una cuenta existente")
         require(!account.archived) { "La cuenta seleccionada está archivada" }
-        require(db.investmentDao().getPortfolio(portfolioId) != null) { "Selecciona una cartera existente" }
         val ids = mutableSetOf<String>()
         preview.movements.forEach { row ->
             val id = TradeRepublicImportPlanner.recordId(row.externalId)
@@ -52,9 +50,9 @@ class TradeRepublicImportRepository(
             TradeRepublicPlanningContext(
                 accountId = accountId,
                 accountCurrency = account.currency,
-                portfolioId = portfolioId,
                 existingRecordIds = ids,
                 existingAssets = db.investmentDao().getAllAssetsForBackup().map { it.toDomain() },
+                existingPortfolios = db.investmentDao().getAllPortfoliosForBackup().map { it.toDomain() },
                 decisions = decisions,
             ),
         )
@@ -62,8 +60,12 @@ class TradeRepublicImportRepository(
 
     suspend fun execute(plan: TradeRepublicImportPlan): ImportExecutionReport = db.withTransaction {
         var assetCount = 0
+        plan.transactionIdsToDelete.forEach { db.transactionDao().delete(it) }
+        plan.newPortfolios.forEach { portfolio ->
+            db.investmentDao().insertPortfolioIfAbsent(portfolio.toEntity())
+        }
         var transactionCount = 0
-        var transferCount = 0
+        val transferCount = 0
         var operationCount = 0
         var inserted = 0
         plan.newAssets.forEach { asset ->
@@ -77,7 +79,6 @@ class TradeRepublicImportRepository(
         plan.rows.filter { it.status == ImportRowStatus.CREATE }.forEach { row ->
             when (val record = row.record) {
                 is ImportRecord.Movement -> if (db.transactionDao().insertIfAbsent(record.value.toEntity()) != -1L) transactionCount++
-                is ImportRecord.InternalTransfer -> if (db.transferDao().insertIfAbsent(record.value.toEntity(record.value.createdAt)) != -1L) transferCount++
                 is ImportRecord.Operation -> if (db.investmentDao().insertOperationIfAbsent(record.value.toEntity()) != -1L) operationCount++
                 null -> Unit
             }

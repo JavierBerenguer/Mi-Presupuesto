@@ -25,7 +25,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mipatrimonio.app.R
 import com.mipatrimonio.app.data.importer.ImportRowDecision
 import com.mipatrimonio.app.data.importer.ImportRowStatus
-import com.mipatrimonio.app.data.importer.ImportedKind
 import com.mipatrimonio.app.domain.model.MoneyMath
 import com.mipatrimonio.app.ui.common.DropdownField
 import com.mipatrimonio.app.ui.common.LoadingBox
@@ -35,7 +34,7 @@ import com.mipatrimonio.app.ui.components.SectionCard
 @Composable
 fun TradeRepublicImportScreen(
     viewModel: TradeRepublicImportViewModel = appViewModel { c ->
-        TradeRepublicImportViewModel(c.tradeRepublicImport, c.importFiles, c.ledger, c.investments, c.settings)
+        TradeRepublicImportViewModel(c.tradeRepublicImport, c.importFiles, c.ledger, c.settings)
     },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -54,12 +53,6 @@ fun TradeRepublicImportScreen(
             noneLabel = stringResource(R.string.import_tr_select_account),
         )
         if (state.accounts.isEmpty()) Text(stringResource(R.string.import_tr_create_account), color = MaterialTheme.colorScheme.error)
-        DropdownField(
-            stringResource(R.string.import_tr_portfolio), state.portfolios,
-            state.portfolios.firstOrNull { it.id == state.portfolioId }, { it.name }, { viewModel.selectPortfolio(it?.id) },
-            noneLabel = stringResource(R.string.import_tr_select_portfolio),
-        )
-        if (state.portfolios.isEmpty()) Text(stringResource(R.string.import_tr_create_portfolio), color = MaterialTheme.colorScheme.error)
         OutlinedButton(
             onClick = { launcher.launch(arrayOf("text/*", "text/csv")) }, enabled = state.canChooseFile,
         ) { Text(stringResource(R.string.import_tr_choose_file)) }
@@ -72,6 +65,8 @@ fun TradeRepublicImportScreen(
                     Text(stringResource(R.string.import_tr_count_existing, plan.alreadyImported))
                     Text(stringResource(R.string.import_tr_count_review, plan.toReview))
                     Text(stringResource(R.string.import_tr_count_ignored, plan.ignored))
+                    Text(stringResource(R.string.import_tr_count_outside_scope, plan.outsideScope))
+                    Text(stringResource(R.string.import_tr_count_foreign_currency, plan.foreignCurrency))
                     Text(stringResource(R.string.import_tr_count_errors, plan.issues.size + plan.duplicateIdsInFile.size))
                     val currency = state.accounts.firstOrNull { it.id == state.accountId }?.currency.orEmpty()
                     Text(stringResource(R.string.import_tr_incoming, MoneyMath.format(plan.incomingMinor, currency)))
@@ -84,7 +79,16 @@ fun TradeRepublicImportScreen(
                     }
                 }
             }
-            plan.rows.filter { it.status == ImportRowStatus.REVIEW }.forEach { row ->
+            if (plan.toReview > 0) {
+                Text(stringResource(R.string.import_tr_beta_warning), color = MaterialTheme.colorScheme.error)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = viewModel::ignoreAll) { Text(stringResource(R.string.import_tr_ignore_all)) }
+                    Button(onClick = viewModel::acceptAll) { Text(stringResource(R.string.import_tr_accept_all)) }
+                }
+            }
+            plan.rows.filter {
+                it.status == ImportRowStatus.REVIEW || state.decisions.containsKey(it.source.externalId)
+            }.forEach { row ->
                 SectionCard {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         val canConvert = canConvertToMovement(row.source)
@@ -97,14 +101,6 @@ fun TradeRepublicImportScreen(
                             if (canConvert) Button(onClick = {
                                 viewModel.setDecision(row.source.externalId, ImportRowDecision.AsTransaction())
                             }) { Text(stringResource(R.string.import_tr_as_movement)) }
-                        }
-                        if (row.source.kind == ImportedKind.TRANSFERENCIA) {
-                            DropdownField(
-                                stringResource(R.string.import_tr_other_account),
-                                state.accounts.filter { it.id != state.accountId }, null, { it.name },
-                                { it?.let { account -> viewModel.setDecision(row.source.externalId, ImportRowDecision.AsTransfer(account.id)) } },
-                                noneLabel = stringResource(R.string.import_tr_select_account),
-                            )
                         }
                         if (canConvert) {
                             DropdownField(

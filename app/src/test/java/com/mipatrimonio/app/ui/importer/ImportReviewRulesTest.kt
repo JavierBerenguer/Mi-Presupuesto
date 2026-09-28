@@ -8,8 +8,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ImportReviewRulesTest {
-    @Test fun `orden de fondo pendiente no se ofrece como ingreso o gasto`() {
-        assertFalse(canConvertToMovement(row("PRIVATE_MARKET_BUY", -1_000)))
+    @Test fun `toda fila con importe puede convertirse en ingreso o gasto`() {
+        assertTrue(canConvertToMovement(row("PRIVATE_MARKET_BUY", -1_000)))
         assertTrue(canConvertToMovement(row("TRANSFER_OUTBOUND", -1_000)))
         assertFalse(canConvertToMovement(row("FREE_DELIVERY", 0)))
     }
@@ -35,5 +35,6 @@ class ImportReviewRulesTest {
         needsReview = true,
         reviewReason = null,
         rawType = rawType,
+        category = "CASH",
     )
 }

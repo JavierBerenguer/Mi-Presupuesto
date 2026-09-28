@@ -40,6 +40,8 @@ data class ImportedMovement(
     val reviewReason: String?,
     val rawType: String,
     val assetClass: String = "",
+    val category: String = "",
+    val paymentReference: String? = null,
 )
 
 data class ImportIssue(

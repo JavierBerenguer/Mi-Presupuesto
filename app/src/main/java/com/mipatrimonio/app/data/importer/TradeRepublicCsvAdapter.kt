@@ -54,6 +54,15 @@ class TradeRepublicCsvAdapter : BankCsvAdapter {
                 }
             }
 
+            val decimalFields = listOf("shares", "price", "fee", "tax", "original_amount", "fx_rate")
+            val invalidDecimal = decimalFields.firstOrNull { field ->
+                row[field].isNotBlank() && parseBigDecimalOrNull(row[field]) == null
+            }
+            if (invalidDecimal != null) {
+                issues += ImportIssue(row.lineNumber, "El campo $invalidDecimal no es un número decimal válido.")
+                return@forEach
+            }
+
             val rawType = row["type"].trim()
             val normalizedType = rawType.uppercase(Locale.ROOT)
             val cancelled = normalizedType.endsWith(CANCELLED_SUFFIX)
@@ -67,9 +76,6 @@ class TradeRepublicCsvAdapter : BankCsvAdapter {
 
             val reviewReasons = buildList {
                 if (cancelled) add("La operación está cancelada y debe revisarse.")
-                if (kind == ImportedKind.TRANSFERENCIA) {
-                    add("La transferencia debe revisarse para identificar si es entre cuentas propias o con un tercero.")
-                }
                 if (kind == ImportedKind.DESCONOCIDO) add("El tipo de operación no está reconocido.")
                 if (privateFundWithoutAmount) {
                     add("La compra de fondo privado no tiene importe; se conserva a cero para evitar duplicar la salida de caja.")
@@ -104,6 +110,8 @@ class TradeRepublicCsvAdapter : BankCsvAdapter {
                 reviewReason = reviewReasons.takeIf { it.isNotEmpty() }?.joinToString(" "),
                 rawType = rawType,
                 assetClass = row["asset_class"].trim(),
+                category = row["category"].trim().uppercase(Locale.ROOT),
+                paymentReference = row["payment_reference"].trim().ifEmpty { null },
             )
         }
 
@@ -165,6 +173,6 @@ class TradeRepublicCsvAdapter : BankCsvAdapter {
 
     private companion object {
         const val CANCELLED_SUFFIX = "_CANCELLED"
-        val REQUIRED_HEADERS = setOf("transaction_id", "date", "amount", "type")
+        val REQUIRED_HEADERS = setOf("transaction_id", "date", "category", "amount", "type")
     }
 }
