@@ -63,12 +63,12 @@ class NetWorthViewModel(
         NetWorthState(
             snapshot = SnapshotBuilder.build(
                 config.baseCurrency, l.accounts, l.transactions, l.transfers,
-                inv.portfolios, inv.assets, inv.operations, inv.prices,
+                inv.portfolios, inv.assets, inv.operations, inv.prices, today,
             ),
             period = period,
             series = HistoryCalculator.netWorthSeries(
                 config.baseCurrency, l.accounts, l.transactions, l.transfers, inv.assets, inv.operations,
-                HistoryCalculator.sampleDates(period, today, firstActivity),
+                HistoryCalculator.sampleDates(period, today, firstActivity), today,
             ),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)

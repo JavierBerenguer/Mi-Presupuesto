@@ -3,10 +3,13 @@ package com.mipatrimonio.app.domain.calc
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.InvestmentOperation
 import com.mipatrimonio.app.domain.model.MoneyMath
+import com.mipatrimonio.app.domain.model.MovementStatus
 import com.mipatrimonio.app.domain.model.OperationType
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.model.Transfer
+import com.mipatrimonio.app.domain.model.movementStatus
+import java.time.LocalDate
 
 object BalanceCalculator {
     /**
@@ -18,16 +21,18 @@ object BalanceCalculator {
         transactions: List<Transaction>,
         transfers: List<Transfer>,
         operations: List<InvestmentOperation> = emptyList(),
+        today: LocalDate,
     ): Long {
         var total = account.initialBalanceMinor
         for (t in transactions) {
-            if (t.accountId != account.id) continue
+            if (t.accountId != account.id || movementStatus(t.date, today) != MovementStatus.EJECUTADO) continue
             total = when (t.type) {
                 TransactionType.INGRESO -> Math.addExact(total, t.amountMinor)
                 TransactionType.GASTO -> Math.subtractExact(total, t.amountMinor)
             }
         }
         for (tr in transfers) {
+            if (movementStatus(tr.date, today) != MovementStatus.EJECUTADO) continue
             if (tr.toAccountId == account.id) total = Math.addExact(total, tr.toAmountMinor)
             if (tr.fromAccountId == account.id) total = Math.subtractExact(total, tr.fromAmountMinor)
         }

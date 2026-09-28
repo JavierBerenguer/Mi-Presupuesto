@@ -54,9 +54,9 @@ class HomeAggregatorTest {
             ),
         )
         assertEquals(1000_00L, s.monthTotals.incomeMinor)
-        assertEquals(350_00L, s.monthTotals.expenseMinor)
-        assertEquals(650_00L, s.monthTotals.balanceMinor)
-        assertEquals(100_00L + 1000_00 - 999_00 - 300_00 - 50_00, s.netWorth.cashMinor)
+        assertEquals(300_00L, s.monthTotals.expenseMinor)
+        assertEquals(700_00L, s.monthTotals.balanceMinor)
+        assertEquals(100_00L + 1000_00 - 999_00 - 300_00, s.netWorth.cashMinor)
     }
 
     @Test

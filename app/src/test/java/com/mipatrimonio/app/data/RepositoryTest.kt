@@ -64,7 +64,10 @@ class RepositoryTest {
 
     private suspend fun balance(id: String): Long {
         val acc = ledger.accounts.first().first { it.id == id }
-        return BalanceCalculator.balance(acc, ledger.transactions.first(), ledger.transfers.first(), investments.operations.first())
+        return BalanceCalculator.balance(
+            acc, ledger.transactions.first(), ledger.transfers.first(), investments.operations.first(),
+            LocalDate.of(2100, 1, 1),
+        )
     }
 
     @Test

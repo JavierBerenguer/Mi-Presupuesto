@@ -56,9 +56,18 @@ class RecurringGeneratorTest {
         assertEquals(13, RecurringGenerator.pendingDates(rule(), start.plusYears(1)).size)
         assertEquals(
             LocalDate.of(2026, 3, 31),
-            RecurringGenerator.nextDate(rule(last = LocalDate.of(2026, 2, 28))),
+            RecurringGenerator.nextDate(rule(last = LocalDate.of(2026, 2, 28)), LocalDate.of(2026, 3, 1)),
         )
-        assertEquals(null, RecurringGenerator.nextDate(rule(end = start, last = start)))
+        assertEquals(null, RecurringGenerator.nextDate(rule(end = start, last = start), start))
+    }
+
+    @Test
+    fun `siguiente es hoy si no se genero o la primera fecha futura aunque ya este generada`() {
+        assertEquals(start, RecurringGenerator.nextDate(rule(), start))
+        assertEquals(
+            LocalDate.of(2026, 2, 28),
+            RecurringGenerator.nextDate(rule(last = LocalDate.of(2026, 3, 31)), start),
+        )
     }
 
     @Test

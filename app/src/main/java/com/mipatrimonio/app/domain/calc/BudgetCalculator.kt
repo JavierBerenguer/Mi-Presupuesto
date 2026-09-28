@@ -6,6 +6,8 @@ import com.mipatrimonio.app.domain.model.BudgetPeriod
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionType
+import com.mipatrimonio.app.domain.model.MovementStatus
+import com.mipatrimonio.app.domain.model.movementStatus
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.LocalDate
@@ -77,13 +79,14 @@ object BudgetCalculator {
         transactions: List<Transaction>,
         categories: List<Category>,
         reference: LocalDate,
+        today: LocalDate,
     ): BudgetStatus {
         val range = windowFor(budget, reference)
         if (range == null) {
             val anchor = budget.startDate
             return BudgetStatus(budget, 0, budget.limitMinor, 0, BudgetLevel.NORMAL, anchor..anchor, 0, false)
         }
-        return statusForRange(budget, transactions, categories, range)
+        return statusForRange(budget, transactions, categories, range, today)
     }
 
     fun statusForRange(
@@ -91,12 +94,16 @@ object BudgetCalculator {
         transactions: List<Transaction>,
         categories: List<Category>,
         range: ClosedRange<LocalDate>,
+        today: LocalDate,
     ): BudgetStatus {
         val parentOf = categories.associate { it.id to it.parentId }
         var spent = 0L
         var excluded = 0
         for (transaction in transactions) {
-            if (transaction.type != TransactionType.GASTO || transaction.date !in range) continue
+            if (
+                transaction.type != TransactionType.GASTO || transaction.date !in range ||
+                movementStatus(transaction.date, today) != MovementStatus.EJECUTADO
+            ) continue
             if (!matches(budget.categoryRules, transaction.categoryId, parentOf)) continue
             if (transaction.currency != budget.currency) excluded++
             else spent = Math.addExact(spent, transaction.amountMinor)
@@ -136,10 +143,12 @@ object BudgetCalculator {
         transactions: List<Transaction>,
         categories: List<Category>,
         range: ClosedRange<LocalDate>,
+        today: LocalDate,
     ): List<Transaction> {
         val parentOf = categories.associate { it.id to it.parentId }
         return transactions.filter {
             it.type == TransactionType.GASTO && it.currency == budget.currency && it.date in range &&
+                movementStatus(it.date, today) == MovementStatus.EJECUTADO &&
                 matches(budget.categoryRules, it.categoryId, parentOf)
         }
     }

@@ -10,6 +10,7 @@ import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountType
 import com.mipatrimonio.app.domain.model.MoneyMath
 import java.math.BigDecimal
+import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -44,6 +45,7 @@ data class AccountsUiState(
 class AccountsViewModel(
     private val ledger: LedgerRepository,
     settings: SettingsRepository,
+    private val today: () -> LocalDate = LocalDate::now,
 ) : ViewModel() {
     private val dependencies = MutableStateFlow<Map<String, AccountDependencies>>(emptyMap())
     private val error = MutableStateFlow<String?>(null)
@@ -58,7 +60,7 @@ class AccountsViewModel(
         AccountsUiState(
             isLoading = false,
             accounts = accounts.map { account ->
-                ManagedAccount(account, BalanceCalculator.balance(account, transactions, transfers))
+                ManagedAccount(account, BalanceCalculator.balance(account, transactions, transfers, today = today()))
             },
             dependencies = local.first,
             hideAmounts = currentSettings.hideAmounts,

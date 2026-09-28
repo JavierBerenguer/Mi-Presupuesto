@@ -45,7 +45,9 @@ class AppContainer(context: Context) {
         recurringReminderScheduler.createChannel()
         RecurringReminderScheduler.enqueuePeriodic(context.applicationContext)
         scope.launch {
-            recurring.generatePending(java.time.LocalDate.now())
+            recurring.generatePending(
+                RecurringRepository.generationLimit(java.time.LocalDate.now()),
+            )
             recurringReminderScheduler.scheduleAll()
         }
     }

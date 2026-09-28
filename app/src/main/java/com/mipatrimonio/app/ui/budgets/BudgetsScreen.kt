@@ -304,11 +304,17 @@ private fun BudgetDetail(
 ) {
     var confirmArchive by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
-    val current = BudgetCalculator.status(budget, state.transactions, state.categories, state.selectedMonth.atDay(1))
+    val current = BudgetCalculator.status(
+        budget, state.transactions, state.categories, state.selectedMonth.atDay(1), state.today,
+    )
     val history = BudgetCalculator.recentWindows(budget, current.range.endInclusive, 6).map { range ->
-        BudgetCalculator.statusForRange(budget, state.transactions, state.categories, range)
+        BudgetCalculator.statusForRange(budget, state.transactions, state.categories, range, state.today)
     }
-    val matching = if (current.applies) BudgetCalculator.matchingTransactions(budget, state.transactions, state.categories, current.range) else emptyList()
+    val matching = if (current.applies) {
+        BudgetCalculator.matchingTransactions(
+            budget, state.transactions, state.categories, current.range, state.today,
+        )
+    } else emptyList()
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         PageHeader(budget.name, onBack)
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 88.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

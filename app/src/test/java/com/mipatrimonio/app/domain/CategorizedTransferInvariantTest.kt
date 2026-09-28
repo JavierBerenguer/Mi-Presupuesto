@@ -43,8 +43,8 @@ class CategorizedTransferInvariantTest {
             archived = false,
         )
 
-        assertEquals(0L, BudgetCalculator.status(budget, transactions, emptyList(), date).spentMinor)
-        val totals = StatsCalculator.totals(transactions, "EUR", date..date)
+        assertEquals(0L, BudgetCalculator.status(budget, transactions, emptyList(), date, date).spentMinor)
+        val totals = StatsCalculator.totals(transactions, "EUR", date..date, date)
         assertEquals(0L, totals.incomeMinor)
         assertEquals(0L, totals.expenseMinor)
         assertEquals(
@@ -57,6 +57,7 @@ class CategorizedTransferInvariantTest {
                 assets = emptyList(),
                 operations = emptyList(),
                 dates = listOf(date),
+                today = date,
             ).single().totalMinor,
         )
     }

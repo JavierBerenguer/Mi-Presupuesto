@@ -17,6 +17,8 @@ import com.mipatrimonio.app.domain.model.Portfolio
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.Transfer
 import com.mipatrimonio.app.domain.model.TransactionSource
+import com.mipatrimonio.app.domain.model.MovementStatus
+import com.mipatrimonio.app.domain.model.movementStatus
 import com.mipatrimonio.app.domain.usecase.AssetShare
 import com.mipatrimonio.app.domain.usecase.HistoryCalculator
 import com.mipatrimonio.app.domain.usecase.NetWorthPoint
@@ -63,7 +65,7 @@ fun budgetRemaining(
 ): BudgetRemaining? {
     val monthly = budgets.filter { !it.archived && it.period == BudgetPeriod.MENSUAL && it.currency == baseCurrency }
     if (monthly.isEmpty()) return null
-    val statuses = monthly.map { BudgetCalculator.status(it, transactions, categories, today) }
+    val statuses = monthly.map { BudgetCalculator.status(it, transactions, categories, today, today) }
     val global = statuses.firstOrNull { it.budget.categoryId == null }
     val remaining = global?.remainingMinor ?: statuses.sumOf { it.remainingMinor }
     return BudgetRemaining(remaining, baseCurrency)
@@ -88,13 +90,13 @@ fun buildHomeState(
     hideAmounts: Boolean = false,
 ): HomeState {
     val snapshot = SnapshotBuilder.build(
-        baseCurrency, accounts, transactions, transfers, portfolios, assets, operations, prices,
+        baseCurrency, accounts, transactions, transfers, portfolios, assets, operations, prices, today,
     )
     val firstActivity = (transactions.map { it.date } + transfers.map { it.date } + operations.map { it.date }).minOrNull()
     val thisMonth = YearMonth.from(today)
     val componentSeries = HistoryCalculator.netWorthComponentsSeries(
         baseCurrency, accounts, transactions, transfers, assets, operations,
-        HistoryCalculator.sampleDates(period, today, firstActivity),
+        HistoryCalculator.sampleDates(period, today, firstActivity), today,
     )
     val filteredSeries = componentSeries.map { point ->
         NetWorthPoint(
@@ -110,7 +112,7 @@ fun buildHomeState(
         if (includeInvestments) snapshot.netWorth.investmentsMinor else 0L,
     )
     val spentPercent = StatsCalculator.totals(
-        transactions, baseCurrency, StatsCalculator.monthRange(thisMonth),
+        transactions, baseCurrency, StatsCalculator.monthRange(thisMonth), today,
     ).let { totals ->
         if (totals.incomeMinor <= 0L) null else
             java.math.BigDecimal(totals.expenseMinor)
@@ -123,15 +125,17 @@ fun buildHomeState(
         hasFinancialData = accounts.any { !it.archived } || operations.isNotEmpty(),
         baseCurrency = baseCurrency,
         netWorth = snapshot.netWorth,
-        monthTotals = StatsCalculator.totals(transactions, baseCurrency, StatsCalculator.monthRange(thisMonth)),
+        monthTotals = StatsCalculator.totals(
+            transactions, baseCurrency, StatsCalculator.monthRange(thisMonth), today,
+        ),
         budgetRemaining = budgetRemaining(budgets, transactions, categories, baseCurrency, today),
         period = period,
         netWorthSeries = filteredSeries,
         monthlySeries = StatsCalculator.monthlySeries(
-            transactions, baseCurrency, thisMonth, period.barMonths(today, firstActivity),
+            transactions, baseCurrency, thisMonth, period.barMonths(today, firstActivity), today,
         ),
         expenseByCategory = StatsCalculator.expenseByCategory(
-            transactions, categories, baseCurrency, period.range(today, firstActivity),
+            transactions, categories, baseCurrency, period.range(today, firstActivity), today,
         ),
         assetShares = assetDistribution(snapshot.netWorth),
         includeAccounts = includeAccounts,
@@ -139,7 +143,8 @@ fun buildHomeState(
         hideAmounts = hideAmounts,
         automaticTransactionsCount = transactions.count {
             it.source == TransactionSource.NOTIFICACION &&
-                !it.date.isBefore(today.minusDays(6)) && !it.date.isAfter(today)
+                !it.date.isBefore(today.minusDays(6)) &&
+                movementStatus(it.date, today) == MovementStatus.EJECUTADO
         },
         spentIncomePercent = spentPercent,
         displayedNetWorthMinor = displayedNetWorth,

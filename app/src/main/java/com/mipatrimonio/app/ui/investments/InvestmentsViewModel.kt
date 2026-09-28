@@ -103,6 +103,7 @@ class InvestmentsViewModel(
             assets = investmentValues.assets,
             operations = investmentValues.operations,
             prices = investmentValues.prices,
+            today = now().toLocalDate(),
         )
         val summaries = summarize(snapshot.positions, currentSettings.baseCurrency)
         val selectedPortfolioId = currentSettings.selectedPortfolioId

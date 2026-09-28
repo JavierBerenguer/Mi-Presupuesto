@@ -6,6 +6,8 @@ import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionType
+import com.mipatrimonio.app.domain.model.MovementStatus
+import com.mipatrimonio.app.domain.model.movementStatus
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -54,14 +56,18 @@ fun monthlyStatistics(
     baseCurrency: String,
     month: YearMonth,
     kind: StatisticsKind,
+    today: LocalDate,
 ): MonthlyStatistics {
     val expectedType = if (kind == StatisticsKind.GASTOS) TransactionType.GASTO else TransactionType.INGRESO
     val range = month.atDay(1)..month.atEndOfMonth()
     val byId = categories.associateBy(Category::id)
-    val matching = transactions.filter { it.type == expectedType && it.date in range }
+    val matching = transactions.filter {
+        it.type == expectedType && it.date in range &&
+            movementStatus(it.date, today) == MovementStatus.EJECUTADO
+    }
     val excludedCount = matching.count { it.currency != baseCurrency }
     val sorted = if (kind == StatisticsKind.GASTOS) {
-        StatsCalculator.expenseByCategory(transactions, categories, baseCurrency, range)
+        StatsCalculator.expenseByCategory(transactions, categories, baseCurrency, range, today)
             .map { RawStatisticsCategory(it.categoryId, it.amountMinor) }
     } else {
         val sums = linkedMapOf<String?, Long>()

@@ -90,7 +90,13 @@ class RecurringRepositoryTest {
         recurring.generatePending(LocalDate.of(2026, 1, 1))
         assertTrue(ledger.transactions.first().isEmpty())
         assertEquals(1, ledger.transfers.first().size)
-        assertEquals(900L, BalanceCalculator.balance(ledger.accounts.first().first { it.id == "a" }, emptyList(), ledger.transfers.first()))
+        assertEquals(
+            900L,
+            BalanceCalculator.balance(
+                ledger.accounts.first().first { it.id == "a" }, emptyList(), ledger.transfers.first(),
+                today = LocalDate.of(2026, 1, 1),
+            ),
+        )
     }
 
     @Test
@@ -107,9 +113,14 @@ class RecurringRepositoryTest {
         recurring.saveRule(rule())
         recurring.generatePending(LocalDate.of(2026, 1, 1))
         val account = ledger.accounts.first().first { it.id == "a" }
-        val balance = BalanceCalculator.balance(account, ledger.transactions.first(), ledger.transfers.first())
+        val balance = BalanceCalculator.balance(
+            account, ledger.transactions.first(), ledger.transfers.first(), today = LocalDate.of(2026, 1, 15),
+        )
         val budget = Budget("budget", null, BudgetPeriod.MENSUAL, 500, "EUR", false)
-        val spent = BudgetCalculator.status(budget, ledger.transactions.first(), emptyList(), LocalDate.of(2026, 1, 15)).spentMinor
+        val spent = BudgetCalculator.status(
+            budget, ledger.transactions.first(), emptyList(), LocalDate.of(2026, 1, 15),
+            LocalDate.of(2026, 1, 15),
+        ).spentMinor
         val netWorth = NetWorthCalculator.compute("EUR", listOf(AccountBalance(account, balance)), emptyList())
         assertEquals(900L, balance)
         assertEquals(100L, spent)
@@ -117,17 +128,21 @@ class RecurringRepositoryTest {
     }
 
     @Test
-    fun `generar hasta hoy no crea movimientos futuros ni los suma al saldo`() = runBlocking<Unit> {
+    fun `horizonte de 31 dias genera dos movimientos y solo el de hoy afecta importes`() = runBlocking<Unit> {
         val today = LocalDate.of(2026, 1, 2)
         recurring.saveRule(rule().copy(startDate = today))
 
-        val result = recurring.generatePending(today)
+        val result = recurring.generatePending(RecurringRepository.generationLimit(today))
+        val repeated = recurring.generatePending(RecurringRepository.generationLimit(today))
         val transactions = ledger.transactions.first()
         val account = ledger.accounts.first().first { it.id == "a" }
 
-        assertEquals(1, result.movementsCreated)
-        assertEquals(listOf(today), transactions.map { it.date })
-        assertTrue(transactions.none { it.date.isAfter(today) })
-        assertEquals(900L, BalanceCalculator.balance(account, transactions, ledger.transfers.first()))
+        assertEquals(2, result.movementsCreated)
+        assertEquals(0, repeated.movementsCreated)
+        assertEquals(listOf(today, today.plusMonths(1)), transactions.sortedBy { it.date }.map { it.date })
+        assertEquals(
+            900L,
+            BalanceCalculator.balance(account, transactions, ledger.transfers.first(), today = today),
+        )
     }
 }

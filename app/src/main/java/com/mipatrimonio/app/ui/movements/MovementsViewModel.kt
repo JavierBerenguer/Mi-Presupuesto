@@ -10,6 +10,8 @@ import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
+import com.mipatrimonio.app.domain.model.MovementStatus
+import com.mipatrimonio.app.domain.model.movementStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -46,6 +48,7 @@ data class MovementsUiState(
 class MovementsViewModel(
     private val ledger: LedgerRepository,
     private val settings: SettingsRepository,
+    private val today: () -> LocalDate = LocalDate::now,
 ) : ViewModel() {
     private data class SourceData(
         val accounts: List<Account>,
@@ -94,12 +97,13 @@ class MovementsViewModel(
     val uiState: StateFlow<MovementsUiState> = combine(
         sourceData, filters, error, selectedMonth,
     ) { data, currentFilters, currentError, month ->
+        val currentDate = today()
         val monthFilters = currentFilters.copy(
             from = maxOf(currentFilters.from ?: month.atDay(1), month.atDay(1)),
             to = minOf(currentFilters.to ?: month.atEndOfMonth(), month.atEndOfMonth()),
         )
         val itemsAllowedByFutureSetting = if (data.hideFuture) {
-            data.items.filterNot { it.date.isAfter(LocalDate.now()) }
+            data.items.filter { movementStatus(it.date, currentDate) == MovementStatus.EJECUTADO }
         } else {
             data.items
         }
@@ -131,6 +135,7 @@ class MovementsViewModel(
                 dailyBalance = data.dailyBalance,
                 hideFuture = data.hideFuture,
                 ignoreTransfers = data.ignoreTransfers,
+                today = currentDate,
             ),
             calculationMode = data.calculationMode,
             dailyBalance = data.dailyBalance,
@@ -209,7 +214,7 @@ class MovementsViewModel(
                 ledger.saveTransaction(
                     transaction.copy(
                         id = UUID.randomUUID().toString(),
-                        date = LocalDate.now(),
+                        date = today(),
                         source = TransactionSource.MANUAL,
                         createdAt = now,
                         updatedAt = now,

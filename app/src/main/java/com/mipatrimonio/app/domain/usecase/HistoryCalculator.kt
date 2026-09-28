@@ -8,7 +8,9 @@ import com.mipatrimonio.app.domain.model.InvestmentOperation
 import com.mipatrimonio.app.domain.model.MoneyMath
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionType
+import com.mipatrimonio.app.domain.model.MovementStatus
 import com.mipatrimonio.app.domain.model.Transfer
+import com.mipatrimonio.app.domain.model.movementStatus
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -37,8 +39,9 @@ object HistoryCalculator {
         assets: List<Asset>,
         operations: List<InvestmentOperation>,
         dates: List<LocalDate>,
+        today: LocalDate,
     ): List<NetWorthPoint> = netWorthComponentsSeries(
-        baseCurrency, accounts, transactions, transfers, assets, operations, dates,
+        baseCurrency, accounts, transactions, transfers, assets, operations, dates, today,
     ).map { NetWorthPoint(it.date, it.totalMinor) }
 
     fun netWorthComponentsSeries(
@@ -49,15 +52,16 @@ object HistoryCalculator {
         assets: List<Asset>,
         operations: List<InvestmentOperation>,
         dates: List<LocalDate>,
+        today: LocalDate,
     ): List<NetWorthComponentsPoint> {
         val active = accounts.filter { !it.archived && it.currency == baseCurrency }
         val ids = active.map { it.id }.toSet()
         val initial = active.fold(0L) { total, account -> Math.addExact(total, account.initialBalanceMinor) }
         val assetById = assets.filter { it.currency == baseCurrency }.associateBy { it.id }
-        return dates.map { date ->
+        return dates.filter { movementStatus(it, today) == MovementStatus.EJECUTADO }.map { date ->
             var cash = initial
             for (t in transactions) {
-                if (t.date > date || t.accountId !in ids) continue
+                if (movementStatus(t.date, date) != MovementStatus.EJECUTADO || t.accountId !in ids) continue
                 cash = if (t.type == TransactionType.INGRESO) {
                     Math.addExact(cash, t.amountMinor)
                 } else {
@@ -65,7 +69,7 @@ object HistoryCalculator {
                 }
             }
             for (tr in transfers) {
-                if (tr.date > date) continue
+                if (movementStatus(tr.date, date) != MovementStatus.EJECUTADO) continue
                 if (tr.toAccountId in ids) cash = Math.addExact(cash, tr.toAmountMinor)
                 if (tr.fromAccountId in ids) cash = Math.subtractExact(cash, tr.fromAmountMinor)
             }

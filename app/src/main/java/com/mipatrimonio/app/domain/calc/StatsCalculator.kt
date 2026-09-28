@@ -3,6 +3,8 @@ package com.mipatrimonio.app.domain.calc
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionType
+import com.mipatrimonio.app.domain.model.MovementStatus
+import com.mipatrimonio.app.domain.model.movementStatus
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -21,12 +23,17 @@ data class CategorySpend(val categoryId: String?, val amountMinor: Long)
  * Las transferencias no forman parte de la lista de movimientos, por lo que nunca cuentan como gasto.
  */
 object StatsCalculator {
-    fun totals(transactions: List<Transaction>, baseCurrency: String, range: ClosedRange<LocalDate>): PeriodTotals {
+    fun totals(
+        transactions: List<Transaction>,
+        baseCurrency: String,
+        range: ClosedRange<LocalDate>,
+        today: LocalDate,
+    ): PeriodTotals {
         var income = 0L
         var expense = 0L
         var excluded = 0
         for (t in transactions) {
-            if (t.date !in range) continue
+            if (t.date !in range || movementStatus(t.date, today) != MovementStatus.EJECUTADO) continue
             if (t.currency != baseCurrency) {
                 excluded++
                 continue
@@ -47,11 +54,12 @@ object StatsCalculator {
         baseCurrency: String,
         endMonth: YearMonth,
         months: Int,
+        today: LocalDate,
     ): List<MonthTotals> {
         require(months > 0) { "months debe ser positivo" }
         return (months - 1 downTo 0).map { back ->
             val m = endMonth.minusMonths(back.toLong())
-            val totals = totals(transactions, baseCurrency, monthRange(m))
+            val totals = totals(transactions, baseCurrency, monthRange(m), today)
             MonthTotals(m, totals.incomeMinor, totals.expenseMinor)
         }
     }
@@ -62,11 +70,15 @@ object StatsCalculator {
         categories: List<Category>,
         baseCurrency: String,
         range: ClosedRange<LocalDate>,
+        today: LocalDate,
     ): List<CategorySpend> {
         val byId = categories.associateBy { it.id }
         val sums = LinkedHashMap<String?, Long>()
         for (t in transactions) {
-            if (t.type != TransactionType.GASTO || t.currency != baseCurrency || t.date !in range) continue
+            if (
+                t.type != TransactionType.GASTO || t.currency != baseCurrency || t.date !in range ||
+                movementStatus(t.date, today) != MovementStatus.EJECUTADO
+            ) continue
             val cat = t.categoryId?.let { byId[it] }
             val root = cat?.parentId ?: cat?.id
             sums[root] = Math.addExact(sums[root] ?: 0L, t.amountMinor)

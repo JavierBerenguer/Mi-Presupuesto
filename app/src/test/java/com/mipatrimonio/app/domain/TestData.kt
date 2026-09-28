@@ -36,8 +36,13 @@ object TestData {
         id: String = "t${counter++}",
     ) = Transaction(id, type, amount, currency, date, account, category, "", "", "", TransactionSource.MANUAL, 0, 0)
 
-    fun transfer(from: String, to: String, fromAmount: Long, toAmount: Long = fromAmount) =
-        Transfer("tr${counter++}", from, to, fromAmount, toAmount, LocalDate.of(2026, 3, 11), "", 0)
+    fun transfer(
+        from: String,
+        to: String,
+        fromAmount: Long,
+        toAmount: Long = fromAmount,
+        date: LocalDate = LocalDate.of(2026, 3, 11),
+    ) = Transfer("tr${counter++}", from, to, fromAmount, toAmount, date, "", 0)
 
     fun op(
         type: OperationType,

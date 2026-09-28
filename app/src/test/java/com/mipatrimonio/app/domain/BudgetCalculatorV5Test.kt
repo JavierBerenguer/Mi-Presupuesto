@@ -24,10 +24,10 @@ class BudgetCalculatorV5Test {
         val transactions = listOf(
             tx(GASTO, 10, category = "parent"), tx(GASTO, 20, category = "child"), tx(GASTO, 40, category = "other"),
         )
-        assertEquals(10, BudgetCalculator.status(budget(rules = listOf(BudgetCategoryRule("parent", false))), transactions, categories, date()).spentMinor)
-        assertEquals(30, BudgetCalculator.status(budget(rules = listOf(BudgetCategoryRule("parent", true))), transactions, categories, date()).spentMinor)
-        assertEquals(20, BudgetCalculator.status(budget(rules = listOf(BudgetCategoryRule("child", false))), transactions, categories, date()).spentMinor)
-        assertEquals(70, BudgetCalculator.status(budget(), transactions, categories, date()).spentMinor)
+        assertEquals(10, BudgetCalculator.status(budget(rules = listOf(BudgetCategoryRule("parent", false))), transactions, categories, date(), today()).spentMinor)
+        assertEquals(30, BudgetCalculator.status(budget(rules = listOf(BudgetCategoryRule("parent", true))), transactions, categories, date(), today()).spentMinor)
+        assertEquals(20, BudgetCalculator.status(budget(rules = listOf(BudgetCategoryRule("child", false))), transactions, categories, date(), today()).spentMinor)
+        assertEquals(70, BudgetCalculator.status(budget(), transactions, categories, date(), today()).spentMinor)
     }
 
     @Test fun `semanal cruza mes y fin anterior deja de aplicar`() {
@@ -49,17 +49,21 @@ class BudgetCalculatorV5Test {
 
     @Test fun `unico usa rango inclusivo y exige fin`() {
         val unique = budget(period = BudgetPeriod.UNICO, start = date(), end = date().plusDays(2))
-        val result = BudgetCalculator.status(unique, listOf(tx(GASTO, 25, date = date().plusDays(2))), categories, date())
+        val result = BudgetCalculator.status(
+            unique, listOf(tx(GASTO, 25, date = date().plusDays(2))), categories, date(), date().plusDays(2),
+        )
         assertEquals(25, result.spentMinor)
         assertTrue(result.applies)
     }
 
     @Test fun `umbral exacto redondeo superado y divisa distinta`() {
         val budget = budget(limit = 3, threshold = 67)
-        val exact = BudgetCalculator.status(budget, listOf(tx(GASTO, 2)), categories, date())
+        val exact = BudgetCalculator.status(budget, listOf(tx(GASTO, 2)), categories, date(), today())
         assertEquals(67, exact.percentage)
         assertEquals(BudgetLevel.AVISO, exact.level)
-        val over = BudgetCalculator.status(budget, listOf(tx(GASTO, 4), tx(GASTO, 99, currency = "USD")), categories, date())
+        val over = BudgetCalculator.status(
+            budget, listOf(tx(GASTO, 4), tx(GASTO, 99, currency = "USD")), categories, date(), today(),
+        )
         assertEquals(BudgetLevel.SUPERADO, over.level)
         assertEquals(-1, over.remainingMinor)
         assertEquals(1, over.excludedCount)
@@ -69,12 +73,13 @@ class BudgetCalculatorV5Test {
         val archived = categories.first().copy(archived = true)
         val result = BudgetCalculator.status(
             budget(rules = listOf(BudgetCategoryRule("parent", true))),
-            listOf(tx(GASTO, 10, category = "child")), listOf(archived, categories[1]), date(),
+            listOf(tx(GASTO, 10, category = "child")), listOf(archived, categories[1]), date(), today(),
         )
         assertEquals(10, result.spentMinor)
     }
 
     private fun date() = LocalDate.of(2026, 3, 1)
+    private fun today() = LocalDate.of(2026, 3, 31)
     private fun budget(
         period: BudgetPeriod = BudgetPeriod.MENSUAL,
         start: LocalDate = date(),

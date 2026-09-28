@@ -4,6 +4,8 @@ import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.model.Transfer
+import com.mipatrimonio.app.domain.model.MovementStatus
+import com.mipatrimonio.app.domain.model.movementStatus
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -25,14 +27,16 @@ object MovementsBalanceCalculator {
         dailyBalance: Boolean,
         hideFuture: Boolean,
         ignoreTransfers: Boolean,
-        today: LocalDate = LocalDate.now(),
+        today: LocalDate,
     ): Long {
         if (includedAccounts.isEmpty()) return 0L
         val includedById = includedAccounts.associateBy(Account::id)
         val firstDay = selectedMonth.atDay(1)
         val endDay = selectedMonth.atEndOfMonth()
         val excludesFuture = dailyBalance || hideFuture
-        val monthlyEndDay = if (excludesFuture && today.isBefore(endDay)) today else endDay
+        val monthlyEndDay = if (
+            excludesFuture && movementStatus(endDay, today) == MovementStatus.PREVISTO
+        ) today else endDay
 
         return when (mode) {
             MovementsCalculationMode.SALDO_ACTUAL -> {
@@ -40,8 +44,12 @@ object MovementsBalanceCalculator {
                 var total = includedAccounts
                     .filter { it.currency == baseCurrency }
                     .fold(0L) { sum, account -> Math.addExact(sum, account.initialBalanceMinor) }
-                total = addTransactionEffect(total, transactions, includedById, baseCurrency) { it.date <= cutoff }
-                addTransferEffect(total, transfers, includedById, baseCurrency) { it.date <= cutoff }
+                total = addTransactionEffect(total, transactions, includedById, baseCurrency) {
+                    movementStatus(it.date, cutoff) == MovementStatus.EJECUTADO
+                }
+                addTransferEffect(total, transfers, includedById, baseCurrency) {
+                    movementStatus(it.date, cutoff) == MovementStatus.EJECUTADO
+                }
             }
 
             MovementsCalculationMode.SALDO_MENSUAL -> {

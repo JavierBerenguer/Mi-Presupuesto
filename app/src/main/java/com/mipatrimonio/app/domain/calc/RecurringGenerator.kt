@@ -26,11 +26,14 @@ object RecurringGenerator {
         return dates
     }
 
-    fun nextDate(rule: RecurringRule): LocalDate? {
+    fun nextDate(rule: RecurringRule, today: LocalDate): LocalDate? {
         if (rule.archived || rule.periodQuantity <= 0) return null
         var occurrence = rule.startDate
         var index = 0L
-        while (rule.lastGeneratedDate != null && !occurrence.isAfter(rule.lastGeneratedDate)) {
+        while (
+            occurrence.isBefore(today) ||
+            occurrence == today && rule.lastGeneratedDate?.let { !it.isBefore(today) } == true
+        ) {
             index++
             occurrence = when (rule.periodUnit) {
                 RecurringPeriodUnit.DIA -> rule.startDate.plusDays(index * rule.periodQuantity)

@@ -11,6 +11,7 @@ import com.mipatrimonio.app.domain.model.AccountType
 import com.mipatrimonio.app.domain.model.MoneyMath
 import com.mipatrimonio.app.domain.model.Portfolio
 import java.util.UUID
+import java.time.LocalDate
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -45,6 +46,7 @@ class MoreViewModel(
     private val ledger: LedgerRepository,
     private val investments: InvestmentRepository,
     settings: SettingsRepository,
+    private val today: () -> LocalDate = LocalDate::now,
 ) : ViewModel() {
     val uiState: StateFlow<MoreUiState> = combine(
         ledger.accounts,
@@ -59,7 +61,7 @@ class MoreViewModel(
             .map { account ->
                 MoreAccountItem(
                     account,
-                    BalanceCalculator.balance(account, transactions, transfers, operations),
+                    BalanceCalculator.balance(account, transactions, transfers, operations, today()),
                 )
             }
             .sortedBy { it.account.name.lowercase() }

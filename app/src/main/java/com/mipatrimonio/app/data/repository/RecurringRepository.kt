@@ -143,6 +143,10 @@ class RecurringRepository(
     }
 
     companion object {
+        const val GENERATION_HORIZON_DAYS = 31L
+
+        fun generationLimit(today: LocalDate): LocalDate = today.plusDays(GENERATION_HORIZON_DAYS)
+
         fun generatedId(ruleId: String, date: LocalDate): String = "recurrente:$ruleId:${date.toEpochDay()}"
     }
 

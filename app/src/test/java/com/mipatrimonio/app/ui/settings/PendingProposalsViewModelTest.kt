@@ -158,11 +158,14 @@ class PendingProposalsViewModelTest {
         assertEquals(transfer.id, storedStatus(proposal.id).second)
 
         val range = LocalDate.of(1970, 1, 1)..LocalDate.of(1970, 1, 31)
-        val totals = StatsCalculator.totals(transactions, "EUR", range)
+        val totals = StatsCalculator.totals(transactions, "EUR", range, range.endInclusive)
         val budget = Budget("budget", null, BudgetPeriod.MENSUAL, 10_000L, "EUR", false)
         assertEquals(0L, totals.incomeMinor)
         assertEquals(0L, totals.expenseMinor)
-        assertEquals(0L, BudgetCalculator.status(budget, transactions, emptyList(), range.start).spentMinor)
+        assertEquals(
+            0L,
+            BudgetCalculator.status(budget, transactions, emptyList(), range.start, range.endInclusive).spentMinor,
+        )
     }
 
     @Test

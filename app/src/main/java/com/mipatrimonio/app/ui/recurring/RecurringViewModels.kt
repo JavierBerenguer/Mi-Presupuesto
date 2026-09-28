@@ -44,7 +44,7 @@ class RecurringListViewModel(
     val uiState: StateFlow<RecurringListUiState> = combine(repository.rules, settings.settings) { rules, config ->
         RecurringListUiState(
             isLoading = false,
-            items = rules.map { RecurringListItem(it, RecurringGenerator.nextDate(it)) },
+            items = rules.map { RecurringListItem(it, RecurringGenerator.nextDate(it, today())) },
             hideAmounts = config.hideAmounts,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RecurringListUiState())
@@ -54,7 +54,7 @@ class RecurringListViewModel(
         if (archived) {
             onCancelled(id)
         } else {
-            repository.generatePending(today())
+            repository.generatePending(RecurringRepository.generationLimit(today()))
             repository.getRule(id)?.let(onScheduled)
         }
     }
@@ -223,7 +223,7 @@ class RecurringFormViewModel(
             saving.value = true
             runCatching {
                 repository.saveRule(rule)
-                repository.generatePending(today())
+                repository.generatePending(RecurringRepository.generationLimit(today()))
             }
                 .onSuccess {
                     onSaved(rule)

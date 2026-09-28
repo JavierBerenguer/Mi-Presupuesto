@@ -32,7 +32,7 @@ class SnapshotTest {
         val price = AssetPrice("asset1", BigDecimal("120"), "EUR", 0, PriceSource.MANUAL)
         val s = SnapshotBuilder.build(
             "EUR", listOf(account("a1", initial = 500_00)), listOf(tx(INGRESO, 100_00)), emptyList(),
-            listOf(portfolio), listOf(asset), ops, mapOf("asset1" to price),
+            listOf(portfolio), listOf(asset), ops, mapOf("asset1" to price), LocalDate.of(2026, 3, 11),
         )
         assertEquals(600_00L, s.netWorth.cashMinor)
         assertEquals(1200_00L, s.netWorth.investmentsMinor)
@@ -51,7 +51,7 @@ class SnapshotTest {
 
         val snapshot = SnapshotBuilder.build(
             "EUR", listOf(bank, broker), emptyList(), listOf(transfer), listOf(portfolio), listOf(asset),
-            listOf(purchase), mapOf("asset1" to price),
+            listOf(purchase), mapOf("asset1" to price), LocalDate.of(2026, 3, 11),
         )
 
         assertEquals(500_00L, snapshot.balances.first { it.account.id == "bank" }.balanceMinor)
@@ -64,7 +64,7 @@ class SnapshotTest {
     fun `activo sin cotizacion se informa y no se valora`() {
         val s = SnapshotBuilder.build(
             "EUR", emptyList(), emptyList(), emptyList(), listOf(portfolio), listOf(asset),
-            listOf(op(OperationType.COMPRA, "1", "10")), emptyMap(),
+            listOf(op(OperationType.COMPRA, "1", "10")), emptyMap(), LocalDate.of(2026, 3, 11),
         )
         assertEquals(0L, s.netWorth.investmentsMinor)
         assertEquals(listOf("ETF Mundo"), s.netWorth.unpricedAssets)
@@ -76,7 +76,7 @@ class SnapshotTest {
         val price = AssetPrice("asset1", BigDecimal("120"), "USD", 0, PriceSource.MANUAL)
         val s = SnapshotBuilder.build(
             "EUR", emptyList(), emptyList(), emptyList(), listOf(portfolio), listOf(asset),
-            listOf(op(OperationType.COMPRA, "1", "10")), mapOf("asset1" to price),
+            listOf(op(OperationType.COMPRA, "1", "10")), mapOf("asset1" to price), LocalDate.of(2026, 3, 11),
         )
         assertNull(s.openPositions[0].price)
     }
@@ -93,6 +93,7 @@ class SnapshotTest {
         val pts = HistoryCalculator.netWorthSeries(
             "EUR", accounts, txs, trs, listOf(asset), ops,
             listOf(LocalDate.of(2026, 1, 31), LocalDate.of(2026, 2, 28), LocalDate.of(2026, 3, 31)),
+            LocalDate.of(2026, 3, 31),
         )
         assertEquals(150_00L, pts[0].totalMinor)
         assertEquals(150_00L - 20_00L + 200_00L, pts[1].totalMinor)

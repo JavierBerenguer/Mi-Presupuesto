@@ -87,6 +87,8 @@ import com.mipatrimonio.app.ui.components.AmountText
 import com.mipatrimonio.app.ui.components.SegmentedControl
 import com.mipatrimonio.app.ui.theme.extras
 import java.time.LocalDate
+import com.mipatrimonio.app.domain.model.MovementStatus
+import com.mipatrimonio.app.domain.model.movementStatus
 import java.time.Month
 import java.time.YearMonth
 import java.time.format.TextStyle
@@ -542,7 +544,7 @@ private fun MovementRow(
 ) {
     var showMenu by remember { mutableStateOf(false) }
     val p = movementPresentation(item, accountsById, categoriesById)
-    val isFuture = item.date.isAfter(LocalDate.now())
+    val isFuture = movementStatus(item.date, LocalDate.now()) == MovementStatus.PREVISTO
     val isRestrictedFuture = isFuture && grayFuture
     val primaryTextColor = if (isRestrictedFuture) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
     Row(

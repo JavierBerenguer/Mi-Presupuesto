@@ -38,6 +38,7 @@ import com.mipatrimonio.app.domain.model.MoneyMath
 import com.mipatrimonio.app.ui.common.LoadingBox
 import com.mipatrimonio.app.ui.common.SectionCard
 import com.mipatrimonio.app.ui.common.appViewModel
+import java.time.LocalDate
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -63,6 +64,7 @@ data class MovementAccountsUiState(
 class MovementAccountsViewModel(
     private val ledger: LedgerRepository,
     private val settings: SettingsRepository,
+    private val today: () -> LocalDate = LocalDate::now,
 ) : ViewModel() {
     private val errors = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
 
@@ -74,7 +76,7 @@ class MovementAccountsViewModel(
         errors,
     ) { accounts, transactions, transfers, currentSettings, error ->
         val balances = accounts.associate { account ->
-            account.id to BalanceCalculator.balance(account, transactions, transfers)
+            account.id to BalanceCalculator.balance(account, transactions, transfers, today = today())
         }
         val stored = currentSettings.movementsIncludedAccountIds
         val selectable = accounts.filter { account ->

@@ -37,7 +37,7 @@ class RecurringGenerationWorker(context: Context, parameters: WorkerParameters) 
     CoroutineWorker(context, parameters) {
     override suspend fun doWork(): Result = runCatching {
         val container = (applicationContext as MiPatrimonioApplication).container
-        container.recurring.generatePending(LocalDate.now())
+        container.recurring.generatePending(RecurringRepository.generationLimit(LocalDate.now()))
         container.recurringReminderScheduler.scheduleAll()
     }.fold(onSuccess = { Result.success() }, onFailure = { Result.retry() })
 }

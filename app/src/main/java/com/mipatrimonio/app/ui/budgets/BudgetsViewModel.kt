@@ -32,6 +32,7 @@ data class BudgetsUiState(
     val baseCurrency: String = "EUR",
     val hideAmounts: Boolean = false,
     val selectedMonth: YearMonth = YearMonth.now(),
+    val today: LocalDate = LocalDate.now(),
     val expenseStatistics: MonthlyStatistics = MonthlyStatistics(emptyList(), 0, 0),
     val incomeStatistics: MonthlyStatistics = MonthlyStatistics(emptyList(), 0, 0),
 ) {
@@ -65,15 +66,17 @@ sealed interface BudgetSaveResult {
 class BudgetsViewModel(
     private val ledger: LedgerRepository,
     settings: SettingsRepository,
+    private val today: () -> LocalDate = LocalDate::now,
 ) : ViewModel() {
     private val selectedMonth = MutableStateFlow(YearMonth.now())
 
     val uiState: StateFlow<BudgetsUiState> = combine(
         ledger.budgets, ledger.transactions, ledger.categories, settings.settings, selectedMonth,
     ) { budgets, transactions, categories, config, month ->
+        val currentDate = today()
         val statuses = budgets.asSequence()
             .filterNot(Budget::archived)
-            .map { BudgetCalculator.status(it, transactions, categories, month.atDay(1)) }
+            .map { BudgetCalculator.status(it, transactions, categories, month.atDay(1), currentDate) }
             .filter(BudgetStatus::applies)
             .toList()
         BudgetsUiState(
@@ -85,11 +88,12 @@ class BudgetsViewModel(
             baseCurrency = config.baseCurrency,
             hideAmounts = config.hideAmounts,
             selectedMonth = month,
+            today = currentDate,
             expenseStatistics = monthlyStatistics(
-                transactions, categories, config.baseCurrency, month, StatisticsKind.GASTOS,
+                transactions, categories, config.baseCurrency, month, StatisticsKind.GASTOS, currentDate,
             ),
             incomeStatistics = monthlyStatistics(
-                transactions, categories, config.baseCurrency, month, StatisticsKind.INGRESOS,
+                transactions, categories, config.baseCurrency, month, StatisticsKind.INGRESOS, currentDate,
             ),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BudgetsUiState())
@@ -180,9 +184,10 @@ class BudgetDetailViewModel(
     ) { budgets, transactions, categories ->
         val budget = budgets.find { it.id == budgetId }
         if (budget == null) BudgetDetailUiState(loading = false) else {
-            val current = BudgetCalculator.status(budget, transactions, categories, today())
+            val currentDate = today()
+            val current = BudgetCalculator.status(budget, transactions, categories, currentDate, currentDate)
             val history = BudgetCalculator.recentWindows(budget, current.range.endInclusive).map {
-                range -> BudgetCalculator.statusForRange(budget, transactions, categories, range)
+                range -> BudgetCalculator.statusForRange(budget, transactions, categories, range, currentDate)
             }
             BudgetDetailUiState(
                 loading = false,
@@ -190,7 +195,9 @@ class BudgetDetailViewModel(
                 current = current,
                 history = history,
                 transactions = if (current.applies) {
-                    BudgetCalculator.matchingTransactions(budget, transactions, categories, current.range)
+                    BudgetCalculator.matchingTransactions(
+                        budget, transactions, categories, current.range, currentDate,
+                    )
                 } else emptyList(),
             )
         }

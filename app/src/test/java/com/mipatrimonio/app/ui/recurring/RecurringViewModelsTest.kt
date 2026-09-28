@@ -108,7 +108,7 @@ class RecurringViewModelsTest {
         settings.setHideAmounts(false)
         ledger.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
         recurring.saveRule(rule())
-        recurring.generatePending(today)
+        recurring.generatePending(RecurringRepository.generationLimit(today))
         val cancelled = mutableListOf<String>()
         val viewModel = RecurringListViewModel(recurring, settings, cancelled::add, today = { today })
         val state = viewModel.uiState.first { !it.isLoading && it.items.isNotEmpty() }
@@ -126,13 +126,13 @@ class RecurringViewModelsTest {
         ledger.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
         val futureStart = today.plusDays(10)
         recurring.saveRule(rule().copy(id = "future", startDate = futureStart))
-        recurring.generatePending(today)
+        recurring.generatePending(RecurringRepository.generationLimit(today))
 
         val viewModel = RecurringListViewModel(recurring, settings, today = { today })
         val state = viewModel.uiState.first { !it.isLoading && it.items.isNotEmpty() }
 
         assertEquals(futureStart, state.items.single().nextDate)
-        assertTrue(ledger.transactions.first().isEmpty())
+        assertEquals(listOf(futureStart), ledger.transactions.first().map { it.date })
     }
 
     private fun rule() = RecurringRule(

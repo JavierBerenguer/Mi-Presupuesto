@@ -22,10 +22,10 @@ class HistoryComponentsTest {
         val operations = listOf(op(OperationType.COMPRA, "2", "40", date = date))
 
         val components = HistoryCalculator.netWorthComponentsSeries(
-            "EUR", accounts, transactions, emptyList(), listOf(asset), operations, listOf(date),
+            "EUR", accounts, transactions, emptyList(), listOf(asset), operations, listOf(date), date,
         ).single()
         val legacy = HistoryCalculator.netWorthSeries(
-            "EUR", accounts, transactions, emptyList(), listOf(asset), operations, listOf(date),
+            "EUR", accounts, transactions, emptyList(), listOf(asset), operations, listOf(date), date,
         ).single()
 
         assertEquals(125_00L, components.accountsMinor)
@@ -40,7 +40,7 @@ class HistoryComponentsTest {
             "EUR",
             listOf(account("eur", initial = 10_00), account("usd", initial = 99_00, currency = "USD"), account("old", initial = 50_00, archived = true)),
             emptyList(), emptyList(), listOf(asset.copy(currency = "USD")),
-            listOf(op(OperationType.COMPRA, "1", "20", date = date, currency = "USD")), listOf(date),
+            listOf(op(OperationType.COMPRA, "1", "20", date = date, currency = "USD")), listOf(date), date,
         ).single()
 
         assertEquals(10_00L, result.accountsMinor)
