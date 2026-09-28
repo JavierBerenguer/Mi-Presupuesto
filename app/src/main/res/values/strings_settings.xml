@@ -60,6 +60,15 @@
     <string name="aj_select_color">Seleccionar color %1$d</string>
     <string name="aj_error_blank_category_name">Escribe un nombre para la categoría.</string>
     <string name="aj_error_invalid_parent">La categoría padre no es válida.</string>
+    <string name="aj_delete_category">Eliminar la categoría %1$s</string>
+    <string name="aj_delete_category_title">Eliminar categoría</string>
+    <string name="aj_delete_category_unused_message">¿Quieres eliminar definitivamente «%1$s»? No tiene apuntes asociados.</string>
+    <string name="aj_delete_category_used_message">«%1$s» tiene apuntes asociados. Elige dónde traspasarlos antes de eliminarla.</string>
+    <string name="aj_delete_category_children">También se eliminarán %1$d subcategorías.</string>
+    <string name="aj_delete_category_counts">Movimientos: %1$d · Transferencias: %2$d · Órdenes permanentes: %3$d · Presupuestos: %4$d · Propuestas pendientes: %5$d</string>
+    <string name="aj_delete_category_target">Categoría de destino</string>
+    <string name="aj_without_category">Sin categoría</string>
+    <string name="aj_delete_category_budget_restriction">Como hay presupuestos asociados, el destino debe ser una categoría de gasto. No se puede elegir «Sin categoría».</string>
     <string name="aj_quotes">Cotizaciones</string>
     <string name="aj_quotes_notice">Los datos gratuitos pueden ir retrasados o corresponder al cierre. Nunca se consideran datos en tiempo real.</string>
     <string name="aj_twelve_data_key">Clave de Twelve Data</string>

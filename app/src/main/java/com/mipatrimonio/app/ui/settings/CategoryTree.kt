@@ -8,6 +8,11 @@ data class CategoryNode(
     val children: List<Category>,
 )
 
+data class CategoryDeleteTarget(
+    val category: Category,
+    val label: String,
+)
+
 fun buildTree(categories: List<Category>, kind: CategoryKind): List<CategoryNode> {
     val filtered = categories.filter { it.kind == kind }
     val byId = filtered.associateBy(Category::id)
@@ -41,4 +46,28 @@ fun canSetParent(
     val category = categoryId?.let { id -> categories.firstOrNull { it.id == id } } ?: return true
     if (category.kind != parent.kind) return false
     return categories.none { it.parentId == category.id }
+}
+
+fun categoryDeleteTargets(
+    categoryId: String,
+    categories: List<Category>,
+    expenseOnly: Boolean,
+): List<CategoryDeleteTarget> {
+    val excludedIds = categories
+        .filter { it.id == categoryId || it.parentId == categoryId }
+        .mapTo(mutableSetOf()) { it.id }
+    val active = categories.filter {
+        !it.archived && it.id !in excludedIds && (!expenseOnly || it.kind == CategoryKind.GASTO)
+    }
+    val byId = active.associateBy { it.id }
+    return CategoryKind.entries.flatMap { kind ->
+        buildTree(active, kind).flatMap { node ->
+            listOf(CategoryDeleteTarget(node.category, node.category.name)) + node.children.map { child ->
+                CategoryDeleteTarget(child, "${node.category.name} · ${child.name}")
+            }
+        }
+    }.filter { target ->
+        val parentId = target.category.parentId
+        parentId == null || parentId in byId
+    }
 }

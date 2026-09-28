@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material3.AlertDialog
@@ -76,6 +77,8 @@ private val categoryColorPalette = listOf(
     0xFF57CC99,
     0xFF9EE493,
 )
+
+private data class DeleteTargetOption(val categoryId: String?, val label: String)
 
 @Composable
 fun CategoriesScreen(
@@ -139,6 +142,7 @@ fun CategoriesScreen(
                                     editingCategory = node.category
                                 },
                                 onArchive = { categoryToArchive = node.category },
+                                onDelete = { viewModel.requestDelete(node.category) },
                             )
                         }
                         items(node.children, key = { it.id }) { child ->
@@ -150,6 +154,7 @@ fun CategoriesScreen(
                                     editingCategory = child
                                 },
                                 onArchive = { categoryToArchive = child },
+                                onDelete = { viewModel.requestDelete(child) },
                             )
                         }
                     }
@@ -220,6 +225,14 @@ fun CategoriesScreen(
             onDismiss = { categoryToArchive = null },
         )
     }
+    state.deletion?.let { deletion ->
+        CategoryDeleteDialog(
+            state = deletion,
+            onTargetSelected = viewModel::selectDeleteTarget,
+            onConfirm = viewModel::confirmDelete,
+            onDismiss = viewModel::dismissDelete,
+        )
+    }
 }
 
 @Composable
@@ -228,6 +241,7 @@ private fun CategoryRow(
     indented: Boolean,
     onEdit: () -> Unit,
     onArchive: () -> Unit,
+    onDelete: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -270,9 +284,96 @@ private fun CategoryRow(
                         ),
                     )
                 }
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = stringResource(R.string.aj_delete_category, category.name),
+                    )
+                }
             }
         }
     }
+}
+
+@Composable
+private fun CategoryDeleteDialog(
+    state: CategoryDeletionState,
+    onTargetSelected: (String?) -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val withoutCategoryLabel = stringResource(R.string.aj_without_category)
+    val targetOptions = buildList {
+        if (state.usage.budgets == 0) {
+            add(DeleteTargetOption(null, withoutCategoryLabel))
+        }
+        addAll(state.targets.map { DeleteTargetOption(it.category.id, it.label) })
+    }
+    val selected = targetOptions.firstOrNull { state.targetSelected && it.categoryId == state.targetId }
+    AlertDialog(
+        onDismissRequest = { if (!state.isDeleting) onDismiss() },
+        title = { Text(stringResource(R.string.aj_delete_category_title)) },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    stringResource(
+                        if (state.usage.isUsed) {
+                            R.string.aj_delete_category_used_message
+                        } else {
+                            R.string.aj_delete_category_unused_message
+                        },
+                        state.category.name,
+                    ),
+                )
+                if (state.usage.subcategories > 0) {
+                    Text(stringResource(R.string.aj_delete_category_children, state.usage.subcategories))
+                }
+                if (state.usage.isUsed) {
+                    Text(
+                        stringResource(
+                            R.string.aj_delete_category_counts,
+                            state.usage.transactions,
+                            state.usage.transfers,
+                            state.usage.recurringRules,
+                            state.usage.budgets,
+                            state.usage.pendingProposals,
+                        ),
+                    )
+                    DropdownField(
+                        label = stringResource(R.string.aj_delete_category_target),
+                        options = targetOptions,
+                        selected = selected,
+                        optionLabel = { it.label },
+                        onSelected = { option -> option?.let { onTargetSelected(it.categoryId) } },
+                        enabled = !state.isDeleting,
+                    )
+                    if (state.usage.budgets > 0) {
+                        Text(
+                            stringResource(R.string.aj_delete_category_budget_restriction),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+                state.error?.takeIf(String::isNotBlank)?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                enabled = !state.isDeleting && (!state.usage.isUsed || state.targetSelected),
+            ) { Text(stringResource(R.string.common_delete)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !state.isDeleting) {
+                Text(stringResource(R.string.common_cancel))
+            }
+        },
+    )
 }
 
 @Composable

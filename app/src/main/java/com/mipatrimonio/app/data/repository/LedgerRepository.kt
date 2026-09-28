@@ -2,6 +2,7 @@ package com.mipatrimonio.app.data.repository
 
 import androidx.room.withTransaction
 import com.mipatrimonio.app.data.db.AppDatabase
+import com.mipatrimonio.app.data.db.BudgetCategoryEntity
 import com.mipatrimonio.app.data.db.toDomain
 import com.mipatrimonio.app.data.db.toEntity
 import com.mipatrimonio.app.data.db.toRuleEntities
@@ -26,6 +27,20 @@ data class AccountDependencies(
     val hasHistory: Boolean get() = transactions + transfers + investmentOperations > 0
     val canDelete: Boolean
         get() = transactions + transfers + investmentOperations + portfolios + notificationApps == 0
+}
+
+data class CategoryUsage(
+    val transactions: Int,
+    val transfers: Int,
+    val recurringRules: Int,
+    val budgets: Int,
+    val pendingProposals: Int,
+    val subcategories: Int,
+) {
+    val totalReferences: Int
+        get() = transactions + transfers + recurringRules + budgets + pendingProposals
+
+    val isUsed: Boolean get() = totalReferences > 0
 }
 
 /** Cuentas, categorías, movimientos, transferencias y presupuestos. Valida antes de escribir. */
@@ -95,6 +110,71 @@ class LedgerRepository(
         require(category.name.isNotBlank()) { "El nombre de la categoría es obligatorio" }
         categoryDao.upsert(category.toEntity())
     }
+
+    suspend fun categoryUsage(id: String): CategoryUsage = db.withTransaction {
+        val categoryIds = categoryIdsToDelete(id)
+        categoryUsageUnchecked(categoryIds)
+    }
+
+    suspend fun deleteCategory(id: String, targetId: String?) = db.withTransaction {
+        val categoryIds = categoryIdsToDelete(id)
+        val usage = categoryUsageUnchecked(categoryIds)
+        val target = targetId?.let { destinationId ->
+            require(destinationId !in categoryIds) {
+                "La categoría de destino no puede ser una categoría que se va a eliminar"
+            }
+            categoryDao.getById(destinationId)?.also {
+                require(!it.archived) { "La categoría de destino está archivada" }
+            } ?: throw IllegalArgumentException("La categoría de destino no existe")
+        }
+        if (usage.budgets > 0) {
+            require(target != null) { "Los presupuestos necesitan una categoría de destino" }
+            require(target.kind == "GASTO") { "Los presupuestos necesitan una categoría de gasto" }
+        }
+
+        transactionDao.moveCategories(categoryIds, targetId)
+        transferDao.moveCategories(categoryIds, targetId)
+        db.recurringRuleDao().moveCategories(categoryIds, targetId, clock())
+
+        if (usage.budgets > 0) {
+            val requiredTargetId = requireNotNull(targetId)
+            budgetDao.moveDirectCategories(categoryIds, requiredTargetId)
+            val sourceRules = budgetDao.getRulesForCategories(categoryIds)
+            val budgetsAlreadyUsingTarget = budgetDao.getRulesForCategories(listOf(requiredTargetId))
+                .mapTo(mutableSetOf()) { it.budgetId }
+            budgetDao.deleteRulesForCategories(categoryIds)
+            sourceRules.groupBy { it.budgetId }.forEach { (budgetId, rules) ->
+                if (budgetId !in budgetsAlreadyUsingTarget) {
+                    budgetDao.insertRuleIfAbsent(
+                        BudgetCategoryEntity(
+                            budgetId = budgetId,
+                            categoryId = requiredTargetId,
+                            includeSubcategories = rules.any { it.includeSubcategories },
+                        ),
+                    )
+                }
+            }
+        }
+        categoryDao.deleteByIds(categoryIds)
+    }
+
+    private suspend fun categoryIdsToDelete(id: String): List<String> {
+        categoryDao.getById(id) ?: throw IllegalArgumentException("La categoría no existe")
+        return categoryDao.getChildren(id).map { it.id } + id
+    }
+
+    private suspend fun categoryUsageUnchecked(categoryIds: List<String>) = CategoryUsage(
+        transactions = transactionDao.countForCategories(categoryIds),
+        transfers = transferDao.countForCategories(categoryIds),
+        recurringRules = db.recurringRuleDao().countForCategories(categoryIds),
+        budgets = (
+            budgetDao.getIdsForDirectCategories(categoryIds) +
+                budgetDao.getIdsForRuleCategories(categoryIds)
+            ).toSet().size,
+        // pending_proposal no almacena categoría y T-052 prohíbe cambiar el esquema Room.
+        pendingProposals = 0,
+        subcategories = categoryIds.size - 1,
+    )
 
     suspend fun saveTransaction(transaction: Transaction) = db.withTransaction {
         require(transaction.amountMinor > 0) { "El importe debe ser mayor que cero" }

@@ -93,4 +93,16 @@ class CategoryCatalogUpdateTest {
         assertTrue(ledger.categories.first().single { it.id == "mp-coche" }.archived)
         assertEquals(107, ledger.categories.first().size)
     }
+
+    @Test
+    fun `categoria del catalogo eliminada no reaparece tras actualizar de nuevo`() = runTest {
+        ledger.seedDefaultCategoriesIfEmpty()
+        ledger.updateDefaultCategoryCatalogIfNeeded(settingsRule.repository)
+        ledger.deleteCategory("mp-coche-parking", null)
+
+        ledger.updateDefaultCategoryCatalogIfNeeded(settingsRule.repository)
+
+        assertTrue(ledger.categories.first().none { it.id == "mp-coche-parking" })
+        assertEquals(106, ledger.categories.first().size)
+    }
 }

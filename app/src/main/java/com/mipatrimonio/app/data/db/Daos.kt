@@ -49,11 +49,20 @@ interface CategoryDao {
     @Query("SELECT * FROM category WHERE id IN (:ids)")
     suspend fun getByIds(ids: List<String>): List<CategoryEntity>
 
+    @Query("SELECT * FROM category WHERE id = :id")
+    suspend fun getById(id: String): CategoryEntity?
+
+    @Query("SELECT * FROM category WHERE parentId = :parentId ORDER BY sortOrder, name")
+    suspend fun getChildren(parentId: String): List<CategoryEntity>
+
     @Upsert
     suspend fun upsert(entity: CategoryEntity)
 
     @Upsert
     suspend fun upsertAll(entities: List<CategoryEntity>)
+
+    @Query("DELETE FROM category WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<String>)
 }
 
 @Dao
@@ -87,6 +96,12 @@ interface TransactionDao {
 
     @Query("SELECT COUNT(*) FROM txn WHERE accountId = :accountId")
     suspend fun countForAccount(accountId: String): Int
+
+    @Query("SELECT COUNT(*) FROM txn WHERE categoryId IN (:categoryIds)")
+    suspend fun countForCategories(categoryIds: List<String>): Int
+
+    @Query("UPDATE txn SET categoryId = :targetId WHERE categoryId IN (:categoryIds)")
+    suspend fun moveCategories(categoryIds: List<String>, targetId: String?)
 }
 
 @Dao
@@ -120,6 +135,12 @@ interface TransferDao {
 
     @Query("SELECT COUNT(*) FROM transfer WHERE fromAccountId = :accountId OR toAccountId = :accountId")
     suspend fun countForAccount(accountId: String): Int
+
+    @Query("SELECT COUNT(*) FROM transfer WHERE categoryId IN (:categoryIds)")
+    suspend fun countForCategories(categoryIds: List<String>): Int
+
+    @Query("UPDATE transfer SET categoryId = :targetId WHERE categoryId IN (:categoryIds)")
+    suspend fun moveCategories(categoryIds: List<String>, targetId: String?)
 }
 
 @Dao
@@ -165,6 +186,24 @@ interface BudgetDao {
 
     @Query("DELETE FROM budget WHERE id = :id")
     suspend fun delete(id: String)
+
+    @Query("SELECT id FROM budget WHERE categoryId IN (:categoryIds)")
+    suspend fun getIdsForDirectCategories(categoryIds: List<String>): List<String>
+
+    @Query("SELECT DISTINCT budgetId FROM budget_category WHERE categoryId IN (:categoryIds)")
+    suspend fun getIdsForRuleCategories(categoryIds: List<String>): List<String>
+
+    @Query("UPDATE budget SET categoryId = :targetId WHERE categoryId IN (:categoryIds)")
+    suspend fun moveDirectCategories(categoryIds: List<String>, targetId: String)
+
+    @Query("SELECT * FROM budget_category WHERE categoryId IN (:categoryIds)")
+    suspend fun getRulesForCategories(categoryIds: List<String>): List<BudgetCategoryEntity>
+
+    @Query("DELETE FROM budget_category WHERE categoryId IN (:categoryIds)")
+    suspend fun deleteRulesForCategories(categoryIds: List<String>)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertRuleIfAbsent(rule: BudgetCategoryEntity): Long
 }
 
 @Dao
@@ -393,4 +432,10 @@ interface RecurringRuleDao {
 
     @Query("SELECT COUNT(*) FROM recurring_rule WHERE accountId = :accountId OR destinationAccountId = :accountId")
     suspend fun countForAccount(accountId: String): Int
+
+    @Query("SELECT COUNT(*) FROM recurring_rule WHERE categoryId IN (:categoryIds)")
+    suspend fun countForCategories(categoryIds: List<String>): Int
+
+    @Query("UPDATE recurring_rule SET categoryId = :targetId, updatedAt = :updatedAt WHERE categoryId IN (:categoryIds)")
+    suspend fun moveCategories(categoryIds: List<String>, targetId: String?, updatedAt: Long)
 }

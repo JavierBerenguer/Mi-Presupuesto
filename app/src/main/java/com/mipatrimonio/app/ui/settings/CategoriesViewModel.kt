@@ -2,6 +2,7 @@ package com.mipatrimonio.app.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mipatrimonio.app.data.repository.CategoryUsage
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.model.CategoryKind
@@ -23,18 +24,35 @@ data class CategoriesUiState(
     val isLoading: Boolean = true,
     val categories: List<Category> = emptyList(),
     val formError: CategoryFormError? = null,
+    val deletion: CategoryDeletionState? = null,
+)
+
+data class CategoryDeletionState(
+    val category: Category,
+    val usage: CategoryUsage,
+    val targets: List<CategoryDeleteTarget>,
+    val targetSelected: Boolean = false,
+    val targetId: String? = null,
+    val isDeleting: Boolean = false,
+    val error: String? = null,
 )
 
 class CategoriesViewModel(
     private val repository: LedgerRepository,
 ) : ViewModel() {
     private val formError = MutableStateFlow<CategoryFormError?>(null)
+    private val deletion = MutableStateFlow<CategoryDeletionState?>(null)
 
-    val uiState: StateFlow<CategoriesUiState> = combine(repository.categories, formError) { categories, error ->
+    val uiState: StateFlow<CategoriesUiState> = combine(
+        repository.categories,
+        formError,
+        deletion,
+    ) { categories, error, deletionState ->
         CategoriesUiState(
             isLoading = false,
             categories = categories,
             formError = error,
+            deletion = deletionState,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -98,6 +116,50 @@ class CategoriesViewModel(
             }.onFailure { error ->
                 formError.value = CategoryFormError.Repository(error.message.orEmpty())
             }
+        }
+    }
+
+    fun requestDelete(category: Category) {
+        viewModelScope.launch {
+            runCatching { repository.categoryUsage(category.id) }
+                .onSuccess { usage ->
+                    deletion.value = CategoryDeletionState(
+                        category = category,
+                        usage = usage,
+                        targets = categoryDeleteTargets(
+                            categoryId = category.id,
+                            categories = uiState.value.categories,
+                            expenseOnly = usage.budgets > 0,
+                        ),
+                    )
+                }
+                .onFailure { error ->
+                    formError.value = CategoryFormError.Repository(error.message.orEmpty())
+                }
+        }
+    }
+
+    fun selectDeleteTarget(targetId: String?) {
+        deletion.value = deletion.value?.copy(targetSelected = true, targetId = targetId, error = null)
+    }
+
+    fun dismissDelete() {
+        deletion.value = null
+    }
+
+    fun confirmDelete() {
+        val request = deletion.value ?: return
+        if (request.usage.isUsed && !request.targetSelected) return
+        deletion.value = request.copy(isDeleting = true, error = null)
+        viewModelScope.launch {
+            runCatching { repository.deleteCategory(request.category.id, request.targetId) }
+                .onSuccess { deletion.value = null }
+                .onFailure { error ->
+                    deletion.value = deletion.value?.copy(
+                        isDeleting = false,
+                        error = error.message.orEmpty(),
+                    )
+                }
         }
     }
 }
