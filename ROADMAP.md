@@ -2,7 +2,7 @@
 
 Leyenda: ✅ completado y verificado · 🔄 en curso · ⏳ pendiente
 
-Última revisión: 2026-09-28 (rama `claude/fase-3-mvp`, Room v9, 384 tests).
+Última revisión: 2026-09-28 (rama `claude/fase-3-mvp`, Room v10, 405 tests).
 
 | Fase | Contenido | Estado |
 |---|---|---|
@@ -13,8 +13,8 @@ Leyenda: ✅ completado y verificado · 🔄 en curso · ⏳ pendiente
 | 4 | Inversiones básicas: carteras, activos (incl. préstamos P2P), compra/venta por importe, fecha y hora, precios manuales, rentabilidad detallada | ✅ |
 | 5 | Primer APK verificado (APK de depuración en `.local/apk/`) | ✅ |
 | 6 | Notificaciones bancarias: `NotificationListenerService`, apps autorizadas, reglas, autoanotación y propuestas pendientes | ✅ |
-| 7 | Órdenes permanentes con recordatorios ✅ · estado ejecutado/previsto por fecha ✅ · saldo por cuentas y modos de cálculo en Movimientos ✅ · dividendos ✅ · inversiones con cuenta visibles en Movimientos ✅ · multidivisa real (tipos de cambio) ⏳ · objetivos ⏳ · alertas de presupuesto ⏳ | 🔄 |
-| 8 | Copias de seguridad cifradas y restauración ✅ · exportación CSV ✅ · importación de Trade Republic con vista previa ✅ · importación genérica configurable/XLSX ⏳ | 🔄 |
+| 7 | Órdenes permanentes con recordatorios ✅ · estado ejecutado/previsto por fecha ✅ · saldo por cuentas y modos de cálculo en Movimientos ✅ · dividendos ✅ · inversiones con cuenta visibles en Movimientos ✅ · notificaciones solo como gasto/ingreso ✅ · gestión de carteras ✅ · multidivisa real (tipos de cambio) ⏳ · objetivos ⏳ · alertas de presupuesto ⏳ | 🔄 |
+| 8 | Copias de seguridad cifradas y restauración ✅ · exportación CSV ✅ · importación de Trade Republic con vista previa y reglas del usuario (CASH/TRADING, carteras TR, Ignorar/Aceptar todo) ✅ · importación genérica configurable/XLSX ⏳ | 🔄 |
 | 9 | Cotizaciones automáticas (Twelve Data, CoinGecko) ✅ · alta de activos por ISIN (OpenFIGI) ✅ · tipos de cambio ⏳ · sincronización con Supabase (RLS) ⏳ | 🔄 |
 | 10 | Calidad: revisión de seguridad, bloqueo biométrico opcional, optimización, APK firmado, documentación | ⏳ |
 
