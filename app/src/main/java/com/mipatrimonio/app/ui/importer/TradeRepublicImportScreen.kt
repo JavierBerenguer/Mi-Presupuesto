@@ -24,7 +24,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mipatrimonio.app.R
 import com.mipatrimonio.app.data.importer.ImportRowDecision
-import com.mipatrimonio.app.data.importer.ImportRowStatus
 import com.mipatrimonio.app.domain.model.MoneyMath
 import com.mipatrimonio.app.ui.common.DropdownField
 import com.mipatrimonio.app.ui.common.LoadingBox
@@ -86,25 +85,36 @@ fun TradeRepublicImportScreen(
                     Button(onClick = viewModel::acceptAll) { Text(stringResource(R.string.import_tr_accept_all)) }
                 }
             }
-            plan.rows.filter {
-                it.status == ImportRowStatus.REVIEW || state.decisions.containsKey(it.source.externalId)
-            }.forEach { row ->
+            state.reviewItems.forEach { item ->
+                val row = item.row
                 SectionCard {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        val canConvert = canConvertToMovement(row.source)
                         Text(row.source.description.ifBlank { row.source.rawType }, style = MaterialTheme.typography.titleMedium)
-                        Text(row.reason.orEmpty())
+                        Text(when (item.decisionState) {
+                            ImportReviewDecisionState.PENDING -> row.reason.orEmpty()
+                            ImportReviewDecisionState.IGNORED -> stringResource(R.string.import_tr_status_ignored)
+                            ImportReviewDecisionState.IMPORT_OPERATION -> stringResource(R.string.import_tr_status_operation)
+                            ImportReviewDecisionState.IMPORT_MOVEMENT -> stringResource(R.string.import_tr_status_movement)
+                        })
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             OutlinedButton(onClick = { viewModel.setDecision(row.source.externalId, ImportRowDecision.Ignore) }) {
                                 Text(stringResource(R.string.import_tr_ignore))
                             }
-                            if (canConvert) Button(onClick = {
-                                viewModel.setDecision(row.source.externalId, ImportRowDecision.AsTransaction())
-                            }) { Text(stringResource(R.string.import_tr_as_movement)) }
+                            when (item.action) {
+                                ImportReviewAction.IMPORT_OPERATION -> Button(onClick = {
+                                    viewModel.setDecision(row.source.externalId, ImportRowDecision.AcceptDefault)
+                                }) { Text(stringResource(R.string.import_tr_as_operation)) }
+                                ImportReviewAction.IMPORT_MOVEMENT -> Button(onClick = {
+                                    viewModel.setDecision(row.source.externalId, ImportRowDecision.AsTransaction())
+                                }) { Text(stringResource(R.string.import_tr_as_movement)) }
+                                ImportReviewAction.NONE -> Unit
+                            }
                         }
-                        if (canConvert) {
+                        if (item.action == ImportReviewAction.IMPORT_MOVEMENT) {
+                            val selectedCategoryId = (state.decisions[row.source.externalId] as? ImportRowDecision.AsTransaction)?.categoryId
                             DropdownField(
-                                stringResource(R.string.import_tr_category), state.categories, null, { it.name },
+                                stringResource(R.string.import_tr_category), state.categories,
+                                state.categories.firstOrNull { it.id == selectedCategoryId }, { it.name },
                                 { it?.let { category -> viewModel.setDecision(row.source.externalId, ImportRowDecision.AsTransaction(category.id)) } },
                                 noneLabel = stringResource(R.string.import_tr_select_category),
                             )

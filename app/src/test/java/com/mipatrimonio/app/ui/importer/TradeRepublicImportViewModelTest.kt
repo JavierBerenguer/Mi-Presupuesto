@@ -59,10 +59,22 @@ class TradeRepublicImportViewModelTest {
         assertTrue(viewModel.uiState.first { it.canChooseFile }.canChooseFile)
 
         viewModel.loadCsv(CSV)
-        assertEquals(2, viewModel.uiState.first { it.plan != null && !it.busy }.plan?.toReview)
+        val pending = viewModel.uiState.first { it.plan != null && !it.busy }
+        assertEquals(2, pending.plan?.toReview)
+        assertEquals(ImportReviewAction.IMPORT_OPERATION, pending.reviewItems.single { it.row.source.externalId == "buy" }.action)
+        assertEquals(ImportReviewAction.IMPORT_MOVEMENT, pending.reviewItems.single { it.row.source.externalId == "bonus" }.action)
+        assertTrue(pending.reviewItems.all { it.decisionState == ImportReviewDecisionState.PENDING })
         viewModel.acceptAll()
         val accepted = viewModel.uiState.first { it.plan?.toCreate == 3 && !it.busy }
         assertEquals(ImportRowDecision.AcceptDefault, accepted.decisions["buy"])
+        assertEquals(
+            ImportReviewDecisionState.IMPORT_OPERATION,
+            accepted.reviewItems.single { it.row.source.externalId == "buy" }.decisionState,
+        )
+        assertEquals(
+            ImportReviewDecisionState.IMPORT_MOVEMENT,
+            accepted.reviewItems.single { it.row.source.externalId == "bonus" }.decisionState,
+        )
         viewModel.setDecision("buy", ImportRowDecision.Ignore)
         val changed = viewModel.uiState.first { it.plan?.toCreate == 2 && !it.busy }
         assertEquals(ImportRowStatus.IGNORED, changed.plan?.rows?.single { it.source.externalId == "buy" }?.status)

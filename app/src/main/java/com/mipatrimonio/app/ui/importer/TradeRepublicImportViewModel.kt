@@ -34,6 +34,9 @@ data class TradeRepublicImportUiState(
 ) {
     val canChooseFile get() = accountId != null && !busy
     val canConfirm get() = plan?.toCreate?.let { it > 0 } == true && !busy
+    val reviewItems get() = plan?.rows.orEmpty()
+        .filter { it.status == com.mipatrimonio.app.data.importer.ImportRowStatus.REVIEW || decisions.containsKey(it.source.externalId) }
+        .map { importReviewItem(it, decisions[it.source.externalId]) }
 }
 
 class TradeRepublicImportViewModel(

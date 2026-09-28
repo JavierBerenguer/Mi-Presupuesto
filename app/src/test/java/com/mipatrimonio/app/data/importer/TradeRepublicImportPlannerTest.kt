@@ -153,7 +153,9 @@ class TradeRepublicImportPlannerTest {
     }
 
     @Test fun `fondo privado emparejado no crea gasto y conserva fecha de salida`() {
-        val cash = cash("cash-private", "PRIVATE_MARKET_BUY", -1000).copy(isin = "PRIVATE", date = LocalDate.of(2026, 2, 1))
+        val cash = cash("cash-private", "PRIVATE_MARKET_BUY", -1000).copy(
+            isin = "PRIVATE", date = LocalDate.of(2026, 2, 1), feeCents = -100,
+        )
         val delivery = trading("delivery-private", "BUY", "PRIVATE_FUND", 0, "10", "1", "PRIVATE")
             .copy(date = LocalDate.of(2026, 4, 1))
         val result = plan(cash, delivery)
@@ -161,7 +163,8 @@ class TradeRepublicImportPlannerTest {
         assertEquals(1, result.ignored)
         val operation = result.rows.single { it.source.externalId == "delivery-private" }.record as ImportRecord.Operation
         assertEquals(cash.date, operation.value.date)
-        assertEquals(-1000L, BalanceCalculator.investmentEffectMinor(operation.value))
+        assertEquals(100L, operation.value.feesMinor)
+        assertEquals(-1100L, BalanceCalculator.investmentEffectMinor(operation.value))
     }
 
     @Test fun `fondo privado sin entrega es gasto y reimportacion posterior programa borrado`() {
@@ -191,7 +194,7 @@ class TradeRepublicImportPlannerTest {
     }
 
     @Test fun `venta con participaciones negativas conserva operacion y reduce posicion`() {
-        val result = plan(trading("sale-negative-shares", "SELL", "CRYPTO", 599, "-2", "3", "BTC").copy(feeCents = 1))
+        val result = plan(trading("sale-negative-shares", "SELL", "CRYPTO", 600, "-2", "3", "BTC").copy(feeCents = -1))
         val operation = (result.rows.single().record as ImportRecord.Operation).value
 
         assertEquals(OperationType.VENTA, operation.type)
@@ -207,14 +210,49 @@ class TradeRepublicImportPlannerTest {
         assertEquals(0, BigDecimal("3").compareTo(PositionCalculator.compute(listOf(earlierBuy, operation)).quantity))
     }
 
-    @Test fun `aceptar operacion sin participaciones la convierte en caja y entrega huerfana no resta`() {
+    @Test fun `compras ventas y retenciones TRADING usan cargos positivos y efecto neto`() {
+        val result = plan(
+            trading("buy-fee", "BUY", "STOCK", -10_000, "1", "100", "BUY1").copy(feeCents = -100),
+            trading("sell-fee", "SELL", "STOCK", 10_000, "-1", "100", "SELL1").copy(feeCents = -100),
+            trading("buy-tax", "BUY", "STOCK", -10_000, "1", "100", "BUY2").copy(taxCents = -210),
+        )
+
+        val buy = (result.rows[0].record as ImportRecord.Operation).value
+        val sell = (result.rows[1].record as ImportRecord.Operation).value
+        val taxedBuy = (result.rows[2].record as ImportRecord.Operation).value
+        assertEquals(ImportRowStatus.CREATE, result.rows[0].status)
+        assertEquals(ImportRowStatus.CREATE, result.rows[1].status)
+        assertEquals(ImportRowStatus.CREATE, result.rows[2].status)
+        assertEquals(100L, buy.feesMinor)
+        assertEquals(100L, sell.feesMinor)
+        assertEquals(210L, taxedBuy.feesMinor)
+        assertEquals(-10_100L, BalanceCalculator.investmentEffectMinor(buy))
+        assertEquals(9_900L, BalanceCalculator.investmentEffectMinor(sell))
+        assertEquals(-10_210L, BalanceCalculator.investmentEffectMinor(taxedBuy))
+        assertEquals(-10_410L, result.rows.sumOf { it.cashEffectMinor })
+    }
+
+    @Test fun `operaciones invalidas nunca quedan marcadas para crear`() {
+        val result = plan(
+            trading("zero-quantity", "BUY", "STOCK", -100, "0", "1", "ZEROQ"),
+            trading("zero-price", "BUY", "STOCK", -100, "1", "0", "ZEROP"),
+            trading("overflow-fee", "BUY", "STOCK", -100, "1", "1", "OVERFLOW")
+                .copy(feeCents = Long.MIN_VALUE),
+        )
+
+        assertTrue(result.rows.all { it.status == ImportRowStatus.REVIEW })
+        assertTrue(result.rows.all { it.record == null })
+    }
+
+    @Test fun `aceptar operacion invalida la mantiene a revisar y entrega huerfana no resta`() {
         val missing = trading("missing", "BUY", "STOCK", -500, null, "5", "ISIN")
         val orphan = trading("orphan", "BUY", "PRIVATE_FUND", 0, "2", "3", "PRIVATE")
         val result = plan(missing, orphan, decisions = mapOf(
             "missing" to ImportRowDecision.AcceptDefault,
             "orphan" to ImportRowDecision.AcceptDefault,
         ))
-        assertTrue(result.rows[0].record is ImportRecord.Movement)
+        assertEquals(ImportRowStatus.REVIEW, result.rows[0].status)
+        assertNull(result.rows[0].record)
         val operation = (result.rows[1].record as ImportRecord.Operation).value
         assertNull(operation.accountId)
         assertEquals(0L, result.rows[1].cashEffectMinor)

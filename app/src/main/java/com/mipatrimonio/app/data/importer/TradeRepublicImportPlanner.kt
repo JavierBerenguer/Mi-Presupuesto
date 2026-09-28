@@ -2,6 +2,7 @@ package com.mipatrimonio.app.data.importer
 
 import com.mipatrimonio.app.data.repository.DefaultCategories
 import com.mipatrimonio.app.domain.calc.BalanceCalculator
+import com.mipatrimonio.app.domain.calc.PositionCalculator
 import com.mipatrimonio.app.domain.model.Asset
 import com.mipatrimonio.app.domain.model.AssetType
 import com.mipatrimonio.app.domain.model.InvestmentOperation
@@ -103,7 +104,8 @@ object TradeRepublicImportPlanner {
                 return@map PlannedImportRow(row, ImportRowStatus.REVIEW, reason = "La fila no tiene divisa")
             }
             if (decision is ImportRowDecision.AsTransaction) {
-                val cashEffect = if (category == CATEGORY_CASH) cashNetMinor(row) else row.amountCents
+                val cashEffect = cashNetMinorOrNull(row)
+                    ?: return@map PlannedImportRow(row, ImportRowStatus.REVIEW, reason = "El importe está fuera de rango")
                 if (cashEffect != 0L) {
                     return@map transactionRow(row, context, decision, cashEffect, category == CATEGORY_CASH)
                 }
@@ -122,7 +124,8 @@ object TradeRepublicImportPlanner {
     }
 
     private fun cashRow(row: ImportedMovement, context: TradeRepublicPlanningContext, decision: ImportRowDecision?): PlannedImportRow {
-        val netAmount = cashNetMinor(row)
+        val netAmount = cashNetMinorOrNull(row)
+            ?: return PlannedImportRow(row, ImportRowStatus.REVIEW, reason = "El importe está fuera de rango")
         if (netAmount == 0L) return PlannedImportRow(row, ImportRowStatus.IGNORED, reason = "Fila de caja sin importe")
         return transactionRow(row, context, decision, netAmount, includeCashBreakdown = true)
     }
@@ -131,9 +134,12 @@ object TradeRepublicImportPlanner {
         row: ImportedMovement,
         context: TradeRepublicPlanningContext,
         decision: ImportRowDecision?,
-        cashEffect: Long = row.amountCents,
+        cashEffect: Long,
         includeCashBreakdown: Boolean = false,
     ): PlannedImportRow {
+        if (cashEffect == Long.MIN_VALUE) {
+            return PlannedImportRow(row, ImportRowStatus.REVIEW, reason = "El importe está fuera de rango")
+        }
         val type = if (cashEffect > 0) TransactionType.INGRESO else TransactionType.GASTO
         val categoryId = (decision as? ImportRowDecision.AsTransaction)?.categoryId ?: when {
             row.rawType.equals("INTEREST_PAYMENT", true) -> "mp-ingresos-intereses"
@@ -162,26 +168,20 @@ object TradeRepublicImportPlanner {
         newPortfolios: MutableMap<String, Portfolio>,
     ): PlannedImportRow {
         if (!row.rawType.equals("BUY", true) && !row.rawType.equals("SELL", true)) {
-            if (decision == ImportRowDecision.AcceptDefault) return acceptedCashFallback(row, context, "Tipo TRADING no compatible")
             return PlannedImportRow(row, ImportRowStatus.REVIEW, reason = "Tipo TRADING no compatible")
         }
         val portfolioName = portfolioName(row.assetClass)
-            ?: return if (decision == ImportRowDecision.AcceptDefault) {
-                acceptedCashFallback(row, context, "Clase de activo no compatible")
-            } else PlannedImportRow(row, ImportRowStatus.REVIEW, reason = "Clase de activo no compatible")
+            ?: return PlannedImportRow(row, ImportRowStatus.REVIEW, reason = "Clase de activo no compatible")
         val isin = normalizeIsin(row.isin.orEmpty())
         val quantity = row.shares?.abs()
         val unitPrice = row.price
         val missingData = quantity == null || unitPrice == null ||
-            quantity.signum() == 0 || unitPrice.signum() < 0 || isin.isBlank()
-        if (missingData && decision == ImportRowDecision.AcceptDefault) {
-            return acceptedCashFallback(row, context, "Operación sin cantidad, precio o ISIN")
-        }
+            quantity.signum() == 0 || unitPrice.signum() <= 0 || isin.isBlank()
         if (missingData) return PlannedImportRow(row, ImportRowStatus.REVIEW, reason = when {
             quantity == null -> "Faltan participaciones"
             unitPrice == null -> "Falta el precio"
             quantity?.signum() == 0 -> "Las participaciones no pueden ser cero"
-            unitPrice?.signum()?.let { it < 0 } == true -> "El precio no puede ser negativo"
+            unitPrice?.signum()?.let { it <= 0 } == true -> "El precio debe ser mayor que cero"
             else -> "Falta el ISIN"
         })
         val orphanPrivateDelivery = isPrivateFundBuy(row) && privateCash == null
@@ -192,11 +192,17 @@ object TradeRepublicImportPlanner {
         val portfolio = existingPortfolio ?: Portfolio(
             portfolioId(portfolioName, context.existingPortfolios), portfolioName, context.now, context.accountId,
         )
-        val planned = operationRow(
-            row, privateCash?.let { cashNetMinor(it) } ?: row.amountCents, context, decision, portfolio.id,
-            assetsByIsin, newAssets, privateCash?.date ?: row.date, privateCash?.time ?: row.time,
-            if (orphanPrivateDelivery) null else context.accountId,
-        )
+        val cashAmount = privateCash?.let(::cashNetMinorOrNull) ?: cashNetMinorOrNull(row)
+            ?: return PlannedImportRow(row, ImportRowStatus.REVIEW, reason = "El importe está fuera de rango")
+        val planned = try {
+            operationRow(
+                row, cashAmount, context, decision, portfolio.id,
+                assetsByIsin, newAssets, privateCash?.date ?: row.date, privateCash?.time ?: row.time,
+                if (orphanPrivateDelivery) null else context.accountId, privateCash,
+            )
+        } catch (_: ArithmeticException) {
+            PlannedImportRow(row, ImportRowStatus.REVIEW, reason = "Los datos numéricos están fuera de rango")
+        }
         if (planned.record is ImportRecord.Operation && existingPortfolio == null) {
             portfoliosByName[portfolioName] = portfolio
             newPortfolios[portfolioName] = portfolio
@@ -215,12 +221,17 @@ object TradeRepublicImportPlanner {
         operationDate: LocalDate,
         operationTime: LocalTime,
         accountId: String?,
+        pairedCash: ImportedMovement?,
     ): PlannedImportRow {
         val isin = normalizeIsin(row.isin.orEmpty())
         val quantity = requireNotNull(row.shares).abs()
         var price = requireNotNull(row.price)
         val type = if (row.rawType.equals("BUY", true)) OperationType.COMPRA else OperationType.VENTA
-        var fees = Math.addExact(row.feeCents, row.taxCents)
+        var fees = runCatching {
+            Math.addExact(positiveChargesMinor(row), pairedCash?.let(::positiveChargesMinor) ?: 0L)
+        }.getOrElse {
+            return PlannedImportRow(row, ImportRowStatus.REVIEW, reason = "Las comisiones están fuera de rango")
+        }
         val currency = row.currency ?: context.accountCurrency
         val existingAsset = assetsByIsin[isin]
         val asset = existingAsset ?: Asset(
@@ -231,9 +242,7 @@ object TradeRepublicImportPlanner {
             return PlannedImportRow(row, ImportRowStatus.REVIEW, reason = "El activo existente está archivado")
         }
         if (!asset.currency.equals(currency, true)) {
-            return if (decision == ImportRowDecision.AcceptDefault) {
-                acceptedCashFallback(row, context, "La divisa del activo no coincide con la fila")
-            } else PlannedImportRow(row, ImportRowStatus.REVIEW, reason = "La divisa del activo no coincide con la fila")
+            return PlannedImportRow(row, ImportRowStatus.REVIEW, reason = "La divisa del activo no coincide con la fila")
         }
         var operation = InvestmentOperation(
             recordId(row.externalId), portfolioId, asset.id, type, operationDate, quantity, price,
@@ -264,7 +273,12 @@ object TradeRepublicImportPlanner {
                     effect = BalanceCalculator.investmentEffectMinor(operation)
                 }
             }
-            if (effect != cashAmount) return acceptedCashFallback(row, context, "No se pudo cuadrar el efecto de caja")
+            if (effect != cashAmount) {
+                return PlannedImportRow(row, ImportRowStatus.REVIEW, reason = "No se pudo cuadrar el efecto de caja")
+            }
+        }
+        operationValidationReason(operation, asset, context)?.let { reason ->
+            return PlannedImportRow(row, ImportRowStatus.REVIEW, reason = reason)
         }
         if (existingAsset == null) {
             assetsByIsin[isin] = asset
@@ -273,31 +287,31 @@ object TradeRepublicImportPlanner {
         return PlannedImportRow(row, ImportRowStatus.CREATE, ImportRecord.Operation(operation), cashEffectMinor = effect)
     }
 
-    private fun acceptedCashFallback(row: ImportedMovement, context: TradeRepublicPlanningContext, reason: String): PlannedImportRow =
-        if (row.amountCents != 0L) transactionRow(row, context, ImportRowDecision.AsTransaction())
-        else PlannedImportRow(row, ImportRowStatus.IGNORED, reason = "$reason; fila sin importe para crear un movimiento")
-
     private fun privateFundPairs(rows: List<ImportedMovement>): Map<String, ImportedMovement> {
         val cashRows = rows.filter { it.category.equals(CATEGORY_CASH, true) && it.rawType.equals("PRIVATE_MARKET_BUY", true) }
             .sortedWith(importedDateTimeOrder).toMutableList()
         val pairs = linkedMapOf<String, ImportedMovement>()
         rows.filter { it.category.equals(CATEGORY_TRADING, true) && isPrivateFundBuy(it) }.sortedWith(importedDateTimeOrder).forEach { delivery ->
-            val expected = privateFundExpectedCashMinor(delivery) ?: return@forEach
             val isin = normalizeIsin(delivery.isin.orEmpty())
             val index = cashRows.indexOfFirst { cash ->
-                isin.isNotBlank() && cash.amountCents < 0 && normalizeIsin(cash.isin.orEmpty()) == isin &&
-                    cash.date <= delivery.date && amountsMatch(expected, cash.amountCents)
+                val expected = privateFundExpectedCashMinor(delivery, cash)
+                val cashEffect = cashNetMinorOrNull(cash)
+                expected != null && isin.isNotBlank() && cashEffect != null && cashEffect < 0 && normalizeIsin(cash.isin.orEmpty()) == isin &&
+                    cash.date <= delivery.date && amountsMatch(expected, cashEffect)
             }
             if (index >= 0) pairs[delivery.externalId] = cashRows.removeAt(index)
         }
         return pairs
     }
 
-    private fun privateFundExpectedCashMinor(row: ImportedMovement): Long? {
+    private fun privateFundExpectedCashMinor(row: ImportedMovement, cash: ImportedMovement): Long? {
         val shares = row.shares?.abs() ?: return null
         val price = row.price ?: return null
         val currency = row.currency ?: return null
-        return runCatching { MoneyMath.toMinor(shares.multiply(price, MoneyMath.CONTEXT), currency) }.getOrNull()
+        return runCatching {
+            val gross = MoneyMath.toMinor(shares.multiply(price, MoneyMath.CONTEXT), currency)
+            Math.addExact(Math.addExact(gross, positiveChargesMinor(row)), positiveChargesMinor(cash))
+        }.getOrNull()
     }
 
     private fun amountsMatch(expected: Long, actual: Long) = runCatching {
@@ -374,6 +388,22 @@ object TradeRepublicImportPlanner {
     private fun normalizeIsin(isin: String) = isin.filterNot(Char::isWhitespace).uppercase(Locale.ROOT)
     private fun cashNetMinor(row: ImportedMovement) =
         Math.addExact(Math.addExact(row.amountCents, row.feeCents), row.taxCents)
+    private fun cashNetMinorOrNull(row: ImportedMovement) = runCatching { cashNetMinor(row) }.getOrNull()
+    private fun positiveChargesMinor(row: ImportedMovement) =
+        Math.addExact(absExact(row.feeCents), absExact(row.taxCents))
+    private fun operationValidationReason(
+        operation: InvestmentOperation,
+        asset: Asset,
+        context: TradeRepublicPlanningContext,
+    ): String? = when {
+        asset.archived -> "El activo existente está archivado"
+        operation.unitPrice.signum() <= 0 -> "El precio debe ser mayor que cero"
+        operation.currency.isBlank() -> "La operación no tiene divisa"
+        !asset.currency.equals(operation.currency, ignoreCase = true) -> "La divisa del activo no coincide con la fila"
+        operation.accountId != null && !operation.currency.equals(context.accountCurrency, ignoreCase = true) ->
+            "La divisa de la operación no coincide con la cuenta"
+        else -> PositionCalculator.validate(operation)
+    }
     private fun absExact(value: Long) = if (value == Long.MIN_VALUE) throw ArithmeticException("Importe fuera de rango") else kotlin.math.abs(value)
     private fun isPrivateFundBuy(row: ImportedMovement) = row.rawType.equals("BUY", true) && row.assetClass.equals("PRIVATE_FUND", true) && row.amountCents == 0L
 

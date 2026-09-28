@@ -7,6 +7,7 @@ import com.mipatrimonio.app.data.db.AppDatabase
 import com.mipatrimonio.app.data.db.toDomain
 import com.mipatrimonio.app.data.db.toEntity
 import com.mipatrimonio.app.domain.calc.PositionCalculator
+import com.mipatrimonio.app.domain.model.InvestmentOperation
 import java.nio.charset.StandardCharsets
 
 class ImportFileStore(private val resolver: ContentResolver) {
@@ -72,24 +73,35 @@ class TradeRepublicImportRepository(
         plan.newAssets.forEach { asset ->
             if (db.investmentDao().insertAssetIfAbsent(asset.toEntity(System.currentTimeMillis())) != -1L) assetCount++
         }
-        val operations = plan.rows.mapNotNull { (it.record as? ImportRecord.Operation)?.value }
-        operations.groupBy { it.portfolioId to it.assetId }.forEach { (key, additions) ->
+        val operationRows = plan.rows.filter { it.status == ImportRowStatus.CREATE && it.record is ImportRecord.Operation }
+        operationRows.groupBy {
+            val operation = (it.record as ImportRecord.Operation).value
+            operation.portfolioId to operation.assetId
+        }.forEach { (key, additions) ->
             val existing = db.investmentDao().operationsFor(key.first, key.second).map { it.toDomain() }
-            PositionCalculator.compute(existing + additions.filterNot { addition -> existing.any { it.id == addition.id } })
+            val accepted = mutableListOf<InvestmentOperation>()
+            additions.forEach { row ->
+                val addition = (row.record as ImportRecord.Operation).value
+                if (existing.none { it.id == addition.id }) accepted += addition
+                runCatching { PositionCalculator.compute(existing + accepted) }
+                    .getOrElse { throw rowImportException(row, it) }
+            }
         }
         plan.rows.filter { it.status == ImportRowStatus.CREATE }.forEach { row ->
-            when (val record = row.record) {
-                is ImportRecord.Movement -> {
-                    val categoryId = record.value.categoryId?.let { id ->
-                        db.categoryDao().getByIds(listOf(id)).singleOrNull()?.takeUnless { it.archived }?.id
+            runCatching {
+                when (val record = row.record) {
+                    is ImportRecord.Movement -> {
+                        val categoryId = record.value.categoryId?.let { id ->
+                            db.categoryDao().getByIds(listOf(id)).singleOrNull()?.takeUnless { it.archived }?.id
+                        }
+                        if (db.transactionDao().insertIfAbsent(record.value.copy(categoryId = categoryId).toEntity()) != -1L) transactionCount++
                     }
-                    if (db.transactionDao().insertIfAbsent(record.value.copy(categoryId = categoryId).toEntity()) != -1L) transactionCount++
+                    is ImportRecord.Operation -> if (db.investmentDao().insertOperationIfAbsent(record.value.toEntity()) != -1L) operationCount++
+                    null -> Unit
                 }
-                is ImportRecord.Operation -> if (db.investmentDao().insertOperationIfAbsent(record.value.toEntity()) != -1L) operationCount++
-                null -> Unit
-            }
-            inserted++
-            afterInsert(inserted)
+                inserted++
+                afterInsert(inserted)
+            }.getOrElse { throw rowImportException(row, it) }
         }
         val omittedReasons = buildList {
             plan.rows.filter { it.status != ImportRowStatus.CREATE }.forEach {
@@ -114,5 +126,15 @@ class TradeRepublicImportRepository(
             if (movement.categoryId == null || movement.categoryId in activeIds) row
             else row.copy(record = ImportRecord.Movement(movement.copy(categoryId = null)))
         })
+    }
+
+    private fun rowImportException(row: PlannedImportRow, cause: Throwable): IllegalArgumentException {
+        val source = row.source
+        val type = source.rawType.ifBlank { source.category }
+        val description = source.description.ifBlank { source.assetName.orEmpty() }.ifBlank { "Sin descripción" }
+        return IllegalArgumentException(
+            "No se pudo importar la fila $type del ${source.date}: $description. ${cause.message.orEmpty()}",
+            cause,
+        )
     }
 }

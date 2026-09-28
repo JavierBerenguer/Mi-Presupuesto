@@ -29,6 +29,10 @@
     <string name="import_tr_accept_all">Aceptar todo</string>
     <string name="import_tr_beta_warning">Versión beta: estos botones omiten todas las comprobaciones pendientes. Podrás cambiar después cada fila.</string>
     <string name="import_tr_as_movement">Ingreso/Gasto</string>
+    <string name="import_tr_as_operation">Importar operación</string>
+    <string name="import_tr_status_ignored">Ignorada por el usuario</string>
+    <string name="import_tr_status_operation">Se importará como operación</string>
+    <string name="import_tr_status_movement">Se importará como ingreso o gasto</string>
     <string name="import_tr_other_account">Transferencia con mi cuenta…</string>
     <string name="import_tr_category">Categoría si es ingreso/gasto</string>
     <string name="import_tr_select_category">Usar categoría sugerida</string>
