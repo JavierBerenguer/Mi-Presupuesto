@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
+import com.mipatrimonio.app.domain.calc.MovementsBalanceCalculator
+import com.mipatrimonio.app.domain.calc.MovementsCalculationMode
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.model.Transaction
@@ -30,6 +32,12 @@ data class MovementsUiState(
     val selectedMonth: YearMonth = YearMonth.now(),
     val dayGroups: List<MovementDayGroup> = emptyList(),
     val hideAmounts: Boolean = false,
+    val balanceMinor: Long = 0,
+    val calculationMode: MovementsCalculationMode = MovementsCalculationMode.SALDO_ACTUAL,
+    val dailyBalance: Boolean = true,
+    val hideFuture: Boolean = false,
+    val ignoreTransfers: Boolean = false,
+    val includedAccountIds: Set<String> = emptySet(),
 ) {
     val activeAccounts: List<Account> get() = accounts.filterNot(Account::archived)
     val hasActiveFilters: Boolean get() = filters != MovementFilters()
@@ -37,7 +45,7 @@ data class MovementsUiState(
 
 class MovementsViewModel(
     private val ledger: LedgerRepository,
-    settings: SettingsRepository,
+    private val settings: SettingsRepository,
 ) : ViewModel() {
     private data class SourceData(
         val accounts: List<Account>,
@@ -45,6 +53,14 @@ class MovementsViewModel(
         val items: List<MovementItem>,
         val baseCurrency: String,
         val hideAmounts: Boolean,
+        val transactions: List<com.mipatrimonio.app.domain.model.Transaction>,
+        val transfers: List<com.mipatrimonio.app.domain.model.Transfer>,
+        val includedAccountIds: Set<String>,
+        val allAccounts: Boolean,
+        val calculationMode: MovementsCalculationMode,
+        val dailyBalance: Boolean,
+        val hideFuture: Boolean,
+        val ignoreTransfers: Boolean,
     )
 
     private val filters = MutableStateFlow(MovementFilters())
@@ -64,6 +80,14 @@ class MovementsViewModel(
             items = transactions.map(MovementItem::Tx) + transfers.map(MovementItem::Move),
             baseCurrency = currentSettings.baseCurrency,
             hideAmounts = currentSettings.hideAmounts,
+            transactions = transactions,
+            transfers = transfers,
+            includedAccountIds = currentSettings.movementsIncludedAccountIds,
+            allAccounts = currentSettings.movementsAllAccounts,
+            calculationMode = currentSettings.movementsCalculationMode,
+            dailyBalance = currentSettings.movementsDailyBalance,
+            hideFuture = currentSettings.movementsHideFuture,
+            ignoreTransfers = currentSettings.movementsIgnoreTransfers,
         )
     }
 
@@ -74,7 +98,17 @@ class MovementsViewModel(
             from = maxOf(currentFilters.from ?: month.atDay(1), month.atDay(1)),
             to = minOf(currentFilters.to ?: month.atEndOfMonth(), month.atEndOfMonth()),
         )
-        val visible = applyFilters(data.items, monthFilters, data.accounts, data.categories)
+        val itemsAllowedByFutureSetting = if (data.hideFuture) {
+            data.items.filterNot { it.date.isAfter(LocalDate.now()) }
+        } else {
+            data.items
+        }
+        val visible = applyFilters(itemsAllowedByFutureSetting, monthFilters, data.accounts, data.categories)
+        val includedAccounts = if (data.allAccounts) {
+            data.accounts.filterNot(Account::archived)
+        } else {
+            data.accounts.filter { it.id in data.includedAccountIds }
+        }
         MovementsUiState(
             isLoading = false,
             accounts = data.accounts,
@@ -87,6 +121,22 @@ class MovementsViewModel(
             selectedMonth = month,
             dayGroups = groupMovementsByDay(visible, data.baseCurrency),
             hideAmounts = data.hideAmounts,
+            balanceMinor = MovementsBalanceCalculator.calculate(
+                includedAccounts = includedAccounts,
+                transactions = data.transactions,
+                transfers = data.transfers,
+                selectedMonth = month,
+                baseCurrency = data.baseCurrency,
+                mode = data.calculationMode,
+                dailyBalance = data.dailyBalance,
+                hideFuture = data.hideFuture,
+                ignoreTransfers = data.ignoreTransfers,
+            ),
+            calculationMode = data.calculationMode,
+            dailyBalance = data.dailyBalance,
+            hideFuture = data.hideFuture,
+            ignoreTransfers = data.ignoreTransfers,
+            includedAccountIds = data.includedAccountIds,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -128,6 +178,28 @@ class MovementsViewModel(
 
     fun clearError() {
         error.value = null
+    }
+
+    fun setCalculationMode(mode: MovementsCalculationMode) = updateSetting {
+        settings.setMovementsCalculationMode(mode)
+    }
+
+    fun setDailyBalance(enabled: Boolean) = updateSetting {
+        settings.setMovementsDailyBalance(enabled)
+    }
+
+    fun setHideFuture(enabled: Boolean) = updateSetting {
+        settings.setMovementsHideFuture(enabled)
+    }
+
+    fun setIgnoreTransfers(enabled: Boolean) = updateSetting {
+        settings.setMovementsIgnoreTransfers(enabled)
+    }
+
+    private fun updateSetting(update: suspend () -> Unit) {
+        viewModelScope.launch {
+            runCatching { update() }.onFailure { error.value = it.message }
+        }
     }
 
     fun duplicate(transaction: Transaction) {

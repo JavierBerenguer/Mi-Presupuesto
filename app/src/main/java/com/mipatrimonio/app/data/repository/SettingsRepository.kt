@@ -4,8 +4,10 @@ import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.mipatrimonio.app.domain.model.Currencies
+import com.mipatrimonio.app.domain.calc.MovementsCalculationMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -18,6 +20,12 @@ data class Settings(
     val netWorthIncludeAccounts: Boolean = true,
     val netWorthIncludeInvestments: Boolean = true,
     val selectedPortfolioId: String? = null,
+    val movementsIncludedAccountIds: Set<String> = emptySet(),
+    val movementsAllAccounts: Boolean = true,
+    val movementsCalculationMode: MovementsCalculationMode = MovementsCalculationMode.SALDO_ACTUAL,
+    val movementsDailyBalance: Boolean = true,
+    val movementsHideFuture: Boolean = false,
+    val movementsIgnoreTransfers: Boolean = false,
 )
 
 class SettingsRepository(private val context: Context) {
@@ -27,6 +35,12 @@ class SettingsRepository(private val context: Context) {
     private val includeAccountsKey = booleanPreferencesKey("net_worth_include_accounts")
     private val includeInvestmentsKey = booleanPreferencesKey("net_worth_include_investments")
     private val selectedPortfolioIdKey = stringPreferencesKey("selected_portfolio_id")
+    private val movementsIncludedAccountIdsKey = stringSetPreferencesKey("movements_included_account_ids")
+    private val movementsAllAccountsKey = booleanPreferencesKey("movements_all_accounts")
+    private val movementsCalculationModeKey = stringPreferencesKey("movements_calculation_mode")
+    private val movementsDailyBalanceKey = booleanPreferencesKey("movements_daily_balance")
+    private val movementsHideFutureKey = booleanPreferencesKey("movements_hide_future")
+    private val movementsIgnoreTransfersKey = booleanPreferencesKey("movements_ignore_transfers")
 
     /** Modo oscuro activado por defecto; divisa base EUR por defecto. */
     val settings: Flow<Settings> = context.settingsStore.data.map { p ->
@@ -37,6 +51,14 @@ class SettingsRepository(private val context: Context) {
             netWorthIncludeAccounts = p[includeAccountsKey] ?: true,
             netWorthIncludeInvestments = p[includeInvestmentsKey] ?: true,
             selectedPortfolioId = p[selectedPortfolioIdKey]?.takeIf { it.isNotBlank() },
+            movementsIncludedAccountIds = p[movementsIncludedAccountIdsKey].orEmpty(),
+            movementsAllAccounts = p[movementsAllAccountsKey] ?: true,
+            movementsCalculationMode = p[movementsCalculationModeKey]
+                ?.let { stored -> MovementsCalculationMode.entries.firstOrNull { it.name == stored } }
+                ?: MovementsCalculationMode.SALDO_ACTUAL,
+            movementsDailyBalance = p[movementsDailyBalanceKey] ?: true,
+            movementsHideFuture = p[movementsHideFutureKey] ?: false,
+            movementsIgnoreTransfers = p[movementsIgnoreTransfersKey] ?: false,
         )
     }
 
@@ -64,5 +86,29 @@ class SettingsRepository(private val context: Context) {
         context.settingsStore.edit { preferences ->
             preferences[selectedPortfolioIdKey] = portfolioId.orEmpty()
         }
+    }
+
+    suspend fun setMovementsIncludedAccountIds(accountIds: Set<String>) {
+        context.settingsStore.edit { it[movementsIncludedAccountIdsKey] = accountIds }
+    }
+
+    suspend fun setMovementsAllAccounts(enabled: Boolean) {
+        context.settingsStore.edit { it[movementsAllAccountsKey] = enabled }
+    }
+
+    suspend fun setMovementsCalculationMode(mode: MovementsCalculationMode) {
+        context.settingsStore.edit { it[movementsCalculationModeKey] = mode.name }
+    }
+
+    suspend fun setMovementsDailyBalance(enabled: Boolean) {
+        context.settingsStore.edit { it[movementsDailyBalanceKey] = enabled }
+    }
+
+    suspend fun setMovementsHideFuture(enabled: Boolean) {
+        context.settingsStore.edit { it[movementsHideFutureKey] = enabled }
+    }
+
+    suspend fun setMovementsIgnoreTransfers(enabled: Boolean) {
+        context.settingsStore.edit { it[movementsIgnoreTransfersKey] = enabled }
     }
 }

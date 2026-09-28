@@ -27,6 +27,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Calculate
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FilterList
@@ -37,6 +38,7 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -44,6 +46,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -64,6 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mipatrimonio.app.R
 import com.mipatrimonio.app.domain.model.Account
+import com.mipatrimonio.app.domain.calc.MovementsCalculationMode
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.model.MoneyMath
 import com.mipatrimonio.app.domain.model.Transaction
@@ -99,10 +103,16 @@ fun MovementsScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showFilters by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
+    var showCalculation by remember { mutableStateOf(false) }
+    var showAccountSelection by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<MovementItem?>(null) }
     LaunchedEffect(initialSource) { initialSource?.let(viewModel::setSource) }
 
     if (state.isLoading) { LoadingBox(); return }
+    if (showAccountSelection) {
+        MovementAccountsScreen(onBack = { showAccountSelection = false })
+        return
+    }
     if (state.accounts.isEmpty()) {
         EmptyState(
             icon = Icons.Outlined.AccountBalanceWallet,
@@ -117,6 +127,7 @@ fun MovementsScreen(
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             MovementHeader(
                 onSearch = { showSearch = !showSearch },
+                onCalculation = { showCalculation = true },
                 onFilters = { showFilters = true },
             )
             if (showSearch) {
@@ -141,6 +152,13 @@ fun MovementsScreen(
                 previous = viewModel::previousMonth,
                 next = viewModel::nextMonth,
                 onMonthSelected = viewModel::setMonth,
+            )
+            BalanceBar(
+                balanceMinor = state.balanceMinor,
+                baseCurrency = state.baseCurrency,
+                hideAmounts = state.hideAmounts,
+                calculationMode = state.calculationMode,
+                onClick = { showAccountSelection = true },
             )
             SegmentedControl(
                 options = listOf(
@@ -181,6 +199,7 @@ fun MovementsScreen(
                         categories = state.categories,
                         baseCurrency = state.baseCurrency,
                         hideAmounts = state.hideAmounts,
+                        grayFuture = state.dailyBalance,
                         onEditEntry = onEditEntry,
                         onDuplicate = viewModel::duplicate,
                         onDelete = { pendingDelete = it },
@@ -205,6 +224,19 @@ fun MovementsScreen(
             onDismiss = { showFilters = false },
         )
     }
+    if (showCalculation) {
+        CalculationModeDialog(
+            mode = state.calculationMode,
+            dailyBalance = state.dailyBalance,
+            hideFuture = state.hideFuture,
+            ignoreTransfers = state.ignoreTransfers,
+            onModeChange = viewModel::setCalculationMode,
+            onDailyBalanceChange = viewModel::setDailyBalance,
+            onHideFutureChange = viewModel::setHideFuture,
+            onIgnoreTransfersChange = viewModel::setIgnoreTransfers,
+            onDismiss = { showCalculation = false },
+        )
+    }
     pendingDelete?.let { item ->
         ConfirmDialog(
             title = stringResource(R.string.mov_delete_title),
@@ -218,7 +250,7 @@ fun MovementsScreen(
 private val kindOrder = listOf(KindFilter.TODOS, KindFilter.GASTOS, KindFilter.INGRESOS, KindFilter.TRANSFERENCIAS)
 
 @Composable
-private fun MovementHeader(onSearch: () -> Unit, onFilters: () -> Unit) {
+private fun MovementHeader(onSearch: () -> Unit, onCalculation: () -> Unit, onFilters: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -227,9 +259,114 @@ private fun MovementHeader(onSearch: () -> Unit, onFilters: () -> Unit) {
         IconButton(onClick = onSearch, modifier = Modifier.size(48.dp)) {
             Icon(Icons.Outlined.Search, stringResource(R.string.mov_search))
         }
+        IconButton(onClick = onCalculation, modifier = Modifier.size(48.dp)) {
+            Icon(Icons.Outlined.Calculate, stringResource(R.string.mov_calculation_options))
+        }
         IconButton(onClick = onFilters, modifier = Modifier.size(48.dp)) {
             Icon(Icons.Outlined.FilterList, stringResource(R.string.mov_filters))
         }
+    }
+}
+
+@Composable
+private fun BalanceBar(
+    balanceMinor: Long,
+    baseCurrency: String,
+    hideAmounts: Boolean,
+    calculationMode: MovementsCalculationMode,
+    onClick: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(calculationModeLabel(calculationMode), style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(R.string.mov_balance_accounts_hint), style = MaterialTheme.typography.bodySmall)
+            }
+            if (hideAmounts) {
+                Text(stringResource(R.string.common_hidden_amount), style = MaterialTheme.typography.titleLarge)
+            } else {
+                AmountText(balanceMinor, baseCurrency, AmountKind.NEUTRAL, style = MaterialTheme.typography.titleLarge)
+            }
+        }
+    }
+}
+
+@Composable
+private fun calculationModeLabel(mode: MovementsCalculationMode): String = stringResource(
+    when (mode) {
+        MovementsCalculationMode.SALDO_ACTUAL -> R.string.mov_mode_current_balance
+        MovementsCalculationMode.SALDO_MENSUAL -> R.string.mov_mode_monthly_balance
+        MovementsCalculationMode.GASTOS_MENSUALES -> R.string.mov_mode_monthly_expenses
+        MovementsCalculationMode.INGRESOS_MENSUALES -> R.string.mov_mode_monthly_income
+    },
+)
+
+@Composable
+private fun CalculationModeDialog(
+    mode: MovementsCalculationMode,
+    dailyBalance: Boolean,
+    hideFuture: Boolean,
+    ignoreTransfers: Boolean,
+    onModeChange: (MovementsCalculationMode) -> Unit,
+    onDailyBalanceChange: (Boolean) -> Unit,
+    onHideFutureChange: (Boolean) -> Unit,
+    onIgnoreTransfersChange: (Boolean) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.mov_calculation_title)) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                MovementsCalculationMode.entries.forEach { option ->
+                    ChoiceRow(
+                        label = calculationModeLabel(option),
+                        selected = option == mode,
+                        radio = true,
+                        onClick = { onModeChange(option) },
+                    )
+                }
+                ChoiceRow(
+                    label = stringResource(R.string.mov_daily_balance),
+                    selected = dailyBalance,
+                    onClick = { onDailyBalanceChange(!dailyBalance) },
+                )
+                ChoiceRow(
+                    label = stringResource(R.string.mov_hide_future),
+                    selected = hideFuture,
+                    onClick = { onHideFutureChange(!hideFuture) },
+                )
+                ChoiceRow(
+                    label = stringResource(R.string.mov_ignore_transfers),
+                    selected = ignoreTransfers,
+                    onClick = { onIgnoreTransfersChange(!ignoreTransfers) },
+                )
+                Text(
+                    stringResource(R.string.mov_ignore_transfers_current_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.mov_close)) } },
+    )
+}
+
+@Composable
+private fun ChoiceRow(label: String, selected: Boolean, radio: Boolean = false, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClick = onClick).padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (radio) RadioButton(selected = selected, onClick = onClick)
+        else Checkbox(checked = selected, onCheckedChange = { onClick() })
+        Text(label, modifier = Modifier.padding(start = 8.dp))
     }
 }
 
@@ -317,6 +454,7 @@ private fun MovementList(
     categories: List<Category>,
     baseCurrency: String,
     hideAmounts: Boolean,
+    grayFuture: Boolean,
     onEditEntry: (String) -> Unit,
     onDuplicate: (Transaction) -> Unit,
     onDelete: (MovementItem) -> Unit,
@@ -330,7 +468,7 @@ private fun MovementList(
     ) {
         items(groups, key = { it.date.toEpochDay() }) { group ->
             DayGroup(
-                group, accountsById, categoriesById, baseCurrency, hideAmounts,
+                group, accountsById, categoriesById, baseCurrency, hideAmounts, grayFuture,
                 onEditEntry, onDuplicate, onDelete,
             )
         }
@@ -344,6 +482,7 @@ private fun DayGroup(
     categoriesById: Map<String, Category>,
     baseCurrency: String,
     hideAmounts: Boolean,
+    grayFuture: Boolean,
     onEditEntry: (String) -> Unit,
     onDuplicate: (Transaction) -> Unit,
     onDelete: (MovementItem) -> Unit,
@@ -380,7 +519,7 @@ private fun DayGroup(
         ) {
             group.items.forEach { item ->
                 MovementRow(
-                    item, accountsById, categoriesById, hideAmounts,
+                    item, accountsById, categoriesById, hideAmounts, grayFuture,
                     onEdit = { onEditEntry(item.id()) },
                     onDuplicate = { (item as? MovementItem.Tx)?.transaction?.let(onDuplicate) },
                     onDelete = { onDelete(item) },
@@ -396,6 +535,7 @@ private fun MovementRow(
     accountsById: Map<String, Account>,
     categoriesById: Map<String, Category>,
     hideAmounts: Boolean,
+    grayFuture: Boolean,
     onEdit: () -> Unit,
     onDuplicate: () -> Unit,
     onDelete: () -> Unit,
@@ -403,7 +543,8 @@ private fun MovementRow(
     var showMenu by remember { mutableStateOf(false) }
     val p = movementPresentation(item, accountsById, categoriesById)
     val isFuture = item.date.isAfter(LocalDate.now())
-    val primaryTextColor = if (isFuture) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+    val isRestrictedFuture = isFuture && grayFuture
+    val primaryTextColor = if (isRestrictedFuture) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
     Row(
         Modifier.fillMaxWidth().heightIn(min = 64.dp).clickable(onClick = onEdit).padding(start = 12.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -467,8 +608,8 @@ private fun MovementRow(
                 p.kind,
                 modifier = Modifier.widthIn(max = 120.dp).horizontalScroll(rememberScrollState()),
                 style = MaterialTheme.typography.titleSmall,
-                incomeColor = if (isFuture) primaryTextColor else MaterialTheme.colorScheme.primary,
-                expenseColor = if (isFuture) primaryTextColor else MaterialTheme.extras.expense,
+                incomeColor = if (isRestrictedFuture) primaryTextColor else MaterialTheme.colorScheme.primary,
+                expenseColor = if (isRestrictedFuture) primaryTextColor else MaterialTheme.extras.expense,
                 neutralColor = primaryTextColor,
             )
         }

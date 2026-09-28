@@ -128,4 +128,19 @@
     <string name="mov_source_automatic">Autom&#225;ticos (notificaciones)</string>
     <string name="mov_source_imported">Importados</string>
     <string name="mov_source_recurring">Recurrentes</string>
+    <string name="mov_calculation_options">Opciones de cálculo del saldo</string>
+    <string name="mov_calculation_title">Cálculo del saldo</string>
+    <string name="mov_mode_current_balance">Saldo actual</string>
+    <string name="mov_mode_monthly_balance">Saldo mensual</string>
+    <string name="mov_mode_monthly_expenses">Gastos mensuales</string>
+    <string name="mov_mode_monthly_income">Ingresos mensuales</string>
+    <string name="mov_daily_balance">Saldo diario</string>
+    <string name="mov_hide_future">Ocultar mov. futuros</string>
+    <string name="mov_ignore_transfers">Ignorar las transferencias</string>
+    <string name="mov_ignore_transfers_current_note">En Saldo actual, las transferencias siempre se incluyen porque reflejan dinero real de las cuentas seleccionadas.</string>
+    <string name="mov_balance_accounts_hint">Toca para elegir cuentas</string>
+    <string name="mov_accounts_title">Cuentas de Movimientos</string>
+    <string name="mov_accounts_back">Volver a Movimientos</string>
+    <string name="mov_all_accounts">Todas las cuentas</string>
+    <string name="mov_close">Cerrar</string>
 </resources>

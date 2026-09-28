@@ -12,6 +12,7 @@ import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.model.Transfer
+import com.mipatrimonio.app.domain.calc.MovementsCalculationMode
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.flow.first
@@ -48,6 +49,12 @@ class MovementsViewModelTest {
         ledger = LedgerRepository(db)
         settings = SettingsRepository(context)
         settings.setHideAmounts(false)
+        settings.setMovementsIncludedAccountIds(emptySet())
+        settings.setMovementsAllAccounts(true)
+        settings.setMovementsCalculationMode(MovementsCalculationMode.SALDO_ACTUAL)
+        settings.setMovementsDailyBalance(true)
+        settings.setMovementsHideFuture(false)
+        settings.setMovementsIgnoreTransfers(false)
     }
 
     @After
@@ -123,6 +130,47 @@ class MovementsViewModelTest {
 
         assertEquals(futureDate, state.visibleItems.single().date)
         assertTrue(state.visibleItems.single().date.isAfter(LocalDate.now()))
+    }
+
+    @Test
+    fun `calcula saldo con cuentas incluidas y persiste todas las opciones`() = runTest {
+        val today = LocalDate.now()
+        ledger.saveAccount(Account("a", "Incluida", AccountType.CORRIENTE, "EUR", 1_000, false, 1))
+        ledger.saveAccount(Account("b", "Excluida", AccountType.CORRIENTE, "EUR", 9_000, false, 2))
+        ledger.saveTransaction(tx("income", TransactionType.INGRESO, 500, today, TransactionSource.MANUAL))
+        settings.setMovementsIncludedAccountIds(setOf("a"))
+        settings.setMovementsAllAccounts(false)
+        val viewModel = MovementsViewModel(ledger, settings)
+
+        val initial = viewModel.uiState.first { !it.isLoading && it.balanceMinor == 1_500L }
+        assertEquals(setOf("a"), initial.includedAccountIds)
+
+        viewModel.setCalculationMode(MovementsCalculationMode.INGRESOS_MENSUALES)
+        viewModel.setDailyBalance(false)
+        viewModel.setHideFuture(true)
+        viewModel.setIgnoreTransfers(true)
+
+        val updated = viewModel.uiState.first {
+            it.calculationMode == MovementsCalculationMode.INGRESOS_MENSUALES &&
+                !it.dailyBalance && it.hideFuture && it.ignoreTransfers
+        }
+        assertEquals(500L, updated.balanceMinor)
+    }
+
+    @Test
+    fun `ocultar futuros los elimina antes de agrupar`() = runTest {
+        val today = LocalDate.now()
+        val future = today.plusDays(1)
+        ledger.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
+        ledger.saveTransaction(tx("today", TransactionType.INGRESO, 100, today, TransactionSource.MANUAL))
+        ledger.saveTransaction(tx("future", TransactionType.INGRESO, 900, future, TransactionSource.RECURRENTE))
+        val viewModel = MovementsViewModel(ledger, settings)
+        viewModel.setMonth(YearMonth.from(future))
+        viewModel.setHideFuture(true)
+
+        val state = viewModel.uiState.first { it.hideFuture && it.visibleItems.size == 1 }
+        assertEquals("today", (state.visibleItems.single() as MovementItem.Tx).transaction.id)
+        assertEquals(100L, state.balanceMinor)
     }
 
     private fun tx(id: String, type: TransactionType, amount: Long, date: LocalDate, source: TransactionSource) =
