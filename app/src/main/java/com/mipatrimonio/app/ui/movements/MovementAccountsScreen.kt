@@ -31,6 +31,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.mipatrimonio.app.R
 import com.mipatrimonio.app.data.repository.LedgerRepository
+import com.mipatrimonio.app.data.repository.InvestmentRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
 import com.mipatrimonio.app.domain.calc.BalanceCalculator
 import com.mipatrimonio.app.domain.model.Account
@@ -63,23 +64,37 @@ data class MovementAccountsUiState(
 
 class MovementAccountsViewModel(
     private val ledger: LedgerRepository,
+    private val investments: InvestmentRepository,
     private val settings: SettingsRepository,
     private val today: () -> LocalDate = LocalDate::now,
 ) : ViewModel() {
     private val errors = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
 
-    val uiState: StateFlow<MovementAccountsUiState> = combine(
+    private data class LedgerData(
+        val accounts: List<Account>,
+        val transactions: List<com.mipatrimonio.app.domain.model.Transaction>,
+        val transfers: List<com.mipatrimonio.app.domain.model.Transfer>,
+    )
+
+    private val ledgerData = combine(
         ledger.accounts,
         ledger.transactions,
         ledger.transfers,
+    ) { accounts, transactions, transfers -> LedgerData(accounts, transactions, transfers) }
+
+    val uiState: StateFlow<MovementAccountsUiState> = combine(
+        ledgerData,
+        investments.operations,
         settings.settings,
         errors,
-    ) { accounts, transactions, transfers, currentSettings, error ->
-        val balances = accounts.associate { account ->
-            account.id to BalanceCalculator.balance(account, transactions, transfers, today = today())
+    ) { data, operations, currentSettings, error ->
+        val balances = data.accounts.associate { account ->
+            account.id to BalanceCalculator.balance(
+                account, data.transactions, data.transfers, operations, today = today(),
+            )
         }
         val stored = currentSettings.movementsIncludedAccountIds
-        val selectable = accounts.filter { account ->
+        val selectable = data.accounts.filter { account ->
             !account.archived || (account.id in stored && balances.getValue(account.id) != 0L)
         }
         val effectiveIds = if (currentSettings.movementsAllAccounts) {
@@ -140,7 +155,9 @@ class MovementAccountsViewModel(
 @Composable
 fun MovementAccountsScreen(
     onBack: () -> Unit,
-    viewModel: MovementAccountsViewModel = appViewModel { c -> MovementAccountsViewModel(c.ledger, c.settings) },
+    viewModel: MovementAccountsViewModel = appViewModel { c ->
+        MovementAccountsViewModel(c.ledger, c.investments, c.settings)
+    },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     if (state.isLoading) {

@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.mipatrimonio.app.data.db.AppDatabase
 import com.mipatrimonio.app.data.repository.LedgerRepository
+import com.mipatrimonio.app.data.repository.InvestmentRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
 import com.mipatrimonio.app.testutil.SettingsStoreRule
 import com.mipatrimonio.app.domain.model.Account
@@ -13,6 +14,12 @@ import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.model.Transfer
+import com.mipatrimonio.app.domain.model.Asset
+import com.mipatrimonio.app.domain.model.AssetType
+import com.mipatrimonio.app.domain.model.InvestmentOperation
+import com.mipatrimonio.app.domain.model.OperationType
+import com.mipatrimonio.app.domain.model.Portfolio
+import java.math.BigDecimal
 import com.mipatrimonio.app.domain.calc.MovementsCalculationMode
 import java.time.LocalDate
 import java.time.YearMonth
@@ -44,6 +51,7 @@ class MovementsViewModelTest {
     private val dispatcher = UnconfinedTestDispatcher()
     private lateinit var db: AppDatabase
     private lateinit var ledger: LedgerRepository
+    private lateinit var investments: InvestmentRepository
     private lateinit var settings: SettingsRepository
 
     @Before
@@ -52,6 +60,7 @@ class MovementsViewModelTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
         ledger = LedgerRepository(db)
+        investments = InvestmentRepository(db)
         settings = settingsRule.repository
         settings.setHideAmounts(false)
         settings.setMovementsIncludedAccountIds(emptySet())
@@ -77,7 +86,7 @@ class MovementsViewModelTest {
         ledger.saveTransaction(tx("auto", TransactionType.GASTO, 30_00, today, TransactionSource.NOTIFICACION))
         ledger.saveTransfer(Transfer("move", "a", "b", 500_00, 500_00, today, "", 1))
         settings.setHideAmounts(true)
-        val viewModel = MovementsViewModel(ledger, settings)
+        val viewModel = MovementsViewModel(ledger, investments, settings)
 
         val all = viewModel.uiState.first { it.dayGroups.singleOrNull()?.items?.size == 3 }
         assertEquals(70_00L, all.dayGroups.single().balanceMinor)
@@ -102,7 +111,7 @@ class MovementsViewModelTest {
         val targetDate = targetMonth.atDay(10)
         ledger.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
         ledger.saveTransaction(tx("target", TransactionType.GASTO, 25_00, targetDate, TransactionSource.MANUAL))
-        val viewModel = MovementsViewModel(ledger, settings)
+        val viewModel = MovementsViewModel(ledger, investments, settings)
 
         viewModel.setMonth(targetMonth)
         val selected = viewModel.uiState.first {
@@ -126,7 +135,7 @@ class MovementsViewModelTest {
         val futureDate = LocalDate.now().plusDays(1)
         ledger.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
         ledger.saveTransaction(tx("future", TransactionType.INGRESO, 40_00, futureDate, TransactionSource.RECURRENTE))
-        val viewModel = MovementsViewModel(ledger, settings)
+        val viewModel = MovementsViewModel(ledger, investments, settings)
 
         viewModel.setMonth(YearMonth.from(futureDate))
         val state = viewModel.uiState.first {
@@ -145,7 +154,7 @@ class MovementsViewModelTest {
         ledger.saveTransaction(tx("income", TransactionType.INGRESO, 500, today, TransactionSource.MANUAL))
         settings.setMovementsIncludedAccountIds(setOf("a"))
         settings.setMovementsAllAccounts(false)
-        val viewModel = MovementsViewModel(ledger, settings)
+        val viewModel = MovementsViewModel(ledger, investments, settings)
 
         val initial = viewModel.uiState.first { !it.isLoading && it.balanceMinor == 1_500L }
         assertEquals(setOf("a"), initial.includedAccountIds)
@@ -169,13 +178,37 @@ class MovementsViewModelTest {
         ledger.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
         ledger.saveTransaction(tx("today", TransactionType.INGRESO, 100, today, TransactionSource.MANUAL))
         ledger.saveTransaction(tx("future", TransactionType.INGRESO, 900, future, TransactionSource.RECURRENTE))
-        val viewModel = MovementsViewModel(ledger, settings)
+        val viewModel = MovementsViewModel(ledger, investments, settings)
         viewModel.setMonth(YearMonth.from(future))
         viewModel.setHideFuture(true)
 
         val state = viewModel.uiState.first { it.hideFuture && it.visibleItems.size == 1 }
         assertEquals("today", (state.visibleItems.single() as MovementItem.Tx).transaction.id)
         assertEquals(100L, state.balanceMinor)
+    }
+
+    @Test
+    fun `operacion con cuenta aparece como apunte derivado y afecta al saldo`() = runTest {
+        val today = LocalDate.now()
+        ledger.saveAccount(Account("a", "Banco", AccountType.CORRIENTE, "EUR", 500_00, false, 1))
+        investments.savePortfolio(Portfolio("portfolio", "Cartera principal", 1))
+        investments.saveAsset(Asset("asset", "Fondo global", "", "", AssetType.ETF, "", "EUR"))
+        investments.addOperation(
+            InvestmentOperation(
+                "buy", "portfolio", "asset", OperationType.COMPRA, today, BigDecimal.ONE,
+                BigDecimal("100.00"), 0, "EUR", "", 1, "a",
+            ),
+        )
+        val viewModel = MovementsViewModel(ledger, investments, settings)
+
+        val state = viewModel.uiState.first { it.visibleItems.singleOrNull() is MovementItem.Investment }
+        val item = state.visibleItems.single() as MovementItem.Investment
+
+        assertEquals("Fondo global", item.assetName)
+        assertEquals("Cartera principal", item.portfolioName)
+        assertEquals(-100_00L, item.amountMinor)
+        assertEquals(400_00L, state.balanceMinor)
+        assertEquals(0L, state.dayGroups.single().balanceMinor)
     }
 
     private fun tx(id: String, type: TransactionType, amount: Long, date: LocalDate, source: TransactionSource) =

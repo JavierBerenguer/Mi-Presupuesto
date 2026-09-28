@@ -2,12 +2,16 @@ package com.mipatrimonio.app.domain
 
 import com.mipatrimonio.app.domain.calc.MovementsBalanceCalculator
 import com.mipatrimonio.app.domain.calc.MovementsCalculationMode
+import com.mipatrimonio.app.domain.calc.BalanceCalculator
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountType
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.model.Transfer
+import com.mipatrimonio.app.domain.model.InvestmentOperation
+import com.mipatrimonio.app.domain.model.OperationType
+import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.YearMonth
 import org.junit.Assert.assertEquals
@@ -138,6 +142,69 @@ class MovementsBalanceCalculatorTest {
         assertEquals(0L, calculate(MovementsCalculationMode.INGRESOS_MENSUALES, transactions, accounts = listOf(included, usd)))
     }
 
+    @Test
+    fun `saldo actual coincide con BalanceCalculator incluyendo todas las operaciones`() {
+        val accounts = listOf(included, other, account("usd", 8_000, "USD"))
+        val transactions = listOf(
+            tx("income", TransactionType.INGRESO, 500, today),
+            tx("other", TransactionType.GASTO, 100, today, accountId = "other"),
+        )
+        val transfers = listOf(transfer("out", "included", "other", 70, 70, today))
+        val operations = listOf(
+            operation("buy", OperationType.COMPRA, "included", 100, 5, today),
+            operation("future-dividend", OperationType.DIVIDENDO, "other", 20, 2, today.plusDays(10)),
+            operation("foreign", OperationType.VENTA, "usd", 50, 0, today),
+        )
+
+        val expected = accounts.filter { it.currency == "EUR" }.sumOf { account ->
+            BalanceCalculator.balance(account, transactions, transfers, operations, today)
+        }
+        val actual = calculate(
+            MovementsCalculationMode.SALDO_ACTUAL, transactions, transfers, accounts,
+            dailyBalance = true, hideFuture = true, operations = operations,
+        )
+
+        assertEquals(expected, actual)
+    }
+
+    @Test
+    fun `saldo mensual incluye operaciones salvo al ignorar transferencias`() {
+        val operations = listOf(
+            operation("buy", OperationType.COMPRA, "included", 100, 10, LocalDate.of(2026, 3, 2)),
+            operation("sell", OperationType.VENTA, "included", 60, 5, LocalDate.of(2026, 3, 3)),
+            operation("outside", OperationType.DIVIDENDO, "included", 999, 0, LocalDate.of(2026, 2, 28)),
+            operation("excluded-account", OperationType.DIVIDENDO, "other", 999, 0, LocalDate.of(2026, 3, 4)),
+        )
+
+        assertEquals(-55L, calculate(MovementsCalculationMode.SALDO_MENSUAL, emptyList(), operations = operations))
+        assertEquals(
+            0L,
+            calculate(
+                MovementsCalculationMode.SALDO_MENSUAL, emptyList(),
+                ignoreTransfers = true, operations = operations,
+            ),
+        )
+        assertEquals(0L, calculate(MovementsCalculationMode.GASTOS_MENSUALES, emptyList(), operations = operations))
+        assertEquals(0L, calculate(MovementsCalculationMode.INGRESOS_MENSUALES, emptyList(), operations = operations))
+    }
+
+    @Test
+    fun `saldo mensual diario omite operacion futura`() {
+        val operations = listOf(
+            operation("past", OperationType.DIVIDENDO, "included", 100, 0, today.minusDays(1)),
+            operation("future", OperationType.DIVIDENDO, "included", 900, 0, today.plusDays(1)),
+        )
+
+        assertEquals(
+            100L,
+            calculate(MovementsCalculationMode.SALDO_MENSUAL, emptyList(), dailyBalance = true, operations = operations),
+        )
+        assertEquals(
+            1_000L,
+            calculate(MovementsCalculationMode.SALDO_MENSUAL, emptyList(), dailyBalance = false, operations = operations),
+        )
+    }
+
     private fun calculate(
         mode: MovementsCalculationMode,
         transactions: List<Transaction>,
@@ -146,8 +213,9 @@ class MovementsBalanceCalculatorTest {
         dailyBalance: Boolean = false,
         hideFuture: Boolean = false,
         ignoreTransfers: Boolean = false,
+        operations: List<InvestmentOperation> = emptyList(),
     ) = MovementsBalanceCalculator.calculate(
-        accounts, transactions, transfers, month, "EUR", mode,
+        accounts, transactions, transfers, operations, month, "EUR", mode,
         dailyBalance, hideFuture, ignoreTransfers, today,
     )
 
@@ -168,4 +236,16 @@ class MovementsBalanceCalculatorTest {
 
     private fun transfer(id: String, from: String, to: String, fromAmount: Long, toAmount: Long, date: LocalDate) =
         Transfer(id, from, to, fromAmount, toAmount, date, "", 1)
+
+    private fun operation(
+        id: String,
+        type: OperationType,
+        accountId: String?,
+        grossMinor: Long,
+        feesMinor: Long,
+        date: LocalDate,
+    ) = InvestmentOperation(
+        id, "portfolio", "asset", type, date, BigDecimal.ONE,
+        BigDecimal.valueOf(grossMinor, 2), feesMinor, if (accountId == "usd") "USD" else "EUR", "", 1, accountId,
+    )
 }

@@ -2,6 +2,9 @@ package com.mipatrimonio.app.ui.movements
 
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Category
+import com.mipatrimonio.app.domain.model.Asset
+import com.mipatrimonio.app.domain.model.InvestmentOperation
+import com.mipatrimonio.app.domain.model.Portfolio
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.model.TransactionSource
@@ -26,6 +29,36 @@ sealed interface MovementItem {
         override val createdAt: Long = transfer.createdAt
         override val amountMinor: Long = transfer.fromAmountMinor
     }
+
+    data class Investment(
+        val operation: InvestmentOperation,
+        val assetName: String,
+        val portfolioName: String,
+        val accountId: String,
+    ) : MovementItem {
+        override val date: LocalDate = operation.date
+        override val createdAt: Long = operation.createdAt
+        override val amountMinor: Long = com.mipatrimonio.app.domain.calc.BalanceCalculator
+            .investmentEffectMinor(operation)
+    }
+}
+
+fun buildInvestmentMovementItems(
+    operations: List<InvestmentOperation>,
+    assets: List<Asset>,
+    portfolios: List<Portfolio>,
+): List<MovementItem.Investment> {
+    val assetsById = assets.associateBy(Asset::id)
+    val portfoliosById = portfolios.associateBy(Portfolio::id)
+    return operations.mapNotNull { operation ->
+        val accountId = operation.accountId ?: return@mapNotNull null
+        MovementItem.Investment(
+            operation = operation,
+            assetName = assetsById[operation.assetId]?.name.orEmpty(),
+            portfolioName = portfoliosById[operation.portfolioId]?.name.orEmpty(),
+            accountId = accountId,
+        )
+    }
 }
 
 data class MovementFilters(
@@ -41,7 +74,7 @@ data class MovementFilters(
     val source: SourceFilter = SourceFilter.TODOS,
 )
 
-enum class KindFilter { TODOS, INGRESOS, GASTOS, TRANSFERENCIAS }
+enum class KindFilter { TODOS, INGRESOS, GASTOS, TRANSFERENCIAS, INVERSIONES }
 
 enum class MovementSort { FECHA_DESC, FECHA_ASC, IMPORTE_DESC, IMPORTE_ASC }
 
@@ -61,15 +94,21 @@ fun groupMovementsByDay(items: List<MovementItem>, baseCurrency: String): List<M
             var balance = 0L
             var excluded = 0
             dayItems.forEach { item ->
-                val tx = (item as? MovementItem.Tx)?.transaction ?: return@forEach
-                if (tx.currency != baseCurrency) {
-                    excluded++
-                } else {
-                    balance = if (tx.type == TransactionType.INGRESO) {
-                        Math.addExact(balance, tx.amountMinor)
-                    } else {
-                        Math.subtractExact(balance, tx.amountMinor)
+                when (item) {
+                    is MovementItem.Tx -> {
+                        val tx = item.transaction
+                        if (tx.currency != baseCurrency) {
+                            excluded++
+                        } else {
+                            balance = if (tx.type == TransactionType.INGRESO) {
+                                Math.addExact(balance, tx.amountMinor)
+                            } else {
+                                Math.subtractExact(balance, tx.amountMinor)
+                            }
+                        }
                     }
+                    is MovementItem.Investment -> if (item.operation.currency != baseCurrency) excluded++
+                    is MovementItem.Move -> Unit
                 }
             }
             MovementDayGroup(date, dayItems, balance, excluded)
@@ -121,6 +160,7 @@ private fun matchesKind(item: MovementItem, kind: KindFilter): Boolean = when (k
     KindFilter.INGRESOS -> item is MovementItem.Tx && item.transaction.type == TransactionType.INGRESO
     KindFilter.GASTOS -> item is MovementItem.Tx && item.transaction.type == TransactionType.GASTO
     KindFilter.TRANSFERENCIAS -> item is MovementItem.Move
+    KindFilter.INVERSIONES -> item is MovementItem.Investment
 }
 
 private fun matchesAccount(item: MovementItem, accountId: String?): Boolean {
@@ -128,6 +168,7 @@ private fun matchesAccount(item: MovementItem, accountId: String?): Boolean {
     return when (item) {
         is MovementItem.Tx -> item.transaction.accountId == accountId
         is MovementItem.Move -> item.transfer.fromAccountId == accountId || item.transfer.toAccountId == accountId
+        is MovementItem.Investment -> item.accountId == accountId
     }
 }
 
@@ -169,6 +210,8 @@ private fun searchableText(
         accountsById[item.transfer.fromAccountId]?.name.orEmpty(),
         accountsById[item.transfer.toAccountId]?.name.orEmpty(),
     ).joinToString(" ")
+
+    is MovementItem.Investment -> item.assetName
 }
 
 private fun String.normalizedForSearch(): String = Normalizer.normalize(this, Normalizer.Form.NFD)

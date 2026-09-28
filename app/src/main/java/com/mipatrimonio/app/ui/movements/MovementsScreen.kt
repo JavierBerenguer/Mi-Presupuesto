@@ -35,6 +35,7 @@ import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -73,6 +74,7 @@ import com.mipatrimonio.app.domain.model.MoneyMath
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
+import com.mipatrimonio.app.domain.model.OperationType
 import com.mipatrimonio.app.ui.common.AmountField
 import com.mipatrimonio.app.ui.common.ConfirmDialog
 import com.mipatrimonio.app.ui.common.DateField
@@ -99,8 +101,11 @@ fun MovementsScreen(
     onNewEntry: () -> Unit,
     onEditEntry: (String) -> Unit,
     onOpenAccounts: () -> Unit,
+    onOpenAssetDetail: (String, String) -> Unit,
     initialSource: SourceFilter? = null,
-    viewModel: MovementsViewModel = appViewModel { c -> MovementsViewModel(c.ledger, c.settings) },
+    viewModel: MovementsViewModel = appViewModel { c ->
+        MovementsViewModel(c.ledger, c.investments, c.settings)
+    },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showFilters by remember { mutableStateOf(false) }
@@ -203,6 +208,7 @@ fun MovementsScreen(
                         hideAmounts = state.hideAmounts,
                         grayFuture = state.dailyBalance,
                         onEditEntry = onEditEntry,
+                        onOpenAssetDetail = onOpenAssetDetail,
                         onDuplicate = viewModel::duplicate,
                         onDelete = { pendingDelete = it },
                     )
@@ -458,6 +464,7 @@ private fun MovementList(
     hideAmounts: Boolean,
     grayFuture: Boolean,
     onEditEntry: (String) -> Unit,
+    onOpenAssetDetail: (String, String) -> Unit,
     onDuplicate: (Transaction) -> Unit,
     onDelete: (MovementItem) -> Unit,
 ) {
@@ -471,7 +478,7 @@ private fun MovementList(
         items(groups, key = { it.date.toEpochDay() }) { group ->
             DayGroup(
                 group, accountsById, categoriesById, baseCurrency, hideAmounts, grayFuture,
-                onEditEntry, onDuplicate, onDelete,
+                onEditEntry, onOpenAssetDetail, onDuplicate, onDelete,
             )
         }
     }
@@ -486,6 +493,7 @@ private fun DayGroup(
     hideAmounts: Boolean,
     grayFuture: Boolean,
     onEditEntry: (String) -> Unit,
+    onOpenAssetDetail: (String, String) -> Unit,
     onDuplicate: (Transaction) -> Unit,
     onDelete: (MovementItem) -> Unit,
 ) {
@@ -522,7 +530,14 @@ private fun DayGroup(
             group.items.forEach { item ->
                 MovementRow(
                     item, accountsById, categoriesById, hideAmounts, grayFuture,
-                    onEdit = { onEditEntry(item.id()) },
+                    onOpen = {
+                        when (item) {
+                            is MovementItem.Investment -> onOpenAssetDetail(
+                                item.operation.portfolioId, item.operation.assetId,
+                            )
+                            else -> onEditEntry(item.id())
+                        }
+                    },
                     onDuplicate = { (item as? MovementItem.Tx)?.transaction?.let(onDuplicate) },
                     onDelete = { onDelete(item) },
                 )
@@ -538,7 +553,7 @@ private fun MovementRow(
     categoriesById: Map<String, Category>,
     hideAmounts: Boolean,
     grayFuture: Boolean,
-    onEdit: () -> Unit,
+    onOpen: () -> Unit,
     onDuplicate: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -548,13 +563,24 @@ private fun MovementRow(
     val isRestrictedFuture = isFuture && grayFuture
     val primaryTextColor = if (isRestrictedFuture) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 64.dp).clickable(onClick = onEdit).padding(start = 12.dp, top = 8.dp, bottom = 8.dp),
+        Modifier.fillMaxWidth().heightIn(min = 64.dp).clickable(onClick = onOpen).padding(start = 12.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.extras.chipBackground),
             contentAlignment = Alignment.Center,
-        ) { Text(p.initial, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary) }
+        ) {
+            if (item is MovementItem.Investment) {
+                Icon(
+                    Icons.Default.ShowChart,
+                    contentDescription = stringResource(R.string.mov_investment_icon),
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
+                )
+            } else {
+                Text(p.initial, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            }
+        }
         Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -615,13 +641,13 @@ private fun MovementRow(
                 neutralColor = primaryTextColor,
             )
         }
-        Box {
+        if (item !is MovementItem.Investment) Box {
             IconButton(onClick = { showMenu = true }) { Icon(Icons.Outlined.MoreVert, stringResource(R.string.common_more_options)) }
             DropdownMenu(showMenu, { showMenu = false }) {
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.common_edit)) },
                     leadingIcon = { Icon(Icons.Outlined.Edit, null) },
-                    onClick = { showMenu = false; onEdit() },
+                    onClick = { showMenu = false; onOpen() },
                 )
                 if (item is MovementItem.Tx) {
                     DropdownMenuItem(
@@ -689,6 +715,26 @@ private fun movementPresentation(
             if (from?.currency == to?.currency) fromAmount else stringResource(R.string.mov_transfer_amounts, fromAmount, toAmount),
         )
     }
+    is MovementItem.Investment -> {
+        val operation = item.operation
+        val assetName = item.assetName.ifBlank { stringResource(R.string.mov_unknown_asset) }
+        val portfolioName = item.portfolioName.ifBlank { stringResource(R.string.mov_unknown_portfolio) }
+        val accountName = accounts[item.accountId]?.name ?: stringResource(R.string.mov_unknown_account)
+        val titleResource = when (operation.type) {
+            OperationType.COMPRA -> R.string.mov_investment_buy
+            OperationType.VENTA -> R.string.mov_investment_sell
+            OperationType.DIVIDENDO -> R.string.mov_investment_dividend
+            OperationType.COMISION -> R.string.mov_investment_fee
+        }
+        MovementPresentation(
+            title = stringResource(titleResource, assetName),
+            subtitle = stringResource(R.string.mov_investment_metadata, accountName, portfolioName),
+            initial = "",
+            currency = operation.currency,
+            kind = AmountKind.NEUTRAL,
+            automatic = false,
+        )
+    }
 }
 
 @Composable
@@ -709,6 +755,11 @@ private fun MovementFiltersDialog(
         title = { Text(stringResource(R.string.mov_filters)) },
         text = {
             Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                DropdownField(
+                    label = stringResource(R.string.mov_filter_kind), options = KindFilter.entries,
+                    selected = draft.kind, optionLabel = { it.label() },
+                    onSelected = { it?.let { kind -> draft = draft.copy(kind = kind) } },
+                )
                 DropdownField(
                     label = stringResource(R.string.mov_filter_source), options = SourceFilter.entries,
                     selected = draft.source, optionLabel = { it.label() },
@@ -778,6 +829,15 @@ private fun SourceFilter.label() = stringResource(when (this) {
 })
 
 @Composable
+private fun KindFilter.label() = stringResource(when (this) {
+    KindFilter.TODOS -> R.string.mov_kind_all
+    KindFilter.INGRESOS -> R.string.mov_kind_income
+    KindFilter.GASTOS -> R.string.mov_kind_expenses
+    KindFilter.TRANSFERENCIAS -> R.string.mov_kind_transfers
+    KindFilter.INVERSIONES -> R.string.mov_kind_investments
+})
+
+@Composable
 private fun MovementSort.label() = stringResource(when (this) {
     MovementSort.FECHA_DESC -> R.string.mov_sort_date_desc
     MovementSort.FECHA_ASC -> R.string.mov_sort_date_asc
@@ -788,6 +848,7 @@ private fun MovementSort.label() = stringResource(when (this) {
 private fun MovementItem.id() = when (this) {
     is MovementItem.Tx -> transaction.id
     is MovementItem.Move -> transfer.id
+    is MovementItem.Investment -> operation.id
 }
 
 private fun Long?.toInputAmount(currency: String) = this?.let {

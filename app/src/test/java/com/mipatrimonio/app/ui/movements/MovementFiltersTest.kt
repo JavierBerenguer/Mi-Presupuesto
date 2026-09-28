@@ -8,6 +8,16 @@ import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.model.Transfer
+import com.mipatrimonio.app.domain.model.InvestmentOperation
+import com.mipatrimonio.app.domain.model.OperationType
+import com.mipatrimonio.app.domain.model.Asset
+import com.mipatrimonio.app.domain.model.AssetType
+import com.mipatrimonio.app.domain.model.Portfolio
+import com.mipatrimonio.app.domain.model.Budget
+import com.mipatrimonio.app.domain.model.BudgetPeriod
+import com.mipatrimonio.app.domain.calc.BudgetCalculator
+import com.mipatrimonio.app.domain.calc.StatsCalculator
+import java.math.BigDecimal
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -45,6 +55,20 @@ class MovementFiltersTest {
     private fun transfer(id: String, from: String, to: String, amount: Long, day: Int) =
         MovementItem.Move(Transfer(id, from, to, amount, amount, LocalDate.of(2026, 3, day), "", 0))
 
+    private fun investment(
+        id: String = "inv",
+        type: OperationType = OperationType.COMPRA,
+        accountId: String? = "a1",
+        assetName: String = "Fondo Índice Global",
+        currency: String = "EUR",
+    ): MovementItem.Investment {
+        val operation = InvestmentOperation(
+            id, "portfolio", "asset", type, LocalDate.of(2026, 3, 6), BigDecimal.ONE,
+            BigDecimal("100.00"), 5_00, currency, "", 3, accountId,
+        )
+        return MovementItem.Investment(operation, assetName, "Largo plazo", requireNotNull(accountId))
+    }
+
     private val items = listOf(
         tx("g1", TransactionType.GASTO, 10_00, 1, category = "comida", description = "Compra semanal", merchant = "Mercadona"),
         tx("g2", TransactionType.GASTO, 50_00, 5, account = "a2", category = "super", description = "Café"),
@@ -57,6 +81,7 @@ class MovementFiltersTest {
             when (it) {
                 is MovementItem.Tx -> it.transaction.id
                 is MovementItem.Move -> it.transfer.id
+                is MovementItem.Investment -> it.operation.id
             }
         }
 
@@ -75,6 +100,68 @@ class MovementFiltersTest {
         assertEquals(listOf("i1"), ids(MovementFilters(kind = KindFilter.INGRESOS)))
         assertEquals(listOf("g2", "g1"), ids(MovementFilters(kind = KindFilter.GASTOS)))
         assertEquals(listOf("t1"), ids(MovementFilters(kind = KindFilter.TRANSFERENCIAS)))
+    }
+
+    @Test
+    fun `inversiones respetan filtros propios cuenta busqueda categoria y origen`() {
+        val withInvestment = items + investment()
+        fun filtered(filters: MovementFilters) = applyFilters(withInvestment, filters, accounts, categories)
+
+        assertTrue(filtered(MovementFilters()).any { it is MovementItem.Investment })
+        assertEquals(1, filtered(MovementFilters(kind = KindFilter.INVERSIONES)).size)
+        assertTrue(filtered(MovementFilters(kind = KindFilter.INGRESOS)).none { it is MovementItem.Investment })
+        assertTrue(filtered(MovementFilters(kind = KindFilter.GASTOS)).none { it is MovementItem.Investment })
+        assertEquals(1, filtered(MovementFilters(accountId = "a1", kind = KindFilter.INVERSIONES)).size)
+        assertTrue(filtered(MovementFilters(accountId = "a2", kind = KindFilter.INVERSIONES)).isEmpty())
+        assertEquals(1, filtered(MovementFilters(query = "indice global", kind = KindFilter.INVERSIONES)).size)
+        assertTrue(filtered(MovementFilters(categoryId = "comida", kind = KindFilter.INVERSIONES)).isEmpty())
+        SourceFilter.entries.filterNot { it == SourceFilter.TODOS }.forEach { source ->
+            assertTrue(filtered(MovementFilters(source = source, kind = KindFilter.INVERSIONES)).isEmpty())
+        }
+    }
+
+    @Test
+    fun `construye apuntes con signo por tipo y omite operaciones sin cuenta`() {
+        fun operation(id: String, type: OperationType, fees: Long = 5_00, accountId: String? = "a1") =
+            InvestmentOperation(
+                id, "portfolio", "asset", type, LocalDate.of(2026, 3, 6), BigDecimal.ONE,
+                BigDecimal("100.00"), fees, "EUR", "", 3, accountId,
+            )
+        val operations = listOf(
+            operation("buy", OperationType.COMPRA),
+            operation("sell", OperationType.VENTA),
+            operation("dividend", OperationType.DIVIDENDO, 19_00),
+            operation("fee", OperationType.COMISION),
+            operation("no-account", OperationType.COMPRA, accountId = null),
+        )
+        val asset = Asset("asset", "Mi activo", "", "", AssetType.ETF, "", "EUR")
+        val result = buildInvestmentMovementItems(operations, listOf(asset), listOf(Portfolio("portfolio", "Cartera", 1)))
+
+        assertEquals(listOf(-105_00L, 95_00L, 81_00L, -100_00L), result.map { it.amountMinor })
+        assertEquals(listOf("buy", "sell", "dividend", "fee"), result.map { it.operation.id })
+        assertTrue(result.all { it.assetName == "Mi activo" && it.portfolioName == "Cartera" })
+    }
+
+    @Test
+    fun `una compra derivada no altera presupuesto ni estadisticas`() {
+        val today = LocalDate.of(2026, 3, 6)
+        val transactions = listOf(
+            Transaction(
+                "expense", TransactionType.GASTO, 20_00, "EUR", today, "a1", "comida",
+                "Compra", "", "", TransactionSource.MANUAL, 1, 1,
+            ),
+        )
+        val budget = Budget("budget", null, BudgetPeriod.MENSUAL, 100_00, "EUR", false)
+        val statsBefore = StatsCalculator.totals(transactions, "EUR", today..today, today)
+        val budgetBefore = BudgetCalculator.statusForRange(budget, transactions, categories, today..today, today)
+        val derivedItems: List<MovementItem> = transactions.map(MovementItem::Tx) + investment()
+        val transactionsAfter = derivedItems.filterIsInstance<MovementItem.Tx>().map(MovementItem.Tx::transaction)
+
+        assertEquals(statsBefore, StatsCalculator.totals(transactionsAfter, "EUR", today..today, today))
+        assertEquals(
+            budgetBefore,
+            BudgetCalculator.statusForRange(budget, transactionsAfter, categories, today..today, today),
+        )
     }
 
     @Test
@@ -137,6 +224,7 @@ class MovementFiltersTest {
             when (it) {
                 is MovementItem.Tx -> it.transaction.id
                 is MovementItem.Move -> it.transfer.id
+                is MovementItem.Investment -> it.operation.id
             }
         }
 
@@ -163,5 +251,9 @@ class MovementFiltersTest {
         assertEquals(1, group.excludedCount)
         assertEquals(4, group.items.size)
         assertEquals(0L, groupMovementsByDay(listOf(transfer("only", "a1", "a2", 999_00, 5)), "EUR").single().balanceMinor)
+        val investments = listOf(investment(), investment("usd-investment", currency = "USD"))
+        val investmentGroup = groupMovementsByDay(investments, "EUR").single()
+        assertEquals(0L, investmentGroup.balanceMinor)
+        assertEquals(1, investmentGroup.excludedCount)
     }
 }

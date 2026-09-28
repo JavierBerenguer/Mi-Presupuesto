@@ -125,6 +125,9 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
                 onNewEntry = { navController.navigate(Rutas.apunte(null)) },
                 onEditEntry = { navController.navigate(Rutas.apunte(it)) },
                 onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
+                onOpenAssetDetail = { portfolioId, assetId ->
+                    navController.navigate(Rutas.activo(portfolioId, assetId))
+                },
                 initialSource = entry.savedStateHandle.remove<String>(Rutas.MOVEMENT_SOURCE_KEY)
                     ?.let(SourceFilter::valueOf),
             )

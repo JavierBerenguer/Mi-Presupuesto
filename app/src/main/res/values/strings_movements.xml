@@ -112,6 +112,16 @@
     <string name="mov_expand_category">Mostrar subcategorías</string>
     <string name="mov_collapse_category">Ocultar subcategorías</string>
     <string name="mov_kind_transfers_short">Transf.</string>
+    <string name="mov_kind_investments">Inversiones</string>
+    <string name="mov_filter_kind">Tipo</string>
+    <string name="mov_investment_buy">Compra de %1$s</string>
+    <string name="mov_investment_sell">Venta de %1$s</string>
+    <string name="mov_investment_dividend">Dividendo de %1$s</string>
+    <string name="mov_investment_fee">Comisión de %1$s</string>
+    <string name="mov_investment_metadata">%1$s · %2$s</string>
+    <string name="mov_investment_icon">Inversión</string>
+    <string name="mov_unknown_asset">Activo desconocido</string>
+    <string name="mov_unknown_portfolio">Cartera desconocida</string>
     <string name="mov_previous_month">Mes anterior</string>
     <string name="mov_next_month">Mes siguiente</string>
     <string name="mov_future">Futuro</string>
