@@ -1,58 +1,48 @@
 package com.mipatrimonio.app.testutil
 
 import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.emptyPreferences
 import com.mipatrimonio.app.data.repository.SettingsRepository
-import java.io.File
-import java.nio.file.Files
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.junit.rules.ExternalResource
 
 /**
- * DataStore de ajustes propio de cada test. El DataStore de producción es un singleton de proceso
- * ligado al primer Context que lo usa; en Robolectric eso lo compartía entre tests y bloqueaba la suite.
+ * Ajustes en memoria, propios de cada test. El DataStore real es un singleton de proceso (se filtraba
+ * entre tests y colgaba la suite) y en Windows su escritura por renombrado de fichero choca con las
+ * lecturas concurrentes ("el archivo está siendo utilizado por otro proceso").
  */
 class SettingsStoreRule : ExternalResource() {
-    private lateinit var dir: File
-    private lateinit var scope: CoroutineScope
+    private lateinit var store: InMemoryPreferencesDataStore
 
     lateinit var repository: SettingsRepository
         private set
 
     override fun before() {
-        dir = Files.createTempDirectory("settings-test").toFile()
-        open()
-    }
-
-    override fun after() {
-        close()
-        dir.deleteRecursively()
-    }
-
-    /** Cierra el DataStore y lo vuelve a abrir sobre el mismo fichero, para comprobar persistencia real. */
-    fun reopen(): SettingsRepository {
-        close()
-        open()
-        return repository
-    }
-
-    private fun close() {
-        val job = scope.coroutineContext[Job]!!
-        scope.cancel()
-        runBlocking { job.join() }
-    }
-
-    private fun open() {
-        scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-        val store: DataStore<Preferences> = PreferenceDataStoreFactory.create(scope = scope) {
-            File(dir, "settings.preferences_pb")
-        }
+        store = InMemoryPreferencesDataStore()
         repository = SettingsRepository(store)
     }
+
+    /** Nuevo repositorio sobre los mismos datos, para comprobar que los valores se leen de nuevo. */
+    fun reopen(): SettingsRepository {
+        repository = SettingsRepository(store)
+        return repository
+    }
+}
+
+private class InMemoryPreferencesDataStore : DataStore<Preferences> {
+    private val state = MutableStateFlow(emptyPreferences())
+    private val mutex = Mutex()
+
+    override val data: Flow<Preferences> = state
+
+    override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences =
+        mutex.withLock {
+            val updated = transform(state.value).toPreferences()
+            state.value = updated
+            updated
+        }
 }
