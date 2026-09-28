@@ -8,6 +8,9 @@ import com.mipatrimonio.app.data.backup.BackupException
 import com.mipatrimonio.app.data.backup.BackupFileAccess
 import com.mipatrimonio.app.data.backup.BackupService
 import com.mipatrimonio.app.data.backup.BackupSummary
+import com.mipatrimonio.app.data.export.CsvExportArchive
+import com.mipatrimonio.app.data.export.CsvExportFileAccess
+import com.mipatrimonio.app.data.export.CsvExportService
 import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,7 +18,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 enum class BackupPasswordError { TOO_SHORT, DOES_NOT_MATCH }
-enum class BackupNotice { CREATED, RESTORED }
+enum class BackupNotice { CREATED, RESTORED, CSV_EXPORTED }
 
 data class BackupUiState(
     val busy: Boolean = false,
@@ -28,17 +31,23 @@ data class BackupUiState(
     val notice: BackupNotice? = null,
     val createdRecordCount: Int = 0,
     val error: String? = null,
+    val showCsvWarning: Boolean = false,
+    val pendingCsvExport: Boolean = false,
+    val csvRowCounts: Map<String, Int> = emptyMap(),
 )
 
 class BackupViewModel(
     private val service: BackupService,
     private val files: BackupFileAccess,
+    private val csvService: CsvExportService,
+    private val csvFiles: CsvExportFileAccess,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(BackupUiState())
     val uiState: StateFlow<BackupUiState> = mutableState.asStateFlow()
     private var createdBytes: ByteArray? = null
     private var createdSummary: BackupSummary? = null
     private var restoreData: BackupData? = null
+    private var csvArchive: CsvExportArchive? = null
 
     fun openCreatePassword() {
         mutableState.value = BackupUiState(showCreatePassword = true)
@@ -152,13 +161,65 @@ class BackupViewModel(
         mutableState.value = mutableState.value.copy(notice = null, error = null)
     }
 
+    fun openCsvWarning() {
+        mutableState.value = mutableState.value.copy(showCsvWarning = true, error = null)
+    }
+
+    fun dismissCsvWarning() {
+        mutableState.value = mutableState.value.copy(showCsvWarning = false)
+    }
+
+    fun prepareCsvExport() {
+        viewModelScope.launch {
+            mutableState.value = BackupUiState(busy = true)
+            runCatching { csvService.create() }
+                .onSuccess { archive ->
+                    csvArchive = archive
+                    mutableState.value = BackupUiState(pendingCsvExport = true)
+                }
+                .onFailure(::showError)
+        }
+    }
+
+    fun csvPickerOpened() {
+        mutableState.value = mutableState.value.copy(pendingCsvExport = false)
+    }
+
+    fun cancelCsvExport() {
+        csvArchive?.bytes?.fill(0)
+        csvArchive = null
+        mutableState.value = BackupUiState()
+    }
+
+    fun writeCsv(uri: Uri) {
+        val archive = csvArchive ?: return
+        viewModelScope.launch {
+            mutableState.value = BackupUiState(busy = true)
+            runCatching { csvFiles.write(uri, archive.bytes) }
+                .onSuccess {
+                    archive.bytes.fill(0)
+                    csvArchive = null
+                    mutableState.value = BackupUiState(
+                        notice = BackupNotice.CSV_EXPORTED,
+                        csvRowCounts = archive.rowCounts,
+                    )
+                }
+                .onFailure { error ->
+                    archive.bytes.fill(0)
+                    csvArchive = null
+                    showError(error)
+                }
+        }
+    }
+
     private fun showError(error: Throwable) {
-        mutableState.value = BackupUiState(error = (error as? BackupException)?.message.orEmpty())
+        mutableState.value = BackupUiState(error = (error as? BackupException)?.message ?: error.message.orEmpty())
     }
 
     companion object {
         const val MIN_PASSWORD_LENGTH = 8
         fun suggestedFileName(today: LocalDate = LocalDate.now()) = "mi-patrimonio-$today.mipatrimonio"
+        fun suggestedCsvFileName(today: LocalDate = LocalDate.now()) = "mi-patrimonio-csv-$today.zip"
         fun validatePassword(password: String, confirmation: String): BackupPasswordError? = when {
             password.length < MIN_PASSWORD_LENGTH -> BackupPasswordError.TOO_SHORT
             password != confirmation -> BackupPasswordError.DOES_NOT_MATCH

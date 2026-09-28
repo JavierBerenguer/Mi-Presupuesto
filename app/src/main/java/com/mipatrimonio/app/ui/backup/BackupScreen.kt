@@ -46,7 +46,9 @@ import java.time.format.DateTimeFormatter
 
 @Composable
 fun BackupScreen(
-    viewModel: BackupViewModel = appViewModel { c -> BackupViewModel(c.backup, c.backupFiles) },
+    viewModel: BackupViewModel = appViewModel { c ->
+        BackupViewModel(c.backup, c.backupFiles, c.csvExport, c.csvExportFiles)
+    },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var createPassword by remember { mutableStateOf("") }
@@ -63,10 +65,21 @@ fun BackupScreen(
     val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let(viewModel::chooseRestore)
     }
+    val csvLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip"),
+    ) { uri ->
+        if (uri == null) viewModel.cancelCsvExport() else viewModel.writeCsv(uri)
+    }
     LaunchedEffect(state.pendingCreate) {
         if (state.pendingCreate) {
             viewModel.createPickerOpened()
             createLauncher.launch(BackupViewModel.suggestedFileName())
+        }
+    }
+    LaunchedEffect(state.pendingCsvExport) {
+        if (state.pendingCsvExport) {
+            viewModel.csvPickerOpened()
+            csvLauncher.launch(BackupViewModel.suggestedCsvFileName())
         }
     }
 
@@ -100,6 +113,18 @@ fun BackupScreen(
                 ) { Text(stringResource(R.string.backup_restore_action)) }
             }
         }
+        SectionCard {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.FileUpload, contentDescription = null)
+                    Text(stringResource(R.string.backup_csv_title), style = MaterialTheme.typography.titleLarge)
+                }
+                Text(stringResource(R.string.backup_csv_description))
+                OutlinedButton(onClick = viewModel::openCsvWarning, enabled = !state.busy) {
+                    Text(stringResource(R.string.backup_csv_action))
+                }
+            }
+        }
         if (state.busy) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                 CircularProgressIndicator()
@@ -111,8 +136,19 @@ fun BackupScreen(
                 color = MaterialTheme.colorScheme.error,
             )
         }
-        Text(stringResource(R.string.backup_future_features), style = MaterialTheme.typography.bodySmall)
     }
+
+    if (state.showCsvWarning) AlertDialog(
+        onDismissRequest = viewModel::dismissCsvWarning,
+        title = { Text(stringResource(R.string.backup_csv_warning_title)) },
+        text = { Text(stringResource(R.string.backup_csv_warning)) },
+        confirmButton = {
+            TextButton(onClick = viewModel::prepareCsvExport) { Text(stringResource(R.string.backup_csv_continue)) }
+        },
+        dismissButton = {
+            TextButton(onClick = viewModel::dismissCsvWarning) { Text(stringResource(R.string.common_cancel)) }
+        },
+    )
 
     if (state.showCreatePassword) PasswordDialog(
         title = stringResource(R.string.backup_password_create_title),
@@ -160,6 +196,7 @@ fun BackupScreen(
                     when (notice) {
                         BackupNotice.CREATED -> stringResource(R.string.backup_created_success, state.createdRecordCount)
                         BackupNotice.RESTORED -> stringResource(R.string.backup_restored_success)
+                        BackupNotice.CSV_EXPORTED -> csvExportSummary(state.csvRowCounts)
                     },
                 )
             },
@@ -168,6 +205,20 @@ fun BackupScreen(
             },
         )
     }
+}
+
+@Composable
+private fun csvExportSummary(counts: Map<String, Int>): String {
+    val order = listOf(
+        "cuentas.csv", "categorias.csv", "movimientos.csv", "transferencias.csv", "presupuestos.csv",
+        "carteras.csv", "activos.csv", "operaciones.csv", "dividendos.csv", "precios.csv",
+    )
+    val title = stringResource(R.string.backup_csv_success)
+    val lines = mutableListOf<String>()
+    for (file in order) {
+        lines += stringResource(R.string.backup_csv_count_line, file, counts[file] ?: 0)
+    }
+    return (listOf(title) + lines).joinToString("\n")
 }
 
 @Composable

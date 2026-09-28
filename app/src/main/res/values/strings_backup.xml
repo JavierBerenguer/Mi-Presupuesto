@@ -40,4 +40,12 @@
     <string name="backup_count_recurring">Órdenes permanentes</string>
     <string name="backup_count_authorizations">Autorizaciones bancarias</string>
     <string name="backup_count_proposals">Propuestas pendientes</string>
+    <string name="backup_csv_title">Exportar a CSV</string>
+    <string name="backup_csv_description">Crea un ZIP con cuentas, movimientos, presupuestos e inversiones en ficheros compatibles con Excel y LibreOffice.</string>
+    <string name="backup_csv_action">Exportar a CSV</string>
+    <string name="backup_csv_warning_title">Exportación sin cifrar</string>
+    <string name="backup_csv_warning">El fichero CSV no está cifrado y contiene tus datos financieros. Guárdalo en un lugar seguro.</string>
+    <string name="backup_csv_continue">Elegir destino</string>
+    <string name="backup_csv_success">Exportación CSV completada:</string>
+    <string name="backup_csv_count_line">%1$s: %2$d filas</string>
 </resources>

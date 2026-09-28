@@ -9,6 +9,9 @@ import com.mipatrimonio.app.data.backup.BackupRepository
 import com.mipatrimonio.app.data.backup.BackupService
 import com.mipatrimonio.app.data.db.AccountEntity
 import com.mipatrimonio.app.data.db.AppDatabase
+import com.mipatrimonio.app.data.export.CsvExportFileAccess
+import com.mipatrimonio.app.data.export.CsvExportRepository
+import com.mipatrimonio.app.data.export.CsvExportService
 import com.mipatrimonio.app.testutil.SettingsStoreRule
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -65,7 +68,9 @@ class BackupViewModelTest {
             BackupRepository(db, settingsRule.repository, "test", { 1 }),
             afterRestore = { postRestoreCalled = true },
         )
-        val viewModel = BackupViewModel(service, files)
+        val viewModel = BackupViewModel(
+            service, files, CsvExportService(CsvExportRepository(db)), files,
+        )
         val uri = Uri.parse("content://test/copia")
 
         viewModel.openCreatePassword()
@@ -91,7 +96,34 @@ class BackupViewModelTest {
         assertTrue(postRestoreCalled)
     }
 
-    private class MemoryFiles : BackupFileAccess {
+    @Test
+    fun `exportacion CSV avisa escribe zip y muestra filas`() = runTest {
+        db.accountDao().insertAllForRestore(
+            listOf(AccountEntity("a", "Cuenta", "CORRIENTE", "EUR", 100, false, 1, 1)),
+        )
+        val files = MemoryFiles()
+        val viewModel = BackupViewModel(
+            BackupService(BackupRepository(db, settingsRule.repository, "test", { 1 })),
+            files,
+            CsvExportService(CsvExportRepository(db)),
+            files,
+        )
+        val uri = Uri.parse("content://test/exportacion")
+
+        viewModel.openCsvWarning()
+        assertTrue(viewModel.uiState.first { it.showCsvWarning }.showCsvWarning)
+        viewModel.prepareCsvExport()
+        viewModel.uiState.first { it.pendingCsvExport }
+        viewModel.csvPickerOpened()
+        viewModel.writeCsv(uri)
+        val final = viewModel.uiState.first { it.notice == BackupNotice.CSV_EXPORTED }
+
+        assertEquals(1, final.csvRowCounts["cuentas.csv"])
+        assertEquals(0, final.csvRowCounts["movimientos.csv"])
+        assertTrue(files.read(uri).copyOfRange(0, 2).contentEquals(byteArrayOf('P'.code.toByte(), 'K'.code.toByte())))
+    }
+
+    private class MemoryFiles : BackupFileAccess, CsvExportFileAccess {
         private val values = mutableMapOf<Uri, ByteArray>()
         override suspend fun write(uri: Uri, bytes: ByteArray) { values[uri] = bytes.copyOf() }
         override suspend fun read(uri: Uri): ByteArray = requireNotNull(values[uri]).copyOf()

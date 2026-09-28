@@ -7,6 +7,9 @@ import com.mipatrimonio.app.data.db.AppDatabase
 import com.mipatrimonio.app.data.backup.BackupFileStore
 import com.mipatrimonio.app.data.backup.BackupRepository
 import com.mipatrimonio.app.data.backup.BackupService
+import com.mipatrimonio.app.data.export.CsvExportFileStore
+import com.mipatrimonio.app.data.export.CsvExportRepository
+import com.mipatrimonio.app.data.export.CsvExportService
 import com.mipatrimonio.app.data.repository.InvestmentRepository
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.NotificationRepository
@@ -67,6 +70,8 @@ class AppContainer(context: Context) {
             recurringReminderScheduler.scheduleAll()
         },
     )
+    val csvExportFiles = CsvExportFileStore(context.applicationContext.contentResolver)
+    val csvExport = CsvExportService(CsvExportRepository(database))
     val notifications = NotificationRepository(
         database,
         NotificationEngine(listOf(GenericSpanishParser())),
