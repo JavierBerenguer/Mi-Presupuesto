@@ -64,6 +64,7 @@ fun SettingsScreen(
     var pendingCurrency by remember { mutableStateOf<String?>(null) }
     var twelveKey by remember { mutableStateOf("") }
     var coinGeckoKey by remember { mutableStateOf("") }
+    var openFigiKey by remember { mutableStateOf("") }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -133,6 +134,12 @@ fun SettingsScreen(
                     viewModel::deleteCoinGeckoKey,
                 )
                 Text(stringResource(R.string.aj_coingecko_domain), style = MaterialTheme.typography.bodySmall)
+                SecretEditor(
+                    stringResource(R.string.aj_openfigi_key), state.openFigiConfigured, openFigiKey,
+                    { openFigiKey = it }, { viewModel.saveOpenFigiKey(openFigiKey); openFigiKey = "" },
+                    viewModel::deleteOpenFigiKey,
+                )
+                Text(stringResource(R.string.aj_openfigi_domain), style = MaterialTheme.typography.bodySmall)
             }
         }
         item {

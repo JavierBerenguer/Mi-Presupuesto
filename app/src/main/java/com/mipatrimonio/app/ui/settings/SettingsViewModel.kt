@@ -19,7 +19,10 @@ data class SettingsUiState(
     val errorMessage: String? = null,
     val twelveDataConfigured: Boolean = false,
     val coinGeckoConfigured: Boolean = false,
+    val openFigiConfigured: Boolean = false,
 )
+
+private data class SecretStatus(val twelveData: Boolean = false, val coinGecko: Boolean = false, val openFigi: Boolean = false)
 
 class SettingsViewModel(
     private val repository: SettingsRepository,
@@ -27,7 +30,7 @@ class SettingsViewModel(
 ) : ViewModel() {
     private val errorMessage = MutableStateFlow<String?>(null)
 
-    private val secretStatus = MutableStateFlow(false to false)
+    private val secretStatus = MutableStateFlow(SecretStatus())
 
     init { reloadSecretStatus() }
 
@@ -37,8 +40,9 @@ class SettingsViewModel(
             darkMode = settings.darkMode,
             baseCurrency = settings.baseCurrency,
             errorMessage = error,
-            twelveDataConfigured = status.first,
-            coinGeckoConfigured = status.second,
+            twelveDataConfigured = status.twelveData,
+            coinGeckoConfigured = status.coinGecko,
+            openFigiConfigured = status.openFigi,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -58,6 +62,8 @@ class SettingsViewModel(
     fun saveCoinGeckoKey(value: String) = saveSecret(SecretStore.COINGECKO_KEY, value)
     fun deleteTwelveDataKey() = deleteSecret(SecretStore.TWELVE_DATA_KEY)
     fun deleteCoinGeckoKey() = deleteSecret(SecretStore.COINGECKO_KEY)
+    fun saveOpenFigiKey(value: String) = saveSecret(SecretStore.OPEN_FIGI_KEY, value)
+    fun deleteOpenFigiKey() = deleteSecret(SecretStore.OPEN_FIGI_KEY)
 
     private fun saveSecret(name: String, value: String) {
         viewModelScope.launch {
@@ -77,8 +83,11 @@ class SettingsViewModel(
 
     private fun reloadSecretStatus() { viewModelScope.launch { loadSecretStatus() } }
     private suspend fun loadSecretStatus() {
-        secretStatus.value = (secrets?.isConfigured(SecretStore.TWELVE_DATA_KEY) == true) to
-            (secrets?.isConfigured(SecretStore.COINGECKO_KEY) == true)
+        secretStatus.value = SecretStatus(
+            twelveData = secrets?.isConfigured(SecretStore.TWELVE_DATA_KEY) == true,
+            coinGecko = secrets?.isConfigured(SecretStore.COINGECKO_KEY) == true,
+            openFigi = secrets?.isConfigured(SecretStore.OPEN_FIGI_KEY) == true,
+        )
     }
 
     fun setBaseCurrency(code: String) {

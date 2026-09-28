@@ -44,6 +44,7 @@ interface SecretStore {
     companion object {
         const val TWELVE_DATA_KEY = "twelve_data"
         const val COINGECKO_KEY = "coingecko"
+        const val OPEN_FIGI_KEY = "openfigi"
     }
 }
 

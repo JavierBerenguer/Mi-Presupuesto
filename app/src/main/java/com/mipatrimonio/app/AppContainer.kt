@@ -12,9 +12,12 @@ import com.mipatrimonio.app.data.repository.SettingsRepository
 import com.mipatrimonio.app.data.work.RecurringReminderScheduler
 import com.mipatrimonio.app.data.work.QuoteRefreshWorker
 import com.mipatrimonio.app.data.quotes.CoinGeckoQuoteProvider
+import com.mipatrimonio.app.data.quotes.CoinGeckoSearchService
 import com.mipatrimonio.app.data.quotes.KeystoreSecretStore
 import com.mipatrimonio.app.data.quotes.QuoteRepository
 import com.mipatrimonio.app.data.quotes.TwelveDataQuoteProvider
+import com.mipatrimonio.app.data.quotes.TwelveDataAssetService
+import com.mipatrimonio.app.data.quotes.OpenFigiService
 import com.mipatrimonio.app.data.quotes.UrlConnectionHttpClient
 import com.mipatrimonio.app.domain.notifications.GenericSpanishParser
 import com.mipatrimonio.app.domain.notifications.NotificationEngine
@@ -34,6 +37,9 @@ class AppContainer(context: Context) {
     val investments = InvestmentRepository(database)
     val quoteSecrets = KeystoreSecretStore(context.applicationContext)
     private val quoteHttp = UrlConnectionHttpClient()
+    val openFigi = OpenFigiService(quoteHttp, quoteSecrets)
+    val coinGeckoSearch = CoinGeckoSearchService(quoteHttp, quoteSecrets)
+    val twelveDataAssets = TwelveDataAssetService(quoteHttp, quoteSecrets)
     val quotes = QuoteRepository(
         database,
         investments,

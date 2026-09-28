@@ -118,6 +118,23 @@ class AssetsViewModelTest {
         assertTrue(investments.latestPrices.first().isEmpty())
     }
 
+    @Test fun `bloquea mismo isin y mic pero permite otro mercado`() = runTest {
+        investments.saveAsset(asset().copy(id = "a", isin = "ie00 b4l5 y983", quoteMic = "XETR"))
+        val duplicate = runCatching {
+            investments.saveAsset(asset().copy(id = "b", isin = "IE00B4L5Y983", quoteMic = "xetr"))
+        }.exceptionOrNull()
+        assertTrue(duplicate is IllegalArgumentException)
+
+        investments.saveAsset(asset().copy(id = "c", isin = "IE00B4L5Y983", quoteMic = "XAMS"))
+        assertEquals(2, investments.assets.first().size)
+
+        investments.saveAsset(asset().copy(id = "d", isin = "US0378331005", quoteMic = null))
+        val duplicateWithoutMic = runCatching {
+            investments.saveAsset(asset().copy(id = "e", isin = "US0378331005", quoteMic = null))
+        }.exceptionOrNull()
+        assertTrue(duplicateWithoutMic is IllegalArgumentException)
+    }
+
     private suspend fun seedOperation() {
         investments.savePortfolio(Portfolio("p1", "Cartera", 1))
         investments.saveAsset(asset())

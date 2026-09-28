@@ -68,4 +68,6 @@
     <string name="aj_coingecko_domain">Obtén la clave Demo en coingecko.com</string>
     <string name="aj_key_configured">Configurada</string>
     <string name="aj_key_not_configured">No configurada</string>
+    <string name="aj_openfigi_key">Clave de OpenFIGI (opcional)</string>
+    <string name="aj_openfigi_domain">Obtén la clave en openfigi.com; la búsqueda funciona también sin ella.</string>
 </resources>

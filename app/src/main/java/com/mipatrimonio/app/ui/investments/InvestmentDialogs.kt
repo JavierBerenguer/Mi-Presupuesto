@@ -2,11 +2,15 @@ package com.mipatrimonio.app.ui.investments
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -16,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -33,6 +38,10 @@ import com.mipatrimonio.app.domain.model.InvestmentOperation
 import com.mipatrimonio.app.domain.model.OperationType
 import com.mipatrimonio.app.domain.model.Portfolio
 import com.mipatrimonio.app.domain.model.QuoteProvider
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mipatrimonio.app.data.quotes.LookupFailure
+import com.mipatrimonio.app.data.quotes.normalizeIsin
+import com.mipatrimonio.app.ui.common.appViewModel
 import com.mipatrimonio.app.ui.common.AmountField
 import com.mipatrimonio.app.ui.common.DateField
 import com.mipatrimonio.app.ui.common.DropdownField
@@ -98,26 +107,30 @@ fun PortfolioDialog(
 fun AssetDialog(
     assets: List<Asset>,
     onDismiss: () -> Unit,
-    onSave: (String, String, String, AssetType, String, String, QuoteProvider?, String?, String?, (String?) -> Unit) -> Unit,
+    onSaved: () -> Unit,
     existingAsset: Asset? = null,
     hasOperations: Boolean = false,
     externalError: String? = null,
     onDelete: (() -> Unit)? = null,
+    viewModel: AssetFormViewModel = appViewModel { container ->
+        AssetFormViewModel(
+            container.investments, container.settings, container.openFigi,
+            container.coinGeckoSearch, container.twelveDataAssets,
+        )
+    },
 ) {
-    var name by remember(existingAsset?.id) { mutableStateOf(existingAsset?.name.orEmpty()) }
-    var ticker by remember(existingAsset?.id) { mutableStateOf(existingAsset?.ticker.orEmpty()) }
-    var isin by remember(existingAsset?.id) { mutableStateOf(existingAsset?.isin.orEmpty()) }
-    var type by remember(existingAsset?.id) { mutableStateOf(existingAsset?.type ?: AssetType.ACCION) }
-    var market by remember(existingAsset?.id) { mutableStateOf(existingAsset?.market.orEmpty()) }
-    var currency by remember(existingAsset?.id) { mutableStateOf(existingAsset?.currency ?: Currencies.EUR) }
-    var quoteProvider by remember(existingAsset?.id) { mutableStateOf(existingAsset?.quoteProvider) }
-    var quoteSymbol by remember(existingAsset?.id) { mutableStateOf(existingAsset?.quoteSymbol.orEmpty()) }
-    var quoteMic by remember(existingAsset?.id) { mutableStateOf(existingAsset?.quoteMic.orEmpty()) }
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    LaunchedEffect(existingAsset?.id) { viewModel.initialize(existingAsset) }
     var error by remember { mutableStateOf<String?>(null) }
     val blankNameError = stringResource(R.string.inv_error_name_required)
     val blankTickerError = stringResource(R.string.inv_error_ticker_required)
     val blankQuoteSymbolError = stringResource(R.string.inv_error_quote_symbol_required)
-    val duplicateIsin = isin.isNotBlank() && assets.any { it.id != existingAsset?.id && it.isin.equals(isin.trim(), ignoreCase = true) }
+    val blankCurrencyError = stringResource(R.string.inv_error_currency_required)
+    val normalizedMic = state.quoteMic.trim().uppercase().takeIf(String::isNotBlank)
+    val duplicateIsin = state.isin.isNotBlank() && assets.any { asset ->
+        !asset.archived && asset.id != existingAsset?.id && normalizeIsin(asset.isin) == normalizeIsin(state.isin) &&
+            asset.quoteMic?.trim()?.uppercase()?.takeIf(String::isNotBlank) == normalizedMic
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -128,47 +141,66 @@ fun AssetDialog(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it; error = null },
+                    value = state.name,
+                    onValueChange = { viewModel.setName(it); error = null },
                     label = { Text(stringResource(R.string.inv_asset_name)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
-                    value = ticker,
-                    onValueChange = { ticker = it; error = null },
+                    value = state.ticker,
+                    onValueChange = { viewModel.setTicker(it); error = null },
                     label = { Text(stringResource(R.string.inv_ticker)) },
                     singleLine = true,
                     supportingText = { Text(stringResource(R.string.inv_ticker_not_identifier)) },
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedTextField(
-                    value = isin,
-                    onValueChange = { isin = it; error = null },
-                    label = { Text(stringResource(R.string.inv_isin_optional)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                if (duplicateIsin) {
-                    Text(
-                        stringResource(R.string.inv_duplicate_isin_warning),
-                        color = MaterialTheme.colorScheme.tertiary,
-                        style = MaterialTheme.typography.bodySmall,
+                if (state.type == AssetType.CRIPTO) {
+                    OutlinedTextField(
+                        value = state.cryptoQuery, onValueChange = viewModel::setCryptoQuery,
+                        label = { Text(stringResource(R.string.inv_crypto_search_hint)) },
+                        singleLine = true, modifier = Modifier.fillMaxWidth(),
                     )
+                    Button(onClick = viewModel::searchCrypto, enabled = !state.loading && state.cryptoQuery.isNotBlank()) {
+                        Text(stringResource(R.string.inv_search))
+                    }
+                    state.cryptoResults.forEach { coin ->
+                        TextButton(onClick = { viewModel.selectCrypto(coin) }) {
+                            Text(
+                                if (coin.marketCapRank == null) stringResource(R.string.inv_crypto_result_no_rank, coin.name, coin.symbol)
+                                else stringResource(R.string.inv_crypto_result, coin.name, coin.symbol, coin.marketCapRank),
+                            )
+                        }
+                    }
+                } else {
+                    OutlinedTextField(
+                        value = state.isin,
+                        onValueChange = { viewModel.setIsin(it); error = null },
+                        label = { Text(stringResource(R.string.inv_isin_optional)) },
+                        singleLine = true, isError = state.notice == AssetFormNotice.ISIN_INVALIDO,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Button(onClick = viewModel::searchIsin, enabled = !state.loading && state.isin.isNotBlank()) {
+                        Text(stringResource(R.string.inv_search))
+                    }
+                    state.listings.forEach { listing ->
+                        TextButton(onClick = { viewModel.selectListing(listing) }) {
+                            Text(stringResource(R.string.inv_listing_result, listing.name, listing.ticker, listing.marketInfo.name, listing.securityType))
+                        }
+                    }
                 }
                 DropdownField(
                     label = stringResource(R.string.inv_asset_type),
                     options = AssetType.entries,
-                    selected = type,
+                    selected = state.type,
                     optionLabel = { it.label() },
                     onSelected = { it?.let { selected ->
-                        type = selected
-                        if (quoteProvider !in quoteProvidersFor(selected)) quoteProvider = null
+                        viewModel.setType(selected)
                     } },
                 )
                 OutlinedTextField(
-                    value = market,
-                    onValueChange = { market = it },
+                    value = state.market,
+                    onValueChange = viewModel::setMarket,
                     label = { Text(stringResource(R.string.inv_market_optional)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -176,38 +208,64 @@ fun AssetDialog(
                 DropdownField(
                     label = stringResource(R.string.inv_currency),
                     options = Currencies.comunes,
-                    selected = currency,
+                    selected = state.currency,
                     optionLabel = { it },
-                    onSelected = { it?.let { selected -> currency = selected } },
+                    onSelected = { it?.let(viewModel::setCurrency) },
                     enabled = !hasOperations,
                 )
                 if (hasOperations) Text(stringResource(R.string.inv_asset_currency_locked), style = MaterialTheme.typography.bodySmall)
                 DropdownField(
                     label = stringResource(R.string.inv_quote_provider),
-                    options = quoteProvidersFor(type),
-                    selected = quoteProvider,
+                    options = quoteProvidersFor(state.type),
+                    selected = state.quoteProvider,
                     optionLabel = { provider -> when (provider) {
                         QuoteProvider.TWELVE_DATA -> stringResource(R.string.inv_provider_twelve_data)
                         QuoteProvider.COINGECKO -> stringResource(R.string.inv_provider_coingecko)
                     } },
-                    onSelected = { quoteProvider = it },
+                    onSelected = viewModel::setQuoteProvider,
                     noneLabel = stringResource(R.string.inv_provider_none),
                 )
-                if (quoteProvider != null) OutlinedTextField(
-                    value = quoteSymbol,
-                    onValueChange = { quoteSymbol = it },
+                if (state.quoteProvider != null) OutlinedTextField(
+                    value = state.quoteSymbol,
+                    onValueChange = viewModel::setQuoteSymbol,
                     label = { Text(stringResource(R.string.inv_quote_symbol)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                if (quoteProvider == QuoteProvider.TWELVE_DATA) OutlinedTextField(
-                    value = quoteMic,
-                    onValueChange = { quoteMic = it },
+                if (state.quoteProvider == QuoteProvider.TWELVE_DATA) OutlinedTextField(
+                    value = state.quoteMic,
+                    onValueChange = viewModel::setQuoteMic,
                     label = { Text(stringResource(R.string.inv_quote_mic)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                (error ?: externalError)?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                if (state.loading) CircularProgressIndicator()
+                if (duplicateIsin) Text(
+                    stringResource(R.string.inv_duplicate_isin_warning),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                state.notice?.let { notice -> Text(stringResource(when (notice) {
+                    AssetFormNotice.ISIN_INVALIDO -> R.string.inv_isin_invalid
+                    AssetFormNotice.COMPLETADO -> R.string.inv_lookup_completed
+                    AssetFormNotice.REVISAR_TIPO -> R.string.inv_review_type
+                    AssetFormNotice.CONFIRMAR_DIVISA -> R.string.inv_confirm_currency
+                    AssetFormNotice.SIN_RESULTADOS -> R.string.inv_no_search_results
+                }), style = MaterialTheme.typography.bodySmall) }
+                state.failure?.let { failure -> Text(stringResource(when (failure) {
+                    LookupFailure.SIN_CONEXION -> R.string.inv_lookup_offline
+                    LookupFailure.NO_ENCONTRADO -> R.string.inv_no_search_results
+                    LookupFailure.LIMITE_ALCANZADO -> R.string.inv_lookup_limit
+                    LookupFailure.RESPUESTA_INVALIDA -> R.string.inv_lookup_invalid_response
+                    LookupFailure.CLAVE_INVALIDA -> R.string.inv_lookup_invalid_key
+                }), color = MaterialTheme.colorScheme.error) }
+                state.providerQuote?.let { quote ->
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Checkbox(state.saveProviderPrice, viewModel::setSaveProviderPrice)
+                        Text(stringResource(R.string.inv_save_first_price, quote.price.toPlainString(), quote.currency))
+                    }
+                }
+                (error ?: state.saveError ?: externalError)?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 if (existingAsset != null && onDelete != null) {
                     TextButton(onClick = onDelete) { Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error) }
                 }
@@ -216,16 +274,12 @@ fun AssetDialog(
         confirmButton = {
             TextButton(onClick = {
                 when {
-                    name.isBlank() -> error = blankNameError
-                    ticker.isBlank() -> error = blankTickerError
-                    quoteProvider != null && quoteSymbol.isBlank() -> error = blankQuoteSymbolError
-                    else -> onSave(
-                        name, ticker, isin, type, market, currency, quoteProvider,
-                        quoteSymbol.trim().takeIf { quoteProvider != null },
-                        quoteMic.trim().takeIf { quoteProvider == QuoteProvider.TWELVE_DATA && it.isNotBlank() },
-                    ) { result ->
-                        if (result == null) onDismiss() else error = result
-                    }
+                    state.name.isBlank() -> error = blankNameError
+                    state.ticker.isBlank() -> error = blankTickerError
+                    state.currency.isBlank() -> error = blankCurrencyError
+                    duplicateIsin -> error = null
+                    state.quoteProvider != null && state.quoteSymbol.isBlank() -> error = blankQuoteSymbolError
+                    else -> viewModel.save(existingAsset) { onSaved(); onDismiss() }
                 }
             }) { Text(stringResource(R.string.common_save)) }
         },

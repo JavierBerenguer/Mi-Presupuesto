@@ -115,9 +115,7 @@ fun InvestmentsScreen(
     )
     if (assetDialog) AssetDialog(
         state.assets, { assetDialog = false },
-        { name, ticker, isin, type, market, currency, provider, symbol, mic, result ->
-            viewModel.saveAsset(name, ticker, isin, type, market, currency, provider, symbol, mic, result)
-        },
+        { assetDialog = false },
     )
     if (operationDialog) OperationDialog(
         state.portfolios, state.assets.filterNot { it.archived }, state.accounts, state.selectedPortfolioId, null,

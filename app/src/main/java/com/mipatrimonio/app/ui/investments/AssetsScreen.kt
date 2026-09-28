@@ -83,11 +83,7 @@ fun AssetsScreen(viewModel: AssetsViewModel = appViewModel { c -> AssetsViewMode
         AssetDialog(
             assets = state.assets.map { it.asset },
             onDismiss = { editing = null },
-            onSave = { name, ticker, isin, type, market, currency, provider, symbol, mic, result ->
-                viewModel.save(asset, name, ticker, isin, type, market, currency, provider, symbol, mic) {
-                    result(null); editing = null
-                }
-            },
+            onSaved = { editing = null },
             existingAsset = asset,
             hasOperations = deps?.operations?.let { it > 0 } ?: true,
             externalError = state.error,

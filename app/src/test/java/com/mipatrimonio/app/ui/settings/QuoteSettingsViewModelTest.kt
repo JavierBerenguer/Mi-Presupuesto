@@ -36,5 +36,10 @@ class QuoteSettingsViewModelTest {
         assertTrue(configured.toString().contains("secret-never-in-state").not())
         viewModel.deleteTwelveDataKey()
         assertFalse(viewModel.uiState.first { !it.twelveDataConfigured }.twelveDataConfigured)
+        viewModel.saveOpenFigiKey("openfigi-secret")
+        val openFigi = viewModel.uiState.first { it.openFigiConfigured }
+        assertTrue(openFigi.toString().contains("openfigi-secret").not())
+        viewModel.deleteOpenFigiKey()
+        assertFalse(viewModel.uiState.first { !it.openFigiConfigured }.openFigiConfigured)
     }
 }

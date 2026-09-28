@@ -79,7 +79,22 @@
     <string name="inv_ticker">Ticker</string>
     <string name="inv_ticker_not_identifier">El ticker no identifica de forma única un activo.</string>
     <string name="inv_isin_optional">ISIN (opcional)</string>
-    <string name="inv_duplicate_isin_warning">Ya existe otro activo con este ISIN. Puedes guardarlo, pero revisa que no sea un duplicado.</string>
+    <string name="inv_duplicate_isin_warning">Ya existe un activo no archivado con este ISIN en el mismo mercado. No se puede guardar el duplicado.</string>
+    <string name="inv_search">Buscar</string>
+    <string name="inv_crypto_search_hint">Nombre o símbolo de la criptomoneda</string>
+    <string name="inv_crypto_result">%1$s · %2$s · puesto %3$d</string>
+    <string name="inv_crypto_result_no_rank">%1$s · %2$s · sin posición</string>
+    <string name="inv_listing_result">%1$s · %2$s · %3$s · %4$s</string>
+    <string name="inv_isin_invalid">El ISIN no es válido. Revisa sus 12 caracteres y el dígito de control.</string>
+    <string name="inv_lookup_completed">Datos rellenados. Puedes editarlos antes de guardar.</string>
+    <string name="inv_review_type">No se ha reconocido el tipo de activo; revísalo antes de guardar.</string>
+    <string name="inv_confirm_currency">No se ha podido confirmar la divisa con Twelve Data. Revisa la divisa sugerida.</string>
+    <string name="inv_no_search_results">No se han encontrado resultados. Puedes completar el formulario manualmente.</string>
+    <string name="inv_lookup_offline">Sin conexión. Puedes completar el formulario manualmente.</string>
+    <string name="inv_lookup_limit">El proveedor ha alcanzado temporalmente su límite. Inténtalo más tarde.</string>
+    <string name="inv_lookup_invalid_response">El proveedor ha devuelto una respuesta no válida. Puedes continuar manualmente.</string>
+    <string name="inv_lookup_invalid_key">La clave del proveedor no es válida o no está configurada. Revisa la divisa.</string>
+    <string name="inv_save_first_price">Guardar %1$s %2$s como primer precio</string>
     <string name="inv_asset_type">Tipo de activo</string>
     <string name="inv_market_optional">Mercado (opcional)</string>
     <string name="inv_currency">Divisa</string>
@@ -118,6 +133,7 @@
 
     <string name="inv_error_name_required">El nombre es obligatorio.</string>
     <string name="inv_error_ticker_required">El ticker es obligatorio.</string>
+    <string name="inv_error_currency_required">Selecciona una divisa.</string>
     <string name="inv_error_quantity_positive">La cantidad debe ser mayor que cero.</string>
     <string name="inv_error_price_non_negative">El precio debe ser cero o mayor.</string>
     <string name="inv_error_price_positive">El precio debe ser mayor que cero.</string>

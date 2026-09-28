@@ -64,12 +64,22 @@ class InvestmentRepository(
             },
         ) { "El proveedor no es compatible con el tipo de activo" }
         val existing = dao.getAsset(asset.id)
+        val normalizedIsin = asset.isin.filterNot(Char::isWhitespace).uppercase()
+        if (normalizedIsin.isNotBlank()) {
+            val normalizedMic = asset.quoteMic?.trim()?.uppercase()?.takeIf(String::isNotBlank)
+            val duplicate = dao.getActiveAssets().any { candidate ->
+                candidate.id != asset.id &&
+                    candidate.isin.filterNot(Char::isWhitespace).uppercase() == normalizedIsin &&
+                    candidate.quoteMic?.trim()?.uppercase()?.takeIf(String::isNotBlank) == normalizedMic
+            }
+            require(!duplicate) { "Ya existe un activo con el mismo ISIN en este mercado" }
+        }
         if (existing != null && existing.currency != asset.currency) {
             require(dao.countOperationsForAsset(asset.id) == 0) {
                 "No se puede cambiar la divisa de un activo con operaciones"
             }
         }
-        dao.upsertAsset(asset.toEntity(createdAt = existing?.createdAt ?: clock()))
+        dao.upsertAsset(asset.copy(isin = normalizedIsin).toEntity(createdAt = existing?.createdAt ?: clock()))
     }
 
     suspend fun assetDependencies(assetId: String): AssetDependencies = db.withTransaction {
