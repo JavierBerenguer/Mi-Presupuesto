@@ -225,3 +225,34 @@ data class PendingProposalEntity(
     val resultingTransactionId: String?,
     val createdAt: Long,
 )
+
+@Entity(
+    tableName = "recurring_rule",
+    foreignKeys = [
+        ForeignKey(AccountEntity::class, ["id"], ["accountId"], onDelete = ForeignKey.RESTRICT),
+        ForeignKey(AccountEntity::class, ["id"], ["destinationAccountId"], onDelete = ForeignKey.RESTRICT),
+        ForeignKey(CategoryEntity::class, ["id"], ["categoryId"], onDelete = ForeignKey.SET_NULL),
+    ],
+    indices = [Index("accountId"), Index("destinationAccountId"), Index("categoryId")],
+)
+data class RecurringRuleEntity(
+    @PrimaryKey val id: String,
+    val kind: String,
+    val amountMinor: Long,
+    val currency: String,
+    val accountId: String,
+    val destinationAccountId: String?,
+    val categoryId: String?,
+    val description: String,
+    val merchant: String,
+    val startEpochDay: Long,
+    val periodQuantity: Int,
+    val periodUnit: String,
+    val endEpochDay: Long?,
+    val reminder: String,
+    val reminderCustomDays: Int?,
+    val lastGeneratedEpochDay: Long?,
+    @ColumnInfo(defaultValue = "0") val archived: Boolean,
+    val createdAt: Long,
+    val updatedAt: Long,
+)

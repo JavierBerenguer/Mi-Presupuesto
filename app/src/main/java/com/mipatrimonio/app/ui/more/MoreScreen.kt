@@ -64,6 +64,7 @@ fun MoreScreen(
     onOpenSettings: () -> Unit,
     onOpenInvestments: () -> Unit,
     onOpenAssets: () -> Unit,
+    onOpenRecurring: () -> Unit,
     viewModel: MoreViewModel = appViewModel { c -> MoreViewModel(c.ledger, c.investments, c.settings) },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -83,6 +84,7 @@ fun MoreScreen(
         onOpenProposals,
         onOpenSettings,
         onOpenAssets,
+        onOpenRecurring,
     )
     if (showAddMenu) AlertDialog(
         onDismissRequest = { showAddMenu = false },
@@ -177,6 +179,7 @@ private fun MoreContent(
     onOpenProposals: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenAssets: () -> Unit,
+    onOpenRecurring: () -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -223,6 +226,7 @@ private fun MoreContent(
                 MoreLink(Icons.Default.AccountBalance, stringResource(R.string.nav_patrimonio), onOpenNetWorth)
                 MoreLink(Icons.Default.ShowChart, stringResource(R.string.inv_assets_title), onOpenAssets)
                 MoreLink(Icons.Default.Category, stringResource(R.string.nav_categorias), onOpenCategories)
+                MoreLink(Icons.Default.Schedule, stringResource(R.string.recurring_title), onOpenRecurring)
                 MoreLink(Icons.Default.Notifications, stringResource(R.string.aj_bank_notifications), onOpenNotifications)
                 MoreLink(Icons.Default.Schedule, stringResource(R.string.aj_pending_proposals), onOpenProposals)
                 MoreLink(
@@ -293,7 +297,7 @@ private fun MoreDarkPreview() {
                 ),
                 totals = listOf(CurrencyTotal("EUR", 124050)),
             ),
-            {}, {}, {}, {}, {}, {}, {}, {},
+            {}, {}, {}, {}, {}, {}, {}, {}, {},
         )
     }
 }
@@ -302,6 +306,6 @@ private fun MoreDarkPreview() {
 @Composable
 private fun MoreEmptyLightPreview() {
     MiPatrimonioTheme(modoOscuro = false) {
-        MoreContent(MoreUiState(isLoading = false), {}, {}, {}, {}, {}, {}, {}, {})
+        MoreContent(MoreUiState(isLoading = false), {}, {}, {}, {}, {}, {}, {}, {}, {})
     }
 }

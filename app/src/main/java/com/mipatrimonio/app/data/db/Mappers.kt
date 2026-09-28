@@ -14,6 +14,10 @@ import com.mipatrimonio.app.domain.model.InvestmentOperation
 import com.mipatrimonio.app.domain.model.OperationType
 import com.mipatrimonio.app.domain.model.Portfolio
 import com.mipatrimonio.app.domain.model.PriceSource
+import com.mipatrimonio.app.domain.model.RecurringKind
+import com.mipatrimonio.app.domain.model.RecurringPeriodUnit
+import com.mipatrimonio.app.domain.model.RecurringRule
+import com.mipatrimonio.app.domain.model.ReminderOption
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
@@ -85,3 +89,32 @@ fun InvestmentOperation.toEntity() = InvestmentOperationEntity(
 )
 
 fun AssetPriceEntity.toDomain() = AssetPrice(assetId, BigDecimal(price), currency, asOfEpochMillis, PriceSource.valueOf(source))
+
+fun RecurringRuleEntity.toDomain() = RecurringRule(
+    id = id,
+    kind = RecurringKind.valueOf(kind),
+    amountMinor = amountMinor,
+    currency = currency,
+    accountId = accountId,
+    destinationAccountId = destinationAccountId,
+    categoryId = categoryId,
+    description = description,
+    merchant = merchant,
+    startDate = LocalDate.ofEpochDay(startEpochDay),
+    periodQuantity = periodQuantity,
+    periodUnit = RecurringPeriodUnit.valueOf(periodUnit),
+    endDate = endEpochDay?.let(LocalDate::ofEpochDay),
+    reminder = ReminderOption.valueOf(reminder),
+    reminderCustomDays = reminderCustomDays,
+    lastGeneratedDate = lastGeneratedEpochDay?.let(LocalDate::ofEpochDay),
+    archived = archived,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+)
+
+fun RecurringRule.toEntity() = RecurringRuleEntity(
+    id, kind.name, amountMinor, currency, accountId, destinationAccountId, categoryId,
+    description, merchant, startDate.toEpochDay(), periodQuantity, periodUnit.name,
+    endDate?.toEpochDay(), reminder.name, reminderCustomDays, lastGeneratedDate?.toEpochDay(),
+    archived, createdAt, updatedAt,
+)

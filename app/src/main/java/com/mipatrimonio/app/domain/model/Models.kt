@@ -31,6 +31,34 @@ enum class TransactionType { INGRESO, GASTO }
 
 enum class TransactionSource { MANUAL, IMPORTACION, NOTIFICACION, RECURRENTE }
 
+enum class RecurringKind { GASTO, INGRESO, TRANSFERENCIA }
+
+enum class RecurringPeriodUnit { DIA, MES, ANIO }
+
+enum class ReminderOption { NO, EXACTO, UN_DIA_ANTES, DOS_DIAS_ANTES, PERSONALIZADO }
+
+data class RecurringRule(
+    val id: String,
+    val kind: RecurringKind,
+    val amountMinor: Long,
+    val currency: String,
+    val accountId: String,
+    val destinationAccountId: String?,
+    val categoryId: String?,
+    val description: String,
+    val merchant: String,
+    val startDate: LocalDate,
+    val periodQuantity: Int,
+    val periodUnit: RecurringPeriodUnit,
+    val endDate: LocalDate?,
+    val reminder: ReminderOption,
+    val reminderCustomDays: Int?,
+    val lastGeneratedDate: LocalDate?,
+    val archived: Boolean,
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
 /** Ingreso o gasto. El importe es siempre positivo; el signo lo da [type]. La divisa es la de la cuenta. */
 data class Transaction(
     val id: String,

@@ -49,8 +49,14 @@ interface TransactionDao {
     @Upsert
     suspend fun upsert(entity: TransactionEntity)
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertIfAbsent(entity: TransactionEntity): Long
+
     @Query("DELETE FROM txn WHERE id = :id")
     suspend fun delete(id: String)
+
+    @Query("DELETE FROM txn WHERE id LIKE :idPrefix AND epochDay >= :fromEpochDay")
+    suspend fun deleteRecurringFuture(idPrefix: String, fromEpochDay: Long)
 
     @Query("SELECT COUNT(*) FROM txn WHERE accountId = :accountId")
     suspend fun countForAccount(accountId: String): Int
@@ -64,8 +70,14 @@ interface TransferDao {
     @Upsert
     suspend fun upsert(entity: TransferEntity)
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertIfAbsent(entity: TransferEntity): Long
+
     @Query("DELETE FROM transfer WHERE id = :id")
     suspend fun delete(id: String)
+
+    @Query("DELETE FROM transfer WHERE id LIKE :idPrefix AND epochDay >= :fromEpochDay")
+    suspend fun deleteRecurringFuture(idPrefix: String, fromEpochDay: Long)
 
     @Query("SELECT COUNT(*) FROM transfer WHERE fromAccountId = :accountId OR toAccountId = :accountId")
     suspend fun countForAccount(accountId: String): Int
@@ -201,4 +213,31 @@ interface NotificationDao {
 
     @Query("DELETE FROM notification_diagnostic")
     suspend fun clearDiagnostics()
+}
+
+@Dao
+interface RecurringRuleDao {
+    @Query("SELECT * FROM recurring_rule ORDER BY archived, startEpochDay, createdAt")
+    fun observeAll(): Flow<List<RecurringRuleEntity>>
+
+    @Query("SELECT * FROM recurring_rule WHERE id = :id")
+    suspend fun getById(id: String): RecurringRuleEntity?
+
+    @Query("SELECT * FROM recurring_rule WHERE archived = 0 ORDER BY createdAt")
+    suspend fun getActive(): List<RecurringRuleEntity>
+
+    @Upsert
+    suspend fun upsert(entity: RecurringRuleEntity)
+
+    @Query("UPDATE recurring_rule SET archived = :archived, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun setArchived(id: String, archived: Boolean, updatedAt: Long)
+
+    @Query("UPDATE recurring_rule SET lastGeneratedEpochDay = :epochDay, updatedAt = :updatedAt WHERE id = :id")
+    suspend fun setLastGenerated(id: String, epochDay: Long, updatedAt: Long)
+
+    @Query("DELETE FROM recurring_rule WHERE id = :id")
+    suspend fun delete(id: String)
+
+    @Query("SELECT COUNT(*) FROM recurring_rule WHERE accountId = :accountId OR destinationAccountId = :accountId")
+    suspend fun countForAccount(accountId: String): Int
 }

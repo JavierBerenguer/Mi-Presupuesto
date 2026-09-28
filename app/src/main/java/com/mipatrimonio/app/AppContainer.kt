@@ -2,11 +2,14 @@ package com.mipatrimonio.app
 
 import android.app.Application
 import android.content.Context
+import androidx.work.Configuration
 import com.mipatrimonio.app.data.db.AppDatabase
 import com.mipatrimonio.app.data.repository.InvestmentRepository
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.NotificationRepository
+import com.mipatrimonio.app.data.repository.RecurringRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
+import com.mipatrimonio.app.data.work.RecurringReminderScheduler
 import com.mipatrimonio.app.domain.notifications.GenericSpanishParser
 import com.mipatrimonio.app.domain.notifications.NotificationEngine
 import kotlinx.coroutines.CoroutineScope
@@ -24,6 +27,8 @@ class AppContainer(context: Context) {
     val ledger = LedgerRepository(database)
     val investments = InvestmentRepository(database)
     val settings = SettingsRepository(context.applicationContext)
+    val recurring = RecurringRepository(database)
+    val recurringReminderScheduler = RecurringReminderScheduler(context.applicationContext, recurring)
     val notifications = NotificationRepository(
         database,
         NotificationEngine(listOf(GenericSpanishParser())),
@@ -37,6 +42,12 @@ class AppContainer(context: Context) {
 
     init {
         scope.launch { ledger.seedDefaultCategoriesIfEmpty() }
+        recurringReminderScheduler.createChannel()
+        RecurringReminderScheduler.enqueuePeriodic(context.applicationContext)
+        scope.launch {
+            recurring.generatePending(java.time.LocalDate.now())
+            recurringReminderScheduler.scheduleAll()
+        }
     }
 
     private companion object {
@@ -44,7 +55,9 @@ class AppContainer(context: Context) {
     }
 }
 
-class MiPatrimonioApplication : Application() {
+class MiPatrimonioApplication : Application(), Configuration.Provider {
+    override val workManagerConfiguration: Configuration = Configuration.Builder().build()
+
     lateinit var container: AppContainer
         private set
 

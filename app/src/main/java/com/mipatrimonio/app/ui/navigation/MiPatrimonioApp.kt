@@ -37,6 +37,8 @@ import com.mipatrimonio.app.ui.settings.NotificationSettingsScreen
 import com.mipatrimonio.app.ui.settings.NotificationDiagnosticsScreen
 import com.mipatrimonio.app.ui.settings.PendingProposalsScreen
 import com.mipatrimonio.app.ui.settings.SettingsScreen
+import com.mipatrimonio.app.ui.recurring.RecurringFormScreen
+import com.mipatrimonio.app.ui.recurring.RecurringListScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,6 +92,8 @@ private fun titleFor(route: String?, destino: Destino?): Int = when {
     route == Rutas.PATRIMONIO -> R.string.nav_patrimonio
     route == Rutas.AJUSTES -> R.string.nav_ajustes
     route == Rutas.ACTIVO -> R.string.inv_asset_detail_title
+    route == Rutas.RECURRENTES -> R.string.recurring_title
+    route == Rutas.RECURRENTE -> R.string.recurring_edit
     else -> R.string.app_name
 }
 
@@ -143,6 +147,7 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
                     navController.currentBackStackEntry?.savedStateHandle?.set(Rutas.CREATE_PORTFOLIO_KEY, true)
                 },
                 onOpenAssets = { navController.navigate(Rutas.ACTIVOS) },
+                onOpenRecurring = { navController.navigate(Rutas.RECURRENTES) },
             )
         }
         composable(Rutas.PATRIMONIO) { NetWorthScreen() }
@@ -164,6 +169,15 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
         }
         composable(Rutas.DIAGNOSTICO_NOTIFICACIONES) { NotificationDiagnosticsScreen() }
         composable(Rutas.PROPUESTAS) { PendingProposalsScreen() }
+        composable(Rutas.RECURRENTES) {
+            RecurringListScreen(
+                onNew = { navController.navigate(Rutas.recurrente(null)) },
+                onEdit = { navController.navigate(Rutas.recurrente(it)) },
+            )
+        }
+        composable(Rutas.RECURRENTE, idArg) { entry ->
+            RecurringFormScreen(ruleId = idOf(entry), onDone = { navController.popBackStack() })
+        }
         composable(Rutas.APUNTE, idArg) { entry ->
             EntryFormScreen(
                 entryId = idOf(entry),

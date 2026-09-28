@@ -77,7 +77,7 @@ class LedgerRepository(
 
     private suspend fun accountDependenciesUnchecked(id: String): AccountDependencies =
         AccountDependencies(
-            transactions = transactionDao.countForAccount(id),
+            transactions = transactionDao.countForAccount(id) + db.recurringRuleDao().countForAccount(id),
             transfers = transferDao.countForAccount(id),
             investmentOperations = db.investmentDao().countOperationsForAccount(id),
             portfolios = db.investmentDao().countPortfoliosForAccount(id),
