@@ -2,21 +2,27 @@
 
 Leyenda: ✅ completado y verificado · 🔄 en curso · ⏳ pendiente
 
+Última revisión: 2026-09-28 (rama `claude/fase-3-mvp`, Room v9, 346 tests).
+
 | Fase | Contenido | Estado |
 |---|---|---|
 | 0 | Análisis del entorno | ✅ |
 | 1 | JDK 17 + Android SDK | ✅ |
 | 2 | Proyecto base, tema, navegación, Room | ✅ |
-| 3 | MVP financiero: dominio, Room, cuentas, movimientos, transferencias, categorías, presupuestos, dashboard, patrimonio | 🔄 dominio y datos ✅ (49 tests); pantallas en curso (Codex) |
-| 4 | Inversiones básicas (carteras, activos, compras/ventas, precios manuales) | 🔄 dominio ✅; pantalla en curso |
-| 5 | Primer APK verificado | ⏳ |
-| 6 | Notificaciones bancarias (`NotificationListenerService`, reglas por banco, propuestas pendientes) | ⏳ |
-| 7 | Recurrentes, dividendos (UI), multidivisa real, objetivos, estadísticas avanzadas, alertas | ⏳ |
-| 8 | Importación CSV/XLSX, exportación, copias de seguridad cifradas y restauración | ⏳ |
-| 9 | Cotizaciones, tipos de cambio, sincronización con Supabase (RLS) | ⏳ |
-| 10 | Calidad: revisión de seguridad, optimización, APK firmado, documentación | ⏳ |
+| 3 | MVP financiero: cuentas, movimientos, transferencias, categorías independientes del tipo, presupuestos (con subcategorías y umbrales), inicio, patrimonio | ✅ |
+| 4 | Inversiones básicas: carteras, activos (incl. préstamos P2P), compra/venta por importe, fecha y hora, precios manuales, rentabilidad detallada | ✅ |
+| 5 | Primer APK verificado (APK de depuración en `.local/apk/`) | ✅ |
+| 6 | Notificaciones bancarias: `NotificationListenerService`, apps autorizadas, reglas, autoanotación y propuestas pendientes | ✅ |
+| 7 | Órdenes permanentes con recordatorios ✅ · estado ejecutado/previsto por fecha ✅ · saldo por cuentas y modos de cálculo en Movimientos ✅ · dividendos ✅ · multidivisa real (tipos de cambio) ⏳ · objetivos ⏳ · alertas de presupuesto ⏳ | 🔄 |
+| 8 | Copias de seguridad cifradas y restauración ⏳ · exportación CSV ⏳ · importación CSV/XLSX con interfaz (motor CSV y adaptador Trade Republic ya existen) ⏳ | ⏳ |
+| 9 | Cotizaciones automáticas (Twelve Data, CoinGecko) ✅ · alta de activos por ISIN (OpenFIGI) ✅ · tipos de cambio ⏳ · sincronización con Supabase (RLS) ⏳ | 🔄 |
+| 10 | Calidad: revisión de seguridad, bloqueo biométrico opcional, optimización, APK firmado, documentación | ⏳ |
+
+## Pendiente de verificación manual
+- Prueba real de cotizaciones y alta por ISIN con las claves del usuario (Twelve Data obligatoria; OpenFIGI y CoinGecko opcionales).
+- Recordatorios de órdenes permanentes en dispositivo con el permiso de notificaciones concedido y denegado.
 
 ## Funcionalidades bloqueadas o dependientes de decisiones
-- APK de distribución firmado: requiere que el usuario cree/aporte el keystore.
-- Cotizaciones y Supabase: requieren elegir proveedor/credenciales; el sistema sigue funcionando con precios manuales.
-- Importación de Trade Republic: CSV de ejemplo aportado en `datos-privados/` (ignorado por git). Hallazgos y trampas en ARCHITECTURE.md; requiere antes la carencia de diseño «operaciones de inversión sin cuenta de financiación».
+- APK de distribución firmado: requiere que el usuario cree o aporte el keystore.
+- Supabase: requiere un proyecto y credenciales del usuario; la app funciona completa sin él.
+- Clasificación de cartera por sector/país/industria: aplazada por decisión del usuario (no hay fuente gratuita fiable de composición de ETF/fondos).
