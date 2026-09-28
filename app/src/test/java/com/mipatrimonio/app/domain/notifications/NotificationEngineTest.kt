@@ -78,17 +78,39 @@ class NotificationEngineTest {
     }
 
     @Test
-    fun `plan de inversion permanece como transferencia`() {
-        val outcome = engine.process(
-            notification("Plan de inversión 50 €"),
-            setOf(PACKAGE),
+    fun `el motor nunca genera transferencias`() {
+        listOf(
+            "Transferencia recibida de X 50,00 €",
+            "Has enviado una transferencia de 50,00 €",
+            "Traspaso 20 €",
+            "Aportación a tu plan de inversión 100 €",
+            "Saveback 10 EUR",
+            "Round-up 2 EUR",
+        ).forEach { text ->
+            val outcome = engine.process(notification(text), setOf(PACKAGE), { "a1" }, emptyList())
+            val proposal = (outcome as NotificationOutcome.Nueva).propuesta
+
+            assertTrue(text, proposal.kind in setOf(ProposalKind.GASTO, ProposalKind.INGRESO))
+        }
+    }
+
+    @Test
+    fun `trade republic ignora palabras y usa exclusivamente el signo`() {
+        val unsigned = engine.process(
+            notification("Transferencia recibida 25,00 €", "de.traderepublic.app"),
+            setOf("de.traderepublic.app"),
             { "a1" },
             emptyList(),
-        )
-        val proposal = (outcome as NotificationOutcome.Nueva).propuesta
+        ) as NotificationOutcome.Nueva
+        val signed = engine.process(
+            notification("+25,00 €", "de.traderepublic.app"),
+            setOf("de.traderepublic.app"),
+            { "a1" },
+            emptyList(),
+        ) as NotificationOutcome.Nueva
 
-        assertEquals(ProposalKind.TRANSFERENCIA, proposal.kind)
-        assertEquals(Confidence.BAJA, proposal.confidence)
+        assertEquals(ProposalKind.GASTO, unsigned.propuesta.kind)
+        assertEquals(ProposalKind.INGRESO, signed.propuesta.kind)
     }
 
     @Test
@@ -135,7 +157,7 @@ class NotificationEngineTest {
         override fun parse(notification: BankNotification) = ParsedNotification(kind, 200L, "EUR", null, Confidence.MEDIA, id)
     }
 
-    private fun notification(text: String) = BankNotification(PACKAGE, "", text, NOW)
+    private fun notification(text: String, packageName: String = PACKAGE) = BankNotification(packageName, "", text, NOW)
 
     private fun draft(id: String, postedAt: Long, kind: ProposalKind = ProposalKind.GASTO) = PendingProposalDraft(
         id, PACKAGE, "a1", kind, 200L, "EUR", null, Confidence.MEDIA, generic.parserId, postedAt,

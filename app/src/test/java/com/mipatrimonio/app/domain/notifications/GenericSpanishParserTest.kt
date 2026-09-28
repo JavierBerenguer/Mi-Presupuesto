@@ -54,8 +54,10 @@ class GenericSpanishParserTest {
 
         assertEquals(ProposalKind.INGRESO, income?.kind)
         assertEquals(5_000L, income?.amountMinor)
+        assertEquals(Confidence.MEDIA, income?.confidence)
         assertEquals(ProposalKind.GASTO, expense?.kind)
         assertEquals(1_230L, expense?.amountMinor)
+        assertEquals(Confidence.MEDIA, expense?.confidence)
     }
 
     @Test
@@ -83,21 +85,51 @@ class GenericSpanishParserTest {
     }
 
     @Test
-    fun `clasifica operaciones internas como transferencia de confianza baja`() {
-        listOf(
-            "Transferencia emitida",
-            "Traspaso realizado",
-            "Plan de inversión programado",
-            "Ahorro automático",
-            "Round up semanal",
-            "Saveback mensual",
-            "Inversión periódica",
-            "Aportación mensual",
-        ).forEach { text ->
-            val parsed = parse("$text por 10 EUR")
-            assertEquals(text, ProposalKind.TRANSFERENCIA, parsed?.kind)
-            assertEquals(text, Confidence.BAJA, parsed?.confidence)
+    fun `operaciones con palabras de transferencia siguen la direccion general y nunca son transferencias`() {
+        val cases = listOf(
+            Triple("Transferencia recibida de X 50,00 €", ProposalKind.INGRESO, Confidence.MEDIA),
+            Triple("Transferencia recibida 50,00 € en Banco X", ProposalKind.INGRESO, Confidence.MEDIA),
+            Triple("Has enviado una transferencia de 50,00 €", ProposalKind.GASTO, Confidence.MEDIA),
+            Triple("Traspaso 20 €", ProposalKind.GASTO, Confidence.BAJA),
+            Triple("Traspaso 20 € en Banco X", ProposalKind.GASTO, Confidence.BAJA),
+            Triple("Aportación a tu plan de inversión 100 €", ProposalKind.GASTO, Confidence.BAJA),
+            Triple("Saveback recibido +10 EUR", ProposalKind.INGRESO, Confidence.MEDIA),
+            Triple("Round-up -2 EUR", ProposalKind.GASTO, Confidence.MEDIA),
+        )
+
+        cases.forEach { (text, expectedKind, expectedConfidence) ->
+            val parsed = parse(text)
+            assertEquals(text, expectedKind, parsed?.kind)
+            assertEquals(text, expectedConfidence, parsed?.confidence)
         }
+    }
+
+    @Test
+    fun `trade republic decide solo por signo y no por palabras`() {
+        val cases = listOf(
+            "+25,00 €" to ProposalKind.INGRESO,
+            "25,00 €" to ProposalKind.GASTO,
+            "Transferencia recibida 25,00 €" to ProposalKind.GASTO,
+            "-10 €" to ProposalKind.GASTO,
+        )
+
+        cases.forEach { (text, expectedKind) ->
+            val parsed = parse(text, packageName = "DE.TradeRepublic.App")
+            assertEquals(text, expectedKind, parsed?.kind)
+            assertEquals(text, Confidence.MEDIA, parsed?.confidence)
+        }
+    }
+
+    @Test
+    fun `trade republic usa confianza alta cuando detecta comercio`() {
+        val parsed = parse(
+            "Transferencia recibida 25,00 € en Cafetería Central",
+            packageName = "de.traderepublic.app",
+        )
+
+        assertEquals(ProposalKind.GASTO, parsed?.kind)
+        assertEquals("Cafetería Central", parsed?.merchant)
+        assertEquals(Confidence.ALTA, parsed?.confidence)
     }
 
     @Test

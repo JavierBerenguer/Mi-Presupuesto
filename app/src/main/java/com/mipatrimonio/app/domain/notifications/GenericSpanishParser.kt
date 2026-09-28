@@ -28,12 +28,14 @@ class GenericSpanishParser : BankNotificationParser {
             },
             amountFound = AMOUNT_LIKE.containsMatchIn(content),
         )
-        val classification = classify(content, amount)
+        val classification = classify(notification.packageName, content, amount)
         val merchant = extractMerchant(notification.text)
             ?: extractMerchantFromTitle(notification.title, notification.packageName)
         val confidence = when {
+            classification.isTradeRepublic -> if (merchant != null) Confidence.ALTA else Confidence.MEDIA
             classification.isBizum -> Confidence.MEDIA
-            classification.kind == ProposalKind.TRANSFERENCIA || classification.isFallback -> Confidence.BAJA
+            classification.isTransferRelated -> if (classification.isFallback) Confidence.BAJA else Confidence.MEDIA
+            classification.isFallback -> Confidence.BAJA
             merchant != null -> Confidence.ALTA
             else -> Confidence.MEDIA
         }
@@ -84,19 +86,28 @@ class GenericSpanishParser : BankNotificationParser {
         else -> null
     }
 
-    private fun classify(content: String, amount: ExtractedAmount): Classification = when {
-        BIZUM_KEYWORD.containsMatchIn(content) -> Classification(
-            kind = if (INCOME_KEYWORDS.containsMatchIn(content) || amount.hasExplicitPlus) {
-                ProposalKind.INGRESO
-            } else {
-                ProposalKind.GASTO
-            },
-            isBizum = true,
-        )
-        TRANSFER_KEYWORDS.containsMatchIn(content) -> Classification(ProposalKind.TRANSFERENCIA)
-        INCOME_KEYWORDS.containsMatchIn(content) || amount.hasExplicitPlus -> Classification(ProposalKind.INGRESO)
-        EXPENSE_KEYWORDS.containsMatchIn(content) || amount.hasExplicitMinus -> Classification(ProposalKind.GASTO)
-        else -> Classification(ProposalKind.GASTO, isFallback = true)
+    private fun classify(packageName: String, content: String, amount: ExtractedAmount): Classification {
+        if (packageName.contains(TRADE_REPUBLIC_PACKAGE_PART, ignoreCase = true)) {
+            return Classification(
+                kind = if (amount.hasExplicitPlus) ProposalKind.INGRESO else ProposalKind.GASTO,
+                isTradeRepublic = true,
+            )
+        }
+
+        val classification = when {
+            BIZUM_KEYWORD.containsMatchIn(content) -> Classification(
+                kind = if (INCOME_KEYWORDS.containsMatchIn(content) || amount.hasExplicitPlus) {
+                    ProposalKind.INGRESO
+                } else {
+                    ProposalKind.GASTO
+                },
+                isBizum = true,
+            )
+            INCOME_KEYWORDS.containsMatchIn(content) || amount.hasExplicitPlus -> Classification(ProposalKind.INGRESO)
+            EXPENSE_KEYWORDS.containsMatchIn(content) || amount.hasExplicitMinus -> Classification(ProposalKind.GASTO)
+            else -> Classification(ProposalKind.GASTO, isFallback = true)
+        }
+        return classification.copy(isTransferRelated = TRANSFER_CONTEXT_KEYWORDS.containsMatchIn(content))
     }
 
     private fun extractMerchant(content: String): String? {
@@ -140,6 +151,8 @@ class GenericSpanishParser : BankNotificationParser {
         val kind: ProposalKind,
         val isFallback: Boolean = false,
         val isBizum: Boolean = false,
+        val isTradeRepublic: Boolean = false,
+        val isTransferRelated: Boolean = false,
     )
 
     private companion object {
@@ -164,7 +177,8 @@ class GenericSpanishParser : BankNotificationParser {
         val UNRECOGNIZED_CURRENCY_AMOUNT = Regex(
             "(?i)(?:$NUMBER\\s*(?!(?:EUR|USD|GBP)\\b)[A-Z]{3}\\b|(?!(?:EUR|USD|GBP)\\b)[A-Z]{3}\\s*$NUMBER)",
         )
-        val TRANSFER_KEYWORDS = Regex(
+        const val TRADE_REPUBLIC_PACKAGE_PART = "traderepublic"
+        val TRANSFER_CONTEXT_KEYWORDS = Regex(
             "\\b(transferencia|traspaso|plan\\s+de\\s+inversi[oó]n|ahorro\\s+autom[aá]tico|round[ -]?up|saveback|inversi[oó]n|aportaci[oó]n)\\b",
             RegexOption.IGNORE_CASE,
         )
@@ -173,7 +187,10 @@ class GenericSpanishParser : BankNotificationParser {
             "\\b(ingreso|abono|n[oó]mina|devoluci[oó]n|reembolso|recibid[oa]s?|recibes|te\\s+ha\\s+enviado|dividendos?|intereses)\\b",
             RegexOption.IGNORE_CASE,
         )
-        val EXPENSE_KEYWORDS = Regex("\\b(compra|pago|cargo|recibo|domiciliaci[oó]n)\\b", RegexOption.IGNORE_CASE)
+        val EXPENSE_KEYWORDS = Regex(
+            "\\b(compra|pago|cargo|recibo|domiciliaci[oó]n|enviad[oa]s?|emitid[oa]s?)\\b",
+            RegexOption.IGNORE_CASE,
+        )
         val MERCHANT = Regex("(?i)\\ben\\s+([^\\n.;]+)")
         val GENERIC_MERCHANT_PREFIXES = listOf("tu cuenta", "su cuenta", "tu tarjeta", "su tarjeta")
         val GENERIC_TITLES = setOf("aviso", "notificacion", "traderepublic", "mipatrimonio")

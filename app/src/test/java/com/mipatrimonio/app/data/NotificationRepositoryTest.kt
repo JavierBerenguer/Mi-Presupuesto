@@ -14,6 +14,7 @@ import com.mipatrimonio.app.data.repository.NotificationRepository
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountType
+import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.notifications.AutoConfirmMode
 import com.mipatrimonio.app.domain.notifications.BankNotification
 import com.mipatrimonio.app.domain.notifications.GenericSpanishParser
@@ -21,6 +22,7 @@ import com.mipatrimonio.app.domain.notifications.NotificationEngine
 import com.mipatrimonio.app.domain.notifications.NotificationOutcome
 import com.mipatrimonio.app.domain.notifications.NoInterpretableReason
 import com.mipatrimonio.app.domain.notifications.NotificationFields
+import com.mipatrimonio.app.domain.notifications.ProposalKind
 import com.mipatrimonio.app.domain.notifications.ProposalStatus
 import java.io.File
 import kotlinx.coroutines.flow.first
@@ -209,6 +211,21 @@ class NotificationRepositoryTest {
             assertEquals("CONFIRMADA", cursor.getString(0))
             assertTrue(cursor.getString(1).isNotBlank())
         }
+    }
+
+    @Test
+    fun `modo todas autoanota una notificacion con palabra transferencia como gasto`() = runBlocking<Unit> {
+        saveAccount("account-1", "EUR")
+        repository.setAuthorized(PACKAGE, true, "account-1")
+
+        val outcome = repository.ingest(
+            BankNotification(PACKAGE, "", "Transferencia de 40 EUR", 1_000L),
+        ) as NotificationOutcome.Nueva
+
+        assertEquals(ProposalKind.GASTO, outcome.propuesta.kind)
+        assertEquals(1, transactionCount())
+        assertEquals(TransactionType.GASTO.name, db.transactionDao().observeAll().first().single().type)
+        assertTrue(repository.pendingProposals.first().isEmpty())
     }
 
     @Test

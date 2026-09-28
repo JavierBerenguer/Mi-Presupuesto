@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.mipatrimonio.app.data.db.AppDatabase
+import com.mipatrimonio.app.data.db.PendingProposalEntity
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.NotificationRepository
 import com.mipatrimonio.app.domain.calc.BudgetCalculator
@@ -18,6 +19,7 @@ import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.notifications.AutoConfirmMode
 import com.mipatrimonio.app.domain.notifications.BankNotification
+import com.mipatrimonio.app.domain.notifications.Confidence
 import com.mipatrimonio.app.domain.notifications.GenericSpanishParser
 import com.mipatrimonio.app.domain.notifications.NotificationEngine
 import com.mipatrimonio.app.domain.notifications.NotificationOutcome
@@ -130,10 +132,10 @@ class PendingProposalsViewModelTest {
     }
 
     @Test
-    fun `transferencia crea Transfer y no Transaction ni gasto o ingreso`() = runTest {
+    fun `propuesta antigua de transferencia crea Transfer y no Transaction ni gasto o ingreso`() = runTest {
         ledger.saveAccount(account("from", initialBalanceMinor = 50_000L))
         ledger.saveAccount(account("to"))
-        val proposal = proposal("Transferencia de 30 EUR", "from")
+        val proposal = legacyTransferProposal("from")
         val viewModel = readyViewModel()
 
         viewModel.requestConfirmation(proposal.id)
@@ -166,6 +168,23 @@ class PendingProposalsViewModelTest {
             0L,
             BudgetCalculator.status(budget, transactions, emptyList(), range.start, range.endInclusive).spentMinor,
         )
+    }
+
+    @Test
+    fun `permite convertir manualmente una propuesta nueva en transferencia`() = runTest {
+        ledger.saveAccount(account("from"))
+        ledger.saveAccount(account("to"))
+        val proposal = proposal("Transferencia de 30 EUR", "from")
+        assertEquals(ProposalKind.GASTO, proposal.kind)
+        val viewModel = readyViewModel()
+
+        viewModel.requestConfirmation(proposal.id)
+        viewModel.confirm(ProposalConfirmation(ProposalKind.TRANSFERENCIA, "from", "to"))
+        advanceUntilIdle()
+
+        assertEquals(1, ledger.transfers.first().size)
+        assertTrue(ledger.transactions.first().isEmpty())
+        assertEquals(ProposalStatus.CONFIRMADA.name, storedStatus(proposal.id).first)
     }
 
     @Test
@@ -308,6 +327,29 @@ class PendingProposalsViewModelTest {
         return (outcome as NotificationOutcome.Nueva).let {
             notifications.pendingProposals.first().single { proposal -> proposal.id == it.propuesta.id }
         }
+    }
+
+    private suspend fun legacyTransferProposal(accountId: String): PendingProposal {
+        notifications.setAuthorized(PACKAGE, true, accountId)
+        notifications.updateAutoConfirmMode(PACKAGE, AutoConfirmMode.OFF)
+        db.notificationDao().upsertProposal(
+            PendingProposalEntity(
+                id = "legacy-transfer",
+                packageName = PACKAGE,
+                accountId = accountId,
+                kind = ProposalKind.TRANSFERENCIA.name,
+                amountMinor = 3_000L,
+                currency = "EUR",
+                merchant = null,
+                confidence = Confidence.BAJA.name,
+                parserId = "generic-es-v1",
+                postedAt = 1_000L,
+                status = ProposalStatus.PENDIENTE.name,
+                resultingTransactionId = null,
+                createdAt = 40_000L,
+            ),
+        )
+        return notifications.pendingProposals.first().single { it.id == "legacy-transfer" }
     }
 
     private fun account(
