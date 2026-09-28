@@ -29,9 +29,11 @@ enum class Destino(val ruta: String, @StringRes val titulo: Int, val icono: Imag
 object Rutas {
     const val MOVEMENT_SOURCE_KEY = "movement_source"
     const val CREATE_PORTFOLIO_KEY = "create_portfolio"
+    const val CREATE_ASSET_KEY = "create_asset"
     const val NUEVO = "nuevo"
     const val CUENTAS = "cuentas"
     const val ACTIVOS = "activos"
+    const val CARTERAS = "carteras"
     const val CATEGORIAS = "categorias"
     const val NOTIFICACIONES = "notificaciones"
     const val PROPUESTAS = "propuestas"

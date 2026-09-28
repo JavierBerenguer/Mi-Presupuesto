@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="portfolios_title">Carteras</string>
+    <string name="portfolios_filter_active">Activas</string>
+    <string name="portfolios_filter_archived">Archivadas</string>
+    <string name="portfolios_filter_all">Todas</string>
+    <string name="portfolios_empty">No hay carteras en este filtro.</string>
+    <string name="portfolios_new">Nueva cartera</string>
+    <string name="portfolios_edit">Editar cartera</string>
+    <string name="portfolios_name">Nombre</string>
+    <string name="portfolios_default_account">Cuenta predeterminada</string>
+    <string name="portfolios_no_default_account">Sin cuenta predeterminada</string>
+    <string name="portfolios_open_assets">Activos con posición abierta: %1$d</string>
+    <string name="portfolios_status_active">Activa</string>
+    <string name="portfolios_status_archived">Archivada</string>
+    <string name="portfolios_edit_description">Editar %1$s</string>
+    <string name="portfolios_archive_title">Archivar cartera</string>
+    <string name="portfolios_restore_title">Reactivar cartera</string>
+    <string name="portfolios_archive_message">¿Quieres archivar «%1$s»? Conservará sus operaciones, posiciones y valor, pero no se ofrecerá para operaciones nuevas.</string>
+    <string name="portfolios_restore_message">¿Quieres reactivar «%1$s»?</string>
+    <string name="portfolios_delete_title">Eliminar cartera</string>
+    <string name="portfolios_delete_message">¿Quieres eliminar definitivamente «%1$s»?</string>
+    <string name="portfolios_delete_blocked">«%1$s» tiene %2$d operaciones y no se puede eliminar. Puedes archivarla.</string>
+    <string name="portfolios_checking">Comprobando operaciones…</string>
+</resources>

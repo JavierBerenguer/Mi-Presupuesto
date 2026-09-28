@@ -61,6 +61,8 @@ data class InvestmentsUiState(
     val isLoading: Boolean get() = snapshot == null
 }
 
+fun operationPortfolios(portfolios: List<Portfolio>): List<Portfolio> = portfolios.filterNot { it.archived }
+
 class InvestmentsViewModel(
     private val ledger: LedgerRepository,
     private val investments: InvestmentRepository,
@@ -86,7 +88,7 @@ class InvestmentsViewModel(
     init {
         viewModelScope.launch {
             combine(investments.portfolios, settings.settings) { portfolios, current ->
-                current.selectedPortfolioId?.takeUnless { id -> portfolios.any { it.id == id } }
+                current.selectedPortfolioId?.takeUnless { id -> portfolios.any { it.id == id && !it.archived } }
             }.distinctUntilChanged().collect { invalidId ->
                 if (invalidId != null) settings.setSelectedPortfolioId(null)
             }
@@ -111,7 +113,7 @@ class InvestmentsViewModel(
         )
         val summaries = summarize(snapshot.positions, currentSettings.baseCurrency)
         val selectedPortfolioId = currentSettings.selectedPortfolioId
-            ?.takeIf { id -> investmentValues.portfolios.any { it.id == id } }
+            ?.takeIf { id -> investmentValues.portfolios.any { it.id == id && !it.archived } }
         val selectedRows = snapshot.positions.filter { selectedPortfolioId == null || it.portfolio.id == selectedPortfolioId }
         val selectedOperations = investmentValues.operations.filter {
             selectedPortfolioId == null || it.portfolioId == selectedPortfolioId

@@ -9,9 +9,10 @@
     <string name="more_total">Total por divisa</string>
     <string name="more_import_export">Importar y exportar</string>
     <string name="more_coming_soon">Próximamente</string>
-    <string name="more_add_title">Añadir cuenta o cartera</string>
+    <string name="more_add_title">Añadir</string>
     <string name="more_add_account">Cuenta</string>
     <string name="more_add_portfolio">Cartera de inversión</string>
+    <string name="more_add_asset">Activo de inversión</string>
     <string name="more_account_name">Nombre</string>
     <string name="more_account_type">Tipo de cuenta</string>
     <string name="more_account_currency">Divisa</string>

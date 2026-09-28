@@ -113,6 +113,7 @@ class BackupJson {
     )
     private fun portfolio(v: PortfolioEntity) = row(
         "id" to v.id, "name" to v.name, "createdAt" to v.createdAt, "defaultAccountId" to v.defaultAccountId,
+        "archived" to v.archived,
     )
     private fun asset(v: AssetEntity) = row(
         "id" to v.id, "name" to v.name, "ticker" to v.ticker, "isin" to v.isin, "type" to v.type,
@@ -155,7 +156,9 @@ class BackupJson {
     private fun readTransfer(j: JSONObject) = TransferEntity(j.s("id"), j.s("fromAccountId"), j.s("toAccountId"), j.l("fromAmountMinor"), j.l("toAmountMinor"), j.l("epochDay"), j.s("description"), j.l("createdAt"), j.l("updatedAt"), j.ns("categoryId"))
     private fun readBudget(j: JSONObject) = BudgetEntity(j.s("id"), j.ns("categoryId"), j.s("period"), j.l("limitMinor"), j.s("currency"), j.b("archived"), j.l("createdAt"), j.os("name", ""), j.ol("startEpochDay", 0), j.nl("endEpochDay"), j.oi("alertThresholdPct", 90))
     private fun readBudgetCategory(j: JSONObject) = BudgetCategoryEntity(j.s("budgetId"), j.s("categoryId"), j.b("includeSubcategories"))
-    private fun readPortfolio(j: JSONObject) = PortfolioEntity(j.s("id"), j.s("name"), j.l("createdAt"), j.ns("defaultAccountId"))
+    private fun readPortfolio(j: JSONObject) = PortfolioEntity(
+        j.s("id"), j.s("name"), j.l("createdAt"), j.ns("defaultAccountId"), j.ob("archived", false),
+    )
     private fun readAsset(j: JSONObject) = AssetEntity(j.s("id"), j.s("name"), j.s("ticker"), j.s("isin"), j.s("type"), j.s("market"), j.s("currency"), j.l("createdAt"), j.ob("archived", false), j.ns("quoteProvider"), j.ns("quoteSymbol"), j.ns("quoteMic"))
     private fun readOperation(j: JSONObject) = InvestmentOperationEntity(j.s("id"), j.s("portfolioId"), j.s("assetId"), j.s("type"), j.l("epochDay"), j.s("quantity"), j.s("unitPrice"), j.l("feesMinor"), j.s("currency"), j.s("note"), j.l("createdAt"), j.ns("accountId"), j.oi("secondOfDay", 0))
     private fun readPrice(j: JSONObject) = AssetPriceEntity(j.s("id"), j.s("assetId"), j.s("price"), j.s("currency"), j.l("asOfEpochMillis"), j.s("source"), j.ns("quality"))

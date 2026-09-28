@@ -146,11 +146,12 @@ class CsvExportService(
             data: CsvExportData,
             accounts: Map<String, com.mipatrimonio.app.domain.model.Account>,
             zoneId: ZoneId,
-        ): List<List<String>> = rows(listOf("id", "nombre", "cuenta_predeterminada", "fecha_creacion")) {
+        ): List<List<String>> = rows(listOf("id", "nombre", "cuenta_predeterminada", "fecha_creacion", "archivada")) {
             data.portfolios.map {
                 listOf(
                     it.id, it.name, it.defaultAccountId?.let(accounts::get)?.name.orEmpty(),
                     Instant.ofEpochMilli(it.createdAt).atZone(zoneId).toLocalDate().toString(),
+                    yesNo(it.archived),
                 )
             }
         }

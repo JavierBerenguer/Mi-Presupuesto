@@ -179,7 +179,9 @@ private fun AssetDetailContent(
         item {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.inv_operations), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                TextButton(onNew, Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.inv_new_operation)) }
+                if (state.portfolio?.archived != true && !asset.archived) {
+                    TextButton(onNew, Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.inv_new_operation)) }
+                }
             }
         }
         if (state.operations.isEmpty()) item { Text(stringResource(R.string.inv_empty_history)) }

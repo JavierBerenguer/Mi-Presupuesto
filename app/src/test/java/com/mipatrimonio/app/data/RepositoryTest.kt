@@ -231,4 +231,47 @@ class RepositoryTest {
         assertEquals(0, BigDecimal("11.25").compareTo(latest.price))
         assertThrows(IllegalArgumentException::class.java) { runBlocking { investments.setManualPrice("as1", BigDecimal.ZERO, "EUR") } }
     }
+
+    @Test
+    fun `carteras validan nombre unico archivado cuenta y eliminacion`() = runBlocking<Unit> {
+        ledger.saveAccount(account("activa"))
+        ledger.saveAccount(account("archivada").copy(archived = true))
+        investments.savePortfolio(Portfolio("p1", " Principal ", 1, "activa"))
+        assertEquals("Principal", investments.portfolios.first().single().name)
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { investments.savePortfolio(Portfolio("p2", "principal", 2)) }
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { investments.savePortfolio(Portfolio("p2", "   ", 2)) }
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { investments.savePortfolio(Portfolio("p2", "Otra", 2, "archivada")) }
+        }
+
+        investments.savePortfolio(Portfolio("p1", "Renombrada", 1, null))
+        assertEquals("Renombrada", investments.portfolios.first().single().name)
+        investments.setPortfolioArchived("p1", true)
+        assertTrue(investments.portfolios.first().single().archived)
+        investments.savePortfolio(Portfolio("p2", "Renombrada", 2))
+        investments.deletePortfolio("p2")
+        assertEquals(listOf("p1"), investments.portfolios.first().map { it.id })
+    }
+
+    @Test
+    fun `cartera con operaciones no se elimina ni acepta operaciones al archivarse`() = runBlocking<Unit> {
+        investments.savePortfolio(Portfolio("p1", "Principal", 1))
+        investments.saveAsset(Asset("as1", "ETF", "X", "", AssetType.ETF, "", "EUR"))
+        val operation = InvestmentOperation(
+            "o1", "p1", "as1", OperationType.COMPRA, LocalDate.of(2026, 1, 1),
+            BigDecimal.ONE, BigDecimal.TEN, 0, "EUR", "", 1,
+        )
+        investments.addOperation(operation)
+        assertEquals(1, investments.portfolioDependencies("p1").operations)
+        assertThrows(IllegalArgumentException::class.java) { runBlocking { investments.deletePortfolio("p1") } }
+        assertThrows(Exception::class.java) { runBlocking { db.investmentDao().deletePortfolio("p1") } }
+        investments.setPortfolioArchived("p1", true)
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { investments.addOperation(operation.copy(id = "o2")) }
+        }
+    }
 }

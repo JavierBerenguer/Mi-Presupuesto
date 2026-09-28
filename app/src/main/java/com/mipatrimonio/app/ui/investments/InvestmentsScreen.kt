@@ -46,11 +46,10 @@ fun InvestmentsScreen(
     onOpenAssetDetail: (String, String) -> Unit = { _, _ -> },
     onOpenAccounts: () -> Unit = {},
     onOpenAssets: () -> Unit = {},
-    initialNewPortfolio: Boolean = false,
+    onNewPortfolio: () -> Unit = {},
     viewModel: InvestmentsViewModel = appViewModel { c -> InvestmentsViewModel(c.ledger, c.investments, c.settings, quotes = c.quotes) },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var portfolioDialog by rememberSaveable { mutableStateOf(initialNewPortfolio) }
     var assetDialog by rememberSaveable { mutableStateOf(false) }
     var operationDialog by rememberSaveable { mutableStateOf(false) }
     var priceDialog by rememberSaveable { mutableStateOf(false) }
@@ -71,7 +70,7 @@ fun InvestmentsScreen(
                     icon = Icons.Default.ShowChart,
                     message = stringResource(R.string.inv_empty_portfolios_explanation),
                     actionLabel = stringResource(R.string.inv_new_portfolio),
-                    onAction = { portfolioDialog = true },
+                    onAction = onNewPortfolio,
                 )
                 TextButton(onClick = onOpenAccounts, modifier = Modifier.heightIn(min = 48.dp)) {
                     Text(stringResource(R.string.inv_new_investment_account))
@@ -97,7 +96,7 @@ fun InvestmentsScreen(
                 })
                 DropdownMenuItem({ Text(stringResource(R.string.inv_new_operation)) }, { menu = false; operationDialog = true })
                 DropdownMenuItem({ Text(stringResource(R.string.inv_new_asset)) }, { menu = false; assetDialog = true })
-                DropdownMenuItem({ Text(stringResource(R.string.inv_new_portfolio)) }, { menu = false; portfolioDialog = true })
+                DropdownMenuItem({ Text(stringResource(R.string.inv_new_portfolio)) }, { menu = false; onNewPortfolio() })
             }
         }
         refreshMessage?.let { message ->
@@ -109,18 +108,14 @@ fun InvestmentsScreen(
             Snackbar(Modifier.align(Alignment.BottomCenter).padding(16.dp)) { Text(text) }
         }
     }
-    if (portfolioDialog) PortfolioDialog(
-        state.accounts.filterNot { it.archived }, { portfolioDialog = false },
-        { name, account, result -> viewModel.savePortfolio(name, account, result) },
-    )
     if (assetDialog) AssetDialog(
         state.assets, { assetDialog = false },
         { assetDialog = false },
     )
     if (operationDialog) OperationDialog(
-        state.portfolios, state.assets.filterNot { it.archived }, state.accounts, state.selectedPortfolioId, null,
+        operationPortfolios(state.portfolios), state.assets.filterNot { it.archived }, state.accounts, state.selectedPortfolioId, null,
         { operationDialog = false },
-        { operationDialog = false; portfolioDialog = true },
+        { operationDialog = false; onNewPortfolio() },
         { operationDialog = false; assetDialog = true },
         { portfolio, asset, type, date, quantity, price, fees, account, note, result ->
             viewModel.addOperation(portfolio, asset, type, date, quantity, price, fees, account, note, result)
@@ -258,7 +253,7 @@ private fun PortfolioSelector(state: InvestmentsUiState, onSelect: (String?) -> 
         TextButton({ open = true }, Modifier.heightIn(min = 48.dp)) { Text(name) }
         DropdownMenu(open, { open = false }) {
             DropdownMenuItem({ Text(stringResource(R.string.inv_aggregate_all)) }, { open = false; onSelect(null) })
-            state.portfolios.forEach { portfolio ->
+            operationPortfolios(state.portfolios).forEach { portfolio ->
                 DropdownMenuItem({ Text(portfolio.name) }, { open = false; onSelect(portfolio.id) })
             }
         }

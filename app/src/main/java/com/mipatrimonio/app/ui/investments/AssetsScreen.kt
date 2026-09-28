@@ -41,12 +41,16 @@ import com.mipatrimonio.app.ui.components.SectionCard
 import com.mipatrimonio.app.ui.components.SegmentedControl
 
 @Composable
-fun AssetsScreen(viewModel: AssetsViewModel = appViewModel { c -> AssetsViewModel(c.investments, c.settings) }) {
+fun AssetsScreen(
+    initialNewAsset: Boolean = false,
+    viewModel: AssetsViewModel = appViewModel { c -> AssetsViewModel(c.investments, c.settings) },
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf(AssetFilter.CON_POSICION) }
     var editing by remember { mutableStateOf<Asset?>(null) }
     var deleting by remember { mutableStateOf<Asset?>(null) }
+    var creating by remember(initialNewAsset) { mutableStateOf(initialNewAsset) }
     if (state.isLoading) return LoadingBox()
     val visible = filterAssets(state.assets, query, filter)
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -90,6 +94,11 @@ fun AssetsScreen(viewModel: AssetsViewModel = appViewModel { c -> AssetsViewMode
             onDelete = { deleting = asset },
         )
     }
+    if (creating) AssetDialog(
+        assets = state.assets.map { it.asset },
+        onDismiss = { creating = false },
+        onSaved = { creating = false },
+    )
     deleting?.let { asset ->
         val deps = state.dependencies[asset.id]
         AlertDialog(

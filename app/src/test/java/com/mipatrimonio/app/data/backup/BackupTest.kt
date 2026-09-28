@@ -84,6 +84,9 @@ class BackupTest {
         asset.remove("archived")
         asset.put("columnaFutura", "ignorada")
         assertFalse(codec.decode(root.toString().toByteArray()).assets.single().archived)
+        val portfolio = root.getJSONObject("tables").getJSONArray("portfolio").getJSONObject(0)
+        portfolio.remove("archived")
+        assertFalse(codec.decode(root.toString().toByteArray()).portfolios.single().archived)
         root.put("formatVersion", BACKUP_FORMAT_VERSION + 1)
         assertTrue(runCatching { codec.decode(root.toString().toByteArray()) }.exceptionOrNull() is BackupException.NewerVersion)
         root.put("formatVersion", BACKUP_FORMAT_VERSION).put("dbVersion", BACKUP_DB_VERSION + 1)
@@ -175,7 +178,7 @@ class BackupTest {
         transfers = listOf(TransferEntity("tr", "a", "b", 10, 10, 21, "Transferencia", 1, 2, "c")),
         budgets = listOf(BudgetEntity("bu", null, "MENSUAL", Long.MAX_VALUE, "EUR", false, 1, "General", 1, 31, 75)),
         budgetCategories = listOf(BudgetCategoryEntity("bu", "c", true)),
-        portfolios = listOf(PortfolioEntity("p", "Cartera", 1, "a")),
+        portfolios = listOf(PortfolioEntity("p", "Cartera", 1, "a", archived = true)),
         assets = listOf(AssetEntity("as", "Índice", "IDX", "ES123", "ETF", "XMAD", "EUR", 1, false, "TWELVE_DATA", "IDX", "XMAD")),
         operations = listOf(InvestmentOperationEntity("op", "p", "as", "COMPRA", 10, "12345678901234567890.123456789", "0.000000000123456789", Long.MAX_VALUE, "EUR", "Exacto", 1, "a", 86399)),
         prices = listOf(AssetPriceEntity("pr", "as", "999999999999999999.0000000000001", "EUR", 9, "TWELVE_DATA", "CIERRE")),

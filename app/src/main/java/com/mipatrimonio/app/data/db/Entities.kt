@@ -120,6 +120,7 @@ data class PortfolioEntity(
     val name: String,
     val createdAt: Long,
     val defaultAccountId: String?,
+    @ColumnInfo(defaultValue = "0") val archived: Boolean = false,
 )
 
 @Entity(tableName = "asset", indices = [Index("isin")])

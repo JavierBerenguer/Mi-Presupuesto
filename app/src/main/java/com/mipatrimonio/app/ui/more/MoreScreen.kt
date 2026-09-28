@@ -63,7 +63,9 @@ fun MoreScreen(
     onOpenProposals: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenInvestments: () -> Unit,
+    onOpenPortfolios: () -> Unit,
     onOpenAssets: () -> Unit,
+    onNewAsset: () -> Unit,
     onOpenRecurring: () -> Unit,
     onOpenBackup: () -> Unit,
     viewModel: MoreViewModel = appViewModel { c -> MoreViewModel(c.ledger, c.investments, c.settings) },
@@ -84,6 +86,7 @@ fun MoreScreen(
         onOpenNotifications,
         onOpenProposals,
         onOpenSettings,
+        onOpenPortfolios,
         onOpenAssets,
         onOpenRecurring,
         onOpenBackup,
@@ -101,6 +104,10 @@ fun MoreScreen(
                     onClick = { showAddMenu = false; onOpenInvestments() },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 ) { Text(stringResource(R.string.more_add_portfolio)) }
+                TextButton(
+                    onClick = { showAddMenu = false; onNewAsset() },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                ) { Text(stringResource(R.string.more_add_asset)) }
             }
         },
         confirmButton = {},
@@ -180,6 +187,7 @@ private fun MoreContent(
     onOpenNotifications: () -> Unit,
     onOpenProposals: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenPortfolios: () -> Unit,
     onOpenAssets: () -> Unit,
     onOpenRecurring: () -> Unit,
     onOpenBackup: () -> Unit,
@@ -227,6 +235,7 @@ private fun MoreContent(
         item {
             SectionCard {
                 MoreLink(Icons.Default.AccountBalance, stringResource(R.string.nav_patrimonio), onOpenNetWorth)
+                MoreLink(Icons.Default.ShowChart, stringResource(R.string.portfolios_title), onOpenPortfolios)
                 MoreLink(Icons.Default.ShowChart, stringResource(R.string.inv_assets_title), onOpenAssets)
                 MoreLink(Icons.Default.Category, stringResource(R.string.nav_categorias), onOpenCategories)
                 MoreLink(Icons.Default.Schedule, stringResource(R.string.recurring_title), onOpenRecurring)
@@ -299,7 +308,7 @@ private fun MoreDarkPreview() {
                 ),
                 totals = listOf(CurrencyTotal("EUR", 124050)),
             ),
-            {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
+            {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
         )
     }
 }
@@ -308,6 +317,6 @@ private fun MoreDarkPreview() {
 @Composable
 private fun MoreEmptyLightPreview() {
     MiPatrimonioTheme(modoOscuro = false) {
-        MoreContent(MoreUiState(isLoading = false), {}, {}, {}, {}, {}, {}, {}, {}, {}, {})
+        MoreContent(MoreUiState(isLoading = false), {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})
     }
 }

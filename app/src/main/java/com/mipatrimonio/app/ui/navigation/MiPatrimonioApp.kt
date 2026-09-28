@@ -41,6 +41,7 @@ import com.mipatrimonio.app.ui.recurring.RecurringFormScreen
 import com.mipatrimonio.app.ui.recurring.RecurringListScreen
 import com.mipatrimonio.app.ui.backup.BackupScreen
 import com.mipatrimonio.app.ui.importer.TradeRepublicImportScreen
+import com.mipatrimonio.app.ui.portfolios.PortfoliosScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,6 +88,7 @@ private fun titleFor(route: String?, destino: Destino?): Int = when {
     destino != null -> destino.titulo
     route == Rutas.CUENTAS -> R.string.nav_cuentas
     route == Rutas.ACTIVOS -> R.string.inv_assets_title
+    route == Rutas.CARTERAS -> R.string.portfolios_title
     route == Rutas.CATEGORIAS -> R.string.nav_categorias
     route == Rutas.NOTIFICACIONES -> R.string.notif_settings_title
     route == Rutas.PROPUESTAS -> R.string.notif_proposals_title
@@ -133,12 +135,15 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
             )
         }
         composable(Destino.Presupuesto.ruta) { BudgetsScreen() }
-        composable(Destino.Cartera.ruta) { entry ->
+        composable(Destino.Cartera.ruta) {
             InvestmentsScreen(
                 onOpenAssetDetail = { portfolioId, assetId -> navController.navigate(Rutas.activo(portfolioId, assetId)) },
                 onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
                 onOpenAssets = { navController.navigate(Rutas.ACTIVOS) },
-                initialNewPortfolio = entry.savedStateHandle.remove<Boolean>(Rutas.CREATE_PORTFOLIO_KEY) == true,
+                onNewPortfolio = {
+                    navController.navigate(Rutas.CARTERAS) { launchSingleTop = true }
+                    navController.currentBackStackEntry?.savedStateHandle?.set(Rutas.CREATE_PORTFOLIO_KEY, true)
+                },
             )
         }
         composable(Destino.Mas.ruta) {
@@ -150,10 +155,15 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
                 onOpenProposals = { navController.navigate(Rutas.PROPUESTAS) },
                 onOpenSettings = { navController.navigate(Rutas.AJUSTES) },
                 onOpenInvestments = {
-                    navController.navigate(Destino.Cartera.ruta) { launchSingleTop = true }
+                    navController.navigate(Rutas.CARTERAS) { launchSingleTop = true }
                     navController.currentBackStackEntry?.savedStateHandle?.set(Rutas.CREATE_PORTFOLIO_KEY, true)
                 },
+                onOpenPortfolios = { navController.navigate(Rutas.CARTERAS) },
                 onOpenAssets = { navController.navigate(Rutas.ACTIVOS) },
+                onNewAsset = {
+                    navController.navigate(Rutas.ACTIVOS) { launchSingleTop = true }
+                    navController.currentBackStackEntry?.savedStateHandle?.set(Rutas.CREATE_ASSET_KEY, true)
+                },
                 onOpenRecurring = { navController.navigate(Rutas.RECURRENTES) },
                 onOpenBackup = { navController.navigate(Rutas.COPIAS) },
             )
@@ -168,7 +178,12 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
             )
         }
         composable(Rutas.CUENTAS) { AccountsScreen() }
-        composable(Rutas.ACTIVOS) { AssetsScreen() }
+        composable(Rutas.ACTIVOS) { entry ->
+            AssetsScreen(initialNewAsset = entry.savedStateHandle.remove<Boolean>(Rutas.CREATE_ASSET_KEY) == true)
+        }
+        composable(Rutas.CARTERAS) { entry ->
+            PortfoliosScreen(initialNewPortfolio = entry.savedStateHandle.remove<Boolean>(Rutas.CREATE_PORTFOLIO_KEY) == true)
+        }
         composable(Rutas.CATEGORIAS) { CategoriesScreen() }
         composable(Rutas.NOTIFICACIONES) {
             NotificationSettingsScreen(

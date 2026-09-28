@@ -54,56 +54,6 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
 @Composable
-fun PortfolioDialog(
-    accounts: List<Account>,
-    onDismiss: () -> Unit,
-    onSave: (String, String?, (String?) -> Unit) -> Unit,
-) {
-    var name by remember { mutableStateOf("") }
-    var defaultAccount by remember { mutableStateOf<Account?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
-    val blankNameError = stringResource(R.string.inv_error_name_required)
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.inv_new_portfolio)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it; error = null },
-                    label = { Text(stringResource(R.string.inv_portfolio_name)) },
-                    singleLine = true,
-                    isError = error != null,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                DropdownField(
-                    label = stringResource(R.string.inv_default_account),
-                    options = accounts,
-                    selected = defaultAccount,
-                    optionLabel = { stringResource(R.string.inv_account_option, it.name, it.currency) },
-                    onSelected = { defaultAccount = it },
-                    noneLabel = stringResource(R.string.inv_no_account),
-                )
-                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                if (name.isBlank()) {
-                    error = blankNameError
-                } else {
-                    onSave(name, defaultAccount?.id) { result ->
-                        if (result == null) onDismiss() else error = result
-                    }
-                }
-            }) { Text(stringResource(R.string.common_save)) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
-    )
-}
-
-@Composable
 fun AssetDialog(
     assets: List<Asset>,
     onDismiss: () -> Unit,

@@ -70,8 +70,8 @@ fun Budget.toEntity(createdAt: Long) = BudgetEntity(
 )
 fun Budget.toRuleEntities() = categoryRules.map { BudgetCategoryEntity(id, it.categoryId, it.includeSubcategories) }
 
-fun PortfolioEntity.toDomain() = Portfolio(id, name, createdAt, defaultAccountId)
-fun Portfolio.toEntity() = PortfolioEntity(id, name, createdAt, defaultAccountId)
+fun PortfolioEntity.toDomain() = Portfolio(id, name, createdAt, defaultAccountId, archived)
+fun Portfolio.toEntity() = PortfolioEntity(id, name, createdAt, defaultAccountId, archived)
 
 fun AssetEntity.toDomain() = Asset(
     id, name, ticker, isin, AssetType.valueOf(type), market, currency, archived,

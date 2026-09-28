@@ -42,6 +42,18 @@ class SnapshotTest {
     }
 
     @Test
+    fun `patrimonio conserva el valor de una cartera archivada`() {
+        val archived = portfolio.copy(archived = true)
+        val price = AssetPrice("asset1", BigDecimal("120"), "EUR", 0, PriceSource.MANUAL)
+        val snapshot = SnapshotBuilder.build(
+            "EUR", emptyList(), emptyList(), emptyList(), listOf(archived), listOf(asset),
+            listOf(op(OperationType.COMPRA, "2", "100")), mapOf("asset1" to price), LocalDate.of(2026, 3, 11),
+        )
+        assertEquals(24_000L, snapshot.netWorth.investmentsMinor)
+        assertTrue(snapshot.openPositions.single().portfolio.archived)
+    }
+
+    @Test
     fun `transferencia al broker y compra reducen patrimonio solo por comisiones`() {
         val bank = account("bank", initial = 1_000_00)
         val broker = account("broker", type = com.mipatrimonio.app.domain.model.AccountType.INVERSION)

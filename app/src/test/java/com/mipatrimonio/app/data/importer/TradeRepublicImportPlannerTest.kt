@@ -10,6 +10,7 @@ import com.mipatrimonio.app.domain.model.TransactionType
 import java.math.BigDecimal
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -114,6 +115,18 @@ class TradeRepublicImportPlannerTest {
         )
         assertTrue(result.newPortfolios.isEmpty())
         assertEquals("existing", (result.rows.single().record as ImportRecord.Operation).value.portfolioId)
+    }
+
+    @Test fun `cartera archivada no se reutiliza y se crea otra activa`() {
+        val archived = Portfolio("import:tr:portfolio:tr-valores", "TR Valores", 0, "other", archived = true)
+        val result = TradeRepublicImportPlanner.plan(
+            preview(trading("buy", "BUY", "STOCK", -100, "1", "1", "ISIN")),
+            context.copy(existingPortfolios = listOf(archived)),
+        )
+        assertEquals(listOf("TR Valores"), result.newPortfolios.map { it.name })
+        assertFalse(result.newPortfolios.single().archived)
+        assertEquals("import:tr:portfolio:tr-valores-2", result.newPortfolios.single().id)
+        assertTrue((result.rows.single().record as ImportRecord.Operation).value.portfolioId != archived.id)
     }
 
     @Test fun `fondo privado emparejado no crea gasto y conserva fecha de salida`() {

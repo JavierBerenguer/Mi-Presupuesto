@@ -103,6 +103,10 @@ class CsvExportTest {
         val budgets = csvText(entries.getValue("presupuestos.csv"))
         assertTrue(budgets.contains("1234567890,123;KWD;2024-01-01;2024-12-31;85;Niñez;Sí;No"))
 
+        val portfolios = csvText(entries.getValue("carteras.csv"))
+        assertTrue(portfolios.contains("id;nombre;cuenta_predeterminada;fecha_creacion;archivada"))
+        assertTrue(portfolios.contains("p1;Cripto;Euros;2023-11-14;Sí"))
+
         val operations = csvText(entries.getValue("operaciones.csv"))
         assertTrue(operations.contains("09:05:07;Cripto;Bitcoin;Compra;0,123456789012345678;12345,67890123456789;1,23;EUR;"))
         assertTrue(operations.contains("Dividendo;2;3,005;0,50;EUR;Euros"))
@@ -140,7 +144,7 @@ class CsvExportTest {
             "b1", "Hogar", 1_234_567_890_123, "KWD", BudgetPeriod.ANUAL, LocalDate.of(2024, 1, 1),
             LocalDate.of(2024, 12, 31), 85, listOf(BudgetCategoryRule(sub.id, true)), false,
         )
-        val portfolio = Portfolio("p1", "Cripto", CREATED, euros.id)
+        val portfolio = Portfolio("p1", "Cripto", CREATED, euros.id, archived = true)
         val asset = Asset(
             "asset1", "Bitcoin", "BTC", "", AssetType.CRIPTO, "Global", "EUR", false,
             QuoteProvider.COINGECKO, "bitcoin",

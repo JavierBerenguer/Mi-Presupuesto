@@ -16,7 +16,7 @@ import com.mipatrimonio.app.data.db.TransferEntity
 
 const val BACKUP_FORMAT = "mipatrimonio-backup"
 const val BACKUP_FORMAT_VERSION = 1
-const val BACKUP_DB_VERSION = 9
+const val BACKUP_DB_VERSION = 10
 
 val BACKUP_TABLE_NAMES = listOf(
     "account", "category", "txn", "transfer", "budget", "budget_category", "portfolio", "asset",

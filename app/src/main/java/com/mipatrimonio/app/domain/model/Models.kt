@@ -142,6 +142,7 @@ data class Portfolio(
     val name: String,
     val createdAt: Long,
     val defaultAccountId: String? = null,
+    val archived: Boolean = false,
 )
 
 enum class AssetType { ACCION, ETF, FONDO_INDEXADO, FONDO_INVERSION, CRIPTO, PRESTAMO_P2P }

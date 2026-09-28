@@ -27,6 +27,10 @@ data class AssetDependencies(
     val canDelete: Boolean get() = operations == 0
 }
 
+data class PortfolioDependencies(val operations: Int) {
+    val canDelete: Boolean get() = operations == 0
+}
+
 class InvestmentRepository(
     private val db: AppDatabase,
     private val clock: () -> Long = System::currentTimeMillis,
@@ -43,11 +47,35 @@ class InvestmentRepository(
     }
 
     suspend fun savePortfolio(portfolio: Portfolio) {
-        require(portfolio.name.isNotBlank()) { "El nombre de la cartera es obligatorio" }
-        portfolio.defaultAccountId?.let { accountId ->
-            require(db.accountDao().getById(accountId) != null) { "La cuenta predeterminada no existe" }
+        val normalizedName = portfolio.name.trim()
+        require(normalizedName.isNotBlank()) { "El nombre de la cartera es obligatorio" }
+        val duplicate = dao.getAllPortfoliosForBackup().any {
+            it.id != portfolio.id && !it.archived && !portfolio.archived &&
+                it.name.trim().equals(normalizedName, ignoreCase = true)
         }
-        dao.upsertPortfolio(portfolio.toEntity())
+        require(!duplicate) { "Ya existe una cartera activa con ese nombre" }
+        portfolio.defaultAccountId?.let { accountId ->
+            val account = db.accountDao().getById(accountId)
+            require(account != null) { "La cuenta predeterminada no existe" }
+            require(!account.archived) { "Una cuenta archivada no puede ser la predeterminada" }
+        }
+        dao.upsertPortfolio(portfolio.copy(name = normalizedName).toEntity())
+    }
+
+    suspend fun portfolioDependencies(portfolioId: String) =
+        PortfolioDependencies(dao.countOperationsForPortfolio(portfolioId))
+
+    suspend fun setPortfolioArchived(portfolioId: String, archived: Boolean) = db.withTransaction {
+        val portfolio = dao.getPortfolio(portfolioId)?.toDomain() ?: return@withTransaction
+        savePortfolio(portfolio.copy(archived = archived))
+    }
+
+    suspend fun deletePortfolio(portfolioId: String) = db.withTransaction {
+        val dependencies = PortfolioDependencies(dao.countOperationsForPortfolio(portfolioId))
+        require(dependencies.canDelete) {
+            "La cartera tiene ${dependencies.operations} operaciones y no se puede eliminar"
+        }
+        dao.deletePortfolio(portfolioId)
     }
 
     suspend fun saveAsset(asset: Asset) {
@@ -105,6 +133,9 @@ class InvestmentRepository(
 
     /** Añade una operación comprobando que el historial resultante sigue siendo válido (p. ej. sin ventas en descubierto). */
     suspend fun addOperation(operation: InvestmentOperation) = db.withTransaction {
+        val portfolio = dao.getPortfolio(operation.portfolioId)
+            ?: throw IllegalArgumentException("La cartera no existe")
+        require(!portfolio.archived || dao.getOperation(operation.id) != null) { "La cartera está archivada" }
         val asset = dao.getAsset(operation.assetId) ?: throw IllegalArgumentException("El activo no existe")
         require(!asset.archived) { "El activo está archivado" }
         require(asset.currency == operation.currency) { "La divisa de la operación debe ser la del activo" }

@@ -70,7 +70,10 @@ object TradeRepublicImportPlanner {
     fun plan(preview: ImportPreview, context: TradeRepublicPlanningContext): TradeRepublicImportPlan {
         require(context.accountId.isNotBlank()) { "Selecciona una cuenta de efectivo" }
         val assetsByIsin = context.existingAssets.associateBy { normalizeIsin(it.isin) }.toMutableMap()
-        val portfoliosByName = context.existingPortfolios.associateBy { it.name }.toMutableMap()
+        val portfoliosByName = context.existingPortfolios
+            .filterNot { it.archived }
+            .associateBy { it.name }
+            .toMutableMap()
         val newAssets = linkedMapOf<String, Asset>()
         val newPortfolios = linkedMapOf<String, Portfolio>()
         val privatePairs = privateFundPairs(preview.movements)
@@ -185,7 +188,9 @@ object TradeRepublicImportPlanner {
             return PlannedImportRow(row, ImportRowStatus.REVIEW, reason = "No se pudo emparejar la entrega del fondo privado con su salida de caja")
         }
         val existingPortfolio = portfoliosByName[portfolioName]
-        val portfolio = existingPortfolio ?: Portfolio(portfolioId(portfolioName), portfolioName, context.now, context.accountId)
+        val portfolio = existingPortfolio ?: Portfolio(
+            portfolioId(portfolioName, context.existingPortfolios), portfolioName, context.now, context.accountId,
+        )
         val planned = operationRow(
             row, privateCash?.let { cashNetMinor(it) } ?: row.amountCents, context, decision, portfolio.id,
             assetsByIsin, newAssets, privateCash?.date ?: row.date, privateCash?.time ?: row.time,
@@ -350,7 +355,14 @@ object TradeRepublicImportPlanner {
 
     fun recordId(externalId: String) = "import:tr:$externalId"
     fun provisionalPrivateMarketId(row: ImportedMovement) = recordId(row.externalId)
-    private fun portfolioId(name: String) = "import:tr:portfolio:" + name.lowercase(Locale.ROOT).replace(" ", "-")
+    private fun portfolioId(name: String, existing: List<Portfolio>): String {
+        val base = "import:tr:portfolio:" + name.lowercase(Locale.ROOT).replace(" ", "-")
+        val ids = existing.mapTo(hashSetOf()) { it.id }
+        if (base !in ids) return base
+        var suffix = 2
+        while ("$base-$suffix" in ids) suffix++
+        return "$base-$suffix"
+    }
     private fun normalizeIsin(isin: String) = isin.filterNot(Char::isWhitespace).uppercase(Locale.ROOT)
     private fun cashNetMinor(row: ImportedMovement) =
         Math.addExact(Math.addExact(row.amountCents, row.feeCents), row.taxCents)

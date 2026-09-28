@@ -220,6 +220,12 @@ interface InvestmentDao {
     @Query("SELECT COUNT(*) FROM portfolio WHERE defaultAccountId = :accountId")
     suspend fun countPortfoliosForAccount(accountId: String): Int
 
+    @Query("SELECT COUNT(*) FROM investment_operation WHERE portfolioId = :portfolioId")
+    suspend fun countOperationsForPortfolio(portfolioId: String): Int
+
+    @Query("DELETE FROM portfolio WHERE id = :portfolioId")
+    suspend fun deletePortfolio(portfolioId: String)
+
     @Query("SELECT * FROM asset ORDER BY name")
     fun observeAssets(): Flow<List<AssetEntity>>
 

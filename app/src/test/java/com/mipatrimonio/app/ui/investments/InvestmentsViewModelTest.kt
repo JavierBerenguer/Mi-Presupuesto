@@ -73,6 +73,24 @@ class InvestmentsViewModelTest {
         assertNull(settings.settings.first { it.selectedPortfolioId == null }.selectedPortfolioId)
     }
 
+    @Test fun `seleccion archivada vuelve a agregado y conserva la cartera para calculos`() = runTest {
+        investments.savePortfolio(Portfolio("p1", "Principal", 1, archived = true))
+        settings.setSelectedPortfolioId("p1")
+        val viewModel = InvestmentsViewModel(ledger, investments, settings)
+
+        val state = viewModel.uiState.first { !it.isLoading && it.portfolios.size == 1 }
+
+        assertNull(state.selectedPortfolioId)
+        assertTrue(state.portfolios.single().archived)
+        assertNull(settings.settings.first { it.selectedPortfolioId == null }.selectedPortfolioId)
+    }
+
+    @Test fun `selector de operaciones excluye carteras archivadas`() {
+        val active = Portfolio("active", "Activa", 1)
+        val archived = Portfolio("archived", "Archivada", 2, archived = true)
+        assertEquals(listOf(active), operationPortfolios(listOf(active, archived)))
+    }
+
     @Test fun `calcula distribucion y dividendos netos de la seleccion`() = runTest {
         settings.setSelectedPortfolioId(null)
         investments.savePortfolio(Portfolio("p1", "Principal", 1))
