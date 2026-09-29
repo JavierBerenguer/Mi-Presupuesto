@@ -41,6 +41,8 @@ fun OperationType.label(): String = stringResource(
         OperationType.VENTA -> R.string.common_op_venta
         OperationType.DIVIDENDO -> R.string.common_op_dividendo
         OperationType.COMISION -> R.string.common_op_comision
+        OperationType.TRASPASO_SALIDA -> R.string.common_op_transfer_out
+        OperationType.TRASPASO_ENTRADA -> R.string.common_op_transfer_in
     },
 )
 

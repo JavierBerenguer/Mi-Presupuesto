@@ -11,11 +11,15 @@ import com.mipatrimonio.app.domain.calc.InvestmentAccountError
 import com.mipatrimonio.app.domain.calc.PositionCalculator
 import com.mipatrimonio.app.domain.model.Asset
 import com.mipatrimonio.app.domain.model.AssetPrice
+import com.mipatrimonio.app.domain.model.AssetType
 import com.mipatrimonio.app.domain.model.InvestmentOperation
+import com.mipatrimonio.app.domain.model.MoneyMath
+import com.mipatrimonio.app.domain.model.OperationType
 import com.mipatrimonio.app.domain.model.Portfolio
 import com.mipatrimonio.app.domain.model.PriceSource
 import com.mipatrimonio.app.domain.model.PriceQuality
 import java.math.BigDecimal
+import java.time.LocalDateTime
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -133,6 +137,9 @@ class InvestmentRepository(
 
     /** Añade una operación comprobando que el historial resultante sigue siendo válido (p. ej. sin ventas en descubierto). */
     suspend fun addOperation(operation: InvestmentOperation) = db.withTransaction {
+        require(operation.type != OperationType.TRASPASO_SALIDA && operation.type != OperationType.TRASPASO_ENTRADA) {
+            "Los traspasos deben guardarse como un par"
+        }
         val portfolio = dao.getPortfolio(operation.portfolioId)
             ?: throw IllegalArgumentException("La cartera no existe")
         require(!portfolio.archived || dao.getOperation(operation.id) != null) { "La cartera está archivada" }
@@ -148,13 +155,117 @@ class InvestmentRepository(
         val existing = dao.operationsFor(operation.portfolioId, operation.assetId).map { it.toDomain() }
         PositionCalculator.compute(existing.filter { it.id != operation.id } + operation)
         dao.upsertOperation(operation.toEntity())
+        recalculateTransfersForAsset(operation.assetId)
     }
 
     suspend fun deleteOperation(operation: InvestmentOperation) = db.withTransaction {
+        operation.transferGroupId?.let {
+            dao.deleteTransfer(it)
+            recalculateTransfersForAsset(operation.assetId)
+            return@withTransaction
+        }
         val remaining = dao.operationsFor(operation.portfolioId, operation.assetId)
             .map { it.toDomain() }.filter { it.id != operation.id }
         PositionCalculator.compute(remaining)
         dao.deleteOperation(operation.id)
+        recalculateTransfersForAsset(operation.assetId)
+    }
+
+    /** Crea o reemplaza atómicamente las dos patas de un traspaso de criptomoneda. */
+    suspend fun saveCryptoTransfer(
+        sourcePortfolioId: String,
+        destinationPortfolioId: String,
+        assetId: String,
+        quantity: BigDecimal,
+        networkFeeQuantity: BigDecimal,
+        dateTime: LocalDateTime,
+        existingGroupId: String? = null,
+    ): String = db.withTransaction {
+        require(sourcePortfolioId != destinationPortfolioId) { "Las carteras de origen y destino deben ser distintas" }
+        require(quantity.signum() > 0) { "La cantidad debe ser positiva" }
+        require(networkFeeQuantity.signum() >= 0 && networkFeeQuantity < quantity) {
+            "La comisión de red debe ser menor que la cantidad traspasada"
+        }
+        val source = dao.getPortfolio(sourcePortfolioId) ?: throw IllegalArgumentException("La cartera de origen no existe")
+        val destination = dao.getPortfolio(destinationPortfolioId)
+            ?: throw IllegalArgumentException("La cartera de destino no existe")
+        require(!source.archived) { "La cartera de origen está archivada" }
+        require(!destination.archived) { "La cartera de destino está archivada" }
+        val asset = dao.getAsset(assetId) ?: throw IllegalArgumentException("El activo no existe")
+        require(!asset.archived && asset.type == AssetType.CRIPTO.name) { "Solo se pueden traspasar criptomonedas activas" }
+
+        val groupId = existingGroupId ?: UUID.randomUUID().toString()
+        if (existingGroupId != null) {
+            val previous = dao.operationsForTransfer(existingGroupId)
+            require(previous.size == 2 && previous.all { it.assetId == assetId }) { "El traspaso no existe o está incompleto" }
+            dao.deleteTransfer(existingGroupId)
+        }
+        val preceding = dao.operationsFor(sourcePortfolioId, assetId).map { it.toDomain() }.filter {
+            it.date < dateTime.toLocalDate() ||
+                (it.date == dateTime.toLocalDate() && it.time < dateTime.toLocalTime())
+        }
+        val sourcePosition = PositionCalculator.compute(preceding)
+        require(quantity <= sourcePosition.quantity) {
+            "No se puede traspasar más de lo disponible (${MoneyMath.formatQuantity(sourcePosition.quantity)})"
+        }
+        val removedCost = sourcePosition.costBasis.multiply(quantity).divide(sourcePosition.quantity, MoneyMath.CONTEXT)
+        val arriving = quantity.subtract(networkFeeQuantity)
+        val created = clock()
+        val outgoing = InvestmentOperation(
+            UUID.randomUUID().toString(), sourcePortfolioId, assetId, OperationType.TRASPASO_SALIDA,
+            dateTime.toLocalDate(), quantity, BigDecimal.ZERO, 0L, asset.currency, "", created,
+            null, dateTime.toLocalTime(), groupId,
+        )
+        val incoming = InvestmentOperation(
+            UUID.randomUUID().toString(), destinationPortfolioId, assetId, OperationType.TRASPASO_ENTRADA,
+            dateTime.toLocalDate(), arriving, removedCost.divide(arriving, MoneyMath.CONTEXT), 0L,
+            asset.currency, "", Math.addExact(created, 1L), null, dateTime.toLocalTime(), groupId,
+        )
+        PositionCalculator.compute(dao.operationsFor(sourcePortfolioId, assetId).map { it.toDomain() } + outgoing)
+        dao.upsertOperation(outgoing.toEntity())
+        dao.upsertOperation(incoming.toEntity())
+        recalculateTransfersForAsset(assetId)
+        groupId
+    }
+
+    suspend fun deleteTransfer(groupId: String) = db.withTransaction {
+        val pair = dao.operationsForTransfer(groupId)
+        require(pair.isNotEmpty()) { "El traspaso no existe" }
+        dao.deleteTransfer(groupId)
+        recalculateTransfersForAsset(pair.first().assetId)
+    }
+
+    /**
+     * Recorre las salidas cronológicamente y vuelve a fijar el precio de su entrada con el coste
+     * medio disponible justo antes de cada salida. Se invoca tras guardar, editar o borrar cualquier
+     * operación del activo, por lo que una compra histórica mantiene coherentes los traspasos posteriores.
+     */
+    private suspend fun recalculateTransfersForAsset(assetId: String) {
+        val all = dao.orderedOperationsForAsset(assetId).map { it.toDomain() }.toMutableList()
+        val outgoing = all.filter { it.type == OperationType.TRASPASO_SALIDA }
+            .sortedWith(compareBy({ it.date }, { it.time }, { it.createdAt }))
+        for (exit in outgoing) {
+            val groupId = exit.transferGroupId ?: continue
+            val entryIndex = all.indexOfFirst {
+                it.transferGroupId == groupId && it.type == OperationType.TRASPASO_ENTRADA
+            }
+            require(entryIndex >= 0) { "El traspaso está incompleto" }
+            val preceding = all.filter {
+                it.portfolioId == exit.portfolioId && it.assetId == assetId && it.id != exit.id &&
+                    (it.date < exit.date || it.date == exit.date &&
+                        (it.time < exit.time || it.time == exit.time && it.createdAt < exit.createdAt))
+            }
+            val position = PositionCalculator.compute(preceding)
+            require(exit.quantity <= position.quantity) {
+                "No se puede traspasar más de lo disponible (${MoneyMath.formatQuantity(position.quantity)})"
+            }
+            val removedCost = position.costBasis.multiply(exit.quantity).divide(position.quantity, MoneyMath.CONTEXT)
+            val entry = all[entryIndex]
+            val updated = entry.copy(unitPrice = removedCost.divide(entry.quantity, MoneyMath.CONTEXT))
+            dao.upsertOperation(updated.toEntity())
+            all[entryIndex] = updated
+        }
+        all.groupBy { it.portfolioId }.values.forEach(PositionCalculator::compute)
     }
 
     suspend fun setManualPrice(assetId: String, price: BigDecimal, currency: String) {

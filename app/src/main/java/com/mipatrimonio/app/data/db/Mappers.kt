@@ -86,12 +86,14 @@ fun InvestmentOperationEntity.toDomain() = InvestmentOperation(
     id, portfolioId, assetId, OperationType.valueOf(type), LocalDate.ofEpochDay(epochDay),
     BigDecimal(quantity), BigDecimal(unitPrice), feesMinor, currency, note, createdAt, accountId,
     LocalTime.ofSecondOfDay(secondOfDay.toLong()),
+    transferGroupId,
 )
 
 fun InvestmentOperation.toEntity() = InvestmentOperationEntity(
     id, portfolioId, assetId, type.name, date.toEpochDay(),
     quantity.toPlainString(), unitPrice.toPlainString(), feesMinor, currency, note, createdAt, accountId,
     time.toSecondOfDay(),
+    transferGroupId,
 )
 
 fun AssetPriceEntity.toDomain() = AssetPrice(

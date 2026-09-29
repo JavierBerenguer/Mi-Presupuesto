@@ -270,6 +270,19 @@ class InvestmentsViewModel(
         launchAction(onResult) { investments.deleteOperation(operation) }
     }
 
+    fun saveTransfer(
+        source: Portfolio,
+        destination: Portfolio,
+        asset: Asset,
+        quantity: BigDecimal,
+        networkFeeQuantity: BigDecimal,
+        dateTime: LocalDateTime,
+        existingGroupId: String? = null,
+        onResult: (String?) -> Unit,
+    ) = launchAction(onResult) {
+        investments.saveCryptoTransfer(source.id, destination.id, asset.id, quantity, networkFeeQuantity, dateTime, existingGroupId)
+    }
+
     fun setManualPrice(asset: Asset, price: BigDecimal, onResult: (String?) -> Unit) {
         launchAction(onResult) { investments.setManualPrice(asset.id, price, asset.currency) }
     }

@@ -37,38 +37,62 @@ fun AssetDetailScreen(
     },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var operationDialog by rememberSaveable { mutableStateOf(false) }
+    var operationType by remember { mutableStateOf<OperationType?>(null) }
     var priceDialog by rememberSaveable { mutableStateOf(false) }
     var delete by remember { mutableStateOf<InvestmentOperation?>(null) }
     var editing by remember { mutableStateOf<InvestmentOperation?>(null) }
+    var transferDialog by rememberSaveable { mutableStateOf(false) }
+    var transferEditingGroup by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     when {
         state.isLoading -> LoadingBox()
         state.asset == null || state.portfolio == null -> EmptyState(Icons.Default.PriceChange, stringResource(R.string.inv_asset_not_found))
         else -> AssetDetailContent(
             state,
-            { editing = null; operationDialog = true },
+            { type -> editing = null; operationType = type },
+            { transferEditingGroup = null; transferDialog = true },
             { priceDialog = true },
-            { editing = it; operationDialog = true },
+            {
+                if (it.transferGroupId != null) {
+                    transferEditingGroup = it.transferGroupId
+                    transferDialog = true
+                } else {
+                    editing = it
+                    operationType = it.type
+                }
+            },
             { delete = it },
             error,
         )
     }
     val asset = state.asset
     val portfolio = state.portfolio
-    if (operationDialog && asset != null && portfolio != null) OperationDialog(
+    if (operationType != null && asset != null && portfolio != null) OperationDialog(
         listOf(portfolio), listOf(asset), state.accountsById.values.toList(), portfolio.id, asset.id,
-        { operationDialog = false }, {}, {},
+        { operationType = null }, {}, {},
         { p, a, type, date, quantity, price, fees, account, note, result ->
             val existing = editing
             if (existing == null) viewModel.addOperation(p, a, type, date, quantity, price, fees, account, note, result)
             else viewModel.updateOperation(existing, p, a, type, date, quantity, price, fees, account, note, result)
         },
         existingOperation = editing,
+        initialType = operationType ?: OperationType.COMPRA,
+        availableQuantity = state.row?.valuation?.position?.quantity,
     )
     if (priceDialog && asset != null) ManualPriceDialog(
         listOf(asset), asset.id, { priceDialog = false }, {},
         { selected, price, result -> viewModel.setManualPrice(selected, price, result) },
+    )
+    if (transferDialog && asset != null && portfolio != null) CryptoTransferDialog(
+        state.allPortfolios, listOf(asset), state.allOperations.groupBy { it.portfolioId to it.assetId },
+        portfolio.id, asset.id, { transferDialog = false },
+        { source, destination, selectedAsset, quantity, fee, dateTime, result ->
+            viewModel.saveTransfer(
+                source, destination, selectedAsset, quantity, fee, dateTime,
+                existingGroupId = transferEditingGroup, onResult = result,
+            )
+        },
+        existingPair = state.allOperations.filter { it.transferGroupId == transferEditingGroup },
     )
     delete?.let { operation ->
         ConfirmDialog(
@@ -83,7 +107,8 @@ fun AssetDetailScreen(
 @Composable
 private fun AssetDetailContent(
     state: AssetDetailUiState,
-    onNew: () -> Unit,
+    onNew: (OperationType) -> Unit,
+    onTransfer: () -> Unit,
     onPrice: () -> Unit,
     onEdit: (InvestmentOperation) -> Unit,
     onDelete: (InvestmentOperation) -> Unit,
@@ -181,7 +206,11 @@ private fun AssetDetailContent(
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.inv_operations), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                 if (state.portfolio?.archived != true && !asset.archived) {
-                    TextButton(onNew, Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.inv_new_operation)) }
+                    TextButton({ onNew(OperationType.COMPRA) }, Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.inv_buy)) }
+                    TextButton({ onNew(OperationType.VENTA) }, Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.inv_sell)) }
+                    if (asset.type == AssetType.CRIPTO) TextButton(onTransfer, Modifier.heightIn(min = 48.dp)) {
+                        Text(stringResource(R.string.inv_transfer))
+                    }
                 }
             }
         }
@@ -191,6 +220,7 @@ private fun AssetDetailContent(
                 operation,
                 operation.accountId?.let { state.accountsById[it]?.name },
                 state.hideAmounts,
+                operation.transferGroupId?.let(state.transferLabels::get),
                 onEdit,
                 onDelete,
             )
@@ -203,6 +233,7 @@ private fun OperationRow(
     operation: InvestmentOperation,
     account: String?,
     hidden: Boolean,
+    transferLabel: Pair<String, String>?,
     onEdit: (InvestmentOperation) -> Unit,
     onDelete: (InvestmentOperation) -> Unit,
 ) {
@@ -211,11 +242,16 @@ private fun OperationRow(
         OperationType.COMPRA -> -Math.addExact(gross, operation.feesMinor)
         OperationType.VENTA, OperationType.DIVIDENDO -> Math.subtractExact(gross, operation.feesMinor)
         OperationType.COMISION -> -gross
+        OperationType.TRASPASO_SALIDA, OperationType.TRASPASO_ENTRADA -> 0L
     }
     SectionCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(operation.type.label(), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    transferLabel?.let { stringResource(R.string.inv_transfer_history, it.first, it.second) }
+                        ?: operation.type.label(),
+                    style = MaterialTheme.typography.titleMedium,
+                )
                 Text(
                     stringResource(
                         R.string.inv_operation_date_time,

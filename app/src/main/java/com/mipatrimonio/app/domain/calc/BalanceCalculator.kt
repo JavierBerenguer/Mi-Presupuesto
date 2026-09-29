@@ -54,6 +54,7 @@ object BalanceCalculator {
             OperationType.VENTA -> Math.subtractExact(grossMinor, operation.feesMinor)
             OperationType.DIVIDENDO -> Math.subtractExact(grossMinor, operation.feesMinor)
             OperationType.COMISION -> Math.negateExact(grossMinor)
+            OperationType.TRASPASO_SALIDA, OperationType.TRASPASO_ENTRADA -> 0L
         }
     }
 

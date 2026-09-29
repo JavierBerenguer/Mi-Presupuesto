@@ -17,13 +17,16 @@ import kotlinx.coroutines.launch
 data class AssetDetailUiState(
     val isLoading: Boolean = true,
     val portfolio: Portfolio? = null,
+    val allPortfolios: List<Portfolio> = emptyList(),
     val asset: Asset? = null,
     val row: PositionRow? = null,
     val operations: List<InvestmentOperation> = emptyList(),
+    val allOperations: List<InvestmentOperation> = emptyList(),
     val accountsById: Map<String, Account> = emptyMap(),
     val latestPrice: AssetPrice? = null,
     val baseCurrency: String = Currencies.EUR,
     val hideAmounts: Boolean = false,
+    val transferLabels: Map<String, Pair<String, String>> = emptyMap(),
 )
 
 class AssetDetailViewModel(
@@ -56,13 +59,26 @@ class AssetDetailViewModel(
         AssetDetailUiState(
             isLoading = false,
             portfolio = portfolio,
+            allPortfolios = data.portfolios,
             asset = asset,
             row = row,
             operations = operations,
+            allOperations = data.operations,
             accountsById = accounts.associateBy { it.id },
             latestPrice = price,
             baseCurrency = config.baseCurrency,
             hideAmounts = config.hideAmounts,
+            transferLabels = data.operations.mapNotNull { operation ->
+                operation.transferGroupId?.let { it to operation }
+            }.groupBy({ it.first }, { it.second })
+                .mapNotNull { (groupId, pair) ->
+                    val source = pair.firstOrNull { it.type == OperationType.TRASPASO_SALIDA }
+                    val destination = pair.firstOrNull { it.type == OperationType.TRASPASO_ENTRADA }
+                    val sourceName = source?.let { op -> data.portfolios.firstOrNull { it.id == op.portfolioId }?.name }
+                    val destinationName = destination?.let { op -> data.portfolios.firstOrNull { it.id == op.portfolioId }?.name }
+                    if (sourceName == null || destinationName == null) null
+                    else groupId to (sourceName to destinationName)
+                }.toMap(),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AssetDetailUiState())
 
@@ -90,6 +106,19 @@ class AssetDetailViewModel(
 
     fun deleteOperation(operation: InvestmentOperation, onResult: (String?) -> Unit) =
         launch(onResult) { investments.deleteOperation(operation) }
+
+    fun saveTransfer(
+        source: Portfolio,
+        destination: Portfolio,
+        asset: Asset,
+        quantity: BigDecimal,
+        networkFeeQuantity: BigDecimal,
+        dateTime: LocalDateTime,
+        existingGroupId: String? = null,
+        onResult: (String?) -> Unit,
+    ) = launch(onResult) {
+        investments.saveCryptoTransfer(source.id, destination.id, asset.id, quantity, networkFeeQuantity, dateTime, existingGroupId)
+    }
 
     fun updateOperation(
         existing: InvestmentOperation,

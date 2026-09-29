@@ -5,6 +5,7 @@ import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.model.Asset
 import com.mipatrimonio.app.domain.model.InvestmentOperation
 import com.mipatrimonio.app.domain.model.Portfolio
+import com.mipatrimonio.app.domain.model.OperationType
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.model.TransactionSource
@@ -51,6 +52,9 @@ fun buildInvestmentMovementItems(
     val assetsById = assets.associateBy(Asset::id)
     val portfoliosById = portfolios.associateBy(Portfolio::id)
     return operations.mapNotNull { operation ->
+        if (operation.type == OperationType.TRASPASO_SALIDA || operation.type == OperationType.TRASPASO_ENTRADA) {
+            return@mapNotNull null
+        }
         val accountId = operation.accountId ?: return@mapNotNull null
         MovementItem.Investment(
             operation = operation,

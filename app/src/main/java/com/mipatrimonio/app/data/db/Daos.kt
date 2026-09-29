@@ -289,6 +289,12 @@ interface InvestmentDao {
     @Query("SELECT * FROM investment_operation WHERE id = :id")
     suspend fun getOperation(id: String): InvestmentOperationEntity?
 
+    @Query("SELECT * FROM investment_operation WHERE transferGroupId = :groupId ORDER BY id")
+    suspend fun operationsForTransfer(groupId: String): List<InvestmentOperationEntity>
+
+    @Query("SELECT * FROM investment_operation WHERE assetId = :assetId ORDER BY epochDay, secondOfDay, createdAt")
+    suspend fun orderedOperationsForAsset(assetId: String): List<InvestmentOperationEntity>
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertOperationIfAbsent(entity: InvestmentOperationEntity): Long
 
@@ -297,6 +303,9 @@ interface InvestmentDao {
 
     @Query("DELETE FROM investment_operation WHERE id = :id")
     suspend fun deleteOperation(id: String)
+
+    @Query("DELETE FROM investment_operation WHERE transferGroupId = :groupId")
+    suspend fun deleteTransfer(groupId: String)
 
     @Query("SELECT COUNT(*) FROM investment_operation WHERE accountId = :accountId")
     suspend fun countOperationsForAccount(accountId: String): Int

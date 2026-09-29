@@ -163,7 +163,7 @@ data class Asset(
     val quoteMic: String? = null,
 )
 
-enum class OperationType { COMPRA, VENTA, DIVIDENDO, COMISION }
+enum class OperationType { COMPRA, VENTA, DIVIDENDO, COMISION, TRASPASO_SALIDA, TRASPASO_ENTRADA }
 
 /**
  * Operación de inversión. Importe bruto = [quantity] × [unitPrice] (en divisa del activo).
@@ -184,6 +184,7 @@ data class InvestmentOperation(
     val createdAt: Long,
     val accountId: String? = null,
     val time: LocalTime = LocalTime.MIDNIGHT,
+    val transferGroupId: String? = null,
 )
 
 enum class PriceSource { MANUAL, PROVEEDOR }

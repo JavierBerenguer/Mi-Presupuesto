@@ -170,6 +170,53 @@ class InvestmentsViewModelTest {
         assertEquals(0L, state.totalFeesMinor)
     }
 
+    @Test fun `comprar y vender validan posicion y conservan cuenta predeterminada`() = runTest {
+        val account = Account("account", "Cuenta", AccountType.INVERSION, "EUR", 100_000, false, 1)
+        val portfolio = Portfolio("p1", "Principal", 1, account.id)
+        val asset = Asset("a1", "ETF", "ETF", "", AssetType.ETF, "", "EUR")
+        ledger.saveAccount(account)
+        investments.savePortfolio(portfolio)
+        investments.saveAsset(asset)
+        val viewModel = InvestmentsViewModel(ledger, investments, settings)
+        var result: String? = "pending"
+        viewModel.addOperation(
+            portfolio, asset, OperationType.COMPRA, LocalDateTime.of(2026, 1, 1, 10, 0),
+            BigDecimal("2"), BigDecimal("10"), 0, account.id, "", { result = it },
+        )
+        investments.operations.first { it.size == 1 }
+        assertNull(result)
+        assertEquals(account.id, investments.operations.first().single().accountId)
+
+        viewModel.addOperation(
+            portfolio, asset, OperationType.VENTA, LocalDateTime.of(2026, 1, 2, 10, 0),
+            BigDecimal("3"), BigDecimal("10"), 0, account.id, "", { result = it },
+        )
+        while (result == null) kotlinx.coroutines.yield()
+        assertTrue(result.orEmpty().contains("2"))
+        assertEquals(1, investments.operations.first().size)
+    }
+
+    @Test fun `traspasar desde ViewModel solo crea par para cripto`() = runTest {
+        val source = Portfolio("p1", "Origen", 1)
+        val destination = Portfolio("p2", "Destino", 2)
+        val crypto = Asset("a1", "Bitcoin", "BTC", "", AssetType.CRIPTO, "", "EUR")
+        investments.savePortfolio(source)
+        investments.savePortfolio(destination)
+        investments.saveAsset(crypto)
+        investments.addOperation(op("buy", OperationType.COMPRA, "2", "10", 0))
+        val viewModel = InvestmentsViewModel(ledger, investments, settings)
+        var result: String? = "pending"
+
+        viewModel.saveTransfer(
+            source, destination, crypto, BigDecimal.ONE, BigDecimal("0.01"),
+            LocalDateTime.of(2026, 2, 1, 10, 0), onResult = { result = it },
+        )
+
+        val transfers = investments.operations.first { values -> values.count { it.transferGroupId != null } == 2 }
+        assertNull(result)
+        assertEquals(2, transfers.count { it.transferGroupId != null })
+    }
+
     private fun op(id: String, type: OperationType, quantity: String, price: String, fees: Long) = InvestmentOperation(
         id, "p1", "a1", type, LocalDate.of(2026, 1, if (type == OperationType.COMPRA) 1 else 2),
         BigDecimal(quantity), BigDecimal(price), fees, "EUR", "", 1,

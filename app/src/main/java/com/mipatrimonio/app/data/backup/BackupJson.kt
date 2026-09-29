@@ -126,6 +126,7 @@ class BackupJson {
         "epochDay" to v.epochDay, "quantity" to v.quantity, "unitPrice" to v.unitPrice,
         "feesMinor" to v.feesMinor, "currency" to v.currency, "note" to v.note,
         "createdAt" to v.createdAt, "accountId" to v.accountId, "secondOfDay" to v.secondOfDay,
+        "transferGroupId" to v.transferGroupId,
     )
     private fun price(v: AssetPriceEntity) = row(
         "id" to v.id, "assetId" to v.assetId, "price" to v.price, "currency" to v.currency,
@@ -161,7 +162,7 @@ class BackupJson {
         j.s("id"), j.s("name"), j.l("createdAt"), j.ns("defaultAccountId"), j.ob("archived", false),
     )
     private fun readAsset(j: JSONObject) = AssetEntity(j.s("id"), j.s("name"), j.s("ticker"), j.s("isin"), j.s("type"), j.s("market"), j.s("currency"), j.l("createdAt"), j.ob("archived", false), j.ns("quoteProvider"), j.ns("quoteSymbol"), j.ns("quoteMic"))
-    private fun readOperation(j: JSONObject) = InvestmentOperationEntity(j.s("id"), j.s("portfolioId"), j.s("assetId"), j.s("type"), j.l("epochDay"), j.s("quantity"), j.s("unitPrice"), j.l("feesMinor"), j.s("currency"), j.s("note"), j.l("createdAt"), j.ns("accountId"), j.oi("secondOfDay", 0))
+    private fun readOperation(j: JSONObject) = InvestmentOperationEntity(j.s("id"), j.s("portfolioId"), j.s("assetId"), j.s("type"), j.l("epochDay"), j.s("quantity"), j.s("unitPrice"), j.l("feesMinor"), j.s("currency"), j.s("note"), j.l("createdAt"), j.ns("accountId"), j.oi("secondOfDay", 0), j.ns("transferGroupId"))
     private fun readPrice(j: JSONObject) = AssetPriceEntity(j.s("id"), j.s("assetId"), j.s("price"), j.s("currency"), j.l("asOfEpochMillis"), j.s("source"), j.ns("quality"))
     private fun readRecurring(j: JSONObject) = RecurringRuleEntity(j.s("id"), j.s("kind"), j.l("amountMinor"), j.s("currency"), j.s("accountId"), j.ns("destinationAccountId"), j.ns("categoryId"), j.s("description"), j.s("merchant"), j.l("startEpochDay"), j.i("periodQuantity"), j.s("periodUnit"), j.nl("endEpochDay"), j.s("reminder"), j.ni("reminderCustomDays"), j.nl("lastGeneratedEpochDay"), j.ob("archived", false), j.l("createdAt"), j.l("updatedAt"))
     private fun readAuthorization(j: JSONObject) = NotificationAuthorizationEntity(j.s("packageName"), j.b("authorized"), j.ns("accountId"), j.l("createdAt"), j.os("autoConfirmMode", "OFF"))

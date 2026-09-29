@@ -725,6 +725,7 @@ private fun movementPresentation(
             OperationType.VENTA -> R.string.mov_investment_sell
             OperationType.DIVIDENDO -> R.string.mov_investment_dividend
             OperationType.COMISION -> R.string.mov_investment_fee
+            OperationType.TRASPASO_SALIDA, OperationType.TRASPASO_ENTRADA -> R.string.mov_investment_transfer
         }
         MovementPresentation(
             title = stringResource(titleResource, assetName),

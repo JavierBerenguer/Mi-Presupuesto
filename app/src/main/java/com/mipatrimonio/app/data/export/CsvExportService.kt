@@ -170,13 +170,14 @@ class CsvExportService(
             assets: Map<String, com.mipatrimonio.app.domain.model.Asset>,
             accounts: Map<String, com.mipatrimonio.app.domain.model.Account>,
         ): List<List<String>> = rows(
-            listOf("id", "fecha", "hora", "cartera", "activo", "tipo", "cantidad", "precio_unitario", "comisiones", "divisa", "cuenta"),
+            listOf("id", "fecha", "hora", "cartera", "activo", "tipo", "cantidad", "precio_unitario", "comisiones", "divisa", "cuenta", "traspaso"),
         ) {
             data.operations.map {
                 listOf(
                     it.id, it.date.toString(), timeFormat.format(it.time), portfolios[it.portfolioId]?.name.orEmpty(),
                     assets[it.assetId]?.name.orEmpty(), operationType(it.type), decimal(it.quantity), decimal(it.unitPrice),
                     money(it.feesMinor, it.currency), it.currency, it.accountId?.let(accounts::get)?.name.orEmpty(),
+                    it.transferGroupId.orEmpty(),
                 )
             }
         }
@@ -235,6 +236,8 @@ class CsvExportService(
             OperationType.VENTA -> "Venta"
             OperationType.DIVIDENDO -> "Dividendo"
             OperationType.COMISION -> "Comisión"
+            OperationType.TRASPASO_SALIDA -> "Traspaso salida"
+            OperationType.TRASPASO_ENTRADA -> "Traspaso entrada"
         }
         private fun assetType(value: AssetType) = value.name.toSpanishWords()
         private fun provider(value: QuoteProvider?) = when (value) {
@@ -266,7 +269,7 @@ class CsvExportService(
             presupuestos.csv: id; nombre; periodo; importe_limite; divisa; fecha_inicio; fecha_fin; umbral_aviso (porcentaje entero); categorias (nombres separados por |); incluye_subcategorias (Sí/No alineados con categorias); archivado.
             carteras.csv: id; nombre; cuenta_predeterminada; fecha_creacion.
             activos.csv: id; nombre; ticker; isin; tipo; mercado; divisa; proveedor_cotizacion; simbolo_cotizacion; archivado. El modelo también conserva MIC de cotización, que no forma parte del formato solicitado.
-            operaciones.csv: id; fecha; hora; cartera; activo; tipo; cantidad; precio_unitario; comisiones (o retención en dividendos); divisa; cuenta. Una cuenta vacía indica que la operación no tiene cuenta vinculada.
+            operaciones.csv: id; fecha; hora; cartera; activo; tipo; cantidad; precio_unitario; comisiones (o retención en dividendos); divisa; cuenta; traspaso. Una cuenta vacía indica que la operación no tiene cuenta vinculada; traspaso identifica las dos patas del mismo traslado.
             dividendos.csv: subconjunto de operaciones de tipo dividendo; fecha; activo; importe_bruto (cantidad × precio_unitario); retencion (campo de comisiones del modelo); importe_neto; divisa; cuenta.
             precios.csv: activo; fecha_hora; precio; divisa; origen; calidad.
 

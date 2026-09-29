@@ -238,4 +238,22 @@
     <string name="inv_configure_quotes_crypto_rank">%1$s · %2$s · puesto %3$d</string>
     <string name="inv_configure_quotes_crypto">%1$s · %2$s · sin posición</string>
     <string name="inv_configure_quotes_not_found">No hay un listado con la misma divisa.</string>
+    <string name="inv_buy">Comprar</string>
+    <string name="inv_sell">Vender</string>
+    <string name="inv_dividend">Dividendo</string>
+    <string name="inv_fee">Comisión</string>
+    <string name="inv_sell_all">Vender todo</string>
+    <string name="inv_available_quantity">Disponible: %1$s</string>
+    <string name="inv_no_account_warning">Sin cuenta, la operación no aparecerá en Movimientos ni moverá dinero.</string>
+    <string name="inv_transfer">Traspasar</string>
+    <string name="inv_transfer_source">Cartera de origen</string>
+    <string name="inv_transfer_destination">Cartera de destino</string>
+    <string name="inv_network_fee">Comisión de red (unidades)</string>
+    <string name="inv_transfer_arrives">Llegarán: %1$s</string>
+    <string name="inv_all">Todo</string>
+    <string name="inv_transfer_needs_data">Necesitas una criptomoneda activa y al menos dos carteras activas.</string>
+    <string name="inv_transfer_too_much">No se puede traspasar más de lo disponible (%1$s).</string>
+    <string name="inv_transfer_fee_error">La comisión de red debe ser cero o mayor y menor que la cantidad.</string>
+    <string name="inv_transfer_history">Traspaso de %1$s a %2$s</string>
+    <string name="inv_not_available_short">—</string>
 </resources>

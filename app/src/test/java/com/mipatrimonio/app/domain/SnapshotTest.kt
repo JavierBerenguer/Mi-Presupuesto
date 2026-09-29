@@ -93,6 +93,30 @@ class SnapshotTest {
         assertNull(s.openPositions[0].price)
     }
 
+    @Test fun `traspaso sin comision conserva patrimonio y rentabilidad conjunta`() {
+        val crypto = asset.copy(type = AssetType.CRIPTO)
+        val destination = Portfolio("p2", "Destino", 2)
+        val purchase = op(OperationType.COMPRA, "10", "100")
+        val price = AssetPrice("asset1", BigDecimal("120"), "EUR", 0, PriceSource.MANUAL)
+        val before = SnapshotBuilder.build(
+            "EUR", emptyList(), emptyList(), emptyList(), listOf(portfolio, destination), listOf(crypto),
+            listOf(purchase), mapOf("asset1" to price), LocalDate.of(2026, 3, 11),
+        )
+        val transferOut = op(OperationType.TRASPASO_SALIDA, "4", "0").copy(transferGroupId = "g")
+        val transferIn = op(OperationType.TRASPASO_ENTRADA, "4", "100")
+            .copy(portfolioId = "p2", transferGroupId = "g")
+        val after = SnapshotBuilder.build(
+            "EUR", emptyList(), emptyList(), emptyList(), listOf(portfolio, destination), listOf(crypto),
+            listOf(purchase, transferOut, transferIn), mapOf("asset1" to price), LocalDate.of(2026, 3, 11),
+        )
+
+        assertEquals(before.netWorth.investmentsMinor, after.netWorth.investmentsMinor)
+        assertEquals(
+            before.positions.sumOf { it.valuation.position.realizedPnl },
+            after.positions.sumOf { it.valuation.position.realizedPnl },
+        )
+    }
+
     @Test
     fun `historico usa saldo inicial, movimientos por fecha e inversion a coste`() {
         val accounts = listOf(account("a1", initial = 100_00), account("a2", initial = 0))

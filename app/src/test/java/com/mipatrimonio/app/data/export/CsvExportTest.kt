@@ -126,6 +126,19 @@ class CsvExportTest {
         assertTrue(readme.contains("cantidad × precio_unitario"))
     }
 
+    @Test fun `operaciones exportan tipo y grupo de traspaso`() {
+        val base = sampleData()
+        val transfer = InvestmentOperation(
+            "transfer-out", "p1", "asset1", OperationType.TRASPASO_SALIDA, TODAY,
+            BigDecimal("0.1"), BigDecimal.ZERO, 0, "EUR", "", 2, transferGroupId = "group-1",
+        )
+        val archive = CsvExportService.create(base.copy(operations = base.operations + transfer), TODAY, ZONE)
+        val operations = csvText(unzip(archive.bytes).getValue("operaciones.csv"))
+
+        assertTrue(operations.lineSequence().first().endsWith(";traspaso"))
+        assertTrue(operations.contains("Traspaso salida;0,1;0;0,00;EUR;;group-1"))
+    }
+
     private fun sampleData(): CsvExportData {
         val euros = Account("a-eur", "Euros", AccountType.CORRIENTE, "EUR", 100_000_000_000_000L, false, CREATED)
         val yen = Account("a-jpy", "Yenes", AccountType.AHORRO, "JPY", 1_000, true, CREATED)

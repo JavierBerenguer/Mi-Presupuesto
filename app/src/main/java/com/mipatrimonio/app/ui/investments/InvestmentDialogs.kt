@@ -29,6 +29,7 @@ import com.mipatrimonio.app.domain.calc.SaleAmountKind
 import com.mipatrimonio.app.domain.calc.TradeSizingError
 import com.mipatrimonio.app.domain.calc.TradeSizingResult
 import com.mipatrimonio.app.domain.calc.calculateTradeSizing
+import com.mipatrimonio.app.domain.calc.PositionCalculator
 import com.mipatrimonio.app.domain.model.Asset
 import com.mipatrimonio.app.domain.model.AssetType
 import com.mipatrimonio.app.domain.model.Account
@@ -273,6 +274,8 @@ fun OperationDialog(
         (String?) -> Unit,
     ) -> Unit,
     existingOperation: InvestmentOperation? = null,
+    initialType: OperationType = OperationType.COMPRA,
+    availableQuantity: BigDecimal? = null,
 ) {
     if (portfolios.isEmpty()) {
         MissingDataDialog(
@@ -306,7 +309,7 @@ fun OperationDialog(
     var account by remember(existingOperation?.id) {
         mutableStateOf(eligibleAccounts(asset).firstOrNull { it.id == existingOperation?.accountId } ?: suggestedAccount(portfolio, asset))
     }
-    var type by remember(existingOperation?.id) { mutableStateOf(existingOperation?.type ?: OperationType.COMPRA) }
+    var type by remember(existingOperation?.id, initialType) { mutableStateOf(existingOperation?.type ?: initialType) }
     var date by remember(existingOperation?.id) { mutableStateOf(existingOperation?.date ?: LocalDate.now()) }
     var timeText by remember(existingOperation?.id) {
         val initialTime = existingOperation?.time ?: LocalTime.now()
@@ -402,7 +405,7 @@ fun OperationDialog(
                 )
                 DropdownField(
                     label = stringResource(R.string.inv_operation_type),
-                    options = OperationType.entries,
+                    options = listOf(OperationType.COMPRA, OperationType.VENTA, OperationType.DIVIDENDO, OperationType.COMISION),
                     selected = type,
                     optionLabel = { it.label() },
                     onSelected = { selected ->
@@ -419,6 +422,11 @@ fun OperationDialog(
                     optionLabel = { stringResource(R.string.inv_account_option, it.name, it.currency) },
                     onSelected = { account = it; error = null },
                     noneLabel = stringResource(R.string.inv_no_account),
+                )
+                if (account == null) Text(
+                    stringResource(R.string.inv_no_account_warning),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
                 )
                 DateField(stringResource(R.string.inv_date), date, onChange = { date = it })
                 OutlinedTextField(
@@ -446,6 +454,14 @@ fun OperationDialog(
                     suffix = null,
                     enabled = type != OperationType.COMISION,
                 )
+                if (type == OperationType.VENTA && availableQuantity != null) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(stringResource(R.string.inv_available_quantity, MoneyMath.formatQuantity(availableQuantity)))
+                        TextButton({ quantityText = availableQuantity.toPlainString(); error = null }) {
+                            Text(stringResource(R.string.inv_sell_all))
+                        }
+                    }
+                }
                 AmountField(
                     label = when (type) {
                         OperationType.DIVIDENDO -> stringResource(R.string.inv_amount_per_share)
@@ -544,6 +560,105 @@ private val OPERATION_TIME_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPa
 
 private fun String.toOperationTimeOrNull(): LocalTime? =
     runCatching { LocalTime.parse(trim(), OPERATION_TIME_FORMATTER) }.getOrNull()
+
+@Composable
+fun CryptoTransferDialog(
+    portfolios: List<Portfolio>,
+    assets: List<Asset>,
+    operationsByPosition: Map<Pair<String, String>, List<InvestmentOperation>>,
+    initialPortfolioId: String?,
+    initialAssetId: String?,
+    onDismiss: () -> Unit,
+    onSave: (Portfolio, Portfolio, Asset, BigDecimal, BigDecimal, LocalDateTime, (String?) -> Unit) -> Unit,
+    existingPair: List<InvestmentOperation> = emptyList(),
+) {
+    val activePortfolios = portfolios.filterNot { it.archived }
+    val cryptoAssets = assets.filter { !it.archived && it.type == AssetType.CRIPTO }
+    if (activePortfolios.size < 2 || cryptoAssets.isEmpty()) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(stringResource(R.string.inv_transfer)) },
+            text = { Text(stringResource(R.string.inv_transfer_needs_data)) },
+            confirmButton = { TextButton(onDismiss) { Text(stringResource(R.string.common_close)) } },
+        )
+        return
+    }
+    val previousExit = existingPair.firstOrNull { it.type == OperationType.TRASPASO_SALIDA }
+    val previousEntry = existingPair.firstOrNull { it.type == OperationType.TRASPASO_ENTRADA }
+    var source by remember(existingPair) { mutableStateOf(activePortfolios.firstOrNull { it.id == previousExit?.portfolioId ?: initialPortfolioId } ?: activePortfolios.first()) }
+    var destination by remember(existingPair) { mutableStateOf(activePortfolios.firstOrNull { it.id == previousEntry?.portfolioId } ?: activePortfolios.first { it.id != source.id }) }
+    var asset by remember(existingPair) { mutableStateOf(cryptoAssets.firstOrNull { it.id == previousExit?.assetId ?: initialAssetId } ?: cryptoAssets.first()) }
+    var quantityText by remember(existingPair) { mutableStateOf(previousExit?.quantity?.toPlainString().orEmpty()) }
+    var feeText by remember(existingPair) {
+        mutableStateOf(
+            if (previousExit != null && previousEntry != null) previousExit.quantity.subtract(previousEntry.quantity).toPlainString()
+            else "",
+        )
+    }
+    var date by remember(existingPair) { mutableStateOf(previousExit?.date ?: LocalDate.now()) }
+    var timeText by remember(existingPair) { mutableStateOf((previousExit?.time ?: LocalTime.now()).format(OPERATION_TIME_FORMATTER)) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val availableAfterExisting = runCatching {
+        PositionCalculator.compute(operationsByPosition[source.id to asset.id].orEmpty()).quantity
+    }.getOrDefault(BigDecimal.ZERO)
+    val available = if (previousExit?.portfolioId == source.id && previousExit.assetId == asset.id) {
+        availableAfterExisting.add(previousExit.quantity)
+    } else availableAfterExisting
+    val quantity = MoneyMath.parse(quantityText)
+    val fee = if (feeText.isBlank()) BigDecimal.ZERO else MoneyMath.parse(feeText)
+    val arriving = if (quantity != null && fee != null) quantity.subtract(fee) else null
+    val quantityError = stringResource(R.string.inv_error_quantity_positive)
+    val tooMuchError = stringResource(R.string.inv_transfer_too_much, MoneyMath.formatQuantity(available))
+    val transferFeeError = stringResource(R.string.inv_transfer_fee_error)
+    val timeError = stringResource(R.string.inv_error_time_required)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.inv_transfer)) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                DropdownField(stringResource(R.string.inv_asset), cryptoAssets, asset, { it.name }, { it?.let { asset = it } })
+                DropdownField(stringResource(R.string.inv_transfer_source), activePortfolios, source, { it.name }, { selected ->
+                    selected?.let {
+                        source = it
+                        if (destination.id == it.id) destination = activePortfolios.first { candidate -> candidate.id != it.id }
+                    }
+                })
+                DropdownField(
+                    stringResource(R.string.inv_transfer_destination),
+                    activePortfolios.filter { it.id != source.id }, destination, { it.name }, { it?.let { destination = it } },
+                )
+                AmountField(stringResource(R.string.inv_quantity), quantityText, { quantityText = it; error = null })
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(stringResource(R.string.inv_available_quantity, MoneyMath.formatQuantity(available)))
+                    TextButton({ quantityText = available.toPlainString() }) { Text(stringResource(R.string.inv_all)) }
+                }
+                AmountField(stringResource(R.string.inv_network_fee), feeText, { feeText = it; error = null })
+                Text(stringResource(R.string.inv_transfer_arrives, arriving?.takeIf { it.signum() >= 0 }?.let(MoneyMath::formatQuantity) ?: stringResource(R.string.inv_not_available_short)))
+                DateField(stringResource(R.string.inv_date), date, onChange = { date = it })
+                OutlinedTextField(
+                    timeText, { timeText = it; error = null },
+                    label = { Text(stringResource(R.string.inv_time)) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                )
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            }
+        },
+        confirmButton = {
+            TextButton({
+                val time = timeText.toOperationTimeOrNull()
+                when {
+                    quantity == null || quantity.signum() <= 0 -> error = quantityError
+                    quantity > available -> error = tooMuchError
+                    fee == null || fee.signum() < 0 || fee >= quantity -> error = transferFeeError
+                    time == null -> error = timeError
+                    else -> onSave(source, destination, asset, quantity, fee, LocalDateTime.of(date, time)) {
+                        if (it == null) onDismiss() else error = it
+                    }
+                }
+            }) { Text(stringResource(R.string.common_save)) }
+        },
+        dismissButton = { TextButton(onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+    )
+}
 
 @Composable
 fun ManualPriceDialog(

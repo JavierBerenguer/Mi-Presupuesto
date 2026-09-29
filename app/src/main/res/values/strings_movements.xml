@@ -153,4 +153,5 @@
     <string name="mov_accounts_back">Volver a Movimientos</string>
     <string name="mov_all_accounts">Todas las cuentas</string>
     <string name="mov_close">Cerrar</string>
+    <string name="mov_investment_transfer">Traspaso de criptomoneda</string>
 </resources>

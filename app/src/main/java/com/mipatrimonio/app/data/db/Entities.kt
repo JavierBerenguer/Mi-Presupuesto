@@ -146,7 +146,7 @@ data class AssetEntity(
         ForeignKey(AssetEntity::class, ["id"], ["assetId"], onDelete = ForeignKey.RESTRICT),
         ForeignKey(AccountEntity::class, ["id"], ["accountId"], onDelete = ForeignKey.RESTRICT),
     ],
-    indices = [Index("portfolioId"), Index("assetId"), Index("accountId")],
+    indices = [Index("portfolioId"), Index("assetId"), Index("accountId"), Index("transferGroupId")],
 )
 data class InvestmentOperationEntity(
     @PrimaryKey val id: String,
@@ -162,6 +162,7 @@ data class InvestmentOperationEntity(
     val createdAt: Long,
     val accountId: String?,
     @ColumnInfo(defaultValue = "0") val secondOfDay: Int,
+    val transferGroupId: String? = null,
 )
 
 /** Historial de precios: cada actualización añade una fila; el precio vigente es la de mayor `asOfEpochMillis`. */

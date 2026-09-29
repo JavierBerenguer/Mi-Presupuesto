@@ -22,6 +22,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mipatrimonio.app.R
 import com.mipatrimonio.app.domain.model.AssetType
 import com.mipatrimonio.app.domain.model.MoneyMath
+import com.mipatrimonio.app.domain.model.OperationType
 import com.mipatrimonio.app.domain.usecase.PortfolioValueSeries
 import com.mipatrimonio.app.domain.usecase.PositionRow
 import com.mipatrimonio.app.ui.common.*
@@ -51,8 +52,10 @@ fun InvestmentsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var assetDialog by rememberSaveable { mutableStateOf(false) }
-    var operationDialog by rememberSaveable { mutableStateOf(false) }
+    var operationType by remember { mutableStateOf<OperationType?>(null) }
+    var operationPosition by remember { mutableStateOf<PositionRow?>(null) }
     var priceDialog by rememberSaveable { mutableStateOf(false) }
+    var transferDialog by rememberSaveable { mutableStateOf(false) }
     var menu by rememberSaveable { mutableStateOf(false) }
     var section by rememberSaveable { mutableIntStateOf(0) }
     var range by rememberSaveable { mutableIntStateOf(2) }
@@ -80,6 +83,7 @@ fun InvestmentsScreen(
             else -> PortfolioContent(
                 state, section, range, { section = it }, { range = it }, viewModel::selectPortfolio,
                 { priceDialog = true }, onOpenAssets, { onOpenAssetDetail(it.portfolio.id, it.asset.id) },
+                { row, type -> operationPosition = row; operationType = type },
             )
         }
         if (!state.isLoading) Box(Modifier.align(Alignment.BottomEnd).padding(16.dp)) {
@@ -96,7 +100,11 @@ fun InvestmentsScreen(
                         refreshStatus = if (summary == null) "error" else null
                     }
                 })
-                DropdownMenuItem({ Text(stringResource(R.string.inv_new_operation)) }, { menu = false; operationDialog = true })
+                DropdownMenuItem({ Text(stringResource(R.string.inv_buy)) }, { menu = false; operationPosition = null; operationType = OperationType.COMPRA })
+                DropdownMenuItem({ Text(stringResource(R.string.inv_sell)) }, { menu = false; operationPosition = null; operationType = OperationType.VENTA })
+                DropdownMenuItem({ Text(stringResource(R.string.inv_dividend)) }, { menu = false; operationType = OperationType.DIVIDENDO })
+                DropdownMenuItem({ Text(stringResource(R.string.inv_fee)) }, { menu = false; operationType = OperationType.COMISION })
+                DropdownMenuItem({ Text(stringResource(R.string.inv_transfer)) }, { menu = false; transferDialog = true })
                 DropdownMenuItem({ Text(stringResource(R.string.inv_new_asset)) }, { menu = false; assetDialog = true })
                 DropdownMenuItem({ Text(stringResource(R.string.inv_new_portfolio)) }, { menu = false; onNewPortfolio() })
             }
@@ -146,19 +154,29 @@ fun InvestmentsScreen(
         state.assets, { assetDialog = false },
         { assetDialog = false },
     )
-    if (operationDialog) OperationDialog(
-        operationPortfolios(state.portfolios), state.assets.filterNot { it.archived }, state.accounts, state.selectedPortfolioId, null,
-        { operationDialog = false },
-        { operationDialog = false; onNewPortfolio() },
-        { operationDialog = false; assetDialog = true },
+    if (operationType != null) OperationDialog(
+        operationPortfolios(state.portfolios), state.assets.filterNot { it.archived }, state.accounts,
+        operationPosition?.portfolio?.id ?: state.selectedPortfolioId, operationPosition?.asset?.id,
+        { operationType = null; operationPosition = null },
+        { operationType = null; onNewPortfolio() },
+        { operationType = null; assetDialog = true },
         { portfolio, asset, type, date, quantity, price, fees, account, note, result ->
             viewModel.addOperation(portfolio, asset, type, date, quantity, price, fees, account, note, result)
         },
+        initialType = operationType ?: OperationType.COMPRA,
+        availableQuantity = operationPosition?.valuation?.position?.quantity,
     )
     if (priceDialog) ManualPriceDialog(
         state.assets, state.selectedPositions.singleOrNull()?.asset?.id, { priceDialog = false },
         { priceDialog = false; assetDialog = true },
         { asset, price, result -> viewModel.setManualPrice(asset, price, result) },
+    )
+    if (transferDialog) CryptoTransferDialog(
+        state.portfolios, state.assets, state.operationsByPosition, state.selectedPortfolioId, null,
+        { transferDialog = false },
+        { source, destination, asset, quantity, fee, dateTime, result ->
+            viewModel.saveTransfer(source, destination, asset, quantity, fee, dateTime, onResult = result)
+        },
     )
 }
 
@@ -173,6 +191,7 @@ private fun PortfolioContent(
     onPrice: () -> Unit,
     onAssets: () -> Unit,
     onPosition: (PositionRow) -> Unit,
+    onTrade: (PositionRow, OperationType) -> Unit,
 ) {
     val snapshot = state.snapshot ?: return
     val value = state.totalValueMinor
@@ -265,7 +284,7 @@ private fun PortfolioContent(
             PortfolioSection.POSICIONES -> {
                 if (state.selectedPositions.isEmpty()) item { Text(stringResource(R.string.inv_empty_positions)) }
                 items(state.selectedPositions, key = { "${it.portfolio.id}:${it.asset.id}" }) {
-                    PositionCard(it, state.latestPrices[it.asset.id], state.hideAmounts, onPosition)
+                    PositionCard(it, state.latestPrices[it.asset.id], state.hideAmounts, onPosition, onTrade)
                 }
             }
             PortfolioSection.DISTRIBUCION -> {
@@ -300,6 +319,7 @@ private fun PositionCard(
     price: com.mipatrimonio.app.domain.model.AssetPrice?,
     hidden: Boolean,
     onClick: (PositionRow) -> Unit,
+    onTrade: (PositionRow, OperationType) -> Unit,
 ) {
     SectionCard(Modifier.clickable { onClick(row) }) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -339,6 +359,10 @@ private fun PositionCard(
                     fontWeight = FontWeight.SemiBold,
                 )
             }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton({ onTrade(row, OperationType.COMPRA) }) { Text(stringResource(R.string.inv_buy)) }
+            TextButton({ onTrade(row, OperationType.VENTA) }) { Text(stringResource(R.string.inv_sell)) }
         }
     }
 }

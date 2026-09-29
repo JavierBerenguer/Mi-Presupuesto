@@ -132,6 +132,8 @@ class MovementFiltersTest {
             operation("sell", OperationType.VENTA),
             operation("dividend", OperationType.DIVIDENDO, 19_00),
             operation("fee", OperationType.COMISION),
+            operation("transfer-out", OperationType.TRASPASO_SALIDA),
+            operation("transfer-in", OperationType.TRASPASO_ENTRADA),
             operation("no-account", OperationType.COMPRA, accountId = null),
         )
         val asset = Asset("asset", "Mi activo", "", "", AssetType.ETF, "", "EUR")

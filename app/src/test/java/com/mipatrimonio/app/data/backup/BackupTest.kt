@@ -87,6 +87,9 @@ class BackupTest {
         val portfolio = root.getJSONObject("tables").getJSONArray("portfolio").getJSONObject(0)
         portfolio.remove("archived")
         assertFalse(codec.decode(root.toString().toByteArray()).portfolios.single().archived)
+        val operation = root.getJSONObject("tables").getJSONArray("investment_operation").getJSONObject(0)
+        operation.remove("transferGroupId")
+        assertEquals(null, codec.decode(root.toString().toByteArray()).operations.single().transferGroupId)
         root.put("formatVersion", BACKUP_FORMAT_VERSION + 1)
         assertTrue(runCatching { codec.decode(root.toString().toByteArray()) }.exceptionOrNull() is BackupException.NewerVersion)
         root.put("formatVersion", BACKUP_FORMAT_VERSION).put("dbVersion", BACKUP_DB_VERSION + 1)
@@ -181,7 +184,7 @@ class BackupTest {
         budgetCategories = listOf(BudgetCategoryEntity("bu", "c", true)),
         portfolios = listOf(PortfolioEntity("p", "Cartera", 1, "a", archived = true)),
         assets = listOf(AssetEntity("as", "Índice", "IDX", "ES123", "ETF", "XMAD", "EUR", 1, false, "TWELVE_DATA", "IDX", "XMAD")),
-        operations = listOf(InvestmentOperationEntity("op", "p", "as", "COMPRA", 10, "12345678901234567890.123456789", "0.000000000123456789", Long.MAX_VALUE, "EUR", "Exacto", 1, "a", 86399)),
+        operations = listOf(InvestmentOperationEntity("op", "p", "as", "COMPRA", 10, "12345678901234567890.123456789", "0.000000000123456789", Long.MAX_VALUE, "EUR", "Exacto", 1, "a", 86399, "transfer-group")),
         prices = listOf(AssetPriceEntity("pr", "as", "999999999999999999.0000000000001", "EUR", 9, "TWELVE_DATA", "CIERRE")),
         recurringRules = listOf(RecurringRuleEntity("r", "GASTO", 5, "EUR", "a", null, "c", "Alquiler", "", 10, 1, "MES", null, "EXACTO", null, 9, false, 1, 2)),
         authorizations = listOf(NotificationAuthorizationEntity("com.banco", true, "a", 1, "OFF")),

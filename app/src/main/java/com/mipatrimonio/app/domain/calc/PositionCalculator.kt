@@ -85,7 +85,7 @@ object PositionCalculator {
                 }
                 OperationType.VENTA -> {
                     if (op.quantity > qty) {
-                        throw InvalidOperationException("No se puede vender más de lo que se posee")
+                        throw InvalidOperationException("No se puede vender más de lo disponible (${MoneyMath.formatQuantity(qty)})")
                     }
                     val removedCost = cost.multiply(op.quantity).divide(qty, MoneyMath.CONTEXT)
                     realizedCostBasis = realizedCostBasis.add(removedCost)
@@ -96,6 +96,18 @@ object PositionCalculator {
                 }
                 OperationType.DIVIDENDO -> dividends = dividends.add(gross.subtract(opFees))
                 OperationType.COMISION -> fees = fees.add(gross)
+                OperationType.TRASPASO_SALIDA -> {
+                    if (op.quantity > qty) {
+                        throw InvalidOperationException("No se puede traspasar más de lo disponible (${MoneyMath.formatQuantity(qty)})")
+                    }
+                    val removedCost = cost.multiply(op.quantity).divide(qty, MoneyMath.CONTEXT)
+                    qty = qty.subtract(op.quantity)
+                    cost = if (qty.signum() == 0) ZERO else cost.subtract(removedCost)
+                }
+                OperationType.TRASPASO_ENTRADA -> {
+                    qty = qty.add(op.quantity)
+                    cost = cost.add(gross)
+                }
             }
         }
         return Position(qty, cost, realized, dividends, fees, realizedCostBasis, capitalizedFees)
