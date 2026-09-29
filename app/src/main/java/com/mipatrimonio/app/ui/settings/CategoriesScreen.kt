@@ -27,6 +27,10 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Unarchive
+import androidx.compose.material.icons.outlined.Clear
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -43,11 +47,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
@@ -94,7 +100,13 @@ fun CategoriesScreen(
     var editingCategory by remember { mutableStateOf<Category?>(null) }
     var showCreateDialog by remember { mutableStateOf(false) }
     var categoryToArchive by remember { mutableStateOf<Category?>(null) }
-    val tree = buildTree(state.categories, selectedKind)
+    var query by rememberSaveable { mutableStateOf("") }
+    val tree = buildCategoryDisplayTree(
+        categories = state.categories,
+        kind = selectedKind,
+        expandedCategoryIds = state.expandedCategoryIds,
+        query = query,
+    )
 
     Column(Modifier.fillMaxSize()) {
         TabRow(selectedTabIndex = if (selectedKind == CategoryKind.GASTO) 0 else 1) {
@@ -109,17 +121,41 @@ fun CategoriesScreen(
                 text = { Text(stringResource(R.string.aj_income)) },
             )
         }
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            label = { Text(stringResource(R.string.aj_search_categories)) },
+            leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+            trailingIcon = if (query.isNotEmpty()) {
+                {
+                    IconButton(onClick = { query = "" }) {
+                        Icon(
+                            Icons.Outlined.Clear,
+                            contentDescription = stringResource(R.string.aj_clear_category_search),
+                        )
+                    }
+                }
+            } else {
+                null
+            },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        )
         Box(Modifier.fillMaxSize()) {
             if (tree.isEmpty()) {
                 EmptyState(
                     icon = Icons.Default.Category,
-                    message = stringResource(
-                        if (selectedKind == CategoryKind.GASTO) {
-                            R.string.aj_no_expense_categories
-                        } else {
-                            R.string.aj_no_income_categories
-                        },
-                    ),
+                    message = if (query.isNotBlank()) {
+                        stringResource(R.string.aj_no_categories_found)
+                    } else {
+                        stringResource(
+                            if (selectedKind == CategoryKind.GASTO) {
+                                R.string.aj_no_expense_categories
+                            } else {
+                                R.string.aj_no_income_categories
+                            },
+                        )
+                    },
                     actionLabel = stringResource(R.string.aj_new_category),
                     onAction = {
                         viewModel.clearFormError()
@@ -137,6 +173,11 @@ fun CategoriesScreen(
                             CategoryRow(
                                 category = node.category,
                                 indented = false,
+                                childCount = node.childCount,
+                                expanded = node.isExpanded,
+                                onToggleExpanded = {
+                                    viewModel.toggleCategoryExpanded(node.category.id)
+                                },
                                 onEdit = {
                                     viewModel.clearFormError()
                                     editingCategory = node.category
@@ -239,6 +280,9 @@ fun CategoriesScreen(
 private fun CategoryRow(
     category: Category,
     indented: Boolean,
+    childCount: Int = 0,
+    expanded: Boolean = false,
+    onToggleExpanded: (() -> Unit)? = null,
     onEdit: () -> Unit,
     onArchive: () -> Unit,
     onDelete: () -> Unit,
@@ -262,10 +306,26 @@ private fun CategoryRow(
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(category.name, style = MaterialTheme.typography.titleMedium)
+                    if (childCount > 0) {
+                        Text(
+                            pluralStringResource(R.plurals.aj_subcategory_count, childCount, childCount),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                     if (category.archived) {
                         Text(
                             stringResource(R.string.aj_archived),
                             style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+                if (childCount > 0 && onToggleExpanded != null) {
+                    IconButton(onClick = onToggleExpanded) {
+                        Icon(
+                            if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                            contentDescription = stringResource(
+                                if (expanded) R.string.mov_collapse_category else R.string.mov_expand_category,
+                            ),
                         )
                     }
                 }

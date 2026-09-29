@@ -70,6 +70,53 @@ class CategoriesViewModelTest {
     }
 
     @Test
+    fun `las categorias empiezan plegadas y se pueden desplegar y volver a plegar`() = runTest {
+        ledger.saveCategory(category("parent"))
+        ledger.saveCategory(category("child", parentId = "parent"))
+        val viewModel = readyViewModel()
+
+        assertTrue(viewModel.uiState.first { !it.isLoading }.expandedCategoryIds.isEmpty())
+
+        viewModel.toggleCategoryExpanded("parent")
+        assertEquals(
+            setOf("parent"),
+            viewModel.uiState.first { "parent" in it.expandedCategoryIds }.expandedCategoryIds,
+        )
+
+        viewModel.toggleCategoryExpanded("parent")
+        assertTrue(viewModel.uiState.first { "parent" !in it.expandedCategoryIds }.expandedCategoryIds.isEmpty())
+    }
+
+    @Test
+    fun `editar una categoria conserva su estado desplegado`() = runTest {
+        val parent = category("parent")
+        ledger.saveCategory(parent)
+        val viewModel = readyViewModel()
+        viewModel.toggleCategoryExpanded(parent.id)
+
+        viewModel.saveCategory(parent, parent.kind, "Nombre nuevo", null, parent.colorArgb) {}
+
+        val state = viewModel.uiState.first { uiState ->
+            uiState.categories.any { it.id == parent.id && it.name == "Nombre nuevo" }
+        }
+        assertTrue(parent.id in state.expandedCategoryIds)
+    }
+
+    @Test
+    fun `crear una subcategoria deja desplegada su categoria principal`() = runTest {
+        val parent = category("parent")
+        ledger.saveCategory(parent)
+        val viewModel = readyViewModel()
+
+        viewModel.saveCategory(null, CategoryKind.GASTO, "Hija", parent.id, 2L) {}
+
+        val state = viewModel.uiState.first { uiState ->
+            uiState.categories.any { it.parentId == parent.id && it.name == "Hija" }
+        }
+        assertTrue(parent.id in state.expandedCategoryIds)
+    }
+
+    @Test
     fun `categoria usada exige seleccionar incluso sin categoria`() = runTest {
         ledger.saveAccount(Account("account", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
         ledger.saveCategory(category("used"))

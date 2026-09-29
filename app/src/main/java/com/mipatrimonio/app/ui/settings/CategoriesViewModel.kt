@@ -23,6 +23,7 @@ sealed interface CategoryFormError {
 data class CategoriesUiState(
     val isLoading: Boolean = true,
     val categories: List<Category> = emptyList(),
+    val expandedCategoryIds: Set<String> = emptySet(),
     val formError: CategoryFormError? = null,
     val deletion: CategoryDeletionState? = null,
 )
@@ -42,15 +43,18 @@ class CategoriesViewModel(
 ) : ViewModel() {
     private val formError = MutableStateFlow<CategoryFormError?>(null)
     private val deletion = MutableStateFlow<CategoryDeletionState?>(null)
+    private val expandedCategoryIds = MutableStateFlow<Set<String>>(emptySet())
 
     val uiState: StateFlow<CategoriesUiState> = combine(
         repository.categories,
         formError,
         deletion,
-    ) { categories, error, deletionState ->
+        expandedCategoryIds,
+    ) { categories, error, deletionState, expandedIds ->
         CategoriesUiState(
             isLoading = false,
             categories = categories,
+            expandedCategoryIds = expandedIds,
             formError = error,
             deletion = deletionState,
         )
@@ -62,6 +66,14 @@ class CategoriesViewModel(
 
     fun clearFormError() {
         formError.value = null
+    }
+
+    fun toggleCategoryExpanded(categoryId: String) {
+        expandedCategoryIds.value = if (categoryId in expandedCategoryIds.value) {
+            expandedCategoryIds.value - categoryId
+        } else {
+            expandedCategoryIds.value + categoryId
+        }
     }
 
     fun saveCategory(
@@ -92,6 +104,9 @@ class CategoriesViewModel(
         viewModelScope.launch {
             runCatching { repository.saveCategory(category) }
                 .onSuccess {
+                    parentId?.let { parent ->
+                        expandedCategoryIds.value = expandedCategoryIds.value + parent
+                    }
                     formError.value = null
                     onSaved()
                 }

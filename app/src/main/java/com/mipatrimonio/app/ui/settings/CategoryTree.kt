@@ -8,6 +8,13 @@ data class CategoryNode(
     val children: List<Category>,
 )
 
+data class CategoryDisplayNode(
+    val category: Category,
+    val children: List<Category>,
+    val childCount: Int,
+    val isExpanded: Boolean,
+)
+
 data class CategoryDeleteTarget(
     val category: Category,
     val label: String,
@@ -28,6 +35,35 @@ fun buildTree(categories: List<Category>, kind: CategoryKind): List<CategoryNode
             children = filtered
                 .filter { it.id !in rootIds && it.parentId == root.id }
                 .sortedBy(Category::archived),
+        )
+    }
+}
+
+fun buildCategoryDisplayTree(
+    categories: List<Category>,
+    kind: CategoryKind,
+    expandedCategoryIds: Set<String>,
+    query: String = "",
+): List<CategoryDisplayNode> {
+    val normalizedQuery = query.trim()
+    return buildTree(categories, kind).mapNotNull { node ->
+        val matchingChildren = if (normalizedQuery.isBlank() || node.category.name.contains(normalizedQuery, true)) {
+            node.children
+        } else {
+            node.children.filter { it.name.contains(normalizedQuery, true) }
+        }
+        val matches = normalizedQuery.isBlank() ||
+            node.category.name.contains(normalizedQuery, true) ||
+            matchingChildren.isNotEmpty()
+        if (!matches) return@mapNotNull null
+
+        val isExpanded = node.children.isNotEmpty() &&
+            (normalizedQuery.isNotBlank() || node.category.id in expandedCategoryIds)
+        CategoryDisplayNode(
+            category = node.category,
+            children = if (isExpanded) matchingChildren else emptyList(),
+            childCount = node.children.size,
+            isExpanded = isExpanded,
         )
     }
 }

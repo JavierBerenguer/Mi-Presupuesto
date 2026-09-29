@@ -49,6 +49,47 @@ class CategoryTreeTest {
     }
 
     @Test
+    fun `el arbol visible empieza plegado`() {
+        val categories = listOf(category("padre"), category("hija", parentId = "padre"))
+
+        val tree = buildCategoryDisplayTree(categories, CategoryKind.GASTO, emptySet())
+
+        assertFalse(tree.single().isExpanded)
+        assertEquals(1, tree.single().childCount)
+        assertTrue(tree.single().children.isEmpty())
+    }
+
+    @Test
+    fun `el arbol visible muestra los hijos de una categoria desplegada`() {
+        val categories = listOf(category("padre"), category("hija", parentId = "padre"))
+
+        val tree = buildCategoryDisplayTree(categories, CategoryKind.GASTO, setOf("padre"))
+
+        assertTrue(tree.single().isExpanded)
+        assertEquals(listOf("hija"), tree.single().children.map { it.id })
+    }
+
+    @Test
+    fun `la busqueda despliega el padre de una subcategoria coincidente`() {
+        val categories = listOf(
+            category("alimentacion"),
+            category("supermercado", parentId = "alimentacion"),
+            category("transporte"),
+        )
+
+        val tree = buildCategoryDisplayTree(
+            categories = categories,
+            kind = CategoryKind.GASTO,
+            expandedCategoryIds = emptySet(),
+            query = "mercado",
+        )
+
+        assertEquals(listOf("alimentacion"), tree.map { it.category.id })
+        assertTrue(tree.single().isExpanded)
+        assertEquals(listOf("supermercado"), tree.single().children.map { it.id })
+    }
+
+    @Test
     fun `no permite usar la propia categoria como padre`() {
         val categories = listOf(category("categoria"))
 

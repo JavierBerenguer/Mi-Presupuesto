@@ -42,6 +42,13 @@
     <string name="aj_no_expense_categories">Todavía no hay categorías de gastos.</string>
     <string name="aj_no_income_categories">Todavía no hay categorías de ingresos.</string>
     <string name="aj_new_category">Nueva categoría</string>
+    <string name="aj_search_categories">Buscar categorías</string>
+    <string name="aj_clear_category_search">Borrar búsqueda de categorías</string>
+    <string name="aj_no_categories_found">No se han encontrado categorías.</string>
+    <plurals name="aj_subcategory_count">
+        <item quantity="one">%1$d subcategoría</item>
+        <item quantity="other">%1$d subcategorías</item>
+    </plurals>
     <string name="aj_archived">Archivada</string>
     <string name="aj_edit_category">Editar la categoría %1$s</string>
     <string name="aj_archive_category">Archivar la categoría %1$s</string>
