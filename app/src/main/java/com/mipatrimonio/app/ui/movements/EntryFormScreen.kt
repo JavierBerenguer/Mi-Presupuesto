@@ -89,7 +89,9 @@ fun EntryFormScreen(
     onDone: () -> Unit,
     onOpenAccounts: () -> Unit,
     onOpenCategories: () -> Unit,
-    viewModel: EntryFormViewModel = appViewModel { container -> EntryFormViewModel(container.ledger, entryId) },
+    viewModel: EntryFormViewModel = appViewModel { container ->
+        EntryFormViewModel(container.ledger, entryId, notifications = container.notifications)
+    },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showCategoryPicker by rememberSaveable { mutableStateOf(false) }
@@ -383,6 +385,20 @@ private fun EntryFormContent(
                             onValueChange = viewModel::setMerchant,
                         )
                     }
+                }
+            }
+        }
+        state.originalNotification?.let { original ->
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+            ) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(stringResource(R.string.auto_original_notification), fontWeight = FontWeight.Bold)
+                    Text(original.text)
+                    original.structureName?.let { Text(stringResource(R.string.auto_applied_structure, it)) }
+                    original.ruleName?.let { Text(stringResource(R.string.auto_applied_rule, it)) }
                 }
             }
         }

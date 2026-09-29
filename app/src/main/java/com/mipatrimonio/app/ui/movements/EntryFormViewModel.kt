@@ -3,6 +3,7 @@ package com.mipatrimonio.app.ui.movements
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mipatrimonio.app.data.repository.LedgerRepository
+import com.mipatrimonio.app.data.repository.NotificationRepository
 import com.mipatrimonio.app.domain.calc.BalanceCalculator
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Category
@@ -51,6 +52,12 @@ enum class EntryFormError {
 
 enum class EntrySavedEvent { CLOSE, ADD_ANOTHER }
 
+data class OriginalNotificationUi(
+    val text: String,
+    val structureName: String?,
+    val ruleName: String?,
+)
+
 data class EntryFormUiState(
     val isLoading: Boolean = true,
     val isEditing: Boolean = false,
@@ -63,6 +70,7 @@ data class EntryFormUiState(
     val isDirty: Boolean = false,
     val error: EntryFormError? = null,
     val saveFailed: Boolean = false,
+    val originalNotification: OriginalNotificationUi? = null,
 ) {
     val activeAccounts: List<Account> get() = accounts.filterNot(Account::archived)
     val selectedAccount: Account? get() = accounts.find { it.id == values.accountId }
@@ -98,6 +106,7 @@ class EntryFormViewModel(
     private val entryId: String?,
     private val today: () -> LocalDate = LocalDate::now,
     private val clock: () -> Long = System::currentTimeMillis,
+    private val notifications: NotificationRepository? = null,
 ) : ViewModel() {
     private data class SourceData(
         val accounts: List<Account>,
@@ -121,6 +130,7 @@ class EntryFormViewModel(
     private val isSaving = MutableStateFlow(false)
     private val formError = MutableStateFlow<EntryFormError?>(null)
     private val saveFailed = MutableStateFlow(false)
+    private val originalNotificationState = MutableStateFlow<OriginalNotificationUi?>(null)
     private var originalTransaction: Transaction? = null
     private var originalTransfer: Transfer? = null
 
@@ -136,6 +146,16 @@ class EntryFormViewModel(
             } else {
                 null
             }
+            originalTransaction?.let { transaction ->
+                val notificationRepository = notifications
+                runCatching {
+                    notificationRepository?.recordForTransaction(transaction.id)?.let { record ->
+                        val structure = notificationRepository.structures.first().find { it.id == record.structureId }
+                        val rule = structure?.let { value -> notificationRepository.rules(value.id).first().find { it.id == record.ruleId } }
+                        OriginalNotificationUi(record.text, structure?.name, rule?.variableDisplay)
+                    }
+                }.getOrNull()?.let { originalNotificationState.value = it }
+            }
             val initial = originalTransaction?.toFormValues()
                 ?: originalTransfer?.toFormValues(data.accounts)
                 ?: newEntryValues(data)
@@ -150,10 +170,12 @@ class EntryFormViewModel(
         values,
         initialValues,
         initialized,
-        combine(isSaving, formError, saveFailed) { saving, validation, failed ->
-            Triple(saving, validation, failed)
+        combine(originalNotificationState, isSaving, formError, saveFailed) { original, saving, validation, failed ->
+            original to Triple(saving, validation, failed)
         },
-    ) { data, currentValues, initial, isInitialized, status ->
+    ) { data, currentValues, initial, isInitialized, presentation ->
+        val originalNotification = presentation.first
+        val status = presentation.second
         EntryFormUiState(
             isLoading = data == null || currentValues == null || !isInitialized,
             isEditing = entryId != null,
@@ -171,6 +193,7 @@ class EntryFormViewModel(
             isDirty = currentValues != null && initial != null && currentValues != initial,
             error = status.second,
             saveFailed = status.third,
+            originalNotification = originalNotification,
         )
     }.stateIn(
         scope = viewModelScope,

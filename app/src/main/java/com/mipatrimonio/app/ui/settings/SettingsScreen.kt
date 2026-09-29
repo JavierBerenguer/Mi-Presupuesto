@@ -43,7 +43,7 @@ import com.mipatrimonio.app.ui.navigation.SecondaryMenuDestination
 @Composable
 fun SettingsScreen(
     onNavigate: (String) -> Unit,
-    viewModel: SettingsViewModel = appViewModel { c -> SettingsViewModel(c.settings, c.quoteSecrets) },
+    viewModel: SettingsViewModel = appViewModel { c -> SettingsViewModel(c.settings, c.quoteSecrets, c.notifications) },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     if (state.isLoading) {
@@ -69,13 +69,15 @@ fun SettingsScreen(
     ) {
         item {
             SectionCard(title = stringResource(R.string.aj_bank_automation)) {
-                SecondaryMenuDestination.at(MenuLocation.AJUSTES).forEach { destination ->
-                    SettingsNavigationRow(
-                        label = stringResource(destination.title),
-                        icon = { Icon(destination.icon, contentDescription = null) },
-                        onClick = { onNavigate(destination.route) },
-                    )
-                }
+                SecondaryMenuDestination.at(MenuLocation.AJUSTES)
+                    .filterNot { it == SecondaryMenuDestination.PROPUESTAS && !state.showLegacyPendingProposals }
+                    .forEach { destination ->
+                        SettingsNavigationRow(
+                            label = stringResource(destination.title),
+                            icon = { Icon(destination.icon, contentDescription = null) },
+                            onClick = { onNavigate(destination.route) },
+                        )
+                    }
             }
         }
         item {

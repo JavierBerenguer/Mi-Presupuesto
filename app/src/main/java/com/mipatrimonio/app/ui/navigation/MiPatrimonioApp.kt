@@ -42,6 +42,9 @@ import com.mipatrimonio.app.ui.recurring.RecurringListScreen
 import com.mipatrimonio.app.ui.backup.BackupScreen
 import com.mipatrimonio.app.ui.importer.TradeRepublicImportScreen
 import com.mipatrimonio.app.ui.portfolios.PortfoliosScreen
+import com.mipatrimonio.app.ui.automation.AutomationScreen
+import com.mipatrimonio.app.ui.automation.ConfigureRuleScreen
+import com.mipatrimonio.app.ui.automation.TeachStructureScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,6 +95,9 @@ private fun titleFor(route: String?, destino: Destino?): Int = when {
     route == Rutas.CATEGORIAS -> R.string.nav_categorias
     route == Rutas.NOTIFICACIONES -> R.string.notif_settings_title
     route == Rutas.PROPUESTAS -> R.string.notif_proposals_title
+    route == Rutas.AUTOMATIZACION_NOTIFICACIONES -> R.string.auto_title
+    route == Rutas.ENSENAR_NOTIFICACION -> R.string.auto_teach
+    route == Rutas.CONFIGURAR_REGLA -> R.string.auto_configure_merchant
     route == Rutas.DIAGNOSTICO_NOTIFICACIONES -> R.string.notif_diagnostics_title
     route == Rutas.PATRIMONIO -> R.string.nav_patrimonio
     route == Rutas.AJUSTES -> R.string.nav_ajustes
@@ -168,6 +174,19 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
         }
         composable(Rutas.DIAGNOSTICO_NOTIFICACIONES) { NotificationDiagnosticsScreen() }
         composable(Rutas.PROPUESTAS) { PendingProposalsScreen() }
+        composable(Rutas.AUTOMATIZACION_NOTIFICACIONES) {
+            AutomationScreen(
+                onTeach = { navController.navigate(Rutas.ensenarNotificacion(it)) },
+                onConfigureRule = { navController.navigate(Rutas.configurarRegla(it)) },
+                onOpenNotificationSettings = { navController.navigate(Rutas.NOTIFICACIONES) },
+            )
+        }
+        composable(Rutas.ENSENAR_NOTIFICACION, idArg) { entry ->
+            TeachStructureScreen(entry.arguments?.getString("id").orEmpty(), onDone = { navController.popBackStack() })
+        }
+        composable(Rutas.CONFIGURAR_REGLA, idArg) { entry ->
+            ConfigureRuleScreen(entry.arguments?.getString("id").orEmpty(), onDone = { navController.popBackStack() })
+        }
         composable(Rutas.RECURRENTES) {
             RecurringListScreen(
                 onNew = { navController.navigate(Rutas.recurrente(null)) },

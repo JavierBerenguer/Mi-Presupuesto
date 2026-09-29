@@ -2,6 +2,7 @@
 <resources>
     <string name="aj_bank_notifications">Notificaciones bancarias</string>
     <string name="aj_pending_proposals">Propuestas pendientes</string>
+    <string name="aj_notification_automation">Automatización de notificaciones</string>
     <string name="aj_bank_automation">Automatización bancaria</string>
     <string name="aj_preferences">Preferencias</string>
     <string name="aj_dark_mode">Modo oscuro</string>

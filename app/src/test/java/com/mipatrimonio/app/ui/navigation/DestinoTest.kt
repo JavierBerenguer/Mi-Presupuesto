@@ -45,7 +45,7 @@ class DestinoTest {
     @Test
     fun `ajustes contiene solo los destinos de configuracion bancaria`() {
         assertEquals(
-            listOf(Rutas.NOTIFICACIONES, Rutas.PROPUESTAS),
+            listOf(Rutas.NOTIFICACIONES, Rutas.AUTOMATIZACION_NOTIFICACIONES, Rutas.PROPUESTAS),
             SecondaryMenuDestination.at(MenuLocation.AJUSTES).map { it.route },
         )
     }

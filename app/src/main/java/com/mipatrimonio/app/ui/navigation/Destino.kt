@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.mipatrimonio.app.R
 
@@ -45,6 +46,9 @@ object Rutas {
     const val CATEGORIAS = "categorias"
     const val NOTIFICACIONES = "notificaciones"
     const val PROPUESTAS = "propuestas"
+    const val AUTOMATIZACION_NOTIFICACIONES = "automatizacion-notificaciones"
+    const val ENSENAR_NOTIFICACION = "automatizacion-notificaciones/ensenar/{id}"
+    const val CONFIGURAR_REGLA = "automatizacion-notificaciones/regla/{id}"
     const val PATRIMONIO = "patrimonio"
     const val AJUSTES = "ajustes"
     const val DIAGNOSTICO_NOTIFICACIONES = "diagnostico-notificaciones"
@@ -58,6 +62,8 @@ object Rutas {
     fun apunte(id: String?) = "apunte/${id ?: NUEVO}"
     fun recurrente(id: String?) = "orden-permanente/${id ?: NUEVO}"
     fun activo(portfolioId: String, assetId: String) = "activo/$portfolioId/$assetId"
+    fun ensenarNotificacion(id: String) = "automatizacion-notificaciones/ensenar/$id"
+    fun configurarRegla(id: String) = "automatizacion-notificaciones/regla/$id"
 }
 
 enum class MenuLocation { MAS, AJUSTES }
@@ -77,6 +83,7 @@ enum class SecondaryMenuDestination(
     COPIAS(Rutas.COPIAS, R.string.more_import_export, Icons.Filled.ImportExport, MenuLocation.MAS),
     AJUSTES(Rutas.AJUSTES, R.string.nav_ajustes, Icons.Filled.Settings, MenuLocation.MAS),
     NOTIFICACIONES(Rutas.NOTIFICACIONES, R.string.aj_bank_notifications, Icons.Filled.Notifications, MenuLocation.AJUSTES),
+    AUTOMATIZACION(Rutas.AUTOMATIZACION_NOTIFICACIONES, R.string.aj_notification_automation, Icons.Filled.Tune, MenuLocation.AJUSTES),
     PROPUESTAS(Rutas.PROPUESTAS, R.string.aj_pending_proposals, Icons.Filled.Schedule, MenuLocation.AJUSTES),
     ;
 
