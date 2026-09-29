@@ -2,7 +2,7 @@
 
 Leyenda: ✅ completado y verificado · 🔄 en curso · ⏳ pendiente
 
-Última revisión: 2026-09-28 (rama `claude/fase-3-mvp`, Room v11, 460 tests).
+Última revisión: 2026-09-28 (rama `claude/fase-3-mvp`, Room v13, 486 tests).
 
 | Fase | Contenido | Estado |
 |---|---|---|
