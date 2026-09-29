@@ -6,12 +6,19 @@ import androidx.test.core.app.ApplicationProvider
 import com.mipatrimonio.app.data.db.AppDatabase
 import com.mipatrimonio.app.data.repository.InvestmentRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
+import com.mipatrimonio.app.data.quotes.CoinGeckoSearchService
+import com.mipatrimonio.app.data.quotes.EodhdSearchService
+import com.mipatrimonio.app.data.quotes.HttpClient
+import com.mipatrimonio.app.data.quotes.HttpResponse
+import com.mipatrimonio.app.data.quotes.InMemorySecretStore
+import com.mipatrimonio.app.data.quotes.SecretStore
 import com.mipatrimonio.app.testutil.SettingsStoreRule
 import com.mipatrimonio.app.domain.model.Asset
 import com.mipatrimonio.app.domain.model.AssetType
 import com.mipatrimonio.app.domain.model.InvestmentOperation
 import com.mipatrimonio.app.domain.model.OperationType
 import com.mipatrimonio.app.domain.model.Portfolio
+import com.mipatrimonio.app.domain.model.QuoteProvider
 import java.math.BigDecimal
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
@@ -133,6 +140,40 @@ class AssetsViewModelTest {
             investments.saveAsset(asset().copy(id = "e", isin = "US0378331005", quoteMic = null))
         }.exceptionOrNull()
         assertTrue(duplicateWithoutMic is IllegalArgumentException)
+    }
+
+    @Test fun `propone por isin y nombre y solo guarda activos confirmados`() = runTest {
+        investments.saveAsset(asset().copy(isin = "IE00B4L5Y983"))
+        investments.saveAsset(Asset("btc", "Bitcoin", "BTC", "", AssetType.CRIPTO, "", "EUR"))
+        val secrets = InMemorySecretStore().apply { put(SecretStore.EODHD_KEY, "secret") }
+        val http = HttpClient { url, _ ->
+            when {
+                "/api/search/" in url -> HttpResponse(200, """[
+                    {"Code":"IWDA","Exchange":"LSE","Name":"ETF GBP","Type":"ETF","Country":"UK","Currency":"GBP","ISIN":"IE00B4L5Y983","isPrimary":true},
+                    {"Code":"EUNL","Exchange":"XETRA","Name":"ETF EUR","Type":"ETF","Country":"Germany","Currency":"EUR","ISIN":"IE00B4L5Y983","isPrimary":false}
+                ]""")
+                "query=Bitcoin" in url -> HttpResponse(200, """{"coins":[
+                    {"id":"wrapped-bitcoin","name":"Wrapped Bitcoin","symbol":"wbtc","market_cap_rank":15},
+                    {"id":"bitcoin","name":"Bitcoin","symbol":"btc","market_cap_rank":1}
+                ]}""")
+                else -> error("URL inesperada")
+            }
+        }
+        val viewModel = AssetsViewModel(
+            investments, settings, EodhdSearchService(http, secrets),
+            CoinGeckoSearchService(http, secrets), secrets,
+        )
+        viewModel.openQuoteConfiguration()
+        assertEquals(1, viewModel.uiState.first { it.quoteConfiguration.visible }.quoteConfiguration.eodhdCalls)
+        viewModel.findQuoteConfigurations()
+        val proposals = viewModel.uiState.first { it.quoteConfiguration.proposals.size == 2 }.quoteConfiguration.proposals
+        assertEquals("EUNL.XETRA", proposals.first { it.asset.id == "as1" }.symbol)
+        assertEquals("bitcoin", proposals.first { it.asset.id == "btc" }.symbol)
+        viewModel.setProposalAccepted("btc", false)
+        viewModel.saveQuoteConfigurations {}
+        val saved = investments.assets.first { assets -> assets.any { it.id == "as1" && it.quoteProvider != null } }
+        assertEquals(QuoteProvider.EODHD, saved.first { it.id == "as1" }.quoteProvider)
+        assertEquals(null, saved.first { it.id == "btc" }.quoteProvider)
     }
 
     private suspend fun seedOperation() {

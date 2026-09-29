@@ -4,6 +4,7 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 
 data class HttpResponse(val status: Int, val body: String)
@@ -25,9 +26,11 @@ class UrlConnectionHttpClient : HttpClient {
         request(url, "POST", headers, body)
 
     private suspend fun request(url: String, method: String, headers: Map<String, String>, body: String?) = withContext(Dispatchers.IO) {
-        val target = URL(url)
+        val target = try { URL(url) } catch (_: Exception) { throw IOException(NETWORK_ERROR) }
         require(target.protocol == "https" && target.host in ALLOWED_HOSTS) { "Destino HTTPS no permitido" }
-        val connection = target.openConnection() as HttpURLConnection
+        val connection = try { target.openConnection() as HttpURLConnection } catch (_: Exception) {
+            throw IOException(NETWORK_ERROR)
+        }
         try {
             connection.requestMethod = method
             connection.connectTimeout = 15_000
@@ -37,15 +40,24 @@ class UrlConnectionHttpClient : HttpClient {
                 connection.doOutput = true
                 connection.outputStream.bufferedWriter(Charsets.UTF_8).use { it.write(body) }
             }
-            val status = connection.responseCode
-            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-            HttpResponse(status, stream?.bufferedReader()?.use { it.readText() }.orEmpty())
+            try {
+                val status = connection.responseCode
+                val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                HttpResponse(status, stream?.bufferedReader()?.use { it.readText() }.orEmpty())
+            } catch (_: IOException) {
+                throw IOException(NETWORK_ERROR)
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            throw IOException(NETWORK_ERROR)
         } finally {
             connection.disconnect()
         }
     }
 
     private companion object {
-        val ALLOWED_HOSTS = setOf("api.openfigi.com", "api.coingecko.com", "api.twelvedata.com")
+        const val NETWORK_ERROR = "Error de red"
+        val ALLOWED_HOSTS = setOf("api.openfigi.com", "api.coingecko.com", "api.twelvedata.com", "eodhd.com")
     }
 }

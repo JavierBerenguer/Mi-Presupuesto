@@ -53,6 +53,18 @@ data class OpenFigiListing(
 }
 
 data class CryptoSearchItem(val id: String, val name: String, val symbol: String, val marketCapRank: Int?)
+data class EodhdListing(
+    val code: String,
+    val exchange: String,
+    val name: String,
+    val type: String,
+    val country: String,
+    val currency: String,
+    val isin: String,
+    val isPrimary: Boolean,
+) {
+    val symbol: String get() = "$code.$exchange"
+}
 data class DiscoveredQuote(
     val currency: String,
     val price: BigDecimal,
@@ -100,6 +112,76 @@ fun sortOpenFigiListings(items: List<OpenFigiListing>): List<OpenFigiListing> = 
         .thenBy { it.marketInfo.name }
         .thenBy { it.ticker },
 )
+
+fun assetTypeFor(listing: EodhdListing): AssetType? = when {
+    listing.type.contains("ETF", ignoreCase = true) -> AssetType.ETF
+    listing.type.contains("Fund", ignoreCase = true) -> AssetType.FONDO_INVERSION
+    listing.type.contains("Stock", ignoreCase = true) || listing.type.contains("Common", ignoreCase = true) -> AssetType.ACCION
+    else -> null
+}
+
+fun selectEodhdListing(items: List<EodhdListing>, currency: String): EodhdListing? = items
+    .filter { it.currency.equals(currency, ignoreCase = true) }
+    .minWithOrNull(
+        compareBy<EodhdListing> { if (it.isPrimary) 0 else 1 }
+            .thenBy { exchangePriority(it.exchange) }
+            .thenBy { it.exchange }
+            .thenBy { it.code },
+    )
+
+fun bestCryptoResult(items: List<CryptoSearchItem>): CryptoSearchItem? = items.minWithOrNull(
+    compareBy<CryptoSearchItem> { it.marketCapRank ?: Int.MAX_VALUE }.thenBy { it.name },
+)
+
+private fun exchangePriority(exchange: String): Int = when (exchange.uppercase()) {
+    "XETRA" -> 0
+    "F" -> 1
+    in EUROPEAN_EODHD_EXCHANGES -> 2
+    "US" -> 4
+    else -> 3
+}
+
+private val EUROPEAN_EODHD_EXCHANGES = setOf(
+    "LSE", "PA", "AS", "BR", "MI", "MC", "SW", "VI", "ST", "CO", "HE", "OL", "LS", "IR", "WA", "PR",
+)
+
+class EodhdSearchService(private val http: HttpClient, private val secrets: SecretStore) {
+    suspend fun isConfigured(): Boolean = secrets.isConfigured(SecretStore.EODHD_KEY)
+
+    suspend fun search(query: String, limit: Int = 20): LookupResult<List<EodhdListing>> {
+        val key = secrets.get(SecretStore.EODHD_KEY)?.takeIf(String::isNotBlank)
+            ?: return LookupResult.Failure(LookupFailure.CLAVE_INVALIDA)
+        val url = "https://eodhd.com/api/search/${query.trim().encoded()}?api_token=${key.encoded()}&fmt=json&limit=${limit.coerceIn(1, 50)}"
+        return try {
+            parse(http.get(url, emptyMap()))
+        } catch (_: IOException) {
+            LookupResult.Failure(LookupFailure.SIN_CONEXION)
+        }
+    }
+
+    internal fun parse(response: HttpResponse): LookupResult<List<EodhdListing>> {
+        if (response.status == 401 || response.status == 403) return LookupResult.Failure(LookupFailure.CLAVE_INVALIDA)
+        if (response.status == 402 || response.status == 429) return LookupResult.Failure(LookupFailure.LIMITE_ALCANZADO)
+        if (response.status !in 200..299) return LookupResult.Failure(LookupFailure.RESPUESTA_INVALIDA)
+        return try {
+            val array = JSONArray(response.body)
+            val items = (0 until array.length()).map { index ->
+                val item = array.getJSONObject(index)
+                EodhdListing(
+                    code = item.getString("Code"), exchange = item.getString("Exchange"),
+                    name = item.getString("Name"), type = item.optString("Type"),
+                    country = item.optString("Country"), currency = item.getString("Currency").uppercase(),
+                    isin = item.optString("ISIN"), isPrimary = item.optBoolean("isPrimary", false),
+                )
+            }.filter { it.code.isNotBlank() && it.exchange.isNotBlank() && it.currency.isNotBlank() }
+            if (items.isEmpty()) LookupResult.Failure(LookupFailure.NO_ENCONTRADO) else LookupResult.Success(items)
+        } catch (_: Exception) {
+            LookupResult.Failure(LookupFailure.RESPUESTA_INVALIDA)
+        }
+    }
+
+    private fun String.encoded() = URLEncoder.encode(this, Charsets.UTF_8.name())
+}
 
 class OpenFigiService(private val http: HttpClient, private val secrets: SecretStore) {
     suspend fun search(isin: String): LookupResult<List<OpenFigiListing>> {

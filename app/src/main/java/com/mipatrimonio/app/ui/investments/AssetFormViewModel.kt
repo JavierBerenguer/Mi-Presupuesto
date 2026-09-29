@@ -5,11 +5,14 @@ import androidx.lifecycle.viewModelScope
 import com.mipatrimonio.app.data.quotes.CoinGeckoSearchService
 import com.mipatrimonio.app.data.quotes.CryptoSearchItem
 import com.mipatrimonio.app.data.quotes.DiscoveredQuote
+import com.mipatrimonio.app.data.quotes.EodhdListing
+import com.mipatrimonio.app.data.quotes.EodhdSearchService
 import com.mipatrimonio.app.data.quotes.LookupFailure
 import com.mipatrimonio.app.data.quotes.LookupResult
 import com.mipatrimonio.app.data.quotes.OpenFigiListing
 import com.mipatrimonio.app.data.quotes.OpenFigiService
 import com.mipatrimonio.app.data.quotes.TwelveDataAssetService
+import com.mipatrimonio.app.data.quotes.SecretStore
 import com.mipatrimonio.app.data.quotes.assetTypeFor
 import com.mipatrimonio.app.data.quotes.isValidIsin
 import com.mipatrimonio.app.data.quotes.normalizeIsin
@@ -43,6 +46,7 @@ data class AssetFormState(
     val quoteSymbol: String = "",
     val quoteMic: String = "",
     val listings: List<OpenFigiListing> = emptyList(),
+    val eodhdListings: List<EodhdListing> = emptyList(),
     val cryptoResults: List<CryptoSearchItem> = emptyList(),
     val cryptoQuery: String = "",
     val providerQuote: DiscoveredQuote? = null,
@@ -59,6 +63,8 @@ class AssetFormViewModel(
     private val openFigi: OpenFigiService,
     private val coinGecko: CoinGeckoSearchService,
     private val twelveData: TwelveDataAssetService,
+    private val eodhd: EodhdSearchService,
+    private val secrets: SecretStore,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(AssetFormState())
     private var lookupJob: Job? = null
@@ -89,7 +95,9 @@ class AssetFormViewModel(
     fun setType(value: AssetType) = update {
         copy(
             type = value,
-            quoteProvider = if (value == AssetType.CRIPTO) QuoteProvider.COINGECKO else quoteProvider.takeIf { value == AssetType.ACCION || value == AssetType.ETF },
+            quoteProvider = if (value == AssetType.CRIPTO) QuoteProvider.COINGECKO else quoteProvider.takeIf {
+                value in setOf(AssetType.ACCION, AssetType.ETF, AssetType.FONDO_INDEXADO, AssetType.FONDO_INVERSION)
+            },
             isin = if (value == AssetType.CRIPTO) "" else isin,
             currency = if (value == AssetType.CRIPTO) baseCurrency else currency,
             listings = if (value == AssetType.CRIPTO) emptyList() else listings,
@@ -110,13 +118,47 @@ class AssetFormViewModel(
             return
         }
         lookupJob = viewModelScope.launch {
-            update { copy(isin = normalized, loading = true, notice = null, failure = null, listings = emptyList()) }
-            when (val result = openFigi.search(normalized)) {
+            update { copy(isin = normalized, loading = true, notice = null, failure = null, listings = emptyList(), eodhdListings = emptyList()) }
+            val result = if (eodhd.isConfigured()) eodhd.search(normalized) else null
+            if (result != null) when (result) {
                 is LookupResult.Failure -> update { copy(loading = false, failure = result.reason) }
                 is LookupResult.Success -> {
-                    if (result.value.size == 1) selectListing(result.value.single())
-                    else update { copy(loading = false, listings = result.value) }
+                    val compatible = result.value.filter { it.currency.equals(mutableState.value.currency, true) }
+                    if (compatible.isEmpty()) update { copy(loading = false, failure = LookupFailure.NO_ENCONTRADO) }
+                    else if (compatible.size == 1) selectEodhdListing(compatible.single())
+                    else update { copy(loading = false, eodhdListings = compatible) }
                 }
+            } else when (val fallback = openFigi.search(normalized)) {
+                is LookupResult.Failure -> update { copy(loading = false, failure = fallback.reason) }
+                is LookupResult.Success -> {
+                    if (fallback.value.size == 1) selectListing(fallback.value.single())
+                    else update { copy(loading = false, listings = fallback.value) }
+                }
+            }
+        }
+    }
+
+    fun selectEodhdListing(listing: EodhdListing) {
+        if (!listing.currency.equals(mutableState.value.currency, true)) {
+            update { copy(failure = LookupFailure.NO_ENCONTRADO, eodhdListings = emptyList(), loading = false) }
+            return
+        }
+        val mappedType = com.mipatrimonio.app.data.quotes.assetTypeFor(listing)
+        val type = mappedType ?: mutableState.value.type
+        lookupJob = viewModelScope.launch {
+            val useTwelveData = listing.exchange.equals("US", true) &&
+                secrets.isConfigured(SecretStore.TWELVE_DATA_KEY) &&
+                (type == AssetType.ACCION || type == AssetType.ETF)
+            update {
+                copy(
+                    name = listing.name, ticker = listing.code, market = listing.exchange,
+                    type = type, currency = listing.currency,
+                    quoteProvider = if (useTwelveData) QuoteProvider.TWELVE_DATA else QuoteProvider.EODHD,
+                    quoteSymbol = if (useTwelveData) listing.code else listing.symbol,
+                    quoteMic = "", eodhdListings = emptyList(), loading = false,
+                    notice = if (mappedType == null) AssetFormNotice.REVISAR_TIPO else AssetFormNotice.COMPLETADO,
+                    providerQuote = null, saveProviderPrice = false,
+                )
             }
         }
     }

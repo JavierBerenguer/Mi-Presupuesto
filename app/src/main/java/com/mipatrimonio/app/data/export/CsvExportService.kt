@@ -240,6 +240,7 @@ class CsvExportService(
         private fun provider(value: QuoteProvider?) = when (value) {
             QuoteProvider.TWELVE_DATA -> "Twelve Data"
             QuoteProvider.COINGECKO -> "CoinGecko"
+            QuoteProvider.EODHD -> "EODHD"
             null -> ""
         }
         private fun priceSource(value: PriceSource) = if (value == PriceSource.MANUAL) "Manual" else "Proveedor"

@@ -8,6 +8,7 @@ import com.mipatrimonio.app.data.quotes.CoinGeckoSearchService
 import com.mipatrimonio.app.data.quotes.HttpClient
 import com.mipatrimonio.app.data.quotes.HttpResponse
 import com.mipatrimonio.app.data.quotes.InMemorySecretStore
+import com.mipatrimonio.app.data.quotes.EodhdSearchService
 import com.mipatrimonio.app.data.quotes.OpenFigiService
 import com.mipatrimonio.app.data.quotes.SecretStore
 import com.mipatrimonio.app.data.quotes.TwelveDataAssetService
@@ -144,6 +145,45 @@ class AssetFormViewModelTest {
         assertEquals("CoinGecko", state.market)
     }
 
+    @Test fun `con clave eodhd busca isin y configura simbolo compuesto y divisa`() = runTest {
+        val secrets = InMemorySecretStore().apply { put(SecretStore.EODHD_KEY, "eodhd-secret") }
+        val client = http(
+            getHandler = { url, _ ->
+                assertTrue(url.startsWith("https://eodhd.com/api/search/IE00B4L5Y983"))
+                HttpResponse(200, """[{"Code":"EUNL","Exchange":"XETRA","Name":"iShares Core MSCI World","Type":"ETF","Country":"Germany","Currency":"EUR","ISIN":"IE00B4L5Y983","isPrimary":true}]""")
+            },
+            postHandler = { _, _, _ -> error("OpenFIGI no debe usarse con clave EODHD") },
+        )
+        val viewModel = form(client, secrets)
+        viewModel.initialize(null)
+        viewModel.setIsin("IE00B4L5Y983")
+        viewModel.searchIsin()
+        val state = viewModel.state.first { it.quoteSymbol == "EUNL.XETRA" }
+        assertEquals(QuoteProvider.EODHD, state.quoteProvider)
+        assertEquals("EUR", state.currency)
+        assertEquals("XETRA", state.market)
+        assertEquals("", state.quoteMic)
+    }
+
+    @Test fun `listado estadounidense prefiere twelve data si ambas claves existen`() = runTest {
+        val secrets = InMemorySecretStore().apply {
+            put(SecretStore.EODHD_KEY, "eodhd-secret")
+            put(SecretStore.TWELVE_DATA_KEY, "twelve-secret")
+        }
+        val client = http(
+            getHandler = { _, _ -> HttpResponse(200, """[{"Code":"AAPL","Exchange":"US","Name":"Apple","Type":"Common Stock","Country":"USA","Currency":"USD","ISIN":"US0378331005","isPrimary":true}]""") },
+            postHandler = { _, _, _ -> error("no post") },
+        )
+        val viewModel = form(client, secrets)
+        viewModel.initialize(null)
+        viewModel.setCurrency("USD")
+        viewModel.setIsin("US0378331005")
+        viewModel.searchIsin()
+        val state = viewModel.state.first { it.quoteSymbol == "AAPL" }
+        assertEquals(QuoteProvider.TWELVE_DATA, state.quoteProvider)
+        assertEquals("", state.quoteMic)
+    }
+
     @Test fun `sin conexion conserva campos manuales y no filtra secretos`() = runTest {
         val secrets = InMemorySecretStore().apply { put(SecretStore.OPEN_FIGI_KEY, "figi-secret") }
         val viewModel = form(http({ _, _ -> throw IOException() }, { _, _, _ -> throw IOException() }), secrets)
@@ -159,6 +199,7 @@ class AssetFormViewModelTest {
     private fun form(client: HttpClient, secrets: InMemorySecretStore = InMemorySecretStore()) = AssetFormViewModel(
         investments, settingsRule.repository, OpenFigiService(client, secrets),
         CoinGeckoSearchService(client, secrets), TwelveDataAssetService(client, secrets),
+        EodhdSearchService(client, secrets), secrets,
     )
 
     private fun http(

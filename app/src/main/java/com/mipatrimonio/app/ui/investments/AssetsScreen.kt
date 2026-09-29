@@ -1,6 +1,8 @@
 package com.mipatrimonio.app.ui.investments
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -15,6 +17,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -43,7 +48,9 @@ import com.mipatrimonio.app.ui.components.SegmentedControl
 @Composable
 fun AssetsScreen(
     initialNewAsset: Boolean = false,
-    viewModel: AssetsViewModel = appViewModel { c -> AssetsViewModel(c.investments, c.settings) },
+    viewModel: AssetsViewModel = appViewModel { c ->
+        AssetsViewModel(c.investments, c.settings, c.eodhdSearch, c.coinGeckoSearch, c.quoteSecrets)
+    },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
@@ -54,6 +61,12 @@ fun AssetsScreen(
     if (state.isLoading) return LoadingBox()
     val visible = filterAssets(state.assets, query, filter)
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (state.assets.any { it.asset.supportsAutomaticQuoteConfiguration() }) {
+            Button(
+                onClick = viewModel::openQuoteConfiguration,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            ) { Text(stringResource(R.string.inv_configure_quotes)) }
+        }
         OutlinedTextField(
             query, { query = it },
             label = { Text(stringResource(R.string.inv_assets_search)) },
@@ -82,6 +95,13 @@ fun AssetsScreen(
             }
         }
     }
+    if (state.quoteConfiguration.visible) QuoteConfigurationDialog(
+        state = state.quoteConfiguration,
+        onStart = viewModel::findQuoteConfigurations,
+        onAccepted = viewModel::setProposalAccepted,
+        onSave = { viewModel.saveQuoteConfigurations {} },
+        onDismiss = viewModel::closeQuoteConfiguration,
+    )
     editing?.let { asset ->
         val deps = state.dependencies[asset.id]
         AssetDialog(
@@ -141,6 +161,80 @@ fun AssetsScreen(
             dismissButton = { TextButton({ deleting = null }) { Text(stringResource(R.string.common_cancel)) } },
         )
     }
+}
+
+@Composable
+private fun QuoteConfigurationDialog(
+    state: QuoteConfigurationState,
+    onStart: () -> Unit,
+    onAccepted: (String, Boolean) -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.inv_configure_quotes)) },
+        text = {
+            Column(
+                Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (!state.started) {
+                    Text(stringResource(R.string.inv_configure_quotes_calls, state.eodhdCalls))
+                    Text(stringResource(R.string.inv_configure_quotes_daily_limit))
+                } else if (state.loading) {
+                    CircularProgressIndicator()
+                    Text(stringResource(R.string.inv_configure_quotes_searching))
+                } else if (state.proposals.isEmpty()) {
+                    Text(stringResource(R.string.inv_configure_quotes_empty))
+                } else {
+                    state.proposals.forEach { proposal ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = proposal.accepted && proposal.configurable,
+                                onCheckedChange = { onAccepted(proposal.asset.id, it) },
+                                enabled = proposal.configurable,
+                            )
+                            Column {
+                                Text(proposal.asset.name, style = MaterialTheme.typography.titleSmall)
+                                if (proposal.configurable) {
+                                    val detail = if (proposal.provider == com.mipatrimonio.app.domain.model.QuoteProvider.COINGECKO) {
+                                        proposal.marketCapRank?.let {
+                                            stringResource(R.string.inv_configure_quotes_crypto_rank, proposal.candidateName.orEmpty(), proposal.candidateCode.orEmpty(), it)
+                                        } ?: stringResource(R.string.inv_configure_quotes_crypto, proposal.candidateName.orEmpty(), proposal.candidateCode.orEmpty())
+                                    } else stringResource(
+                                        R.string.inv_configure_quotes_listing,
+                                        proposal.candidateCode.orEmpty(), proposal.market.orEmpty(), proposal.candidateCurrency.orEmpty(),
+                                    )
+                                    Text(stringResource(R.string.inv_configure_quotes_proposal, detail))
+                                } else {
+                                    Text(
+                                        stringResource(proposal.failure.configurationMessage()),
+                                        color = MaterialTheme.colorScheme.error,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (!state.started) TextButton(onStart) { Text(stringResource(R.string.inv_configure_quotes_search)) }
+            else if (!state.loading && state.proposals.any { it.accepted && it.configurable }) {
+                TextButton(onSave) { Text(stringResource(R.string.common_save)) }
+            }
+        },
+        dismissButton = { TextButton(onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+    )
+}
+
+private fun com.mipatrimonio.app.data.quotes.LookupFailure?.configurationMessage(): Int = when (this) {
+    com.mipatrimonio.app.data.quotes.LookupFailure.SIN_CONEXION -> R.string.inv_lookup_offline
+    com.mipatrimonio.app.data.quotes.LookupFailure.LIMITE_ALCANZADO -> R.string.inv_lookup_limit
+    com.mipatrimonio.app.data.quotes.LookupFailure.RESPUESTA_INVALIDA -> R.string.inv_lookup_invalid_response
+    com.mipatrimonio.app.data.quotes.LookupFailure.CLAVE_INVALIDA -> R.string.inv_lookup_invalid_key
+    else -> R.string.inv_configure_quotes_not_found
 }
 
 @Composable

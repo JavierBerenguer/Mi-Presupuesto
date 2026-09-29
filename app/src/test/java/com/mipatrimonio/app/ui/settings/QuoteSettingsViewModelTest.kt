@@ -41,5 +41,10 @@ class QuoteSettingsViewModelTest {
         assertTrue(openFigi.toString().contains("openfigi-secret").not())
         viewModel.deleteOpenFigiKey()
         assertFalse(viewModel.uiState.first { !it.openFigiConfigured }.openFigiConfigured)
+        viewModel.saveEodhdKey("eodhd-secret-never-in-state")
+        val eodhd = viewModel.uiState.first { it.eodhdConfigured }
+        assertTrue(eodhd.toString().contains("eodhd-secret-never-in-state").not())
+        viewModel.deleteEodhdKey()
+        assertFalse(viewModel.uiState.first { !it.eodhdConfigured }.eodhdConfigured)
     }
 }

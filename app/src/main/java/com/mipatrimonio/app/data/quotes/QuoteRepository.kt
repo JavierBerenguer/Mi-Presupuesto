@@ -12,9 +12,15 @@ data class QuoteRefreshSummary(
     val updated: Int,
     val failures: Map<QuoteFailure, Int>,
     val skippedWithoutProvider: Int,
+    val providers: Map<QuoteProvider, ProviderQuoteRefreshSummary> = emptyMap(),
 ) {
     val failed: Int get() = failures.values.sum()
 }
+
+data class ProviderQuoteRefreshSummary(
+    val updated: Int = 0,
+    val failures: Map<QuoteFailure, Int> = emptyMap(),
+) { val failed: Int get() = failures.values.sum() }
 
 class QuoteRepository(
     private val db: AppDatabase,
@@ -35,30 +41,47 @@ class QuoteRepository(
             .groupBy(Asset::quoteProvider)
             .flatMap { (provider, assets) ->
                 val service = provider?.let(services::get)
-                if (service == null) assets.map {
+                val providerResults = if (service == null) assets.map {
                     QuoteResult.Failure(it.toRequest(), QuoteFailure.NO_ENCONTRADO)
                 } else service.fetch(assets.map { it.toRequest() })
+                providerResults.map { provider to it }
             }
         var updated = 0
         val failures = mutableMapOf<QuoteFailure, Int>()
-        invalid.forEach { failures.increment(QuoteFailure.NO_ENCONTRADO) }
-        results.forEach { result ->
+        val providerUpdated = mutableMapOf<QuoteProvider, Int>()
+        val providerFailures = mutableMapOf<QuoteProvider, MutableMap<QuoteFailure, Int>>()
+        invalid.forEach { asset ->
+            failures.increment(QuoteFailure.NO_ENCONTRADO)
+            asset.quoteProvider?.let { providerFailures.getOrPut(it) { mutableMapOf() }.increment(QuoteFailure.NO_ENCONTRADO) }
+        }
+        results.forEach { (provider, result) ->
             when (result) {
-                is QuoteResult.Failure -> failures.increment(result.reason)
+                is QuoteResult.Failure -> {
+                    failures.increment(result.reason)
+                    provider?.let { providerFailures.getOrPut(it) { mutableMapOf() }.increment(result.reason) }
+                }
                 is QuoteResult.Success -> {
                     if (result.currency.uppercase() != result.request.currency.uppercase()) {
                         failures.increment(QuoteFailure.DIVISA_DISTINTA)
+                        provider?.let { providerFailures.getOrPut(it) { mutableMapOf() }.increment(QuoteFailure.DIVISA_DISTINTA) }
                     } else {
                         investments.addProviderPrice(
                             result.request.assetId, result.price, result.currency,
                             result.asOfEpochMillis, result.quality,
                         )
                         updated++
+                        provider?.let { providerUpdated[it] = providerUpdated.getOrDefault(it, 0) + 1 }
                     }
                 }
             }
         }
-        return QuoteRefreshSummary(updated, failures.toMap(), allOpen.count { it.quoteProvider == null })
+        val providerKinds = providerUpdated.keys + providerFailures.keys
+        return QuoteRefreshSummary(
+            updated, failures.toMap(), allOpen.count { it.quoteProvider == null },
+            providerKinds.associateWith { provider ->
+                ProviderQuoteRefreshSummary(providerUpdated.getOrDefault(provider, 0), providerFailures[provider].orEmpty())
+            },
+        )
     }
 
     private fun Asset.toRequest() = QuoteRequest(id, quoteSymbol.orEmpty(), currency, quoteMic)

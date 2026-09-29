@@ -100,6 +100,36 @@ class AssetLookupServicesTest {
         assertFalse(capturedBody.contains("figi-secret"))
     }
 
+    @Test fun `eodhd parsea busqueda y elige divisa y mercado preferido`() {
+        val service = EodhdSearchService(noNetwork, InMemorySecretStore())
+        val result = service.parse(HttpResponse(200, """[
+          {"Code":"ETF","Exchange":"US","Name":"ETF US","Type":"ETF","Country":"USA","Currency":"EUR","ISIN":"IE00B4L5Y983","isPrimary":true},
+          {"Code":"ETF","Exchange":"F","Name":"ETF F","Type":"ETF","Country":"Germany","Currency":"EUR","ISIN":"IE00B4L5Y983","isPrimary":false},
+          {"Code":"ETF","Exchange":"XETRA","Name":"ETF Xetra","Type":"ETF","Country":"Germany","Currency":"EUR","ISIN":"IE00B4L5Y983","isPrimary":true},
+          {"Code":"ETF","Exchange":"LSE","Name":"ETF Londres","Type":"ETF","Country":"UK","Currency":"GBX","ISIN":"IE00B4L5Y983","isPrimary":true}
+        ]""")) as LookupResult.Success<List<EodhdListing>>
+        assertEquals(4, result.value.size)
+        assertEquals("ETF.XETRA", selectEodhdListing(result.value, "EUR")?.symbol)
+        assertEquals("ETF.LSE", selectEodhdListing(result.value, "GBX")?.symbol)
+        assertNull(selectEodhdListing(result.value, "GBP"))
+        assertEquals(AssetType.ETF, assetTypeFor(result.value.first()))
+    }
+
+    @Test fun `eodhd busca isin con clave en url sin propagarla al resultado`() = runTest {
+        val key = "eodhd-secret"
+        val secrets = InMemorySecretStore().apply { put(SecretStore.EODHD_KEY, key) }
+        var url = ""
+        val service = EodhdSearchService(HttpClient { sentUrl, _ ->
+            url = sentUrl
+            HttpResponse(429, key)
+        }, secrets)
+        val result = service.search("IE00 B4L5 Y983")
+        assertTrue(url.startsWith("https://eodhd.com/api/search/IE00+B4L5+Y983"))
+        assertTrue(url.contains("api_token=$key"))
+        assertFailure(result, LookupFailure.LIMITE_ALCANZADO)
+        assertFalse(result.toString().contains(key))
+    }
+
     private fun assertFailure(result: LookupResult<*>, expected: LookupFailure) =
         assertEquals(expected, (result as LookupResult.Failure).reason)
 }

@@ -77,4 +77,6 @@
     <string name="aj_key_not_configured">No configurada</string>
     <string name="aj_openfigi_key">Clave de OpenFIGI (opcional)</string>
     <string name="aj_openfigi_domain">Obtén la clave en openfigi.com; la búsqueda funciona también sin ella.</string>
+    <string name="aj_eodhd_key">Clave de EODHD</string>
+    <string name="aj_eodhd_domain">Obtén la clave en eodhd.com. El plan gratuito permite 20 llamadas al día.</string>
 </resources>

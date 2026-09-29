@@ -65,7 +65,7 @@ fun AssetDialog(
     viewModel: AssetFormViewModel = appViewModel { container ->
         AssetFormViewModel(
             container.investments, container.settings, container.openFigi,
-            container.coinGeckoSearch, container.twelveDataAssets,
+            container.coinGeckoSearch, container.twelveDataAssets, container.eodhdSearch, container.quoteSecrets,
         )
     },
 ) {
@@ -138,6 +138,11 @@ fun AssetDialog(
                             Text(stringResource(R.string.inv_listing_result, listing.name, listing.ticker, listing.marketInfo.name, listing.securityType))
                         }
                     }
+                    state.eodhdListings.forEach { listing ->
+                        TextButton(onClick = { viewModel.selectEodhdListing(listing) }) {
+                            Text(stringResource(R.string.inv_eodhd_listing_result, listing.name, listing.code, listing.exchange, listing.currency))
+                        }
+                    }
                 }
                 DropdownField(
                     label = stringResource(R.string.inv_asset_type),
@@ -171,6 +176,7 @@ fun AssetDialog(
                     optionLabel = { provider -> when (provider) {
                         QuoteProvider.TWELVE_DATA -> stringResource(R.string.inv_provider_twelve_data)
                         QuoteProvider.COINGECKO -> stringResource(R.string.inv_provider_coingecko)
+                        QuoteProvider.EODHD -> stringResource(R.string.inv_provider_eodhd)
                     } },
                     onSelected = viewModel::setQuoteProvider,
                     noneLabel = stringResource(R.string.inv_provider_none),
@@ -238,7 +244,8 @@ fun AssetDialog(
 }
 
 private fun quoteProvidersFor(type: AssetType): List<QuoteProvider> = when (type) {
-    AssetType.ACCION, AssetType.ETF -> listOf(QuoteProvider.TWELVE_DATA)
+    AssetType.ACCION, AssetType.ETF -> listOf(QuoteProvider.EODHD, QuoteProvider.TWELVE_DATA)
+    AssetType.FONDO_INDEXADO, AssetType.FONDO_INVERSION -> listOf(QuoteProvider.EODHD)
     AssetType.CRIPTO -> listOf(QuoteProvider.COINGECKO)
     else -> emptyList()
 }

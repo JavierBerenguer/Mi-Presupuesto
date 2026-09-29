@@ -60,6 +60,7 @@ fun SettingsScreen(
     var twelveKey by remember { mutableStateOf("") }
     var coinGeckoKey by remember { mutableStateOf("") }
     var openFigiKey by remember { mutableStateOf("") }
+    var eodhdKey by remember { mutableStateOf("") }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -104,6 +105,12 @@ fun SettingsScreen(
         item {
             SectionCard(title = stringResource(R.string.aj_quotes)) {
                 Text(stringResource(R.string.aj_quotes_notice))
+                SecretEditor(
+                    stringResource(R.string.aj_eodhd_key), state.eodhdConfigured, eodhdKey,
+                    { eodhdKey = it }, { viewModel.saveEodhdKey(eodhdKey); eodhdKey = "" },
+                    viewModel::deleteEodhdKey,
+                )
+                Text(stringResource(R.string.aj_eodhd_domain), style = MaterialTheme.typography.bodySmall)
                 SecretEditor(
                     stringResource(R.string.aj_twelve_data_key), state.twelveDataConfigured, twelveKey,
                     { twelveKey = it }, { viewModel.saveTwelveDataKey(twelveKey); twelveKey = "" },

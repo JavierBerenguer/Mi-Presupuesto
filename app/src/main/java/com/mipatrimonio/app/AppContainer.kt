@@ -27,6 +27,8 @@ import com.mipatrimonio.app.data.quotes.TwelveDataQuoteProvider
 import com.mipatrimonio.app.data.quotes.TwelveDataAssetService
 import com.mipatrimonio.app.data.quotes.OpenFigiService
 import com.mipatrimonio.app.data.quotes.UrlConnectionHttpClient
+import com.mipatrimonio.app.data.quotes.EodhdQuoteProvider
+import com.mipatrimonio.app.data.quotes.EodhdSearchService
 import com.mipatrimonio.app.domain.notifications.GenericSpanishParser
 import com.mipatrimonio.app.domain.notifications.NotificationEngine
 import kotlinx.coroutines.CoroutineScope
@@ -48,12 +50,14 @@ class AppContainer(context: Context) {
     val openFigi = OpenFigiService(quoteHttp, quoteSecrets)
     val coinGeckoSearch = CoinGeckoSearchService(quoteHttp, quoteSecrets)
     val twelveDataAssets = TwelveDataAssetService(quoteHttp, quoteSecrets)
+    val eodhdSearch = EodhdSearchService(quoteHttp, quoteSecrets)
     val quotes = QuoteRepository(
         database,
         investments,
         listOf(
             TwelveDataQuoteProvider(quoteHttp, quoteSecrets),
             CoinGeckoQuoteProvider(quoteHttp, quoteSecrets),
+            EodhdQuoteProvider(quoteHttp, quoteSecrets),
         ),
     )
     val settings = SettingsRepository(context.applicationContext)

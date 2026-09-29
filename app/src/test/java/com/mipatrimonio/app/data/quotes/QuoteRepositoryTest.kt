@@ -40,6 +40,7 @@ class QuoteRepositoryTest {
         }
         val summary = QuoteRepository(db, investments, listOf(service)).refreshAll()
         assertEquals(1, summary.updated)
+        assertEquals(1, summary.providers.getValue(QuoteProvider.TWELVE_DATA).updated)
         assertEquals(2, db.investmentDao().countAllPricesForAsset("asset"))
         assertEquals(BigDecimal("50"), investments.latestPrices.first()["asset"]?.price)
     }

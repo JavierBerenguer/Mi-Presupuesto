@@ -56,7 +56,8 @@ fun InvestmentsScreen(
     var menu by rememberSaveable { mutableStateOf(false) }
     var section by rememberSaveable { mutableIntStateOf(0) }
     var range by rememberSaveable { mutableIntStateOf(2) }
-    var refreshMessage by remember { mutableStateOf<String?>(null) }
+    var refreshSummary by remember { mutableStateOf<com.mipatrimonio.app.data.quotes.QuoteRefreshSummary?>(null) }
+    var refreshStatus by remember { mutableStateOf<String?>(null) }
 
     Box(Modifier.fillMaxSize().statusBarsPadding()) {
         when {
@@ -89,9 +90,10 @@ fun InvestmentsScreen(
                 DropdownMenuItem({ Text(stringResource(R.string.inv_refresh_prices)) }, {
                     menu = false
                     if (state.selectedPositions.none { it.asset.quoteProvider != null }) {
-                        refreshMessage = "missing"
+                        refreshStatus = "missing"
                     } else viewModel.refreshPrices { summary ->
-                        refreshMessage = summary?.let { "${it.updated}:${it.failed}" } ?: "error"
+                        refreshSummary = summary
+                        refreshStatus = if (summary == null) "error" else null
                     }
                 })
                 DropdownMenuItem({ Text(stringResource(R.string.inv_new_operation)) }, { menu = false; operationDialog = true })
@@ -99,14 +101,46 @@ fun InvestmentsScreen(
                 DropdownMenuItem({ Text(stringResource(R.string.inv_new_portfolio)) }, { menu = false; onNewPortfolio() })
             }
         }
-        refreshMessage?.let { message ->
+        refreshStatus?.let { message ->
             val text = when (message) {
                 "missing" -> stringResource(R.string.inv_refresh_no_providers)
                 "error" -> stringResource(R.string.inv_refresh_error)
-                else -> message.split(':').let { stringResource(R.string.inv_refresh_result, it[0].toInt(), it[1].toInt()) }
+                else -> stringResource(R.string.inv_refresh_error)
             }
             Snackbar(Modifier.align(Alignment.BottomCenter).padding(16.dp)) { Text(text) }
         }
+    }
+    refreshSummary?.let { summary ->
+        AlertDialog(
+            onDismissRequest = { refreshSummary = null },
+            title = { Text(stringResource(R.string.inv_refresh_summary_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    summary.providers.forEach { (provider, result) ->
+                        val providerName = when (provider) {
+                            com.mipatrimonio.app.domain.model.QuoteProvider.TWELVE_DATA -> stringResource(R.string.inv_provider_twelve_data)
+                            com.mipatrimonio.app.domain.model.QuoteProvider.COINGECKO -> stringResource(R.string.inv_provider_coingecko)
+                            com.mipatrimonio.app.domain.model.QuoteProvider.EODHD -> stringResource(R.string.inv_provider_eodhd)
+                        }
+                        Text(stringResource(R.string.inv_refresh_provider_result, providerName, result.updated, result.failed))
+                        result.failures.forEach { (reason, count) ->
+                            Text(stringResource(R.string.inv_refresh_failure_reason, count, quoteFailureLabel(reason)))
+                        }
+                    }
+                    if (summary.skippedWithoutProvider > 0) {
+                        Text(stringResource(R.string.inv_refresh_without_provider, summary.skippedWithoutProvider))
+                    }
+                }
+            },
+            confirmButton = {
+                if (summary.skippedWithoutProvider > 0) TextButton({ refreshSummary = null; onOpenAssets() }) {
+                    Text(stringResource(R.string.inv_configure_quotes))
+                } else TextButton({ refreshSummary = null }) { Text(stringResource(R.string.common_accept)) }
+            },
+            dismissButton = if (summary.skippedWithoutProvider > 0) ({
+                TextButton({ refreshSummary = null }) { Text(stringResource(R.string.common_close)) }
+            }) else null,
+        )
     }
     if (assetDialog) AssetDialog(
         state.assets, { assetDialog = false },
@@ -284,6 +318,7 @@ private fun PositionCard(
                     } else when (row.asset.quoteProvider) {
                         com.mipatrimonio.app.domain.model.QuoteProvider.TWELVE_DATA -> stringResource(R.string.inv_provider_twelve_data)
                         com.mipatrimonio.app.domain.model.QuoteProvider.COINGECKO -> stringResource(R.string.inv_provider_coingecko)
+                        com.mipatrimonio.app.domain.model.QuoteProvider.EODHD -> stringResource(R.string.inv_provider_eodhd)
                         null -> stringResource(R.string.inv_price_provider)
                     }
                     val quality = when (it.quality) {
@@ -307,6 +342,17 @@ private fun PositionCard(
         }
     }
 }
+
+@Composable
+private fun quoteFailureLabel(reason: com.mipatrimonio.app.data.quotes.QuoteFailure): String = stringResource(when (reason) {
+    com.mipatrimonio.app.data.quotes.QuoteFailure.SIN_CLAVE -> R.string.inv_failure_no_key
+    com.mipatrimonio.app.data.quotes.QuoteFailure.CLAVE_INVALIDA -> R.string.inv_failure_invalid_key
+    com.mipatrimonio.app.data.quotes.QuoteFailure.LIMITE_ALCANZADO -> R.string.inv_failure_limit
+    com.mipatrimonio.app.data.quotes.QuoteFailure.NO_ENCONTRADO -> R.string.inv_failure_not_found
+    com.mipatrimonio.app.data.quotes.QuoteFailure.SIN_CONEXION -> R.string.inv_failure_offline
+    com.mipatrimonio.app.data.quotes.QuoteFailure.RESPUESTA_INVALIDA -> R.string.inv_failure_invalid_response
+    com.mipatrimonio.app.data.quotes.QuoteFailure.DIVISA_DISTINTA -> R.string.inv_failure_currency
+})
 
 @Composable
 private fun AllocationGroup(title: String, values: List<AllocationItem>, hidden: Boolean) {

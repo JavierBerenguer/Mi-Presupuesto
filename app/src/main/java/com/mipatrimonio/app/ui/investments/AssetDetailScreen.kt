@@ -122,6 +122,7 @@ private fun AssetDetailContent(
                     else when (asset.quoteProvider) {
                         QuoteProvider.TWELVE_DATA -> stringResource(R.string.inv_provider_twelve_data)
                         QuoteProvider.COINGECKO -> stringResource(R.string.inv_provider_coingecko)
+                        QuoteProvider.EODHD -> stringResource(R.string.inv_provider_eodhd)
                         null -> stringResource(R.string.inv_price_provider)
                     }
                 val quality = when (price.quality) {

@@ -20,9 +20,15 @@ data class SettingsUiState(
     val twelveDataConfigured: Boolean = false,
     val coinGeckoConfigured: Boolean = false,
     val openFigiConfigured: Boolean = false,
+    val eodhdConfigured: Boolean = false,
 )
 
-private data class SecretStatus(val twelveData: Boolean = false, val coinGecko: Boolean = false, val openFigi: Boolean = false)
+private data class SecretStatus(
+    val twelveData: Boolean = false,
+    val coinGecko: Boolean = false,
+    val openFigi: Boolean = false,
+    val eodhd: Boolean = false,
+)
 
 class SettingsViewModel(
     private val repository: SettingsRepository,
@@ -43,6 +49,7 @@ class SettingsViewModel(
             twelveDataConfigured = status.twelveData,
             coinGeckoConfigured = status.coinGecko,
             openFigiConfigured = status.openFigi,
+            eodhdConfigured = status.eodhd,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -64,6 +71,8 @@ class SettingsViewModel(
     fun deleteCoinGeckoKey() = deleteSecret(SecretStore.COINGECKO_KEY)
     fun saveOpenFigiKey(value: String) = saveSecret(SecretStore.OPEN_FIGI_KEY, value)
     fun deleteOpenFigiKey() = deleteSecret(SecretStore.OPEN_FIGI_KEY)
+    fun saveEodhdKey(value: String) = saveSecret(SecretStore.EODHD_KEY, value)
+    fun deleteEodhdKey() = deleteSecret(SecretStore.EODHD_KEY)
 
     private fun saveSecret(name: String, value: String) {
         viewModelScope.launch {
@@ -87,6 +96,7 @@ class SettingsViewModel(
             twelveData = secrets?.isConfigured(SecretStore.TWELVE_DATA_KEY) == true,
             coinGecko = secrets?.isConfigured(SecretStore.COINGECKO_KEY) == true,
             openFigi = secrets?.isConfigured(SecretStore.OPEN_FIGI_KEY) == true,
+            eodhd = secrets?.isConfigured(SecretStore.EODHD_KEY) == true,
         )
     }
 

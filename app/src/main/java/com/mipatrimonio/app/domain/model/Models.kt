@@ -146,7 +146,7 @@ data class Portfolio(
 )
 
 enum class AssetType { ACCION, ETF, FONDO_INDEXADO, FONDO_INVERSION, CRIPTO, PRESTAMO_P2P }
-enum class QuoteProvider { TWELVE_DATA, COINGECKO }
+enum class QuoteProvider { TWELVE_DATA, COINGECKO, EODHD }
 
 /** El ticker no es identificador universal: la identidad es [id] (más ISIN/mercado cuando existan). */
 data class Asset(
