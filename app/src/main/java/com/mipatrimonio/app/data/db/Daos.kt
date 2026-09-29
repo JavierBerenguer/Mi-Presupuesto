@@ -337,6 +337,64 @@ interface InvestmentDao {
 
 @Dao
 interface NotificationDao {
+    @Query("SELECT * FROM notification_structure ORDER BY id")
+    suspend fun getAllStructuresForBackup(): List<NotificationStructureEntity>
+
+    @Query("SELECT * FROM notification_rule ORDER BY id")
+    suspend fun getAllRulesForBackup(): List<NotificationRuleEntity>
+
+    @Query("SELECT * FROM notification_record ORDER BY id")
+    suspend fun getAllRecordsForBackup(): List<NotificationRecordEntity>
+
+    @Insert suspend fun insertAllStructuresForRestore(rows: List<NotificationStructureEntity>)
+    @Insert suspend fun insertAllRulesForRestore(rows: List<NotificationRuleEntity>)
+    @Insert suspend fun insertAllRecordsForRestore(rows: List<NotificationRecordEntity>)
+    @Query("DELETE FROM notification_record") suspend fun deleteAllRecordsForRestore()
+    @Query("DELETE FROM notification_rule") suspend fun deleteAllRulesForRestore()
+    @Query("DELETE FROM notification_structure") suspend fun deleteAllStructuresForRestore()
+
+    @Query("SELECT * FROM notification_structure ORDER BY createdAt, id")
+    fun observeStructures(): Flow<List<NotificationStructureEntity>>
+
+    @Query("SELECT * FROM notification_structure WHERE packageName = :packageName AND enabled = 1 ORDER BY createdAt, id")
+    suspend fun getEnabledStructures(packageName: String): List<NotificationStructureEntity>
+
+    @Query("SELECT * FROM notification_structure WHERE id = :id")
+    suspend fun getStructure(id: String): NotificationStructureEntity?
+
+    @Upsert suspend fun upsertStructure(row: NotificationStructureEntity)
+    @Query("DELETE FROM notification_structure WHERE id = :id") suspend fun deleteStructure(id: String)
+
+    @Query("SELECT * FROM notification_rule WHERE structureId = :structureId ORDER BY createdAt, id")
+    fun observeRules(structureId: String): Flow<List<NotificationRuleEntity>>
+
+    @Query("SELECT * FROM notification_rule WHERE structureId = :structureId AND variableKey = :variableKey AND enabled = 1 LIMIT 1")
+    suspend fun getEnabledRule(structureId: String, variableKey: String): NotificationRuleEntity?
+    @Query("SELECT * FROM notification_rule WHERE structureId = :structureId AND variableKey = :variableKey LIMIT 1")
+    suspend fun getRuleForKey(structureId: String, variableKey: String): NotificationRuleEntity?
+
+    @Query("SELECT * FROM notification_rule WHERE id = :id") suspend fun getRule(id: String): NotificationRuleEntity?
+    @Upsert suspend fun upsertRule(row: NotificationRuleEntity)
+    @Query("DELETE FROM notification_rule WHERE id = :id") suspend fun deleteRule(id: String)
+
+    @Query("SELECT * FROM notification_record WHERE status = :status ORDER BY postedAt DESC, createdAt DESC")
+    fun observeRecordsByStatus(status: String): Flow<List<NotificationRecordEntity>>
+
+    @Query("SELECT * FROM notification_record WHERE id = :id") suspend fun getRecord(id: String): NotificationRecordEntity?
+    @Query("SELECT * FROM notification_record WHERE transactionId = :transactionId LIMIT 1")
+    suspend fun getRecordForTransaction(transactionId: String): NotificationRecordEntity?
+    @Query("SELECT * FROM notification_record WHERE status IN ('PENDIENTE_ESTRUCTURA','PENDIENTE_REGLA','PENDIENTE_CUENTA') ORDER BY createdAt, id")
+    suspend fun getPendingRecords(): List<NotificationRecordEntity>
+    @Query("SELECT * FROM notification_record WHERE packageName = :packageName AND postedAt BETWEEN :fromInclusive AND :toInclusive")
+    suspend fun getRecordsBetween(packageName: String, fromInclusive: Long, toInclusive: Long): List<NotificationRecordEntity>
+    @Upsert suspend fun upsertRecord(row: NotificationRecordEntity)
+    @Query("UPDATE notification_record SET status = 'DESCARTADA' WHERE id = :id AND transactionId IS NULL")
+    suspend fun discardRecord(id: String): Int
+    @Query("UPDATE notification_record SET status = 'CREADA_MANUAL', transactionId = :transactionId WHERE id = :id AND transactionId IS NULL")
+    suspend fun markRecordCreatedManually(id: String, transactionId: String): Int
+    @Query("DELETE FROM notification_record WHERE status = 'DESCARTADA' AND createdAt < :cutoff")
+    suspend fun deleteDiscardedRecordsOlderThan(cutoff: Long): Int
+
     @Query("SELECT * FROM notification_authorization ORDER BY packageName")
     suspend fun getAllAuthorizationsForBackup(): List<NotificationAuthorizationEntity>
 

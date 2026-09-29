@@ -1,6 +1,5 @@
 package com.mipatrimonio.app.domain.notifications
 
-import com.mipatrimonio.app.domain.model.MoneyMath
 import java.text.Normalizer
 import java.util.Locale
 
@@ -54,36 +53,8 @@ class GenericSpanishParser : BankNotificationParser {
     private fun String.containsSensitiveContent(): Boolean = SENSITIVE.any { it.containsMatchIn(this) }
 
     private fun extractAmount(content: String): ExtractedAmount? {
-        val matches = buildList {
-            addAll(CURRENCY_BEFORE.findAll(content).map { it.range.first to (it.groupValues[2] to it.groupValues[1]) })
-            addAll(CURRENCY_AFTER.findAll(content).map { it.range.first to (it.groupValues[1] to it.groupValues[2]) })
-        }.sortedBy { it.first }
-
-        return matches.firstNotNullOfOrNull { (_, value) ->
-            val (rawAmount, rawCurrency) = value
-            val currency = currencyCode(rawCurrency) ?: return@firstNotNullOfOrNull null
-            val normalizedAmount = normalizeThousandsOnly(rawAmount)
-            val amount = MoneyMath.parse(normalizedAmount)?.abs() ?: return@firstNotNullOfOrNull null
-            val minor = runCatching { MoneyMath.toMinor(amount, currency) }.getOrNull()
-                ?: return@firstNotNullOfOrNull null
-            if (minor > 0) ExtractedAmount(minor, currency, rawAmount.trim()) else null
-        }
-    }
-
-    private fun normalizeThousandsOnly(raw: String): String {
-        val compact = raw.trim().replace(" ", "").replace("\u00a0", "")
-        return if (SINGLE_THOUSANDS_SEPARATOR.matches(compact)) {
-            compact.replace(".", "").replace(",", "")
-        } else {
-            compact
-        }
-    }
-
-    private fun currencyCode(raw: String): String? = when (raw.lowercase(LOCALE_ES)) {
-        "€", "eur", "euro", "euros" -> "EUR"
-        "$", "usd", "dólar", "dolar", "dólares", "dolares" -> "USD"
-        "£", "gbp", "libra", "libras" -> "GBP"
-        else -> null
+        val amount = NotificationAmountRecognizer.first(content) ?: return null
+        return ExtractedAmount(amount.amountMinor, amount.currency, amount.hasExplicitPlus, amount.hasExplicitMinus)
     }
 
     private fun classify(packageName: String, content: String, amount: ExtractedAmount): Classification {
@@ -141,11 +112,9 @@ class GenericSpanishParser : BankNotificationParser {
     private data class ExtractedAmount(
         val amountMinor: Long,
         val currency: String,
-        val rawAmount: String,
-    ) {
-        val hasExplicitPlus: Boolean get() = rawAmount.startsWith('+')
-        val hasExplicitMinus: Boolean get() = rawAmount.startsWith('-')
-    }
+        val hasExplicitPlus: Boolean,
+        val hasExplicitMinus: Boolean,
+    )
 
     private data class Classification(
         val kind: ProposalKind,
@@ -168,11 +137,6 @@ class GenericSpanishParser : BankNotificationParser {
         )
         const val NUMBER =
             "[+-]?(?:\\d{1,3}(?:[. \\u00a0]\\d{3})+(?:,\\d+)?|\\d{1,3}(?:,\\d{3})+(?:\\.\\d+)?|\\d+(?:[.,]\\d+)?)"
-        val CURRENCY_BEFORE = Regex("(?i)(€|\\$|£)\\s*($NUMBER)")
-        val CURRENCY_AFTER = Regex(
-            "(?i)($NUMBER)\\s*(€|\\$|£|eur(?:o|os)?\\b|usd\\b|d[oó]lar(?:es)?\\b|gbp\\b|libras?\\b)",
-        )
-        val SINGLE_THOUSANDS_SEPARATOR = Regex("[+-]?\\d{1,3}[.,]\\d{3}")
         val AMOUNT_LIKE = Regex(NUMBER)
         val UNRECOGNIZED_CURRENCY_AMOUNT = Regex(
             "(?i)(?:$NUMBER\\s*(?!(?:EUR|USD|GBP)\\b)[A-Z]{3}\\b|(?!(?:EUR|USD|GBP)\\b)[A-Z]{3}\\s*$NUMBER)",

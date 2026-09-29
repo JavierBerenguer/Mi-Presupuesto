@@ -233,6 +233,70 @@ data class PendingProposalEntity(
 )
 
 @Entity(
+    tableName = "notification_structure",
+    foreignKeys = [ForeignKey(CategoryEntity::class, ["id"], ["defaultCategoryId"], onDelete = ForeignKey.SET_NULL)],
+    indices = [Index("packageName"), Index("defaultCategoryId")],
+)
+data class NotificationStructureEntity(
+    @PrimaryKey val id: String,
+    val packageName: String,
+    val name: String,
+    val template: String,
+    val direction: String,
+    val defaultTitle: String?,
+    val defaultDetail: String?,
+    val defaultCategoryId: String?,
+    val enabled: Boolean,
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
+@Entity(
+    tableName = "notification_rule",
+    foreignKeys = [
+        ForeignKey(NotificationStructureEntity::class, ["id"], ["structureId"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(CategoryEntity::class, ["id"], ["categoryId"], onDelete = ForeignKey.SET_NULL),
+    ],
+    indices = [Index(value = ["structureId", "variableKey"], unique = true), Index("categoryId")],
+)
+data class NotificationRuleEntity(
+    @PrimaryKey val id: String,
+    val structureId: String,
+    val variableKey: String,
+    val variableDisplay: String,
+    val title: String?,
+    val detail: String?,
+    val categoryId: String?,
+    val enabled: Boolean,
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
+@Entity(
+    tableName = "notification_record",
+    foreignKeys = [
+        ForeignKey(NotificationStructureEntity::class, ["id"], ["structureId"], onDelete = ForeignKey.SET_NULL),
+        ForeignKey(NotificationRuleEntity::class, ["id"], ["ruleId"], onDelete = ForeignKey.SET_NULL),
+        ForeignKey(TransactionEntity::class, ["id"], ["transactionId"], onDelete = ForeignKey.SET_NULL),
+    ],
+    indices = [Index("status"), Index("packageName"), Index("postedAt"), Index("transactionId"), Index("structureId"), Index("ruleId")],
+)
+data class NotificationRecordEntity(
+    @PrimaryKey val id: String,
+    val packageName: String,
+    val postedAt: Long,
+    val text: String,
+    val amountMinor: Long?,
+    val currency: String?,
+    val structureId: String?,
+    val ruleId: String?,
+    val variableText: String?,
+    val status: String,
+    val transactionId: String?,
+    val createdAt: Long,
+)
+
+@Entity(
     tableName = "recurring_rule",
     foreignKeys = [
         ForeignKey(AccountEntity::class, ["id"], ["accountId"], onDelete = ForeignKey.RESTRICT),

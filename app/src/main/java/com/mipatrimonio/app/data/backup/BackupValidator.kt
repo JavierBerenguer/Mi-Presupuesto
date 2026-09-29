@@ -15,6 +15,9 @@ object BackupValidator {
         unique("recurring_rule", data.recurringRules.map { it.id })
         unique("notification_authorization", data.authorizations.map { it.packageName })
         unique("pending_proposal", data.proposals.map { it.id })
+        unique("notification_structure", data.notificationStructures.map { it.id })
+        unique("notification_rule", data.notificationRules.map { it.id })
+        unique("notification_record", data.notificationRecords.map { it.id })
 
         val accounts = data.accounts.mapTo(hashSetOf()) { it.id }
         val categories = data.categories.mapTo(hashSetOf()) { it.id }
@@ -22,6 +25,8 @@ object BackupValidator {
         val portfolios = data.portfolios.mapTo(hashSetOf()) { it.id }
         val assets = data.assets.mapTo(hashSetOf()) { it.id }
         val transactions = data.transactions.mapTo(hashSetOf()) { it.id }
+        val structures = data.notificationStructures.mapTo(hashSetOf()) { it.id }
+        val rules = data.notificationRules.mapTo(hashSetOf()) { it.id }
         data.categories.forEach { row -> row.parentId?.let { reference("category.parentId", it, categories) } }
         data.transactions.forEach { row ->
             reference("txn.accountId", row.accountId, accounts)
@@ -53,6 +58,16 @@ object BackupValidator {
         data.proposals.forEach { row ->
             row.accountId?.let { reference("pending_proposal.accountId", it, accounts) }
             row.resultingTransactionId?.let { reference("pending_proposal.resultingTransactionId", it, transactions) }
+        }
+        data.notificationStructures.forEach { row -> row.defaultCategoryId?.let { reference("notification_structure.defaultCategoryId", it, categories) } }
+        data.notificationRules.forEach { row ->
+            reference("notification_rule.structureId", row.structureId, structures)
+            row.categoryId?.let { reference("notification_rule.categoryId", it, categories) }
+        }
+        data.notificationRecords.forEach { row ->
+            row.structureId?.let { reference("notification_record.structureId", it, structures) }
+            row.ruleId?.let { reference("notification_record.ruleId", it, rules) }
+            row.transactionId?.let { reference("notification_record.transactionId", it, transactions) }
         }
     }
 

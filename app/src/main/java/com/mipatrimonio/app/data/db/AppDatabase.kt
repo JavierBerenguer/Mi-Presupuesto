@@ -14,6 +14,7 @@ import com.mipatrimonio.app.data.db.migrations.MIGRATION_7_8
 import com.mipatrimonio.app.data.db.migrations.MIGRATION_8_9
 import com.mipatrimonio.app.data.db.migrations.MIGRATION_9_10
 import com.mipatrimonio.app.data.db.migrations.MIGRATION_10_11
+import com.mipatrimonio.app.data.db.migrations.MIGRATION_11_12
 
 @Database(
     entities = [
@@ -31,8 +32,11 @@ import com.mipatrimonio.app.data.db.migrations.MIGRATION_10_11
         PendingProposalEntity::class,
         NotificationDiagnosticEntity::class,
         RecurringRuleEntity::class,
+        NotificationStructureEntity::class,
+        NotificationRuleEntity::class,
+        NotificationRecordEntity::class,
     ],
-    version = 11,
+    version = 12,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -62,6 +66,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_8_9,
                     MIGRATION_9_10,
                     MIGRATION_10_11,
+                    MIGRATION_11_12,
                 )
                 .build()
     }

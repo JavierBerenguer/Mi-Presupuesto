@@ -8,6 +8,9 @@ import com.mipatrimonio.app.data.db.BudgetEntity
 import com.mipatrimonio.app.data.db.CategoryEntity
 import com.mipatrimonio.app.data.db.InvestmentOperationEntity
 import com.mipatrimonio.app.data.db.NotificationAuthorizationEntity
+import com.mipatrimonio.app.data.db.NotificationRecordEntity
+import com.mipatrimonio.app.data.db.NotificationRuleEntity
+import com.mipatrimonio.app.data.db.NotificationStructureEntity
 import com.mipatrimonio.app.data.db.PendingProposalEntity
 import com.mipatrimonio.app.data.db.PortfolioEntity
 import com.mipatrimonio.app.data.db.RecurringRuleEntity
@@ -16,11 +19,12 @@ import com.mipatrimonio.app.data.db.TransferEntity
 
 const val BACKUP_FORMAT = "mipatrimonio-backup"
 const val BACKUP_FORMAT_VERSION = 1
-const val BACKUP_DB_VERSION = 11
+const val BACKUP_DB_VERSION = 12
 
 val BACKUP_TABLE_NAMES = listOf(
     "account", "category", "txn", "transfer", "budget", "budget_category", "portfolio", "asset",
     "investment_operation", "asset_price", "recurring_rule", "notification_authorization", "pending_proposal",
+    "notification_structure", "notification_rule", "notification_record",
 )
 
 data class BackupData(
@@ -40,6 +44,9 @@ data class BackupData(
     val recurringRules: List<RecurringRuleEntity> = emptyList(),
     val authorizations: List<NotificationAuthorizationEntity> = emptyList(),
     val proposals: List<PendingProposalEntity> = emptyList(),
+    val notificationStructures: List<NotificationStructureEntity> = emptyList(),
+    val notificationRules: List<NotificationRuleEntity> = emptyList(),
+    val notificationRecords: List<NotificationRecordEntity> = emptyList(),
 ) {
     fun counts(): Map<String, Int> = linkedMapOf(
         "account" to accounts.size,
@@ -55,6 +62,9 @@ data class BackupData(
         "recurring_rule" to recurringRules.size,
         "notification_authorization" to authorizations.size,
         "pending_proposal" to proposals.size,
+        "notification_structure" to notificationStructures.size,
+        "notification_rule" to notificationRules.size,
+        "notification_record" to notificationRecords.size,
     )
 }
 

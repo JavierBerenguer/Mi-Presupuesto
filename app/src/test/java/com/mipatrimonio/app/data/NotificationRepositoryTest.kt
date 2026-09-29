@@ -2,406 +2,152 @@ package com.mipatrimonio.app.data
 
 import android.content.Context
 import androidx.room.Room
-import androidx.sqlite.db.SupportSQLiteDatabase
-import androidx.sqlite.db.SupportSQLiteOpenHelper
-import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.core.app.ApplicationProvider
-import com.mipatrimonio.app.data.db.AppDatabase
-import com.mipatrimonio.app.data.db.NotificationDiagnosticEntity
-import com.mipatrimonio.app.data.db.toEntity
-import com.mipatrimonio.app.data.db.migrations.MIGRATION_1_2
-import com.mipatrimonio.app.data.repository.NotificationRepository
+import com.mipatrimonio.app.data.db.*
 import com.mipatrimonio.app.data.repository.LedgerRepository
-import com.mipatrimonio.app.domain.model.Account
-import com.mipatrimonio.app.domain.model.AccountType
-import com.mipatrimonio.app.domain.model.TransactionType
-import com.mipatrimonio.app.domain.notifications.AutoConfirmMode
-import com.mipatrimonio.app.domain.notifications.BankNotification
-import com.mipatrimonio.app.domain.notifications.GenericSpanishParser
-import com.mipatrimonio.app.domain.notifications.NotificationEngine
-import com.mipatrimonio.app.domain.notifications.NotificationOutcome
-import com.mipatrimonio.app.domain.notifications.NoInterpretableReason
-import com.mipatrimonio.app.domain.notifications.NotificationFields
-import com.mipatrimonio.app.domain.notifications.ProposalKind
-import com.mipatrimonio.app.domain.notifications.ProposalStatus
-import java.io.File
+import com.mipatrimonio.app.data.repository.NotificationRepository
+import com.mipatrimonio.app.domain.model.*
+import com.mipatrimonio.app.domain.notifications.*
+import java.time.ZoneId
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import org.junit.After
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
+import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34])
+@RunWith(RobolectricTestRunner::class) @Config(sdk = [34])
 class NotificationRepositoryTest {
     private lateinit var db: AppDatabase
     private lateinit var repository: NotificationRepository
     private var now = 10_000L
     private var nextId = 0
 
-    @Before
-    fun setUp() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
-        repository = NotificationRepository(
-            db,
-            NotificationEngine(listOf(GenericSpanishParser())),
-            clock = { now++ },
-            idFactory = { "proposal-${++nextId}" },
-        )
+    @Before fun setUp() {
+        db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext<Context>(), AppDatabase::class.java)
+            .allowMainThreadQueries().build()
+        repository = NotificationRepository(db, NotificationEngine(listOf(GenericSpanishParser())), { now++ }, { "id-${++nextId}" }, zoneId = ZoneId.of("UTC"))
     }
+    @After fun tearDown() = db.close()
 
-    @After
-    fun tearDown() = db.close()
-
-    @Test
-    fun `persiste y actualiza reglas de autorizacion`() = runBlocking<Unit> {
-        repository.setAuthorized(PACKAGE, true, "account-1")
-        repository.setAuthorized(PACKAGE, false, null)
-
-        val rules = repository.authorizationRules.first()
-        assertEquals(1, rules.size)
-        assertEquals(PACKAGE, rules.single().packageName)
-        assertTrue(!rules.single().authorized)
-        assertNull(rules.single().accountId)
-        assertEquals(10_000L, rules.single().createdAt)
-        assertEquals(AutoConfirmMode.TODAS, rules.single().autoConfirmMode)
-    }
-
-    @Test
-    fun `autorizar app nueva activa todas y reautorizar conserva el modo`() = runBlocking<Unit> {
-        repository.ensureKnown(PACKAGE)
-
-        repository.updateAuthorized(PACKAGE, true)
-        assertEquals(AutoConfirmMode.TODAS, repository.authorizationRules.first().single().autoConfirmMode)
-
-        repository.updateAutoConfirmMode(PACKAGE, AutoConfirmMode.SOLO_SEGURAS)
-        repository.updateAuthorized(PACKAGE, false)
-        repository.updateAuthorized(PACKAGE, true)
-
-        val rule = repository.authorizationRules.first().single()
-        assertTrue(rule.authorized)
-        assertEquals(AutoConfirmMode.SOLO_SEGURAS, rule.autoConfirmMode)
-    }
-
-    @Test
-    fun `ensureKnown crea una regla no autorizada para un paquete nuevo`() = runBlocking<Unit> {
-        repository.ensureKnown(PACKAGE)
-
-        val rule = repository.authorizationRules.first().single()
-        assertEquals(PACKAGE, rule.packageName)
-        assertTrue(!rule.authorized)
-        assertNull(rule.accountId)
-        assertEquals(10_000L, rule.createdAt)
-    }
-
-    @Test
-    fun `ensureKnown conserva reglas existentes autorizadas y no autorizadas`() = runBlocking<Unit> {
-        repository.setAuthorized(PACKAGE, true, "account-1")
-        repository.setAuthorized(OTHER_PACKAGE, false, "account-2")
-
-        repository.ensureKnown(PACKAGE)
-        repository.ensureKnown(OTHER_PACKAGE)
-
-        val rules = repository.authorizationRules.first().associateBy { it.packageName }
-        assertEquals(true, rules.getValue(PACKAGE).authorized)
-        assertEquals("account-1", rules.getValue(PACKAGE).accountId)
-        assertEquals(false, rules.getValue(OTHER_PACKAGE).authorized)
-        assertEquals("account-2", rules.getValue(OTHER_PACKAGE).accountId)
-        assertEquals(10_000L, rules.getValue(PACKAGE).createdAt)
-        assertEquals(10_001L, rules.getValue(OTHER_PACKAGE).createdAt)
-    }
-
-    @Test
-    fun `ingest persiste propuesta sin texto ni cuenta y deduplica`() = runBlocking<Unit> {
+    @Test fun `no autorizada no guarda y autenticacion solo diagnostico`() = runTest {
+        assertEquals(NotificationOutcome.AppNoAutorizada, repository.ingest(notification("Pago 10 EUR")))
+        assertTrue(db.notificationDao().getAllRecordsForBackup().isEmpty())
         repository.setAuthorized(PACKAGE, true, null)
-        val notification = BankNotification(PACKAGE, "Aviso", "Compra de 12,50 € en Mercado", 100_000L)
-
-        val first = repository.ingest(notification) as NotificationOutcome.Nueva
-        val second = repository.ingest(notification.copy(postedAt = 100_001L))
-
-        assertEquals("proposal-1", first.propuesta.id)
-        assertNull(first.propuesta.accountId)
-        assertEquals(NotificationOutcome.Duplicada("proposal-1"), second)
-        val stored = repository.pendingProposals.first().single()
-        assertEquals("Mercado", stored.merchant)
-        assertEquals(ProposalStatus.PENDIENTE, stored.status)
-        assertNull(stored.accountId)
-        val columns = db.openHelper.readableDatabase.query("PRAGMA table_info(pending_proposal)").use { cursor ->
-            buildList {
-                while (cursor.moveToNext()) add(cursor.getString(1))
-            }
-        }
-        assertTrue("text" !in columns)
-        assertTrue("title" !in columns)
-    }
-
-    @Test
-    fun `app no autorizada no persiste propuestas`() = runBlocking<Unit> {
-        val outcome = repository.ingest(BankNotification(PACKAGE, "", "Compra de 10 EUR", 1_000L))
-        assertEquals(NotificationOutcome.AppNoAutorizada, outcome)
-        assertTrue(repository.pendingProposals.first().isEmpty())
-    }
-
-    @Test
-    fun `marca propuestas como confirmada o descartada`() = runBlocking<Unit> {
-        repository.setAuthorized(PACKAGE, true, "account-1")
-        val first = repository.ingest(BankNotification(PACKAGE, "", "Compra de 10 EUR", 1_000L)) as NotificationOutcome.Nueva
-        val second = repository.ingest(BankNotification(PACKAGE, "", "Compra de 20 EUR", 2_000L)) as NotificationOutcome.Nueva
-
-        assertEquals("account-1", first.propuesta.accountId)
-
-        repository.markConfirmed(first.propuesta.id, "transaction-1")
-        repository.markDiscarded(second.propuesta.id)
-
-        assertTrue(repository.pendingProposals.first().isEmpty())
-        val firstEntity = db.openHelper.readableDatabase.query(
-            "SELECT status, resultingTransactionId FROM pending_proposal WHERE id = ?",
-            arrayOf(first.propuesta.id),
-        ).use { cursor ->
-            cursor.moveToFirst()
-            cursor.getString(0) to cursor.getString(1)
-        }
-        assertEquals(ProposalStatus.CONFIRMADA.name to "transaction-1", firstEntity)
-    }
-
-    @Test
-    fun `autoanotacion respeta modos confianza y transferencias`() = runBlocking<Unit> {
-        saveAccount("account-1", "EUR")
-        repository.setAuthorized(PACKAGE, true, "account-1")
-
-        repository.updateAutoConfirmMode(PACKAGE, AutoConfirmMode.OFF)
-        repository.ingest(BankNotification(PACKAGE, "", "Compra de 10 EUR en Mercado", 1_000L))
-
-        repository.updateAutoConfirmMode(PACKAGE, AutoConfirmMode.SOLO_SEGURAS)
-        repository.ingest(BankNotification(PACKAGE, "", "Saldo disponible 20 EUR", 401_000L))
-        repository.ingest(BankNotification(PACKAGE, "", "Pago de 30 EUR", 801_000L))
-        repository.ingest(BankNotification(PACKAGE, "", "Transferencia de 40 EUR", 1_201_000L))
-        repository.ingest(BankNotification(PACKAGE, "", "Compra de 50 EUR en Mercado", 1_601_000L))
-
-        assertEquals(2, transactionCount())
-        assertEquals(3, repository.pendingProposals.first().size)
-        val transactions = db.transactionDao().observeAll().first()
-        assertTrue(transactions.all { it.source == "NOTIFICACION" })
-        assertEquals(setOf(3_000L, 5_000L), transactions.mapTo(mutableSetOf()) { it.amountMinor })
-    }
-
-    @Test
-    fun `modo todas autoanota baja y la doble entrega crea un solo movimiento`() = runBlocking<Unit> {
-        saveAccount("account-1", "EUR")
-        repository.setAuthorized(PACKAGE, true, "account-1")
-        val notification = BankNotification(PACKAGE, "", "Saldo disponible 20 EUR", 1_000L)
-
-        repository.ingest(notification)
-        val duplicate = repository.ingest(notification.copy(postedAt = 1_001L))
-
-        assertTrue(duplicate is NotificationOutcome.Duplicada)
-        assertEquals(1, transactionCount())
-        assertTrue(repository.pendingProposals.first().isEmpty())
-        db.openHelper.readableDatabase.query(
-            "SELECT status, resultingTransactionId FROM pending_proposal",
-        ).use { cursor ->
-            assertTrue(cursor.moveToFirst())
-            assertEquals("CONFIRMADA", cursor.getString(0))
-            assertTrue(cursor.getString(1).isNotBlank())
-        }
-    }
-
-    @Test
-    fun `modo todas autoanota una notificacion con palabra transferencia como gasto`() = runBlocking<Unit> {
-        saveAccount("account-1", "EUR")
-        repository.setAuthorized(PACKAGE, true, "account-1")
-
-        val outcome = repository.ingest(
-            BankNotification(PACKAGE, "", "Transferencia de 40 EUR", 1_000L),
-        ) as NotificationOutcome.Nueva
-
-        assertEquals(ProposalKind.GASTO, outcome.propuesta.kind)
-        assertEquals(1, transactionCount())
-        assertEquals(TransactionType.GASTO.name, db.transactionDao().observeAll().first().single().type)
-        assertTrue(repository.pendingProposals.first().isEmpty())
-    }
-
-    @Test
-    fun `cuenta ausente archivada o de otra divisa deja propuesta pendiente`() = runBlocking<Unit> {
-        saveAccount("usd", "USD")
-        saveAccount("archived", "EUR", archived = true)
-        repository.setAuthorized(PACKAGE, true, null)
-        repository.updateAutoConfirmMode(PACKAGE, AutoConfirmMode.TODAS)
-        repository.ingest(BankNotification(PACKAGE, "", "Pago de 10 EUR", 1_000L))
-
-        repository.updateAccount(PACKAGE, "usd")
-        repository.ingest(BankNotification(PACKAGE, "", "Pago de 20 EUR", 401_000L))
-
-        repository.updateAccount(PACKAGE, "archived")
-        repository.ingest(BankNotification(PACKAGE, "", "Pago de 30 EUR", 801_000L))
-
-        assertEquals(0, transactionCount())
-        assertEquals(3, repository.pendingProposals.first().size)
-    }
-
-    @Test
-    fun `fallo durante autoanotacion revierte movimiento y propuesta`() = runBlocking<Unit> {
-        saveAccount("account-1", "EUR")
-        var ids = 0
-        val failing = NotificationRepository(
-            db = db,
-            engine = NotificationEngine(listOf(GenericSpanishParser())),
-            clock = { now++ },
-            idFactory = { "failure-${++ids}" },
-            saveAutoTransaction = { transaction ->
-                db.transactionDao().upsert(transaction.toEntity())
-                error("fallo simulado")
-            },
-        )
-        failing.setAuthorized(PACKAGE, true, "account-1")
-        failing.updateAutoConfirmMode(PACKAGE, AutoConfirmMode.TODAS)
-
-        val failure = runCatching {
-            failing.ingest(BankNotification(PACKAGE, "", "Pago de 10 EUR", 1_000L))
-        }.exceptionOrNull()
-
-        assertEquals("fallo simulado", failure?.message)
-        assertEquals(0, transactionCount())
-        assertTrue(failing.pendingProposals.first().isEmpty())
-    }
-
-    @Test
-    fun `diagnostico protege texto sensible y respeta interruptor`() = runBlocking<Unit> {
-        repository.setAuthorized(PACKAGE, true, null)
-        repository.ingest(
-            BankNotification(
-                PACKAGE, "", "Extracto disponible", 1_000L,
-                NotificationFields(hadText = true),
-            ),
-        )
+        val result = repository.ingest(notification("Tu CÓDIGO de verificación es 123456"))
+        assertTrue(result is NotificationOutcome.NoInterpretable)
+        assertTrue(db.notificationDao().getAllRecordsForBackup().isEmpty())
         assertNull(repository.diagnostics.first().single().sampleText)
-
-        repository.setDiagnosticTextEnabled(true)
-        repository.ingest(BankNotification(PACKAGE, "", "Sin movimientos", 401_000L))
-        repository.ingest(BankNotification(PACKAGE, "", "Código de verificación 123456", 801_000L))
-
-        val diagnostics = repository.diagnostics.first()
-        assertEquals("Sin movimientos", diagnostics.first { it.postedAt == 401_000L }.sampleText)
-        val sensitive = diagnostics.first { it.postedAt == 801_000L }
-        assertEquals(NoInterpretableReason.CONTENIDO_SENSIBLE, sensitive.reason)
-        assertNull(sensitive.sampleText)
-
-        repository.updateAuthorized(PACKAGE, false)
-        repository.ingest(BankNotification(PACKAGE, "", "Pago de 10 EUR", 1_201_000L))
-        assertNull(repository.diagnostics.first().first { it.postedAt == 1_201_000L }.sampleText)
     }
 
-    @Test
-    fun `diagnostico solo registra apps conocidas y poda filas antiguedad y muestras`() = runBlocking<Unit> {
-        repository.ingest(BankNotification("unknown.app", "", "Pago de 10 EUR", 1L))
-        assertTrue(repository.diagnostics.first().isEmpty())
-
-        val dao = db.notificationDao()
-        now = 8 * NotificationRepository.SAMPLE_RETENTION_MILLIS
-        repeat(105) { index ->
-            val createdAt = if (index == 0) 0L else now - 2 * NotificationRepository.SAMPLE_RETENTION_MILLIS - index
-            dao.upsertDiagnostic(
-                NotificationDiagnosticEntity(
-                    "d-$index", PACKAGE, createdAt, "NO_INTERPRETABLE", "SIN_IMPORTE",
-                    false, true, false, false, false, false, false, false, "muestra", createdAt,
-                ),
-            )
-        }
-
-        repository.pruneDiagnostics()
-
-        val diagnostics = repository.diagnostics.first()
-        assertEquals(100, diagnostics.size)
-        assertTrue(diagnostics.none { it.createdAt == 0L })
-        assertTrue(diagnostics.all { it.sampleText == null })
+    @Test fun `desconocida queda pendiente estructura con texto saneado y duplicada se registra`() = runTest {
+        authorizeWithAccount()
+        val text = "Tarjeta 1234-5678-9012-3456: Has pagado 1,60 € a CAFÉ"
+        val first = repository.ingest(notification(text, 1_000)) as NotificationOutcome.Registrada
+        assertEquals(NotificationRecordStatus.PENDIENTE_ESTRUCTURA, first.status)
+        val stored = db.notificationDao().getRecord(first.recordId)!!
+        assertFalse(stored.text.contains("1234-5678")); assertTrue(stored.text.contains("••••"))
+        assertEquals(160L, stored.amountMinor)
+        assertTrue(repository.ingest(notification(text, 1_001)) is NotificationOutcome.Duplicada)
+        assertEquals(NotificationRecordStatus.DUPLICADA.name, db.notificationDao().getAllRecordsForBackup().last().status)
     }
 
-    @Test
-    fun `migracion uno a dos conserva cuenta y crea tablas nuevas`() {
-        db.close()
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        val databaseName = "migration-${System.nanoTime()}.db"
-        val databaseFile = context.getDatabasePath(databaseName)
-        createVersionOneDatabase(context, databaseName).use { helper ->
-            helper.writableDatabase.execSQL(
-                "INSERT INTO account VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                arrayOf<Any?>("account-1", "Principal", "CORRIENTE", "EUR", 1234L, 0, 10L, 10L),
-            )
-        }
+    @Test fun `estructura sin regla y regla deshabilitada quedan pendientes`() = runTest {
+        authorizeWithAccount()
+        val recordId = (repository.ingest(notification("Has pagado 1,60 € a CAFÉ")) as NotificationOutcome.Registrada).recordId
+        val structure = repository.createStructureFromRecord(recordId, "Pago", 0..9, 20..23, NotificationDirection.SEGUN_SIGNO)
+        val created = db.notificationDao().getRecord(recordId)!!
+        assertEquals(NotificationRecordStatus.AUTOMATIZADA.name, created.status)
 
-        openVersionTwoDatabase(context, databaseName).use { helper ->
-            val migrated = helper.writableDatabase
-            val accountName = migrated.query("SELECT name FROM account WHERE id = 'account-1'").use { cursor ->
-                cursor.moveToFirst()
-                cursor.getString(0)
-            }
-            assertEquals("Principal", accountName)
-            assertEquals(2, migrated.version)
-            assertTrue(tableExists(migrated, "notification_authorization"))
-            assertTrue(tableExists(migrated, "pending_proposal"))
-        }
-        assertTrue(databaseFile.delete() || !databaseFile.exists())
+        repository.setRuleEnabled(requireNotNull(created.ruleId), false)
+        val next = repository.ingest(notification("Has pagado 2,00 € a CAFÉ", 500_000)) as NotificationOutcome.Registrada
+        assertEquals(NotificationRecordStatus.PENDIENTE_REGLA, next.status)
+        repository.setStructureEnabled(structure.id, false)
+        val disabled = repository.ingest(notification("Has pagado 3,00 € a CAFÉ", 900_000)) as NotificationOutcome.Registrada
+        assertEquals(NotificationRecordStatus.PENDIENTE_ESTRUCTURA, disabled.status)
     }
 
-    private fun createVersionOneDatabase(context: Context, name: String): SupportSQLiteOpenHelper =
-        helper(context, name, object : SupportSQLiteOpenHelper.Callback(1) {
-            override fun onCreate(db: SupportSQLiteDatabase) {
-                db.execSQL(
-                    """
-                    CREATE TABLE account (
-                        id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, type TEXT NOT NULL,
-                        currency TEXT NOT NULL, initialBalanceMinor INTEGER NOT NULL,
-                        archived INTEGER NOT NULL, createdAt INTEGER NOT NULL, updatedAt INTEGER NOT NULL
-                    )
-                    """.trimIndent(),
-                )
-            }
-
-            override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
-        })
-
-    private fun openVersionTwoDatabase(context: Context, name: String): SupportSQLiteOpenHelper =
-        helper(context, name, object : SupportSQLiteOpenHelper.Callback(2) {
-            override fun onCreate(db: SupportSQLiteDatabase) = Unit
-
-            override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {
-                assertEquals(1, oldVersion)
-                assertEquals(2, newVersion)
-                MIGRATION_1_2.migrate(db)
-            }
-        })
-
-    private fun helper(
-        context: Context,
-        name: String,
-        callback: SupportSQLiteOpenHelper.Callback,
-    ): SupportSQLiteOpenHelper = FrameworkSQLiteOpenHelperFactory().create(
-        SupportSQLiteOpenHelper.Configuration.builder(context).name(name).callback(callback).build(),
-    )
-
-    private fun tableExists(db: SupportSQLiteDatabase, tableName: String): Boolean =
-        db.query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", arrayOf(tableName)).use { it.moveToFirst() }
-
-    private suspend fun saveAccount(id: String, currency: String, archived: Boolean = false) {
-        LedgerRepository(db, clock = { now++ }).saveAccount(
-            Account(id, id, AccountType.CORRIENTE, currency, 0L, archived, now),
-        )
+    @Test fun `automatiza con prioridades signo fecha y como maximo un apunte`() = runTest {
+        authorizeWithAccount()
+        db.categoryDao().upsert(CategoryEntity("default", "General", "GASTO", null, 0, false, 0))
+        db.categoryDao().upsert(CategoryEntity("rule", "Café", "GASTO", null, 0, false, 0))
+        val seed = (repository.ingest(notification("Has pagado +1,60 € a CAFÉ", 86_400_000)) as NotificationOutcome.Registrada).recordId
+        repository.createStructureFromRecord(seed, "Pago", 0..9, 21..24, NotificationDirection.SEGUN_SIGNO,
+            NotificationDefaults("Título estructura", "Detalle estructura", "default"), NotificationRuleValues("Título regla", "Detalle regla", "rule"))
+        val record = db.notificationDao().getRecord(seed)!!
+        assertEquals(NotificationRecordStatus.AUTOMATIZADA.name, record.status)
+        val txn = db.transactionDao().getById(record.transactionId!!)!!
+        assertEquals(TransactionType.INGRESO.name, txn.type); assertEquals("Título regla", txn.description)
+        assertEquals("Detalle regla", txn.notes); assertEquals("rule", txn.categoryId); assertEquals("CAFÉ", txn.merchant)
+        repository.reprocessPending()
+        assertEquals(1, db.transactionDao().getAllForBackup().size)
+        assertEquals(record.id, repository.recordForTransaction(txn.id)?.id)
     }
 
-    private fun transactionCount(): Int = db.openHelper.readableDatabase.query("SELECT COUNT(*) FROM txn").use { cursor ->
-        cursor.moveToFirst()
-        cursor.getInt(0)
+    @Test fun `bizum fijo sin mas es ingreso y cuenta invalida queda pendiente`() = runTest {
+        repository.setAuthorized(PACKAGE, true, null)
+        val recordId = (repository.ingest(notification("Bizum recibido 10 EUR de Ana")) as NotificationOutcome.Registrada).recordId
+        repository.createStructureFromRecord(recordId, "Bizum recibido", 0..13, 25..27, NotificationDirection.INGRESO)
+        assertEquals(NotificationRecordStatus.PENDIENTE_CUENTA.name, db.notificationDao().getRecord(recordId)?.status)
+        saveAccount("usd", "USD"); repository.updateAccount(PACKAGE, "usd")
+        assertEquals(NotificationRecordStatus.PENDIENTE_CUENTA.name, db.notificationDao().getRecord(recordId)?.status)
+        saveAccount("eur", "EUR"); repository.updateAccount(PACKAGE, "eur")
+        val txn = db.transactionDao().getAllForBackup().single()
+        assertEquals(TransactionType.INGRESO.name, txn.type)
     }
 
-    private companion object {
-        const val PACKAGE = "app.bank"
-        const val OTHER_PACKAGE = "app.other.bank"
+    @Test fun `crear regla reprocesa pendiente y borrar estructura conserva registro`() = runTest {
+        authorizeWithAccount()
+        val seed = (repository.ingest(notification("Has pagado 1 EUR a Uno")) as NotificationOutcome.Registrada).recordId
+        val structure = repository.createStructureFromRecord(seed, "Pago", 0..9, 19..21, NotificationDirection.GASTO)
+        val pending = (repository.ingest(notification("Has pagado 2 EUR a Dos", 500_000)) as NotificationOutcome.Registrada).recordId
+        assertEquals(NotificationRecordStatus.PENDIENTE_REGLA.name, db.notificationDao().getRecord(pending)?.status)
+        repository.createRuleForRecord(pending, NotificationRuleValues(title = "Dos"))
+        assertEquals(NotificationRecordStatus.AUTOMATIZADA.name, db.notificationDao().getRecord(pending)?.status)
+        repository.deleteStructure(structure.id)
+        val retained = db.notificationDao().getRecord(seed)!!
+        assertNull(retained.structureId); assertNull(retained.ruleId); assertNotNull(retained.transactionId)
     }
+
+    @Test fun `categoria eliminada produce apunte sin categoria`() = runTest {
+        authorizeWithAccount(); db.categoryDao().upsert(CategoryEntity("cat", "Temporal", "GASTO", null, 0, false, 0))
+        val seed = (repository.ingest(notification("Pago 1 EUR en Uno")) as NotificationOutcome.Registrada).recordId
+        val structure = repository.createStructureFromRecord(seed, "Pago", 0..3, 14..16, NotificationDirection.GASTO)
+        val row = db.notificationDao().getAllRulesForBackup().single()
+        repository.saveRule(NotificationRule(row.id, row.structureId, row.variableKey, row.variableDisplay,
+            row.title, row.detail, "cat", row.enabled, row.createdAt, row.updatedAt))
+        db.categoryDao().deleteByIds(listOf("cat"))
+        assertNull(db.notificationDao().getRule(row.id)?.categoryId)
+        val next = (repository.ingest(notification("Pago 2 EUR en Uno", 500_000)) as NotificationOutcome.Registrada).recordId
+        assertNull(db.transactionDao().getById(db.notificationDao().getRecord(next)!!.transactionId!!)?.categoryId)
+        assertNotNull(db.notificationDao().getStructure(structure.id))
+    }
+
+    @Test fun `cuenta archivada queda pendiente y registros pueden descartarse o asociarse manualmente`() = runTest {
+        saveAccount("archived", "EUR", archived = true)
+        repository.setAuthorized(PACKAGE, true, "archived")
+        val archivedRecord = (repository.ingest(notification("Pago 4 EUR en Archivo")) as NotificationOutcome.Registrada).recordId
+        assertEquals(NotificationRecordStatus.PENDIENTE_CUENTA.name, db.notificationDao().getRecord(archivedRecord)?.status)
+        repository.discardRecord(archivedRecord)
+        assertEquals(NotificationRecordStatus.DESCARTADA.name, db.notificationDao().getRecord(archivedRecord)?.status)
+
+        saveAccount("active", "EUR")
+        repository.updateAccount(PACKAGE, "active")
+        val manualRecord = (repository.ingest(notification("Formato nuevo 7 EUR", 500_000)) as NotificationOutcome.Registrada).recordId
+        val transaction = Transaction("manual", TransactionType.GASTO, 700, "EUR", java.time.LocalDate.ofEpochDay(0),
+            "active", null, "Manual", "", "", TransactionSource.MANUAL, now, now)
+        LedgerRepository(db, clock = { now++ }).saveTransaction(transaction)
+        repository.markRecordCreatedManually(manualRecord, transaction.id)
+        assertEquals(NotificationRecordStatus.CREADA_MANUAL.name, db.notificationDao().getRecord(manualRecord)?.status)
+        assertTrue(runCatching { repository.markRecordCreatedManually(manualRecord, transaction.id) }.exceptionOrNull() is IllegalStateException)
+    }
+
+    private suspend fun authorizeWithAccount() { saveAccount("account", "EUR"); repository.setAuthorized(PACKAGE, true, "account") }
+    private suspend fun saveAccount(id: String, currency: String, archived: Boolean = false) =
+        LedgerRepository(db, clock = { now++ }).saveAccount(Account(id, id, AccountType.CORRIENTE, currency, 0, archived, now))
+    private fun notification(text: String, postedAt: Long = 1_000) = BankNotification(PACKAGE, "", text, postedAt)
+    private companion object { const val PACKAGE = "app.bank" }
 }

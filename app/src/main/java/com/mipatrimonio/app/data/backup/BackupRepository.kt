@@ -31,6 +31,9 @@ class BackupRepository(
                 recurringRules = db.recurringRuleDao().getAllForBackup(),
                 authorizations = db.notificationDao().getAllAuthorizationsForBackup(),
                 proposals = db.notificationDao().getAllProposalsForBackup(),
+                notificationStructures = db.notificationDao().getAllStructuresForBackup(),
+                notificationRules = db.notificationDao().getAllRulesForBackup(),
+                notificationRecords = db.notificationDao().getAllRecordsForBackup(),
             )
         }
     }
@@ -41,6 +44,9 @@ class BackupRepository(
             val notification = db.notificationDao()
             val investment = db.investmentDao()
             val budget = db.budgetDao()
+            notification.deleteAllRecordsForRestore()
+            notification.deleteAllRulesForRestore()
+            notification.deleteAllStructuresForRestore()
             notification.deleteAllProposalsForRestore()
             notification.deleteAllAuthorizationsForRestore()
             db.recurringRuleDao().deleteAllForRestore()
@@ -68,8 +74,11 @@ class BackupRepository(
             investment.insertAllPricesForRestore(data.prices)
             db.recurringRuleDao().insertAllForRestore(data.recurringRules)
             notification.insertAllAuthorizationsForRestore(data.authorizations)
+            notification.insertAllStructuresForRestore(data.notificationStructures)
+            notification.insertAllRulesForRestore(data.notificationRules)
             restoreCheckpoint("before_proposals")
             notification.insertAllProposalsForRestore(data.proposals)
+            notification.insertAllRecordsForRestore(data.notificationRecords)
         }
         settings.applyBackup(data.settings)
     }

@@ -22,7 +22,6 @@ import com.mipatrimonio.app.domain.notifications.BankNotification
 import com.mipatrimonio.app.domain.notifications.Confidence
 import com.mipatrimonio.app.domain.notifications.GenericSpanishParser
 import com.mipatrimonio.app.domain.notifications.NotificationEngine
-import com.mipatrimonio.app.domain.notifications.NotificationOutcome
 import com.mipatrimonio.app.domain.notifications.PendingProposal
 import com.mipatrimonio.app.domain.notifications.ProposalKind
 import com.mipatrimonio.app.domain.notifications.ProposalStatus
@@ -56,6 +55,7 @@ class PendingProposalsViewModelTest {
     private lateinit var ledger: LedgerRepository
     private lateinit var notifications: NotificationRepository
     private var nextResultId = 0
+    private var nextProposalId = 0
 
     @Before
     fun setUp() {
@@ -325,12 +325,13 @@ class PendingProposalsViewModelTest {
 
     private suspend fun proposal(text: String, accountId: String?): PendingProposal {
         notifications.setAuthorized(PACKAGE, true, accountId)
-        // Estos tests cubren la revisión manual: se desactiva la autoanotación (por defecto TODAS al autorizar).
-        notifications.updateAutoConfirmMode(PACKAGE, AutoConfirmMode.OFF)
-        val outcome = notifications.ingest(BankNotification(PACKAGE, "Aviso", text, 1_000L))
-        return (outcome as NotificationOutcome.Nueva).let {
-            notifications.pendingProposals.first().single { proposal -> proposal.id == it.propuesta.id }
-        }
+        val parsed = GenericSpanishParser().parse(BankNotification(PACKAGE, "Aviso", text, 1_000L))!!
+        val id = "legacy-${++nextProposalId}"
+        db.notificationDao().upsertProposal(PendingProposalEntity(
+            id, PACKAGE, accountId, parsed.kind.name, parsed.amountMinor, parsed.currency, parsed.merchant,
+            parsed.confidence.name, parsed.parserId, 1_000L, ProposalStatus.PENDIENTE.name, null, 40_000L,
+        ))
+        return notifications.pendingProposals.first().single { it.id == id }
     }
 
     private suspend fun legacyTransferProposal(accountId: String): PendingProposal {

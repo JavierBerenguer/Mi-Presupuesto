@@ -21,6 +21,9 @@ class BackupJson {
             .putRows("recurring_rule", data.recurringRules) { recurring(it) }
             .putRows("notification_authorization", data.authorizations) { authorization(it) }
             .putRows("pending_proposal", data.proposals) { proposal(it) }
+            .putRows("notification_structure", data.notificationStructures) { notificationStructure(it) }
+            .putRows("notification_rule", data.notificationRules) { notificationRule(it) }
+            .putRows("notification_record", data.notificationRecords) { notificationRecord(it) }
         val root = JSONObject()
             .put("format", BACKUP_FORMAT)
             .put("formatVersion", BACKUP_FORMAT_VERSION)
@@ -57,10 +60,14 @@ class BackupJson {
             recurringRules = tables.rows("recurring_rule", ::readRecurring),
             authorizations = tables.rows("notification_authorization", ::readAuthorization),
             proposals = tables.rows("pending_proposal", ::readProposal),
+            notificationStructures = tables.rows("notification_structure", ::readNotificationStructure),
+            notificationRules = tables.rows("notification_rule", ::readNotificationRule),
+            notificationRecords = tables.rows("notification_record", ::readNotificationRecord),
         )
         val declared = root.requiredObject("counts")
         data.counts().forEach { (table, count) ->
-            if (declared.requiredInt(table) != count) throw BackupException.InvalidData("El recuento de $table no coincide")
+            val declaredCount = if (table.startsWith("notification_") && !declared.has(table)) 0 else declared.requiredInt(table)
+            if (declaredCount != count) throw BackupException.InvalidData("El recuento de $table no coincide")
         }
         data
     } catch (error: BackupException) {
@@ -151,6 +158,21 @@ class BackupJson {
         "confidence" to v.confidence, "parserId" to v.parserId, "postedAt" to v.postedAt,
         "status" to v.status, "resultingTransactionId" to v.resultingTransactionId, "createdAt" to v.createdAt,
     )
+    private fun notificationStructure(v: NotificationStructureEntity) = row(
+        "id" to v.id, "packageName" to v.packageName, "name" to v.name, "template" to v.template,
+        "direction" to v.direction, "defaultTitle" to v.defaultTitle, "defaultDetail" to v.defaultDetail,
+        "defaultCategoryId" to v.defaultCategoryId, "enabled" to v.enabled, "createdAt" to v.createdAt, "updatedAt" to v.updatedAt,
+    )
+    private fun notificationRule(v: NotificationRuleEntity) = row(
+        "id" to v.id, "structureId" to v.structureId, "variableKey" to v.variableKey, "variableDisplay" to v.variableDisplay,
+        "title" to v.title, "detail" to v.detail, "categoryId" to v.categoryId, "enabled" to v.enabled,
+        "createdAt" to v.createdAt, "updatedAt" to v.updatedAt,
+    )
+    private fun notificationRecord(v: NotificationRecordEntity) = row(
+        "id" to v.id, "packageName" to v.packageName, "postedAt" to v.postedAt, "text" to v.text,
+        "amountMinor" to v.amountMinor, "currency" to v.currency, "structureId" to v.structureId, "ruleId" to v.ruleId,
+        "variableText" to v.variableText, "status" to v.status, "transactionId" to v.transactionId, "createdAt" to v.createdAt,
+    )
 
     private fun readAccount(j: JSONObject) = AccountEntity(j.s("id"), j.s("name"), j.s("type"), j.s("currency"), j.l("initialBalanceMinor"), j.b("archived"), j.l("createdAt"), j.l("updatedAt"))
     private fun readCategory(j: JSONObject) = CategoryEntity(j.s("id"), j.s("name"), j.s("kind"), j.ns("parentId"), j.l("colorArgb"), j.b("archived"), j.i("sortOrder"))
@@ -167,6 +189,9 @@ class BackupJson {
     private fun readRecurring(j: JSONObject) = RecurringRuleEntity(j.s("id"), j.s("kind"), j.l("amountMinor"), j.s("currency"), j.s("accountId"), j.ns("destinationAccountId"), j.ns("categoryId"), j.s("description"), j.s("merchant"), j.l("startEpochDay"), j.i("periodQuantity"), j.s("periodUnit"), j.nl("endEpochDay"), j.s("reminder"), j.ni("reminderCustomDays"), j.nl("lastGeneratedEpochDay"), j.ob("archived", false), j.l("createdAt"), j.l("updatedAt"))
     private fun readAuthorization(j: JSONObject) = NotificationAuthorizationEntity(j.s("packageName"), j.b("authorized"), j.ns("accountId"), j.l("createdAt"), j.os("autoConfirmMode", "OFF"))
     private fun readProposal(j: JSONObject) = PendingProposalEntity(j.s("id"), j.s("packageName"), j.ns("accountId"), j.s("kind"), j.l("amountMinor"), j.s("currency"), j.ns("merchant"), j.s("confidence"), j.s("parserId"), j.l("postedAt"), j.s("status"), j.ns("resultingTransactionId"), j.l("createdAt"))
+    private fun readNotificationStructure(j: JSONObject) = NotificationStructureEntity(j.s("id"), j.s("packageName"), j.s("name"), j.s("template"), j.s("direction"), j.ns("defaultTitle"), j.ns("defaultDetail"), j.ns("defaultCategoryId"), j.b("enabled"), j.l("createdAt"), j.l("updatedAt"))
+    private fun readNotificationRule(j: JSONObject) = NotificationRuleEntity(j.s("id"), j.s("structureId"), j.s("variableKey"), j.s("variableDisplay"), j.ns("title"), j.ns("detail"), j.ns("categoryId"), j.b("enabled"), j.l("createdAt"), j.l("updatedAt"))
+    private fun readNotificationRecord(j: JSONObject) = NotificationRecordEntity(j.s("id"), j.s("packageName"), j.l("postedAt"), j.s("text"), j.nl("amountMinor"), j.ns("currency"), j.ns("structureId"), j.ns("ruleId"), j.ns("variableText"), j.s("status"), j.ns("transactionId"), j.l("createdAt"))
 }
 
 private fun row(vararg pairs: Pair<String, Any?>) = JSONObject().apply { pairs.forEach { (k, v) -> put(k, v ?: JSONObject.NULL) } }

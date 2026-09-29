@@ -7,6 +7,7 @@ sealed interface NotificationOutcome {
     data class NoInterpretable(val reason: NoInterpretableReason, val amountFound: Boolean) : NotificationOutcome
     data class Duplicada(val existenteId: String) : NotificationOutcome
     data class Nueva(val propuesta: PendingProposalDraft) : NotificationOutcome
+    data class Registrada(val recordId: String, val status: NotificationRecordStatus) : NotificationOutcome
 }
 
 class NotificationEngine(private val parsers: List<BankNotificationParser>) {

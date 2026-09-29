@@ -1,27 +1,11 @@
 package com.mipatrimonio.app.data.repository
 
 import androidx.room.withTransaction
-import com.mipatrimonio.app.data.db.AppDatabase
-import com.mipatrimonio.app.data.db.NotificationAuthorizationEntity
-import com.mipatrimonio.app.data.db.NotificationDiagnosticEntity
-import com.mipatrimonio.app.data.db.PendingProposalEntity
+import com.mipatrimonio.app.data.db.*
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
-import com.mipatrimonio.app.domain.notifications.AuthorizationRule
-import com.mipatrimonio.app.domain.notifications.AutoConfirmMode
-import com.mipatrimonio.app.domain.notifications.BankNotification
-import com.mipatrimonio.app.domain.notifications.Confidence
-import com.mipatrimonio.app.domain.notifications.DiagnosticOutcome
-import com.mipatrimonio.app.domain.notifications.NoInterpretableReason
-import com.mipatrimonio.app.domain.notifications.NotificationDiagnostic
-import com.mipatrimonio.app.domain.notifications.NotificationEngine
-import com.mipatrimonio.app.domain.notifications.NotificationFields
-import com.mipatrimonio.app.domain.notifications.NotificationOutcome
-import com.mipatrimonio.app.domain.notifications.PendingProposal
-import com.mipatrimonio.app.domain.notifications.PendingProposalDraft
-import com.mipatrimonio.app.domain.notifications.ProposalKind
-import com.mipatrimonio.app.domain.notifications.ProposalStatus
+import com.mipatrimonio.app.domain.notifications.*
 import java.time.Instant
 import java.time.ZoneId
 import java.util.UUID
@@ -32,7 +16,7 @@ import kotlinx.coroutines.flow.onStart
 
 class NotificationRepository(
     private val db: AppDatabase,
-    private val engine: NotificationEngine,
+    @Suppress("UNUSED_PARAMETER") engine: NotificationEngine,
     private val clock: () -> Long = System::currentTimeMillis,
     private val idFactory: () -> String = { UUID.randomUUID().toString() },
     initialDiagnosticTextEnabled: Boolean = false,
@@ -40,247 +24,213 @@ class NotificationRepository(
     private val zoneId: ZoneId = ZoneId.systemDefault(),
     private val saveAutoTransaction: suspend (Transaction) -> Unit = LedgerRepository(db, clock)::saveTransaction,
 ) {
-    private val notificationDao = db.notificationDao()
+    private val dao = db.notificationDao()
     private val diagnosticTextState = MutableStateFlow(initialDiagnosticTextEnabled)
 
-    val authorizationRules: Flow<List<AuthorizationRule>> =
-        notificationDao.observeAuthorizationRules().map { rules -> rules.map { it.toDomain() } }
-
-    val pendingProposals: Flow<List<PendingProposal>> =
-        notificationDao.observePendingProposals().map { proposals -> proposals.map { it.toDomain() } }
-
-    val diagnostics: Flow<List<NotificationDiagnostic>> = notificationDao.observeDiagnostics()
-        .onStart { pruneDiagnostics() }
+    val authorizationRules: Flow<List<AuthorizationRule>> = dao.observeAuthorizationRules().map { rows -> rows.map { it.toDomain() } }
+    val pendingProposals: Flow<List<PendingProposal>> = dao.observePendingProposals().map { rows -> rows.map { it.toDomain() } }
+    val diagnostics: Flow<List<NotificationDiagnostic>> = dao.observeDiagnostics().onStart { pruneDiagnostics() }
         .map { rows -> rows.map { it.toDomain() } }
-
+    val structures: Flow<List<NotificationStructure>> = dao.observeStructures().map { rows -> rows.map { it.toDomain() } }
     val diagnosticTextEnabled: Flow<Boolean> = diagnosticTextState
 
+    fun records(status: NotificationRecordStatus): Flow<List<NotificationRecord>> =
+        dao.observeRecordsByStatus(status.name).map { rows -> rows.map { it.toDomain() } }
+    fun rules(structureId: String): Flow<List<NotificationRule>> =
+        dao.observeRules(structureId).map { rows -> rows.map { it.toDomain() } }
+
     suspend fun ensureKnown(packageName: String) = db.withTransaction {
-        val normalizedPackageName = packageName.trim()
-        require(normalizedPackageName.isNotEmpty()) { "El paquete de la aplicación es obligatorio" }
-        if (notificationDao.getAuthorizationRule(normalizedPackageName) == null) {
-            notificationDao.upsertAuthorizationRule(
-                NotificationAuthorizationEntity(normalizedPackageName, false, null, clock()),
-            )
-        }
+        val value = packageName.trim()
+        require(value.isNotEmpty()) { "El paquete de la aplicación es obligatorio" }
+        if (dao.getAuthorizationRule(value) == null) dao.upsertAuthorizationRule(NotificationAuthorizationEntity(value, false, null, clock()))
     }
 
     suspend fun setAuthorized(packageName: String, authorized: Boolean, accountId: String?) = db.withTransaction {
-        val normalizedPackageName = packageName.trim()
-        require(normalizedPackageName.isNotEmpty()) { "El paquete de la aplicación es obligatorio" }
-        val normalizedAccountId = accountId?.trim()?.takeIf { it.isNotEmpty() }
-        val existing = notificationDao.getAuthorizationRule(normalizedPackageName)
-        val autoConfirmMode = when {
-            authorized && (existing == null || existing.autoConfirmMode == AutoConfirmMode.OFF.name) ->
-                AutoConfirmMode.TODAS.name
-            else -> existing?.autoConfirmMode ?: AutoConfirmMode.OFF.name
-        }
-        notificationDao.upsertAuthorizationRule(
-            NotificationAuthorizationEntity(
-                normalizedPackageName,
-                authorized,
-                normalizedAccountId,
-                existing?.createdAt ?: clock(),
-                autoConfirmMode,
-            ),
-        )
+        val value = packageName.trim()
+        require(value.isNotEmpty()) { "El paquete de la aplicación es obligatorio" }
+        val existing = dao.getAuthorizationRule(value)
+        val mode = if (authorized && (existing == null || existing.autoConfirmMode == AutoConfirmMode.OFF.name)) AutoConfirmMode.TODAS.name
+        else existing?.autoConfirmMode ?: AutoConfirmMode.OFF.name
+        dao.upsertAuthorizationRule(NotificationAuthorizationEntity(value, authorized, accountId.clean(), existing?.createdAt ?: clock(), mode))
     }
-
     suspend fun updateAuthorized(packageName: String, authorized: Boolean) = db.withTransaction {
-        val existing = notificationDao.getAuthorizationRule(packageName) ?: return@withTransaction
-        val autoConfirmMode = if (
-            authorized && !existing.authorized && existing.autoConfirmMode == AutoConfirmMode.OFF.name
-        ) {
-            AutoConfirmMode.TODAS.name
-        } else {
-            existing.autoConfirmMode
+        dao.getAuthorizationRule(packageName)?.let {
+            val mode = if (authorized && !it.authorized && it.autoConfirmMode == AutoConfirmMode.OFF.name) AutoConfirmMode.TODAS.name else it.autoConfirmMode
+            dao.upsertAuthorizationRule(it.copy(authorized = authorized, autoConfirmMode = mode))
         }
-        notificationDao.upsertAuthorizationRule(
-            existing.copy(authorized = authorized, autoConfirmMode = autoConfirmMode),
-        )
     }
-
     suspend fun updateAccount(packageName: String, accountId: String?) = db.withTransaction {
-        val existing = notificationDao.getAuthorizationRule(packageName) ?: return@withTransaction
-        notificationDao.upsertAuthorizationRule(existing.copy(accountId = accountId?.trim()?.takeIf { it.isNotEmpty() }))
+        dao.getAuthorizationRule(packageName)?.let { dao.upsertAuthorizationRule(it.copy(accountId = accountId.clean())) }
+        reprocessPendingLocked()
     }
-
     suspend fun updateAutoConfirmMode(packageName: String, mode: AutoConfirmMode) = db.withTransaction {
-        val existing = notificationDao.getAuthorizationRule(packageName) ?: return@withTransaction
-        notificationDao.upsertAuthorizationRule(existing.copy(autoConfirmMode = mode.name))
+        dao.getAuthorizationRule(packageName)?.let { dao.upsertAuthorizationRule(it.copy(autoConfirmMode = mode.name)) }
     }
 
-    fun setDiagnosticTextEnabled(enabled: Boolean) {
-        persistDiagnosticTextEnabled(enabled)
-        diagnosticTextState.value = enabled
-    }
-
-    suspend fun clearDiagnostics() = notificationDao.clearDiagnostics()
-
+    fun setDiagnosticTextEnabled(enabled: Boolean) { persistDiagnosticTextEnabled(enabled); diagnosticTextState.value = enabled }
+    suspend fun clearDiagnostics() = dao.clearDiagnostics()
     suspend fun pruneDiagnostics() = db.withTransaction {
         val now = clock()
-        notificationDao.clearExpiredSamples(subtractSaturated(now, SAMPLE_RETENTION_MILLIS))
-        notificationDao.deleteDiagnosticsOlderThan(subtractSaturated(now, DIAGNOSTIC_RETENTION_MILLIS))
-        notificationDao.trimDiagnostics(MAX_DIAGNOSTICS)
+        dao.clearExpiredSamples(now.saturatedMinus(SAMPLE_RETENTION_MILLIS))
+        dao.deleteDiagnosticsOlderThan(now.saturatedMinus(DIAGNOSTIC_RETENTION_MILLIS))
+        dao.trimDiagnostics(MAX_DIAGNOSTICS)
+        dao.deleteDiscardedRecordsOlderThan(now.saturatedMinus(DISCARDED_RETENTION_MILLIS))
     }
 
     suspend fun ingest(notification: BankNotification): NotificationOutcome = db.withTransaction {
-        val existingRule = notificationDao.getAuthorizationRule(notification.packageName)
-        val authorizedRules = notificationDao.getAuthorizedRules()
-        val minPostedAt = subtractSaturated(notification.postedAt, NotificationEngine.DEDUPLICATION_WINDOW_MILLIS)
-        val maxPostedAt = addSaturated(notification.postedAt, NotificationEngine.DEDUPLICATION_WINDOW_MILLIS)
-        val recent = notificationDao.getProposalsBetween(minPostedAt, maxPostedAt).map { it.toDraft() }
-        val outcome = engine.process(
-            notification,
-            authorizedRules.mapTo(mutableSetOf()) { it.packageName },
-            { packageName -> authorizedRules.firstOrNull { it.packageName == packageName }?.accountId },
-            recent,
-        )
-
-        var diagnosticOutcome = outcome.toDiagnosticOutcome()
-        val returnedOutcome = if (outcome is NotificationOutcome.Nueva) {
-            val proposal = outcome.propuesta.copy(id = idFactory())
-            notificationDao.upsertProposal(proposal.toEntity(clock()))
-            if (existingRule != null && shouldAutoConfirm(existingRule, proposal)) {
-                val account = proposal.accountId?.let { db.accountDao().getById(it) }
-                if (account != null && !account.archived && account.currency == proposal.currency) {
-                    val transactionId = idFactory()
-                    saveAutoTransaction(proposal.toTransaction(transactionId, clock(), zoneId))
-                    check(
-                        notificationDao.updatePendingStatus(
-                            proposal.id,
-                            ProposalStatus.CONFIRMADA.name,
-                            transactionId,
-                        ) == 1,
-                    ) { "No se ha podido confirmar la propuesta automática" }
-                    diagnosticOutcome = DiagnosticOutcome.AUTO_CONFIRMADA
-                }
-            }
-            NotificationOutcome.Nueva(proposal)
-        } else {
-            outcome
+        val authorization = dao.getAuthorizationRule(notification.packageName)
+        if (authorization?.authorized != true) return@withTransaction NotificationOutcome.AppNoAutorizada
+        val rawText = listOf(notification.title, notification.text).map(String::trim).filter(String::isNotEmpty)
+            .distinctBy { normalizeNotificationText(it) }.joinToString("\n")
+        if (rawText.isBlank()) return@withTransaction rejectWithoutRecord(notification, NoInterpretableReason.SIN_TEXTO, false)
+        val amounts = NotificationAmountRecognizer.findAll(rawText)
+        if (containsAuthenticationContent(rawText)) {
+            return@withTransaction rejectWithoutRecord(notification, NoInterpretableReason.CONTENIDO_SENSIBLE, amounts.isNotEmpty())
         }
-
-        if (existingRule != null) {
-            saveDiagnostic(notification, returnedOutcome, diagnosticOutcome, existingRule.authorized)
+        val sanitized = sanitizeNotificationText(rawText, amounts.map { it.range })
+        val amount = NotificationAmountRecognizer.first(sanitized)
+        val from = notification.postedAt.saturatedMinus(NotificationEngine.DEDUPLICATION_WINDOW_MILLIS)
+        val to = notification.postedAt.saturatedPlus(NotificationEngine.DEDUPLICATION_WINDOW_MILLIS)
+        val duplicate = dao.getRecordsBetween(notification.packageName, from, to).firstOrNull {
+            it.text == sanitized && it.amountMinor == amount?.amountMinor && it.currency == amount?.currency
         }
-        returnedOutcome
+        if (duplicate != null) {
+            dao.upsertRecord(NotificationRecordEntity(idFactory(), notification.packageName, notification.postedAt, sanitized,
+                amount?.amountMinor, amount?.currency, null, null, null, NotificationRecordStatus.DUPLICADA.name, null, clock()))
+            saveDiagnostic(notification, DiagnosticOutcome.DUPLICADA, null, amount != null)
+            return@withTransaction NotificationOutcome.Duplicada(duplicate.id)
+        }
+        val initial = NotificationRecordEntity(idFactory(), notification.packageName, notification.postedAt, sanitized,
+            amount?.amountMinor, amount?.currency, null, null, null, NotificationRecordStatus.PENDIENTE_ESTRUCTURA.name, null, clock())
+        val resolved = resolveRecord(initial, authorization)
+        dao.upsertRecord(resolved)
+        saveDiagnostic(notification, if (resolved.status == NotificationRecordStatus.AUTOMATIZADA.name) DiagnosticOutcome.AUTO_CONFIRMADA else DiagnosticOutcome.PENDIENTE, null, amount != null)
+        NotificationOutcome.Registrada(resolved.id, enumValueOf(resolved.status))
     }
 
-    suspend fun markConfirmed(id: String, resultingTransactionId: String) {
-        require(resultingTransactionId.isNotBlank()) { "El identificador del movimiento es obligatorio" }
-        notificationDao.updatePendingStatus(id, ProposalStatus.CONFIRMADA.name, resultingTransactionId)
+    suspend fun previewFromRecord(
+        recordId: String, keyRange: IntRange, variableRange: IntRange, direction: NotificationDirection,
+        defaults: NotificationDefaults = NotificationDefaults(), ruleValues: NotificationRuleValues = NotificationRuleValues(),
+    ): NotificationPreview = db.withTransaction {
+        val record = requireNotNull(dao.getRecord(recordId)) { "El registro no existe" }
+        preview(record, NotificationTemplateBuilder.build(record.text, keyRange, variableRange), direction, defaults, ruleValues)
     }
 
-    suspend fun markDiscarded(id: String) {
-        notificationDao.updatePendingStatus(id, ProposalStatus.DESCARTADA.name, null)
-    }
-
-    private suspend fun saveDiagnostic(
-        notification: BankNotification,
-        outcome: NotificationOutcome,
-        diagnosticOutcome: DiagnosticOutcome,
-        authorized: Boolean,
-    ) {
-        val reason = (outcome as? NotificationOutcome.NoInterpretable)?.reason
-        val sample = if (
-            diagnosticTextState.value && authorized && reason != NoInterpretableReason.CONTENIDO_SENSIBLE
-        ) {
-            listOf(notification.title, notification.text)
-                .map(String::trim)
-                .filter(String::isNotEmpty)
-                .distinctBy { it.lowercase() }
-                .joinToString("\n")
-                .takeIf(String::isNotEmpty)
-        } else {
-            null
-        }
+    suspend fun createStructureFromRecord(
+        recordId: String, name: String, keyRange: IntRange, variableRange: IntRange, direction: NotificationDirection,
+        defaults: NotificationDefaults = NotificationDefaults(), ruleValues: NotificationRuleValues = NotificationRuleValues(),
+    ): NotificationStructure = db.withTransaction {
+        val record = requireNotNull(dao.getRecord(recordId)) { "El registro no existe" }
+        val result = preview(record, NotificationTemplateBuilder.build(record.text, keyRange, variableRange), direction, defaults, ruleValues)
         val now = clock()
-        val fields = notification.fields
-        notificationDao.upsertDiagnostic(
-            NotificationDiagnosticEntity(
-                idFactory(), notification.packageName, notification.postedAt, diagnosticOutcome.name, reason?.name,
-                fields.hadTitle, fields.hadText, fields.hadBigText, fields.hadSubText, fields.hadTextLines,
-                fields.hadMessages, fields.hadTicker,
-                when (outcome) {
-                    is NotificationOutcome.NoInterpretable -> outcome.amountFound
-                    is NotificationOutcome.Nueva, is NotificationOutcome.Duplicada -> true
-                    NotificationOutcome.AppNoAutorizada -> false
-                },
-                sample, now,
-            ),
-        )
-        notificationDao.clearExpiredSamples(subtractSaturated(now, SAMPLE_RETENTION_MILLIS))
-        notificationDao.deleteDiagnosticsOlderThan(subtractSaturated(now, DIAGNOSTIC_RETENTION_MILLIS))
-        notificationDao.trimDiagnostics(MAX_DIAGNOSTICS)
+        val structure = NotificationStructure(idFactory(), record.packageName, name.trim().also { require(it.isNotEmpty()) { "El nombre es obligatorio" } },
+            result.template, direction, defaults.title.clean(), defaults.detail.clean(), defaults.categoryId.clean(), true, now, now)
+        dao.upsertStructure(structure.toEntity())
+        val rule = NotificationRule(idFactory(), structure.id, normalizeVariable(result.variableText), result.variableText,
+            ruleValues.title.clean(), ruleValues.detail.clean(), ruleValues.categoryId.clean(), true, now, now)
+        dao.upsertRule(rule.toEntity())
+        dao.upsertRecord(resolveRecord(record, requireNotNull(dao.getAuthorizationRule(record.packageName))))
+        reprocessPendingLocked()
+        structure
     }
 
-    private fun shouldAutoConfirm(rule: NotificationAuthorizationEntity, proposal: PendingProposalDraft): Boolean {
-        val mode = runCatching { enumValueOf<AutoConfirmMode>(rule.autoConfirmMode) }.getOrDefault(AutoConfirmMode.OFF)
-        return rule.authorized && proposal.accountId != null && proposal.kind != ProposalKind.TRANSFERENCIA && when (mode) {
-            AutoConfirmMode.OFF -> false
-            AutoConfirmMode.SOLO_SEGURAS -> proposal.confidence in setOf(Confidence.ALTA, Confidence.MEDIA)
-            AutoConfirmMode.TODAS -> true
+    suspend fun createRuleForRecord(recordId: String, values: NotificationRuleValues): NotificationRule = db.withTransaction {
+        val record = requireNotNull(dao.getRecord(recordId)) { "El registro no existe" }
+        val structureId = requireNotNull(record.structureId) { "El registro no tiene una estructura" }
+        val display = requireNotNull(record.variableText) { "El registro no tiene texto variable" }
+        val now = clock()
+        val key = normalizeVariable(display)
+        val existing = dao.getRuleForKey(structureId, key)
+        val rule = NotificationRule(existing?.id ?: idFactory(), structureId, key, display,
+            values.title.clean(), values.detail.clean(), values.categoryId.clean(), true, existing?.createdAt ?: now, now)
+        dao.upsertRule(rule.toEntity()); reprocessPendingLocked(); rule
+    }
+
+    suspend fun saveStructure(value: NotificationStructure) = db.withTransaction { dao.upsertStructure(value.copy(updatedAt = clock()).toEntity()); reprocessPendingLocked() }
+    suspend fun saveRule(value: NotificationRule) = db.withTransaction { dao.upsertRule(value.copy(variableKey = normalizeVariable(value.variableDisplay), updatedAt = clock()).toEntity()); reprocessPendingLocked() }
+    suspend fun setStructureEnabled(id: String, enabled: Boolean) = db.withTransaction { dao.getStructure(id)?.let { dao.upsertStructure(it.copy(enabled = enabled, updatedAt = clock())) }; reprocessPendingLocked() }
+    suspend fun setRuleEnabled(id: String, enabled: Boolean) = db.withTransaction { dao.getRule(id)?.let { dao.upsertRule(it.copy(enabled = enabled, updatedAt = clock())) }; reprocessPendingLocked() }
+    suspend fun deleteStructure(id: String) = db.withTransaction { dao.deleteStructure(id); reprocessPendingLocked() }
+    suspend fun deleteRule(id: String) = db.withTransaction { dao.deleteRule(id); reprocessPendingLocked() }
+    suspend fun discardRecord(id: String) { dao.discardRecord(id) }
+    suspend fun markRecordCreatedManually(id: String, transactionId: String) {
+        require(transactionId.isNotBlank()) { "El identificador del apunte es obligatorio" }
+        check(dao.markRecordCreatedManually(id, transactionId) == 1) { "El registro ya tiene un apunte asociado" }
+    }
+    suspend fun recordForTransaction(transactionId: String): NotificationRecord? = dao.getRecordForTransaction(transactionId)?.toDomain()
+    suspend fun reprocessPending() = db.withTransaction { reprocessPendingLocked() }
+
+    suspend fun markConfirmed(id: String, resultingTransactionId: String) { require(resultingTransactionId.isNotBlank()); dao.updatePendingStatus(id, ProposalStatus.CONFIRMADA.name, resultingTransactionId) }
+    suspend fun markDiscarded(id: String) { dao.updatePendingStatus(id, ProposalStatus.DESCARTADA.name, null) }
+
+    private suspend fun reprocessPendingLocked() {
+        dao.getPendingRecords().forEach { record ->
+            dao.getAuthorizationRule(record.packageName)?.let { dao.upsertRecord(resolveRecord(record, it)) }
         }
     }
 
-    private fun subtractSaturated(value: Long, amount: Long): Long =
-        runCatching { Math.subtractExact(value, amount) }.getOrDefault(Long.MIN_VALUE)
+    private suspend fun resolveRecord(row: NotificationRecordEntity, authorization: NotificationAuthorizationEntity): NotificationRecordEntity {
+        if (row.transactionId != null) return row
+        val structures = dao.getEnabledStructures(row.packageName).mapNotNull { runCatching { it.toDomain() }.getOrNull() }
+        val selected = NotificationTemplateMatcher.select(structures, row.text)
+        val structure = selected?.first
+        val match = selected?.second
+        val rule = if (structure != null && match != null) {
+            dao.getEnabledRule(structure.id, normalizeVariable(match.variableText))?.toDomain()
+        } else null
+        val base = row.copy(amountMinor = match?.amount?.amountMinor ?: row.amountMinor, currency = match?.amount?.currency ?: row.currency,
+            structureId = structure?.id, ruleId = rule?.id, variableText = match?.variableText)
+        val account = authorization.accountId?.let { db.accountDao().getById(it) }
+        if (account == null || account.archived || account.currency != base.currency) return base.copy(status = NotificationRecordStatus.PENDIENTE_CUENTA.name)
+        if (structure == null || match == null) return base.copy(status = NotificationRecordStatus.PENDIENTE_ESTRUCTURA.name)
+        if (rule == null) return base.copy(status = NotificationRecordStatus.PENDIENTE_REGLA.name)
+        val transactionId = idFactory()
+        saveAutoTransaction(base.toTransaction(transactionId, account.id, structure, rule, match.amount, clock(), zoneId))
+        return base.copy(status = NotificationRecordStatus.AUTOMATIZADA.name, transactionId = transactionId)
+    }
 
-    private fun addSaturated(value: Long, amount: Long): Long =
-        runCatching { Math.addExact(value, amount) }.getOrDefault(Long.MAX_VALUE)
+    private fun preview(record: NotificationRecordEntity, template: NotificationTemplate, direction: NotificationDirection,
+                        defaults: NotificationDefaults, values: NotificationRuleValues): NotificationPreview {
+        val match = requireNotNull(NotificationTemplateMatcher.match(template, record.text)) { "La plantilla no coincide con el registro" }
+        val kind = direction.kindFor(match.amount)
+        return NotificationPreview(template, match.variableText, match.amount.amountMinor, match.amount.currency, kind,
+            values.title.clean() ?: defaults.title.clean() ?: match.variableText,
+            values.detail.clean() ?: defaults.detail.clean().orEmpty(), values.categoryId.clean() ?: defaults.categoryId.clean())
+    }
+
+    private suspend fun rejectWithoutRecord(notification: BankNotification, reason: NoInterpretableReason, amountFound: Boolean): NotificationOutcome {
+        saveDiagnostic(notification, DiagnosticOutcome.NO_INTERPRETABLE, reason, amountFound)
+        return NotificationOutcome.NoInterpretable(reason, amountFound)
+    }
+    private suspend fun saveDiagnostic(notification: BankNotification, outcome: DiagnosticOutcome, reason: NoInterpretableReason?, amountFound: Boolean) {
+        val now = clock(); val f = notification.fields
+        dao.upsertDiagnostic(NotificationDiagnosticEntity(idFactory(), notification.packageName, notification.postedAt, outcome.name, reason?.name,
+            f.hadTitle, f.hadText, f.hadBigText, f.hadSubText, f.hadTextLines, f.hadMessages, f.hadTicker, amountFound, null, now))
+        dao.deleteDiagnosticsOlderThan(now.saturatedMinus(DIAGNOSTIC_RETENTION_MILLIS)); dao.trimDiagnostics(MAX_DIAGNOSTICS)
+    }
 
     companion object {
         const val MAX_DIAGNOSTICS = 100
         const val SAMPLE_RETENTION_MILLIS = 24 * 60 * 60 * 1_000L
         const val DIAGNOSTIC_RETENTION_MILLIS = 7 * SAMPLE_RETENTION_MILLIS
+        const val DISCARDED_RETENTION_MILLIS = 30 * SAMPLE_RETENTION_MILLIS
     }
 }
 
-private fun NotificationOutcome.toDiagnosticOutcome(): DiagnosticOutcome = when (this) {
-    NotificationOutcome.AppNoAutorizada -> DiagnosticOutcome.APP_NO_AUTORIZADA
-    is NotificationOutcome.NoInterpretable -> DiagnosticOutcome.NO_INTERPRETABLE
-    is NotificationOutcome.Duplicada -> DiagnosticOutcome.DUPLICADA
-    is NotificationOutcome.Nueva -> DiagnosticOutcome.PENDIENTE
+private fun NotificationRecordEntity.toTransaction(id: String, accountId: String, structure: NotificationStructure, rule: NotificationRule, amount: RecognizedAmount, now: Long, zoneId: ZoneId): Transaction {
+    return Transaction(id, structure.direction.kindFor(amount).let { if (it == ProposalKind.INGRESO) TransactionType.INGRESO else TransactionType.GASTO },
+        requireNotNull(amountMinor), requireNotNull(currency), Instant.ofEpochMilli(postedAt).atZone(zoneId).toLocalDate(), accountId,
+        rule.categoryId ?: structure.defaultCategoryId, rule.title.clean() ?: structure.defaultTitle.clean() ?: variableText.orEmpty(),
+        variableText.orEmpty(), rule.detail.clean() ?: structure.defaultDetail.clean().orEmpty(), TransactionSource.NOTIFICACION, now, now)
 }
-
-private fun NotificationAuthorizationEntity.toDomain() = AuthorizationRule(
-    packageName, authorized, accountId, createdAt,
-    runCatching { enumValueOf<AutoConfirmMode>(autoConfirmMode) }.getOrDefault(AutoConfirmMode.OFF),
-)
-
-private fun PendingProposalEntity.toDraft() = PendingProposalDraft(
-    id, packageName, accountId, enumValueOf(kind), amountMinor, currency, merchant, enumValueOf(confidence), parserId, postedAt,
-)
-
-private fun PendingProposalEntity.toDomain() = PendingProposal(
-    id, packageName, accountId, enumValueOf(kind), amountMinor, currency, merchant, enumValueOf(confidence), parserId,
-    postedAt, enumValueOf(status), resultingTransactionId, createdAt,
-)
-
-private fun PendingProposalDraft.toEntity(createdAt: Long) = PendingProposalEntity(
-    id, packageName, accountId, kind.name, amountMinor, currency, merchant, confidence.name, parserId, postedAt,
-    ProposalStatus.PENDIENTE.name, null, createdAt,
-)
-
-private fun NotificationDiagnosticEntity.toDomain() = NotificationDiagnostic(
-    id, packageName, postedAt, enumValueOf(outcome), reason?.let { enumValueOf(it) },
-    NotificationFields(hadTitle, hadText, hadBigText, hadSubText, hadTextLines, hadMessages, hadTicker),
-    amountFound, sampleText, createdAt,
-)
-
-private fun PendingProposalDraft.toTransaction(id: String, now: Long, zoneId: ZoneId) = Transaction(
-    id = id,
-    type = if (kind == ProposalKind.INGRESO) TransactionType.INGRESO else TransactionType.GASTO,
-    amountMinor = amountMinor,
-    currency = currency,
-    date = Instant.ofEpochMilli(postedAt).atZone(zoneId).toLocalDate(),
-    accountId = requireNotNull(accountId),
-    categoryId = null,
-    description = merchant.orEmpty(),
-    merchant = merchant.orEmpty(),
-    notes = "",
-    source = TransactionSource.NOTIFICACION,
-    createdAt = now,
-    updatedAt = now,
-)
+private fun NotificationAuthorizationEntity.toDomain() = AuthorizationRule(packageName, authorized, accountId, createdAt, runCatching { enumValueOf<AutoConfirmMode>(autoConfirmMode) }.getOrDefault(AutoConfirmMode.OFF))
+private fun PendingProposalEntity.toDomain() = PendingProposal(id, packageName, accountId, enumValueOf(kind), amountMinor, currency, merchant, enumValueOf(confidence), parserId, postedAt, enumValueOf(status), resultingTransactionId, createdAt)
+private fun NotificationDiagnosticEntity.toDomain() = NotificationDiagnostic(id, packageName, postedAt, enumValueOf(outcome), reason?.let { enumValueOf(it) }, NotificationFields(hadTitle, hadText, hadBigText, hadSubText, hadTextLines, hadMessages, hadTicker), amountFound, sampleText, createdAt)
+private fun NotificationStructureEntity.toDomain() = NotificationStructure(id, packageName, name, NotificationTemplateJson.decode(template), enumValueOf(direction), defaultTitle, defaultDetail, defaultCategoryId, enabled, createdAt, updatedAt)
+private fun NotificationStructure.toEntity() = NotificationStructureEntity(id, packageName, name, NotificationTemplateJson.encode(template), direction.name, defaultTitle, defaultDetail, defaultCategoryId, enabled, createdAt, updatedAt)
+private fun NotificationRuleEntity.toDomain() = NotificationRule(id, structureId, variableKey, variableDisplay, title, detail, categoryId, enabled, createdAt, updatedAt)
+private fun NotificationRule.toEntity() = NotificationRuleEntity(id, structureId, variableKey, variableDisplay, title, detail, categoryId, enabled, createdAt, updatedAt)
+private fun NotificationRecordEntity.toDomain() = NotificationRecord(id, packageName, postedAt, text, amountMinor, currency, structureId, ruleId, variableText, enumValueOf(status), transactionId, createdAt)
+private fun String?.clean() = this?.trim()?.takeIf(String::isNotEmpty)
+private fun Long.saturatedMinus(amount: Long) = runCatching { Math.subtractExact(this, amount) }.getOrDefault(Long.MIN_VALUE)
+private fun Long.saturatedPlus(amount: Long) = runCatching { Math.addExact(this, amount) }.getOrDefault(Long.MAX_VALUE)

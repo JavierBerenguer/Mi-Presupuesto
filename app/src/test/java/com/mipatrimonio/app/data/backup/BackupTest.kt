@@ -97,6 +97,22 @@ class BackupTest {
     }
 
     @Test
+    fun `copia antigua sin tablas aprendidas se restaura con listas vacias`() {
+        val codec = BackupJson()
+        val root = JSONObject(codec.encode(fullBackupData()).toString(Charsets.UTF_8))
+        val tables = root.getJSONObject("tables")
+        val counts = root.getJSONObject("counts")
+        listOf("notification_structure", "notification_rule", "notification_record").forEach {
+            tables.remove(it); counts.remove(it)
+        }
+        root.put("dbVersion", 11)
+        val decoded = codec.decode(root.toString().toByteArray())
+        assertTrue(decoded.notificationStructures.isEmpty())
+        assertTrue(decoded.notificationRules.isEmpty())
+        assertTrue(decoded.notificationRecords.isEmpty())
+    }
+
+    @Test
     fun `integridad se valida antes de tocar datos y un fallo intermedio revierte`() = runTest {
         val original = fullBackupData()
         insert(original)
@@ -156,6 +172,9 @@ class BackupTest {
         db.recurringRuleDao().insertAllForRestore(data.recurringRules)
         db.notificationDao().insertAllAuthorizationsForRestore(data.authorizations)
         db.notificationDao().insertAllProposalsForRestore(data.proposals)
+        db.notificationDao().insertAllStructuresForRestore(data.notificationStructures)
+        db.notificationDao().insertAllRulesForRestore(data.notificationRules)
+        db.notificationDao().insertAllRecordsForRestore(data.notificationRecords)
     }
 
     private fun fullBackupData() = BackupData(
@@ -189,5 +208,8 @@ class BackupTest {
         recurringRules = listOf(RecurringRuleEntity("r", "GASTO", 5, "EUR", "a", null, "c", "Alquiler", "", 10, 1, "MES", null, "EXACTO", null, 9, false, 1, 2)),
         authorizations = listOf(NotificationAuthorizationEntity("com.banco", true, "a", 1, "OFF")),
         proposals = listOf(PendingProposalEntity("pp", "com.banco", "a", "GASTO", 5, "EUR", "Tienda", "ALTA", "parser", 1, "CONFIRMADA", "t", 2)),
+        notificationStructures = listOf(NotificationStructureEntity("ns", "com.banco", "Pago", "[{\"type\":\"LITERAL\",\"text\":\"Pago \"},{\"type\":\"IMPORTE\"},{\"type\":\"VARIABLE\"}]", "GASTO", "Compra", null, "c", true, 1, 2)),
+        notificationRules = listOf(NotificationRuleEntity("nr", "ns", "tienda", "Tienda", "Supermercado", null, "sc", true, 1, 2)),
+        notificationRecords = listOf(NotificationRecordEntity("nrec", "com.banco", 1, "Pago 0,05 EUR Tienda", 5, "EUR", "ns", "nr", "Tienda", "AUTOMATIZADA", "t", 2)),
     )
 }
