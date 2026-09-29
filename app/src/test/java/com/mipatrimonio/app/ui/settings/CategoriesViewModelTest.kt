@@ -15,12 +15,12 @@ import com.mipatrimonio.app.domain.model.CategoryKind
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
+import com.mipatrimonio.app.testutil.awaitValue
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -84,14 +84,16 @@ class CategoriesViewModelTest {
         viewModel.uiState.first { it.deletion?.usage?.isUsed == true }
 
         viewModel.confirmDelete()
-        advanceUntilIdle()
-        assertTrue(ledger.categories.first().any { it.id == "used" })
+        assertTrue(ledger.categories.awaitValue { categories -> categories.any { it.id == "used" } }.any { it.id == "used" })
 
         viewModel.selectDeleteTarget(null)
         assertTrue(viewModel.uiState.first { it.deletion?.targetSelected == true }.deletion!!.targetSelected)
         viewModel.confirmDelete()
-        assertNull(viewModel.uiState.first { it.deletion == null }.deletion)
-        assertNull(ledger.transactions.first().single().categoryId)
+        assertNull(viewModel.uiState.awaitValue { it.deletion == null }.deletion)
+        val transaction = ledger.transactions.awaitValue { transactions ->
+            transactions.singleOrNull()?.let { it.categoryId == null } == true
+        }.single()
+        assertNull(transaction.categoryId)
     }
 
     @Test

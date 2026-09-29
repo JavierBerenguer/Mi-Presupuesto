@@ -37,6 +37,7 @@ Resumen; lista de archivos creados/modificados; comandos ejecutados con su resul
 ## Reglas de tests de ViewModel (obligatorias, lección de T-025 y T-027)
 - Los ViewModels usan `stateIn(WhileSubscribed)`. En los tests: `@RunWith(RobolectricTestRunner::class)`, `Dispatchers.setMain(UnconfinedTestDispatcher())` en `@Before` y `resetMain()` en `@After`, `runTest { … }` en cada test (NUNCA `runBlocking` en el cuerpo de un test: con Robolectric bloquea el hilo principal y el test se cuelga).
 - Leer el estado con `viewModel.uiState.first { condición }` (nunca `.value` sin recolector) y esperar al estado final antes de comprobar la base de datos.
+- Tras una acción que escribe en Room o en DataStore, no leas con `.first()` sin predicado ni confíes en `advanceUntilIdle()`: espera el valor esperado con el helper de `testutil`.
 - Antes de entregar, revisa a mano cada llamada a Compose: `Modifier.padding` acepta `(start, top, end, bottom)` o `(horizontal, vertical)` pero no mezclados; las referencias a propiedades (`Account::name`) no sirven donde se espera una lambda `(T) -> String` composable: usa `{ it.name }`. No puedes compilar: relee el código en busca de errores de sintaxis y de tipos.
 
 ## Ajustes y aplicación en tests (obligatorio, lección de T-039)

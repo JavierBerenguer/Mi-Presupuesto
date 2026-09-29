@@ -7,19 +7,20 @@ import com.mipatrimonio.app.data.db.AppDatabase
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.RecurringRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
-import com.mipatrimonio.app.testutil.SettingsStoreRule
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountType
 import com.mipatrimonio.app.domain.model.RecurringKind
 import com.mipatrimonio.app.domain.model.RecurringPeriodUnit
 import com.mipatrimonio.app.domain.model.RecurringRule
 import com.mipatrimonio.app.domain.model.ReminderOption
+import com.mipatrimonio.app.testutil.SettingsStoreRule
+import com.mipatrimonio.app.testutil.awaitValue
 import java.time.LocalDate
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -65,8 +66,8 @@ class RecurringViewModelsTest {
     fun `formulario crea gasto con periodo expiracion y recordatorio personalizado`() = runTest {
         settings.setHideAmounts(false)
         ledger.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
-        var scheduled: RecurringRule? = null
-        val viewModel = RecurringFormViewModel(recurring, ledger, null, { today }, { 10L }) { scheduled = it }
+        val scheduled = CompletableDeferred<RecurringRule>()
+        val viewModel = RecurringFormViewModel(recurring, ledger, null, { today }, { 10L }) { scheduled.complete(it) }
         viewModel.uiState.first { !it.isLoading }
         viewModel.setAmount("12,34")
         viewModel.setDescription("Suscripción")
@@ -77,14 +78,13 @@ class RecurringViewModelsTest {
         viewModel.setReminder(ReminderOption.PERSONALIZADO)
         viewModel.setReminderCustomDays("0")
         viewModel.save()
-        advanceUntilIdle()
 
-        val saved = recurring.rules.first().single()
+        val saved = recurring.rules.awaitValue { rules -> rules.singleOrNull()?.amountMinor == 1_234L }.single()
         assertEquals(1_234L, saved.amountMinor)
         assertEquals(2, saved.periodQuantity)
         assertEquals(today.plusYears(1), saved.endDate)
         assertEquals(ReminderOption.PERSONALIZADO, saved.reminder)
-        assertEquals(saved.id, scheduled?.id)
+        assertEquals(saved.id, scheduled.awaitValue().id)
     }
 
     @Test
@@ -109,15 +109,15 @@ class RecurringViewModelsTest {
         ledger.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
         recurring.saveRule(rule())
         recurring.generatePending(RecurringRepository.generationLimit(today))
-        val cancelled = mutableListOf<String>()
-        val viewModel = RecurringListViewModel(recurring, settings, cancelled::add, today = { today })
+        val cancelled = CompletableDeferred<String>()
+        val viewModel = RecurringListViewModel(recurring, settings, { cancelled.complete(it) }, today = { today })
         val state = viewModel.uiState.first { !it.isLoading && it.items.isNotEmpty() }
         assertEquals(today.plusMonths(1), state.items.single().nextDate)
         assertFalse(state.hideAmounts)
         viewModel.setArchived("r", true)
-        advanceUntilIdle()
-        assertTrue(recurring.rules.first().single().archived)
-        assertEquals(listOf("r"), cancelled)
+        val archived = recurring.rules.awaitValue { rules -> rules.singleOrNull()?.archived == true }.single()
+        assertTrue(archived.archived)
+        assertEquals("r", cancelled.awaitValue())
     }
 
     @Test

@@ -26,13 +26,13 @@ import com.mipatrimonio.app.domain.notifications.NotificationOutcome
 import com.mipatrimonio.app.domain.notifications.PendingProposal
 import com.mipatrimonio.app.domain.notifications.ProposalKind
 import com.mipatrimonio.app.domain.notifications.ProposalStatus
+import com.mipatrimonio.app.testutil.awaitValue
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -95,9 +95,12 @@ class PendingProposalsViewModelTest {
                 description = "Libro técnico",
             ),
         )
-        advanceUntilIdle()
 
-        val transaction = ledger.transactions.first().single()
+        val transaction = ledger.transactions.awaitValue { transactions ->
+            transactions.singleOrNull()?.let {
+                it.amountMinor == 1_250L && it.categoryId == "books" && it.description == "Libro técnico"
+            } == true
+        }.single()
         assertEquals(TransactionType.GASTO, transaction.type)
         assertEquals(1_250L, transaction.amountMinor)
         assertEquals("account-1", transaction.accountId)
@@ -117,17 +120,21 @@ class PendingProposalsViewModelTest {
 
         viewModel.requestConfirmation(proposal.id)
         viewModel.confirm(ProposalConfirmation(ProposalKind.INGRESO, "account-1"))
-        advanceUntilIdle()
-        assertEquals(TransactionType.INGRESO, ledger.transactions.first().single().type)
+        val income = ledger.transactions.awaitValue { transactions ->
+            transactions.singleOrNull()?.type == TransactionType.INGRESO
+        }.single()
+        assertEquals(TransactionType.INGRESO, income.type)
 
         proposal = proposal("Abono de 25 EUR", "account-1")
         viewModel = readyViewModel()
         viewModel.requestConfirmation(proposal.id)
         viewModel.confirm(ProposalConfirmation(ProposalKind.GASTO, "account-1"))
-        advanceUntilIdle()
+        val expense = ledger.transactions.awaitValue { transactions ->
+            transactions.firstOrNull { it.id == "result-2" }?.type == TransactionType.GASTO
+        }.first { it.id == "result-2" }
         assertEquals(
             TransactionType.GASTO,
-            ledger.transactions.first().first { it.id == "result-2" }.type,
+            expense.type,
         )
     }
 
@@ -147,10 +154,11 @@ class PendingProposalsViewModelTest {
                 description = "Ahorro",
             ),
         )
-        advanceUntilIdle()
 
-        val transfer = ledger.transfers.first().single()
-        val transactions = ledger.transactions.first()
+        val transfer = ledger.transfers.awaitValue { transfers ->
+            transfers.singleOrNull()?.let { it.description == "Ahorro" && it.toAccountId == "to" } == true
+        }.single()
+        val transactions = ledger.transactions.awaitValue { it.isEmpty() }
         assertEquals("from", transfer.fromAccountId)
         assertEquals("to", transfer.toAccountId)
         assertEquals(3_000L, transfer.fromAmountMinor)
@@ -180,10 +188,9 @@ class PendingProposalsViewModelTest {
 
         viewModel.requestConfirmation(proposal.id)
         viewModel.confirm(ProposalConfirmation(ProposalKind.TRANSFERENCIA, "from", "to"))
-        advanceUntilIdle()
 
-        assertEquals(1, ledger.transfers.first().size)
-        assertTrue(ledger.transactions.first().isEmpty())
+        assertEquals(1, ledger.transfers.awaitValue { it.size == 1 }.size)
+        assertTrue(ledger.transactions.awaitValue { it.isEmpty() }.isEmpty())
         assertEquals(ProposalStatus.CONFIRMADA.name, storedStatus(proposal.id).first)
     }
 
@@ -245,10 +252,9 @@ class PendingProposalsViewModelTest {
 
         viewModel.requestConfirmation(expense.id)
         viewModel.confirm(ProposalConfirmation(ProposalKind.GASTO, "from"))
-        advanceUntilIdle()
         // El error se publica después del rollback: se espera primero para evitar una carrera con el hilo de Room.
-        assertNotNull(viewModel.uiState.first { it.error is PendingProposalError.Repository }.error)
-        assertTrue(ledger.transactions.first().isEmpty())
+        assertNotNull(viewModel.uiState.awaitValue { it.error is PendingProposalError.Repository }.error)
+        assertTrue(ledger.transactions.awaitValue { it.isEmpty() }.isEmpty())
         assertEquals(ProposalStatus.PENDIENTE.name, storedStatus(expense.id).first)
 
         removeConfirmationFailureTrigger()
@@ -257,9 +263,8 @@ class PendingProposalsViewModelTest {
         viewModel = readyViewModel()
         viewModel.requestConfirmation(transfer.id)
         viewModel.confirm(ProposalConfirmation(ProposalKind.TRANSFERENCIA, "from", "to"))
-        advanceUntilIdle()
-        assertNotNull(viewModel.uiState.first { it.error is PendingProposalError.Repository }.error)
-        assertTrue(ledger.transfers.first().isEmpty())
+        assertNotNull(viewModel.uiState.awaitValue { it.error is PendingProposalError.Repository }.error)
+        assertTrue(ledger.transfers.awaitValue { it.isEmpty() }.isEmpty())
         assertEquals(ProposalStatus.PENDIENTE.name, storedStatus(transfer.id).first)
     }
 
@@ -273,9 +278,8 @@ class PendingProposalsViewModelTest {
 
         viewModel.confirm(confirmation)
         viewModel.confirm(confirmation)
-        advanceUntilIdle()
 
-        assertEquals(1, ledger.transactions.first().size)
+        assertEquals(1, ledger.transactions.awaitValue { it.size == 1 }.size)
         assertEquals(1, nextResultId)
     }
 
@@ -300,9 +304,9 @@ class PendingProposalsViewModelTest {
         val viewModel = readyViewModel()
 
         viewModel.discard(proposal.id)
-        advanceUntilIdle()
 
-        assertTrue(ledger.transactions.first().isEmpty())
+        notifications.pendingProposals.awaitValue { proposals -> proposals.none { it.id == proposal.id } }
+        assertTrue(ledger.transactions.awaitValue { it.isEmpty() }.isEmpty())
         assertEquals(ProposalStatus.DESCARTADA.name, storedStatus(proposal.id).first)
         assertNull(storedStatus(proposal.id).second)
     }
@@ -396,7 +400,7 @@ class PendingProposalsViewModelTest {
         viewModel: PendingProposalsViewModel,
         expected: PendingProposalError,
     ) {
-        assertEquals(expected, viewModel.uiState.first { it.error == expected }.error)
+        assertEquals(expected, viewModel.uiState.awaitValue { it.error == expected }.error)
     }
 
     private fun storedStatus(id: String): Pair<String, String?> = db.openHelper.readableDatabase.query(

@@ -8,14 +8,14 @@ import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.NotificationRepository
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountType
-import com.mipatrimonio.app.domain.notifications.GenericSpanishParser
 import com.mipatrimonio.app.domain.notifications.AutoConfirmMode
+import com.mipatrimonio.app.domain.notifications.GenericSpanishParser
 import com.mipatrimonio.app.domain.notifications.NotificationEngine
+import com.mipatrimonio.app.testutil.awaitValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -62,28 +62,32 @@ class NotificationSettingsViewModelTest {
         viewModel.uiState.first { !it.isLoading && it.rules.size == 1 && it.activeAccounts.size == 1 }
 
         viewModel.setAuthorized(PACKAGE, true)
-        advanceUntilIdle()
-        var rule = notifications.authorizationRules.first().single()
+        var rule = notifications.authorizationRules.awaitValue { rules ->
+            rules.singleOrNull()?.let { it.authorized && it.accountId == null } == true
+        }.single()
         assertTrue(rule.authorized)
         assertNull(rule.accountId)
         assertEquals(AutoConfirmMode.TODAS, rule.autoConfirmMode)
 
         viewModel.setAccount(PACKAGE, "account-1")
-        advanceUntilIdle()
-        rule = notifications.authorizationRules.first().single()
+        rule = notifications.authorizationRules.awaitValue { rules ->
+            rules.singleOrNull()?.accountId == "account-1"
+        }.single()
         assertTrue(rule.authorized)
         assertEquals("account-1", rule.accountId)
 
         viewModel.setAuthorized(PACKAGE, false)
-        advanceUntilIdle()
-        rule = notifications.authorizationRules.first().single()
+        rule = notifications.authorizationRules.awaitValue { rules ->
+            rules.singleOrNull()?.let { !it.authorized && it.accountId == "account-1" } == true
+        }.single()
         assertFalse(rule.authorized)
         assertEquals("account-1", rule.accountId)
         assertEquals(AutoConfirmMode.TODAS, rule.autoConfirmMode)
 
         viewModel.setAccount(PACKAGE, null)
-        advanceUntilIdle()
-        rule = notifications.authorizationRules.first().single()
+        rule = notifications.authorizationRules.awaitValue { rules ->
+            rules.singleOrNull()?.let { !it.authorized && it.accountId == null } == true
+        }.single()
         assertFalse(rule.authorized)
         assertNull(rule.accountId)
     }
@@ -106,9 +110,11 @@ class NotificationSettingsViewModelTest {
         viewModel.uiState.first { !it.isLoading && it.rules.size == 1 }
 
         viewModel.setAutoConfirmMode(PACKAGE, AutoConfirmMode.TODAS)
-        advanceUntilIdle()
+        val rule = notifications.authorizationRules.awaitValue { rules ->
+            rules.singleOrNull()?.autoConfirmMode == AutoConfirmMode.TODAS
+        }.single()
 
-        assertEquals(AutoConfirmMode.TODAS, notifications.authorizationRules.first().single().autoConfirmMode)
+        assertEquals(AutoConfirmMode.TODAS, rule.autoConfirmMode)
     }
 
     private fun account(id: String, archived: Boolean = false) = Account(

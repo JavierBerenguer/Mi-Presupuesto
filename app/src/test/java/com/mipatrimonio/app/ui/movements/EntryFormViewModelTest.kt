@@ -13,12 +13,12 @@ import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.model.Transfer
+import com.mipatrimonio.app.testutil.awaitValue
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -65,16 +65,14 @@ class EntryFormViewModelTest {
         expense.setAmount("12,34")
         expense.setTitle("Compra")
         expense.save()
-        advanceUntilIdle()
 
         val income = viewModel()
         income.ready()
         income.setKind(EntryKind.INCOME)
         income.setAmount("45.67")
         income.save()
-        advanceUntilIdle()
 
-        val transactions = ledger.transactions.first()
+        val transactions = ledger.transactions.awaitValue { it.size == 2 }
         assertEquals(2, transactions.size)
         assertEquals(1_234L, transactions.first { it.type == TransactionType.GASTO }.amountMinor)
         assertEquals(4_567L, transactions.first { it.type == TransactionType.INGRESO }.amountMinor)
@@ -91,10 +89,9 @@ class EntryFormViewModelTest {
         viewModel.setCategory("salary")
         viewModel.setAmount("25")
         viewModel.save()
-        advanceUntilIdle()
 
-        assertTrue(ledger.transactions.first().isEmpty())
-        val transfer = ledger.transfers.first().single()
+        val transfer = ledger.transfers.awaitValue { it.size == 1 }.single()
+        assertTrue(ledger.transactions.awaitValue { it.isEmpty() }.isEmpty())
         assertEquals(2_500L, transfer.fromAmountMinor)
         assertEquals(2_500L, transfer.toAmountMinor)
         assertEquals("salary", transfer.categoryId)
@@ -165,15 +162,22 @@ class EntryFormViewModelTest {
         assertEquals(EntryKind.TRANSFER, transferVm.uiState.value.values.kind)
         transferVm.setAmount("4")
         transferVm.save()
-        advanceUntilIdle()
 
-        assertEquals(1, ledger.transactions.first().size)
-        assertEquals(300L, ledger.transactions.first().single().amountMinor)
-        assertEquals("Después", ledger.transactions.first().single().description)
-        assertEquals("Tienda", ledger.transactions.first().single().merchant)
-        assertEquals("Nota", ledger.transactions.first().single().notes)
-        assertEquals(1, ledger.transfers.first().size)
-        assertEquals(400L, ledger.transfers.first().single().fromAmountMinor)
+        val transactions = ledger.transactions.awaitValue { transactions ->
+            transactions.singleOrNull()?.let { it.amountMinor == 300L && it.description == "Después" } == true
+        }
+        val transfers = ledger.transfers.awaitValue { transfers ->
+            transfers.singleOrNull()?.fromAmountMinor == 400L
+        }
+        val transaction = transactions.single()
+        val transfer = transfers.single()
+        assertEquals(1, transactions.size)
+        assertEquals(300L, transaction.amountMinor)
+        assertEquals("Después", transaction.description)
+        assertEquals("Tienda", transaction.merchant)
+        assertEquals("Nota", transaction.notes)
+        assertEquals(1, transfers.size)
+        assertEquals(400L, transfer.fromAmountMinor)
     }
 
     @Test
@@ -189,8 +193,10 @@ class EntryFormViewModelTest {
         viewModel.setCategory("income")
         viewModel.setAmount("1")
         viewModel.save()
-        advanceUntilIdle()
-        assertEquals("income", ledger.transactions.first().single().categoryId)
+        val expenseTransaction = ledger.transactions.awaitValue { transactions ->
+            transactions.singleOrNull()?.categoryId == "income"
+        }.single()
+        assertEquals("income", expenseTransaction.categoryId)
 
         val income = viewModel()
         income.ready()
@@ -199,8 +205,10 @@ class EntryFormViewModelTest {
         income.setCategory("expense")
         income.setAmount("2")
         income.save()
-        advanceUntilIdle()
-        assertEquals("expense", ledger.transactions.first().first { it.type == TransactionType.INGRESO }.categoryId)
+        val incomeTransaction = ledger.transactions.awaitValue { transactions ->
+            transactions.firstOrNull { it.type == TransactionType.INGRESO }?.categoryId == "expense"
+        }.first { it.type == TransactionType.INGRESO }
+        assertEquals("expense", incomeTransaction.categoryId)
 
         val transfer = viewModel()
         transfer.ready()
@@ -226,15 +234,19 @@ class EntryFormViewModelTest {
 
         editing.setCategory("active")
         editing.save()
-        advanceUntilIdle()
-        assertEquals("active", ledger.transfers.first().single().categoryId)
+        val categorized = ledger.transfers.awaitValue { transfers ->
+            transfers.singleOrNull()?.categoryId == "active"
+        }.single()
+        assertEquals("active", categorized.categoryId)
 
         val removeCategory = viewModel("tr")
         removeCategory.ready()
         removeCategory.setCategory(null)
         removeCategory.save()
-        advanceUntilIdle()
-        assertNull(ledger.transfers.first().single().categoryId)
+        val uncategorized = ledger.transfers.awaitValue { transfers ->
+            transfers.singleOrNull()?.let { it.categoryId == null } == true
+        }.single()
+        assertNull(uncategorized.categoryId)
     }
 
     @Test
@@ -281,10 +293,9 @@ class EntryFormViewModelTest {
         viewModel.setTitle("Ingreso")
         viewModel.setComment("Comentario")
         viewModel.save(addAnother = true)
-        advanceUntilIdle()
 
         // uiState solo se actualiza mientras hay un recolector: se espera al estado ya reiniciado.
-        val state = viewModel.uiState.first { it.values.amount.isEmpty() && !it.isDirty }
+        val state = viewModel.uiState.awaitValue { it.values.amount.isEmpty() && !it.isDirty }
         val values = state.values
         assertEquals(EntryKind.INCOME, values.kind)
         assertEquals("a", values.accountId)
@@ -293,7 +304,7 @@ class EntryFormViewModelTest {
         assertEquals("", values.title)
         assertEquals("", values.comment)
         assertFalse(state.isDirty)
-        assertEquals(1, ledger.transactions.first().size)
+        assertEquals(1, ledger.transactions.awaitValue { it.size == 1 }.size)
     }
 
     @Test
