@@ -46,13 +46,12 @@ import com.mipatrimonio.app.ui.components.SegmentedControl
 
 @Composable
 fun PortfoliosScreen(
-    initialNewPortfolio: Boolean = false,
     viewModel: PortfoliosViewModel = appViewModel { c -> PortfoliosViewModel(c.ledger, c.investments, c.settings) },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var filter by remember { mutableStateOf(PortfolioFilter.ACTIVAS) }
     var editing by remember { mutableStateOf<Portfolio?>(null) }
-    var creating by remember(initialNewPortfolio) { mutableStateOf(initialNewPortfolio) }
+    var creating by remember { mutableStateOf(false) }
     var archiving by remember { mutableStateOf<ManagedPortfolio?>(null) }
     var deleting by remember { mutableStateOf<Portfolio?>(null) }
     if (state.isLoading) return LoadingBox()

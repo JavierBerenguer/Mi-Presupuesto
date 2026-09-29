@@ -18,8 +18,7 @@
     <string name="inv_percentage_value">%1$s %%</string>
     <string name="inv_open_positions">Posiciones abiertas</string>
     <string name="inv_empty_positions">Esta cartera no tiene posiciones abiertas.</string>
-    <string name="inv_empty_portfolios">Todavía no hay carteras de inversión.</string>
-    <string name="inv_empty_portfolios_explanation">Crea una cartera para agrupar tus activos. Puede recibir dinero mediante transferencias desde una cuenta.</string>
+    <string name="inv_empty_portfolios_explanation">Crea tus carteras en Más › Carteras.</string>
     <string name="inv_new_investment_account">Nueva cuenta de inversión</string>
     <string name="inv_add_action">Añadir a la cartera</string>
     <string name="inv_aggregate_all">Agregado (todas las carteras)</string>
@@ -65,7 +64,6 @@
     <string name="inv_positive_amount">+%1$s</string>
 
     <string name="inv_actions">Acciones de inversión</string>
-    <string name="inv_new_portfolio">Nueva cartera</string>
     <string name="inv_new_asset">Nuevo activo</string>
     <string name="inv_new_operation">Nueva operación</string>
     <string name="inv_update_price">Actualizar precio</string>
@@ -116,12 +114,12 @@
     <string name="inv_fees_optional">Comisiones (opcional)</string>
     <string name="inv_withholding_optional">Retención (opcional)</string>
     <string name="inv_note_optional">Nota (opcional)</string>
-    <string name="inv_operation_needs_portfolio">Necesitas crear una cartera antes de registrar una operación.</string>
-    <string name="inv_operation_needs_asset">Necesitas crear un activo antes de registrar una operación.</string>
+    <string name="inv_operation_needs_portfolio">Crea tus carteras en Más › Carteras antes de registrar una operación.</string>
+    <string name="inv_operation_needs_asset">Crea tus activos en Más › Activos antes de registrar una operación.</string>
 
     <string name="inv_price">Precio</string>
     <string name="inv_manual_price_explanation">Este precio se guardará manualmente, sin proveedor externo.</string>
-    <string name="inv_price_needs_asset">Necesitas crear un activo antes de actualizar un precio.</string>
+    <string name="inv_price_needs_asset">Crea tus activos en Más › Activos antes de actualizar un precio.</string>
 
     <string name="inv_history_title">%1$s · %2$s</string>
     <string name="inv_empty_history">No hay operaciones para esta posición.</string>
@@ -152,6 +150,7 @@
     <string name="inv_asset_detail_title">Detalle de activo</string>
     <string name="inv_edit_operation">Editar operación</string>
     <string name="inv_manage_assets">Gestionar activos</string>
+    <string name="inv_manage_portfolios">Gestionar carteras</string>
     <string name="inv_assets_title">Activos</string>
     <string name="inv_assets_search">Buscar por nombre, ticker, ISIN o mercado</string>
     <string name="inv_assets_with_position">Con posición</string>

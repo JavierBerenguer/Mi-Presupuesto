@@ -146,10 +146,7 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
                 onOpenAssetDetail = { portfolioId, assetId -> navController.navigate(Rutas.activo(portfolioId, assetId)) },
                 onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
                 onOpenAssets = { navController.navigate(Rutas.ACTIVOS) },
-                onNewPortfolio = {
-                    navController.navigate(Rutas.CARTERAS) { launchSingleTop = true }
-                    navController.currentBackStackEntry?.savedStateHandle?.set(Rutas.CREATE_PORTFOLIO_KEY, true)
-                },
+                onOpenPortfolios = { navController.navigate(Rutas.CARTERAS) },
             )
         }
         composable(Destino.Mas.ruta) {
@@ -160,12 +157,8 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
             SettingsScreen(onNavigate = { navController.navigate(it) })
         }
         composable(Rutas.CUENTAS) { AccountsScreen() }
-        composable(Rutas.ACTIVOS) { entry ->
-            AssetsScreen(initialNewAsset = entry.savedStateHandle.remove<Boolean>(Rutas.CREATE_ASSET_KEY) == true)
-        }
-        composable(Rutas.CARTERAS) { entry ->
-            PortfoliosScreen(initialNewPortfolio = entry.savedStateHandle.remove<Boolean>(Rutas.CREATE_PORTFOLIO_KEY) == true)
-        }
+        composable(Rutas.ACTIVOS) { AssetsScreen() }
+        composable(Rutas.CARTERAS) { PortfoliosScreen() }
         composable(Rutas.CATEGORIAS) { CategoriesScreen() }
         composable(Rutas.NOTIFICACIONES) {
             NotificationSettingsScreen(

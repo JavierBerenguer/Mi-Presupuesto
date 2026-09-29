@@ -47,11 +47,10 @@ fun InvestmentsScreen(
     onOpenAssetDetail: (String, String) -> Unit = { _, _ -> },
     onOpenAccounts: () -> Unit = {},
     onOpenAssets: () -> Unit = {},
-    onNewPortfolio: () -> Unit = {},
+    onOpenPortfolios: () -> Unit = {},
     viewModel: InvestmentsViewModel = appViewModel { c -> InvestmentsViewModel(c.ledger, c.investments, c.settings, quotes = c.quotes) },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var assetDialog by rememberSaveable { mutableStateOf(false) }
     var operationType by remember { mutableStateOf<OperationType?>(null) }
     var operationPosition by remember { mutableStateOf<PositionRow?>(null) }
     var priceDialog by rememberSaveable { mutableStateOf(false) }
@@ -73,8 +72,8 @@ fun InvestmentsScreen(
                 EmptyState(
                     icon = Icons.Default.ShowChart,
                     message = stringResource(R.string.inv_empty_portfolios_explanation),
-                    actionLabel = stringResource(R.string.inv_new_portfolio),
-                    onAction = onNewPortfolio,
+                    actionLabel = stringResource(R.string.inv_manage_portfolios),
+                    onAction = onOpenPortfolios,
                 )
                 TextButton(onClick = onOpenAccounts, modifier = Modifier.heightIn(min = 48.dp)) {
                     Text(stringResource(R.string.inv_new_investment_account))
@@ -91,22 +90,40 @@ fun InvestmentsScreen(
                 Icon(Icons.Default.Add, stringResource(R.string.inv_add_action))
             }
             DropdownMenu(menu, { menu = false }) {
-                DropdownMenuItem({ Text(stringResource(R.string.inv_refresh_prices)) }, {
-                    menu = false
-                    if (state.selectedPositions.none { it.asset.quoteProvider != null }) {
-                        refreshStatus = "missing"
-                    } else viewModel.refreshPrices { summary ->
-                        refreshSummary = summary
-                        refreshStatus = if (summary == null) "error" else null
+                investmentMenuActions.forEach { action ->
+                    val label = when (action) {
+                        InvestmentMenuAction.REFRESH_PRICES -> R.string.inv_refresh_prices
+                        InvestmentMenuAction.BUY -> R.string.inv_buy
+                        InvestmentMenuAction.SELL -> R.string.inv_sell
+                        InvestmentMenuAction.DIVIDEND -> R.string.inv_dividend
+                        InvestmentMenuAction.FEE -> R.string.inv_fee
+                        InvestmentMenuAction.TRANSFER -> R.string.inv_transfer
                     }
-                })
-                DropdownMenuItem({ Text(stringResource(R.string.inv_buy)) }, { menu = false; operationPosition = null; operationType = OperationType.COMPRA })
-                DropdownMenuItem({ Text(stringResource(R.string.inv_sell)) }, { menu = false; operationPosition = null; operationType = OperationType.VENTA })
-                DropdownMenuItem({ Text(stringResource(R.string.inv_dividend)) }, { menu = false; operationType = OperationType.DIVIDENDO })
-                DropdownMenuItem({ Text(stringResource(R.string.inv_fee)) }, { menu = false; operationType = OperationType.COMISION })
-                DropdownMenuItem({ Text(stringResource(R.string.inv_transfer)) }, { menu = false; transferDialog = true })
-                DropdownMenuItem({ Text(stringResource(R.string.inv_new_asset)) }, { menu = false; assetDialog = true })
-                DropdownMenuItem({ Text(stringResource(R.string.inv_new_portfolio)) }, { menu = false; onNewPortfolio() })
+                    DropdownMenuItem({ Text(stringResource(label)) }, {
+                        menu = false
+                        when (action) {
+                            InvestmentMenuAction.REFRESH_PRICES -> {
+                                if (state.selectedPositions.none { it.asset.quoteProvider != null }) {
+                                    refreshStatus = "missing"
+                                } else viewModel.refreshPrices { summary ->
+                                    refreshSummary = summary
+                                    refreshStatus = if (summary == null) "error" else null
+                                }
+                            }
+                            InvestmentMenuAction.BUY -> {
+                                operationPosition = null
+                                operationType = OperationType.COMPRA
+                            }
+                            InvestmentMenuAction.SELL -> {
+                                operationPosition = null
+                                operationType = OperationType.VENTA
+                            }
+                            InvestmentMenuAction.DIVIDEND -> operationType = OperationType.DIVIDENDO
+                            InvestmentMenuAction.FEE -> operationType = OperationType.COMISION
+                            InvestmentMenuAction.TRANSFER -> transferDialog = true
+                        }
+                    })
+                }
             }
         }
         refreshStatus?.let { message ->
@@ -150,16 +167,12 @@ fun InvestmentsScreen(
             }) else null,
         )
     }
-    if (assetDialog) AssetDialog(
-        state.assets, { assetDialog = false },
-        { assetDialog = false },
-    )
     if (operationType != null) OperationDialog(
         operationPortfolios(state.portfolios), state.assets.filterNot { it.archived }, state.accounts,
         operationPosition?.portfolio?.id ?: state.selectedPortfolioId, operationPosition?.asset?.id,
         { operationType = null; operationPosition = null },
-        { operationType = null; onNewPortfolio() },
-        { operationType = null; assetDialog = true },
+        { operationType = null; onOpenPortfolios() },
+        { operationType = null; onOpenAssets() },
         { portfolio, asset, type, date, quantity, price, fees, account, note, result ->
             viewModel.addOperation(portfolio, asset, type, date, quantity, price, fees, account, note, result)
         },
@@ -168,7 +181,7 @@ fun InvestmentsScreen(
     )
     if (priceDialog) ManualPriceDialog(
         state.assets, state.selectedPositions.singleOrNull()?.asset?.id, { priceDialog = false },
-        { priceDialog = false; assetDialog = true },
+        { priceDialog = false; onOpenAssets() },
         { asset, price, result -> viewModel.setManualPrice(asset, price, result) },
     )
     if (transferDialog) CryptoTransferDialog(

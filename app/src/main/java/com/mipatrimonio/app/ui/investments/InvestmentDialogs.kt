@@ -259,8 +259,8 @@ fun OperationDialog(
     initialPortfolioId: String?,
     initialAssetId: String?,
     onDismiss: () -> Unit,
-    onCreatePortfolio: () -> Unit,
-    onCreateAsset: () -> Unit,
+    onOpenPortfolios: () -> Unit,
+    onOpenAssets: () -> Unit,
     onSave: (
         Portfolio,
         Asset,
@@ -281,8 +281,8 @@ fun OperationDialog(
         MissingDataDialog(
             title = stringResource(R.string.inv_new_operation),
             message = stringResource(R.string.inv_operation_needs_portfolio),
-            actionLabel = stringResource(R.string.inv_new_portfolio),
-            onAction = onCreatePortfolio,
+            actionLabel = stringResource(R.string.inv_manage_portfolios),
+            onAction = onOpenPortfolios,
             onDismiss = onDismiss,
         )
         return
@@ -291,8 +291,8 @@ fun OperationDialog(
         MissingDataDialog(
             title = stringResource(R.string.inv_new_operation),
             message = stringResource(R.string.inv_operation_needs_asset),
-            actionLabel = stringResource(R.string.inv_new_asset),
-            onAction = onCreateAsset,
+            actionLabel = stringResource(R.string.inv_manage_assets),
+            onAction = onOpenAssets,
             onDismiss = onDismiss,
         )
         return
@@ -665,15 +665,15 @@ fun ManualPriceDialog(
     assets: List<Asset>,
     initialAssetId: String?,
     onDismiss: () -> Unit,
-    onCreateAsset: () -> Unit,
+    onOpenAssets: () -> Unit,
     onSave: (Asset, BigDecimal, (String?) -> Unit) -> Unit,
 ) {
     if (assets.isEmpty()) {
         MissingDataDialog(
             title = stringResource(R.string.inv_update_price),
             message = stringResource(R.string.inv_price_needs_asset),
-            actionLabel = stringResource(R.string.inv_new_asset),
-            onAction = onCreateAsset,
+            actionLabel = stringResource(R.string.inv_manage_assets),
+            onAction = onOpenAssets,
             onDismiss = onDismiss,
         )
         return

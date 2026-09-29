@@ -11,11 +11,9 @@ import com.mipatrimonio.app.domain.calc.PositionCalculator
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Asset
 import com.mipatrimonio.app.domain.model.AssetPrice
-import com.mipatrimonio.app.domain.model.AssetType
 import com.mipatrimonio.app.domain.model.InvestmentOperation
 import com.mipatrimonio.app.domain.model.OperationType
 import com.mipatrimonio.app.domain.model.Portfolio
-import com.mipatrimonio.app.domain.model.QuoteProvider
 import com.mipatrimonio.app.domain.usecase.FinanceSnapshot
 import com.mipatrimonio.app.domain.usecase.SnapshotBuilder
 import java.math.BigDecimal
@@ -171,49 +169,6 @@ class InvestmentsViewModel(
 
     fun selectPortfolio(portfolioId: String?) {
         viewModelScope.launch { settings.setSelectedPortfolioId(portfolioId) }
-    }
-
-    fun savePortfolio(name: String, defaultAccountId: String?, onResult: (String?) -> Unit) {
-        launchAction(onResult) {
-            investments.savePortfolio(
-                Portfolio(
-                    id = UUID.randomUUID().toString(),
-                    name = name.trim(),
-                    createdAt = System.currentTimeMillis(),
-                    defaultAccountId = defaultAccountId,
-                ),
-            )
-        }
-    }
-
-    fun saveAsset(
-        name: String,
-        ticker: String,
-        isin: String,
-        type: AssetType,
-        market: String,
-        currency: String,
-        quoteProvider: QuoteProvider?,
-        quoteSymbol: String?,
-        quoteMic: String?,
-        onResult: (String?) -> Unit,
-    ) {
-        launchAction(onResult) {
-            investments.saveAsset(
-                Asset(
-                    id = UUID.randomUUID().toString(),
-                    name = name.trim(),
-                    ticker = ticker.trim(),
-                    isin = isin.trim(),
-                    type = type,
-                    market = market.trim(),
-                    currency = currency,
-                    quoteProvider = quoteProvider,
-                    quoteSymbol = quoteSymbol,
-                    quoteMic = quoteMic,
-                ),
-            )
-        }
     }
 
     fun addOperation(

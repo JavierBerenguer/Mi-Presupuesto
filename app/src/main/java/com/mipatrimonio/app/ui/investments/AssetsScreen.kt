@@ -47,7 +47,6 @@ import com.mipatrimonio.app.ui.components.SegmentedControl
 
 @Composable
 fun AssetsScreen(
-    initialNewAsset: Boolean = false,
     viewModel: AssetsViewModel = appViewModel { c ->
         AssetsViewModel(c.investments, c.settings, c.eodhdSearch, c.coinGeckoSearch, c.quoteSecrets)
     },
@@ -57,7 +56,7 @@ fun AssetsScreen(
     var filter by remember { mutableStateOf(AssetFilter.CON_POSICION) }
     var editing by remember { mutableStateOf<Asset?>(null) }
     var deleting by remember { mutableStateOf<Asset?>(null) }
-    var creating by remember(initialNewAsset) { mutableStateOf(initialNewAsset) }
+    var creating by remember { mutableStateOf(false) }
     if (state.isLoading) return LoadingBox()
     val visible = filterAssets(state.assets, query, filter)
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
