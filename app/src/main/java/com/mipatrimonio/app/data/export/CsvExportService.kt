@@ -78,11 +78,11 @@ class CsvExportService(
             }
 
         private fun categoryRows(values: List<Category>, categories: Map<String, Category>): List<List<String>> =
-            rows(listOf("id", "nombre", "tipo", "categoria_padre", "archivada")) {
+            rows(listOf("id", "nombre", "tipo", "categoria_padre", "icono", "archivada")) {
                 values.map {
                     listOf(
                         it.id, it.name, categoryKind(it.kind),
-                        it.parentId?.let(categories::get)?.name.orEmpty(), yesNo(it.archived),
+                        it.parentId?.let(categories::get)?.name.orEmpty(), it.icon.orEmpty(), yesNo(it.archived),
                     )
                 }
             }
@@ -263,7 +263,7 @@ class CsvExportService(
             horas HH:MM:SS e importes con coma decimal y sin separador de miles.
 
             cuentas.csv: id; nombre; tipo; divisa; saldo_inicial; saldo_actual (solo movimientos ejecutados a la fecha de exportación); archivada; fecha_creacion.
-            categorias.csv: id; nombre; tipo; categoria_padre (nombre); archivada.
+            categorias.csv: id; nombre; tipo; categoria_padre (nombre); icono (clave estable); archivada.
             movimientos.csv: id; fecha; tipo; importe positivo; divisa; cuenta; categoria raíz; subcategoria; descripcion; comercio; notas; origen; estado.
             transferencias.csv: id; fecha; cuenta_origen; importe_origen; divisa_origen; cuenta_destino; importe_destino; divisa_destino; categoria; descripcion; estado. Las divisas proceden de las cuentas relacionadas porque la transferencia solo guarda sus identificadores e importes.
             presupuestos.csv: id; nombre; periodo; importe_limite; divisa; fecha_inicio; fecha_fin; umbral_aviso (porcentaje entero); categorias (nombres separados por |); incluye_subcategorias (Sí/No alineados con categorias); archivado.

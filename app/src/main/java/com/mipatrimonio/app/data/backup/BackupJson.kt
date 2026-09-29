@@ -96,7 +96,7 @@ class BackupJson {
     )
     private fun category(v: CategoryEntity) = row(
         "id" to v.id, "name" to v.name, "kind" to v.kind, "parentId" to v.parentId,
-        "colorArgb" to v.colorArgb, "archived" to v.archived, "sortOrder" to v.sortOrder,
+        "colorArgb" to v.colorArgb, "archived" to v.archived, "sortOrder" to v.sortOrder, "icon" to v.icon,
     )
     private fun transaction(v: TransactionEntity) = row(
         "id" to v.id, "type" to v.type, "amountMinor" to v.amountMinor, "currency" to v.currency,
@@ -175,7 +175,7 @@ class BackupJson {
     )
 
     private fun readAccount(j: JSONObject) = AccountEntity(j.s("id"), j.s("name"), j.s("type"), j.s("currency"), j.l("initialBalanceMinor"), j.b("archived"), j.l("createdAt"), j.l("updatedAt"))
-    private fun readCategory(j: JSONObject) = CategoryEntity(j.s("id"), j.s("name"), j.s("kind"), j.ns("parentId"), j.l("colorArgb"), j.b("archived"), j.i("sortOrder"))
+    private fun readCategory(j: JSONObject) = CategoryEntity(j.s("id"), j.s("name"), j.s("kind"), j.ns("parentId"), j.l("colorArgb"), j.b("archived"), j.i("sortOrder"), j.ns("icon"))
     private fun readTransaction(j: JSONObject) = TransactionEntity(j.s("id"), j.s("type"), j.l("amountMinor"), j.s("currency"), j.l("epochDay"), j.s("accountId"), j.ns("categoryId"), j.s("description"), j.s("merchant"), j.s("notes"), j.s("source"), j.l("createdAt"), j.l("updatedAt"))
     private fun readTransfer(j: JSONObject) = TransferEntity(j.s("id"), j.s("fromAccountId"), j.s("toAccountId"), j.l("fromAmountMinor"), j.l("toAmountMinor"), j.l("epochDay"), j.s("description"), j.l("createdAt"), j.l("updatedAt"), j.ns("categoryId"))
     private fun readBudget(j: JSONObject) = BudgetEntity(j.s("id"), j.ns("categoryId"), j.s("period"), j.l("limitMinor"), j.s("currency"), j.b("archived"), j.l("createdAt"), j.os("name", ""), j.ol("startEpochDay", 0), j.nl("endEpochDay"), j.oi("alertThresholdPct", 90))

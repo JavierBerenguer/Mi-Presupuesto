@@ -70,6 +70,7 @@ import com.mipatrimonio.app.R
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.calc.MovementsCalculationMode
 import com.mipatrimonio.app.domain.model.Category
+import com.mipatrimonio.app.ui.common.CategoryIconBadge
 import com.mipatrimonio.app.domain.model.MoneyMath
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
@@ -559,6 +560,11 @@ private fun MovementRow(
 ) {
     var showMenu by remember { mutableStateOf(false) }
     val p = movementPresentation(item, accountsById, categoriesById)
+    val rowCategory = when (item) {
+        is MovementItem.Tx -> item.transaction.categoryId?.let(categoriesById::get)
+        is MovementItem.Move -> item.transfer.categoryId?.let(categoriesById::get)
+        is MovementItem.Investment -> null
+    }
     val isFuture = movementStatus(item.date, LocalDate.now()) == MovementStatus.PREVISTO
     val isRestrictedFuture = isFuture && grayFuture
     val primaryTextColor = if (isRestrictedFuture) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
@@ -566,20 +572,20 @@ private fun MovementRow(
         Modifier.fillMaxWidth().heightIn(min = 64.dp).clickable(onClick = onOpen).padding(start = 12.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.extras.chipBackground),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (item is MovementItem.Investment) {
+        if (item is MovementItem.Investment) {
+            Box(
+                Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.extras.chipBackground),
+                contentAlignment = Alignment.Center,
+            ) {
                 Icon(
                     Icons.Default.ShowChart,
                     contentDescription = stringResource(R.string.mov_investment_icon),
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(20.dp),
                 )
-            } else {
-                Text(p.initial, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             }
+        } else {
+            CategoryIconBadge(rowCategory, categoriesById.values)
         }
         Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -669,7 +675,6 @@ private fun MovementRow(
 private data class MovementPresentation(
     val title: String,
     val subtitle: String,
-    val initial: String,
     val currency: String,
     val kind: AmountKind,
     val automatic: Boolean,
@@ -695,7 +700,7 @@ private fun movementPresentation(
         val title = tx.description.ifBlank { tx.merchant.ifBlank { categoryLabel } }
         MovementPresentation(
             title, stringResource(R.string.mov_row_metadata, categoryLabel, account),
-            category?.name?.firstOrNull()?.uppercase() ?: stringResource(R.string.common_generic_category_mark), tx.currency,
+            tx.currency,
             if (tx.type == TransactionType.GASTO) AmountKind.EXPENSE else AmountKind.INCOME,
             item.isAutomatic,
         )
@@ -711,7 +716,7 @@ private fun movementPresentation(
         MovementPresentation(
             stringResource(R.string.mov_transfer_accounts, fromName, toName),
             transfer.description.ifBlank { stringResource(R.string.mov_transfer) },
-            stringResource(R.string.common_transfer_mark), from?.currency.orEmpty(), AmountKind.NEUTRAL, false,
+            from?.currency.orEmpty(), AmountKind.NEUTRAL, false,
             if (from?.currency == to?.currency) fromAmount else stringResource(R.string.mov_transfer_amounts, fromAmount, toAmount),
         )
     }
@@ -730,7 +735,6 @@ private fun movementPresentation(
         MovementPresentation(
             title = stringResource(titleResource, assetName),
             subtitle = stringResource(R.string.mov_investment_metadata, accountName, portfolioName),
-            initial = "",
             currency = operation.currency,
             kind = AmountKind.NEUTRAL,
             automatic = false,

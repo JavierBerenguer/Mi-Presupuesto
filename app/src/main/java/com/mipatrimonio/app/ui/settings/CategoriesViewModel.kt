@@ -82,6 +82,7 @@ class CategoriesViewModel(
         name: String,
         parentId: String?,
         colorArgb: Long,
+        icon: String? = existing?.icon,
         onSaved: () -> Unit,
     ) {
         if (name.isBlank()) {
@@ -100,6 +101,7 @@ class CategoriesViewModel(
             parentId = parentId,
             colorArgb = colorArgb,
             archived = existing?.archived ?: false,
+            icon = icon,
         )
         viewModelScope.launch {
             runCatching { repository.saveCategory(category) }

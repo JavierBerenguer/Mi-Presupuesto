@@ -50,6 +50,7 @@ import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.model.MoneyMath
 import com.mipatrimonio.app.ui.common.AmountField
 import com.mipatrimonio.app.ui.common.ConfirmDialog
+import com.mipatrimonio.app.ui.common.CategoryIconBadge
 import com.mipatrimonio.app.ui.common.DateField
 import com.mipatrimonio.app.ui.common.DropdownField
 import com.mipatrimonio.app.ui.common.EmptyState
@@ -173,7 +174,12 @@ private fun BudgetCard(status: BudgetStatus, state: BudgetsUiState, onOpen: (Bud
         Text(budget.name, style = MaterialTheme.typography.titleLarge)
         Text(periodLabel(budget.period))
         Text(stringResource(R.string.pres_date_range, formatDate(budget.startDate), budget.endDate?.let(::formatDate) ?: stringResource(R.string.pres_no_end)))
-        Text(categorySummary(budget, state.categories), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            budget.categoryRules.take(4).mapNotNull { rule -> state.categories.find { it.id == rule.categoryId } }.forEach {
+                CategoryIconBadge(it, state.categories, size = 28.dp)
+            }
+            Text(categorySummary(budget, state.categories), modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
         ProgressBar((status.percentage.coerceAtMost(100) / 100f), progressColor = if (warning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(stringResource(if (status.remainingMinor < 0) R.string.pres_over_by else R.string.pres_left, amount), color = if (warning) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
@@ -262,14 +268,14 @@ private fun CategorySelector(
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(roots, key = Category::id) { root ->
                 val rootRule = rules.find { it.categoryId == root.id }
-                CategoryRuleRow(root.name, rootRule != null, rootRule?.includeSubcategories == true, true) { selected, all ->
+                CategoryRuleRow(root, categories, rootRule != null, rootRule?.includeSubcategories == true, true) { selected, all ->
                     rules = rules.filterNot { it.categoryId == root.id || (all && categories.find { category -> category.id == it.categoryId }?.parentId == root.id) } +
                         if (selected) listOf(BudgetCategoryRule(root.id, all)) else emptyList()
                 }
                 if (rootRule?.includeSubcategories != true) {
                     categories.filter { it.parentId == root.id && (query.isBlank() || it.name.contains(query, true)) }.forEach { child ->
                         val selected = rules.any { it.categoryId == child.id }
-                        CategoryRuleRow(child.name, selected, false, false) { checked, _ ->
+                        CategoryRuleRow(child, categories, selected, false, false) { checked, _ ->
                             rules = rules.filterNot { it.categoryId == child.id } + if (checked) listOf(BudgetCategoryRule(child.id, false)) else emptyList()
                         }
                     }
@@ -281,10 +287,11 @@ private fun CategorySelector(
 }
 
 @Composable
-private fun CategoryRuleRow(name: String, selected: Boolean, includeAll: Boolean, parent: Boolean, onChange: (Boolean, Boolean) -> Unit) {
+private fun CategoryRuleRow(category: Category, categories: List<Category>, selected: Boolean, includeAll: Boolean, parent: Boolean, onChange: (Boolean, Boolean) -> Unit) {
     Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(start = if (parent) 0.dp else 32.dp), verticalAlignment = Alignment.CenterVertically) {
         Checkbox(selected, { onChange(it, includeAll) })
-        Text(name, Modifier.weight(1f))
+        CategoryIconBadge(category, categories, size = 32.dp)
+        Text(category.name, Modifier.weight(1f).padding(start = 8.dp))
         if (parent && selected) {
             Text(stringResource(R.string.pres_include_subcategories), style = MaterialTheme.typography.bodySmall)
             Switch(includeAll, { onChange(true, it) })

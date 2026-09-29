@@ -90,6 +90,9 @@ class BackupTest {
         val operation = root.getJSONObject("tables").getJSONArray("investment_operation").getJSONObject(0)
         operation.remove("transferGroupId")
         assertEquals(null, codec.decode(root.toString().toByteArray()).operations.single().transferGroupId)
+        val category = root.getJSONObject("tables").getJSONArray("category").getJSONObject(0)
+        category.remove("icon")
+        assertEquals(null, codec.decode(root.toString().toByteArray()).categories.first().icon)
         root.put("formatVersion", BACKUP_FORMAT_VERSION + 1)
         assertTrue(runCatching { codec.decode(root.toString().toByteArray()) }.exceptionOrNull() is BackupException.NewerVersion)
         root.put("formatVersion", BACKUP_FORMAT_VERSION).put("dbVersion", BACKUP_DB_VERSION + 1)
@@ -194,8 +197,8 @@ class BackupTest {
             AccountEntity("b", "Ahorro", "AHORRO", "EUR", 0, false, 1, 2),
         ),
         categories = listOf(
-            CategoryEntity("c", "Comida", "GASTO", null, 1, false, 0),
-            CategoryEntity("sc", "Restaurantes", "GASTO", "c", 2, false, 1),
+            CategoryEntity("c", "Comida", "GASTO", null, 1, false, 0, "shopping"),
+            CategoryEntity("sc", "Restaurantes", "GASTO", "c", 2, false, 1, "restaurant"),
         ),
         transactions = listOf(TransactionEntity("t", "GASTO", Long.MAX_VALUE, "EUR", 20, "a", "sc", "Descripción", "Comercio", "Nota\nsegunda", "MANUAL", 1, 2)),
         transfers = listOf(TransferEntity("tr", "a", "b", 10, 10, 21, "Transferencia", 1, 2, "c")),

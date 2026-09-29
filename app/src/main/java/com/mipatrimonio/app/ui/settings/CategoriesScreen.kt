@@ -11,11 +11,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -43,6 +47,7 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,10 +65,14 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mipatrimonio.app.R
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.model.CategoryKind
 import com.mipatrimonio.app.ui.common.ConfirmDialog
+import com.mipatrimonio.app.ui.common.CategoryIconBadge
+import com.mipatrimonio.app.ui.common.CategoryIconPickerViewModel
+import com.mipatrimonio.app.ui.common.CategoryIcons
 import com.mipatrimonio.app.ui.common.DropdownField
 import com.mipatrimonio.app.ui.common.EmptyState
 import com.mipatrimonio.app.ui.common.LoadingBox
@@ -172,6 +181,7 @@ fun CategoriesScreen(
                         item(key = node.category.id) {
                             CategoryRow(
                                 category = node.category,
+                                categories = state.categories,
                                 indented = false,
                                 childCount = node.childCount,
                                 expanded = node.isExpanded,
@@ -189,6 +199,7 @@ fun CategoriesScreen(
                         items(node.children, key = { it.id }) { child ->
                             CategoryRow(
                                 category = child,
+                                categories = state.categories,
                                 indented = true,
                                 onEdit = {
                                     viewModel.clearFormError()
@@ -223,8 +234,8 @@ fun CategoriesScreen(
                 viewModel.clearFormError()
                 showCreateDialog = false
             },
-            onSave = { name, parentId, color ->
-                viewModel.saveCategory(null, selectedKind, name, parentId, color) {
+            onSave = { name, parentId, color, icon ->
+                viewModel.saveCategory(null, selectedKind, name, parentId, color, icon) {
                     showCreateDialog = false
                 }
             },
@@ -240,8 +251,8 @@ fun CategoriesScreen(
                 viewModel.clearFormError()
                 editingCategory = null
             },
-            onSave = { name, parentId, color ->
-                viewModel.saveCategory(category, category.kind, name, parentId, color) {
+            onSave = { name, parentId, color, icon ->
+                viewModel.saveCategory(category, category.kind, name, parentId, color, icon) {
                     editingCategory = null
                 }
             },
@@ -279,6 +290,7 @@ fun CategoriesScreen(
 @Composable
 private fun CategoryRow(
     category: Category,
+    categories: List<Category>,
     indented: Boolean,
     childCount: Int = 0,
     expanded: Boolean = false,
@@ -297,12 +309,7 @@ private fun CategoryRow(
                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp, end = 4.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(
-                    Modifier
-                        .size(14.dp)
-                        .clip(CircleShape)
-                        .background(Color(category.colorArgb.toInt())),
-                )
+                CategoryIconBadge(category, categories, size = 40.dp)
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(category.name, style = MaterialTheme.typography.titleMedium)
@@ -443,13 +450,16 @@ private fun CategoryFormDialog(
     categories: List<Category>,
     error: CategoryFormError?,
     onDismiss: () -> Unit,
-    onSave: (String, String?, Long) -> Unit,
+    onSave: (String, String?, Long, String?) -> Unit,
 ) {
     var name by remember(category?.id) { mutableStateOf(category?.name.orEmpty()) }
     var parentId by remember(category?.id) { mutableStateOf(category?.parentId) }
     var colorArgb by remember(category?.id) {
         mutableStateOf(category?.colorArgb ?: categoryColorPalette.first())
     }
+    val iconPicker: CategoryIconPickerViewModel = viewModel(key = "category-icon-${category?.id ?: "new"}")
+    val iconState by iconPicker.state.collectAsStateWithLifecycle()
+    LaunchedEffect(category?.id) { iconPicker.reset(category?.icon) }
     val hasChildren = category != null && categories.any { it.parentId == category.id }
     val parentOptions = categories.filter { candidate ->
         candidate.kind == kind &&
@@ -498,6 +508,44 @@ private fun CategoryFormDialog(
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
+                CategoryIconBadge(
+                    category = Category("preview", name, kind, parentId, colorArgb, false, iconState.selectedKey),
+                    categories = categories,
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                    size = 56.dp,
+                )
+                OutlinedTextField(
+                    value = iconState.query,
+                    onValueChange = iconPicker::setQuery,
+                    label = { Text(stringResource(R.string.cat_icon_search)) },
+                    leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                TextButton(onClick = { iconPicker.select(null) }) {
+                    Text(stringResource(R.string.cat_icon_none))
+                }
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(72.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 240.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(iconState.filtered, key = { it.key }) { option ->
+                        val selected = iconState.selectedKey == option.key
+                        Column(
+                            Modifier.clip(MaterialTheme.shapes.medium)
+                                .background(if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                                .clickable { iconPicker.select(option.key) }
+                                .padding(6.dp)
+                                .semantics { this.selected = selected },
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Icon(CategoryIcons.icon(option.key), contentDescription = null, tint = Color(colorArgb))
+                            Text(stringResource(option.labelRes), style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
                 Text(stringResource(R.string.aj_color), style = MaterialTheme.typography.labelLarge)
                 categoryColorPalette.chunked(6).forEachIndexed { rowIndex, colors ->
                     Row(
@@ -544,7 +592,7 @@ private fun CategoryFormDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(name, parentId, colorArgb) }) {
+            TextButton(onClick = { onSave(name, parentId, colorArgb, iconState.selectedKey) }) {
                 Text(stringResource(R.string.common_save))
             }
         },

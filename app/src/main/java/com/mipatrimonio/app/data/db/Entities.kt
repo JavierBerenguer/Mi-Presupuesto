@@ -32,6 +32,7 @@ data class CategoryEntity(
     val colorArgb: Long,
     val archived: Boolean,
     val sortOrder: Int,
+    val icon: String? = null,
 )
 
 @Entity(

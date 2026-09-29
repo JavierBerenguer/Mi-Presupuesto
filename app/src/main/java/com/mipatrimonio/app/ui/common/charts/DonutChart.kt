@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,6 +29,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.mipatrimonio.app.ui.common.CategoryIcons
 import java.math.BigDecimal
 import java.text.NumberFormat
 import kotlin.math.atan2
@@ -139,7 +141,7 @@ private fun DonutSelection(slice: DonutSlice, percentage: String, formatValue: (
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(Modifier.size(12.dp).background(slice.color, CircleShape))
+            DonutCategoryMark(slice, 24.dp)
             Text(slice.label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
             Column(horizontalAlignment = Alignment.End) {
                 Text(formatValue(slice.valueMinor), style = MaterialTheme.typography.labelLarge)
@@ -156,10 +158,21 @@ private fun DonutLegendItem(slice: DonutSlice, value: String, percentage: String
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(10.dp).background(slice.color, CircleShape))
+        DonutCategoryMark(slice, 24.dp)
         Text(slice.label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
         Text(value, style = MaterialTheme.typography.bodyMedium)
         Text(percentage, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+private fun DonutCategoryMark(slice: DonutSlice, size: androidx.compose.ui.unit.Dp) {
+    Box(Modifier.size(size).background(slice.color.copy(alpha = 0.18f), CircleShape), contentAlignment = Alignment.Center) {
+        if (slice.iconKey == null) {
+            Box(Modifier.size(10.dp).background(slice.color, CircleShape))
+        } else {
+            Icon(CategoryIcons.icon(slice.iconKey), contentDescription = null, tint = slice.color, modifier = Modifier.size(16.dp))
+        }
     }
 }
 

@@ -29,8 +29,8 @@ import java.time.LocalTime
 fun AccountEntity.toDomain() = Account(id, name, AccountType.valueOf(type), currency, initialBalanceMinor, archived, createdAt)
 fun Account.toEntity(updatedAt: Long) = AccountEntity(id, name, type.name, currency, initialBalanceMinor, archived, createdAt, updatedAt)
 
-fun CategoryEntity.toDomain() = Category(id, name, CategoryKind.valueOf(kind), parentId, colorArgb, archived)
-fun Category.toEntity(sortOrder: Int = 0) = CategoryEntity(id, name, kind.name, parentId, colorArgb, archived, sortOrder)
+fun CategoryEntity.toDomain() = Category(id, name, CategoryKind.valueOf(kind), parentId, colorArgb, archived, icon)
+fun Category.toEntity(sortOrder: Int = 0) = CategoryEntity(id, name, kind.name, parentId, colorArgb, archived, sortOrder, icon)
 
 fun TransactionEntity.toDomain() = Transaction(
     id, TransactionType.valueOf(type), amountMinor, currency, LocalDate.ofEpochDay(epochDay), accountId, categoryId,

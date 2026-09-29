@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -55,6 +57,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mipatrimonio.app.R
 import com.mipatrimonio.app.domain.model.Category
+import com.mipatrimonio.app.ui.common.CategoryIconBadge
 import com.mipatrimonio.app.ui.components.SecondaryTopBar
 
 private enum class CategoryTab { FREQUENT, TREE, ALPHABETICAL }
@@ -194,6 +197,8 @@ private fun CategoryList(
     LazyColumn(modifier = modifier, contentPadding = PaddingValues(bottom = 24.dp)) {
         items(categories, key = Category::id) { category ->
             CategoryRow(
+                category = category,
+                allCategories = allCategories,
                 title = alphabeticalCategoryName(category, allCategories),
                 selected = category.id == selectedId,
                 onClick = { onSelected(category.id) },
@@ -217,6 +222,8 @@ private fun CategoryTree(
             val subcategories = children[parent.id].orEmpty().sortedBy { it.name.lowercase() }
             item(key = parent.id) {
                 CategoryRow(
+                    category = parent,
+                    allCategories = categories,
                     title = parent.name,
                     selected = parent.id == selectedId,
                     onClick = { onSelected(parent.id) },
@@ -239,6 +246,8 @@ private fun CategoryTree(
             if (parent.id in expanded) {
                 items(subcategories, key = Category::id) { child ->
                     CategoryRow(
+                        category = child,
+                        allCategories = categories,
                         title = child.name,
                         selected = child.id == selectedId,
                         onClick = { onSelected(child.id) },
@@ -252,6 +261,8 @@ private fun CategoryTree(
 
 @Composable
 private fun CategoryRow(
+    category: Category,
+    allCategories: List<Category>,
     title: String,
     selected: Boolean,
     onClick: () -> Unit,
@@ -268,6 +279,8 @@ private fun CategoryRow(
                 .padding(start = 16.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            CategoryIconBadge(category, allCategories, size = 36.dp)
+            Spacer(Modifier.width(12.dp))
             Text(
                 title,
                 modifier = Modifier.weight(1f),

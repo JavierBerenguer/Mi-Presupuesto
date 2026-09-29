@@ -1,5 +1,6 @@
 package com.mipatrimonio.app.data.repository
 
+import android.util.Log
 import androidx.room.withTransaction
 import com.mipatrimonio.app.data.db.AppDatabase
 import com.mipatrimonio.app.data.db.BudgetCategoryEntity
@@ -236,17 +237,43 @@ class LedgerRepository(
 
     /** Actualiza una sola vez el catálogo predefinido sin alterar categorías del usuario ni historial. */
     suspend fun updateDefaultCategoryCatalogIfNeeded(settings: SettingsRepository) {
-        if (settings.settings.first().categoryCatalogVersion >= DefaultCategories.CATALOG_VERSION) return
+        val currentVersion = settings.settings.first().categoryCatalogVersion
+        if (currentVersion >= DefaultCategories.CATALOG_VERSION) return
         db.withTransaction {
             val existingById = categoryDao.getAllForBackup().associateBy { it.id }
-            val missing = DefaultCategories.all.mapIndexedNotNull { index, category ->
-                category.takeIf { it.id !in existingById }?.toEntity(index)
+            if (currentVersion < 2) {
+                val missing = DefaultCategories.all.mapIndexedNotNull { index, category ->
+                    category.takeIf { it.id !in existingById }?.toEntity(index)
+                }
+                if (missing.isNotEmpty()) categoryDao.upsertAll(missing)
             }
-            if (missing.isNotEmpty()) categoryDao.upsertAll(missing)
+            DefaultCategories.all.forEach { default ->
+                existingById[default.id]?.takeIf { it.icon == null }?.let { existing ->
+                    categoryDao.upsert(existing.copy(icon = default.icon))
+                }
+            }
             DefaultCategories.legacyIds.mapNotNull(existingById::get).forEach { legacy ->
                 if (!legacy.archived) categoryDao.upsert(legacy.copy(archived = true))
             }
+            updateRemovedChildrenCategories(existingById)
         }
         settings.setCategoryCatalogVersion(DefaultCategories.CATALOG_VERSION)
+    }
+
+    private suspend fun updateRemovedChildrenCategories(existingById: Map<String, com.mipatrimonio.app.data.db.CategoryEntity>) {
+        val presentIds = DefaultCategories.removedChildrenIds.filter(existingById::containsKey)
+        if (presentIds.isEmpty()) return
+        val usage = categoryUsageUnchecked(presentIds)
+        if (usage.budgets > 0) {
+            presentIds.mapNotNull(existingById::get).forEach { category ->
+                if (!category.archived) categoryDao.upsert(category.copy(archived = true))
+            }
+            Log.i("CategoryCatalog", "Actualización v3: categorías infantiles archivadas por uso en presupuestos")
+            return
+        }
+        transactionDao.moveCategories(presentIds, null)
+        transferDao.moveCategories(presentIds, null)
+        db.recurringRuleDao().moveCategories(presentIds, null, clock())
+        categoryDao.deleteByIds(presentIds)
     }
 }

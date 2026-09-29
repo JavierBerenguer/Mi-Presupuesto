@@ -25,6 +25,7 @@ data class Category(
     val parentId: String?,
     val colorArgb: Long,
     val archived: Boolean,
+    val icon: String? = null,
 )
 
 enum class TransactionType { INGRESO, GASTO }

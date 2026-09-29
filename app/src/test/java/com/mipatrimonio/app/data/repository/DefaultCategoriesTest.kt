@@ -1,6 +1,7 @@
 package com.mipatrimonio.app.data.repository
 
 import com.mipatrimonio.app.domain.model.CategoryKind
+import com.mipatrimonio.app.ui.common.CategoryIcons
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -15,7 +16,6 @@ class DefaultCategoriesTest {
             "Ingresos" to listOf("Beneficios de desempleo", "Dividendos", "Salario", "Regalo", "Subsidio familiar", "Empleo secundario", "Pensión", "Devolución de impuestos", "Intereses", "Ventas"),
             "Electrónica" to listOf("Ordenador", "Impresora", "Cámara", "Monitores", "Portátil", "Smartphones", "TV", "Accesorios", "Servicios", "AI"),
             "Ocio" to listOf("Libros", "Discoteca", "Parque de atracciones", "Cine", "Bar", "Concierto", "Museo", "Restaurante", "Natación", "Juegos", "Teatro", "Vacaciones", "Eventos", "Streaming", "Pádel", "Dulces / Salados", "Hospedaje", "Transporte"),
-            "Niños" to listOf("Excursiones", "Ropa", "Escuela", "Juguete", "Dinero de bolsillo"),
             "Otros" to listOf("Tren", "Contribuciones", "Autobús", "Cosméticos", "Medicamentos", "Aparcar", "Taxi", "Seguros", "Revistas"),
             "Casa" to listOf("Jardín", "Gas", "Mascota", "Internet", "Crédito", "Alimentos", "Alquiler", "Muebles", "Expensas", "Refacciones", "Reparaciones", "Potencia", "Teléfono", "TV", "Seguros", "Agua corriente", "Farmacia"),
             "Inversiones" to listOf("Ganancias", "Periódicas", "Comisiones"),
@@ -24,11 +24,11 @@ class DefaultCategoriesTest {
         )
         val main = DefaultCategories.all.filter { it.parentId == null }
 
-        assertEquals(11, main.size)
-        assertEquals(96, DefaultCategories.all.count { it.parentId != null })
-        assertEquals(107, DefaultCategories.all.size)
+        assertEquals(10, main.size)
+        assertEquals(91, DefaultCategories.all.count { it.parentId != null })
+        assertEquals(101, DefaultCategories.all.size)
         assertEquals(expected.keys.toList(), main.map { it.name })
-        assertEquals(11, main.map { it.colorArgb }.distinct().size)
+        assertEquals(10, main.map { it.colorArgb }.distinct().size)
         expected.forEach { (parentName, childNames) ->
             val parent = main.single { it.name == parentName }
             val children = DefaultCategories.all.filter { it.parentId == parent.id }
@@ -38,6 +38,8 @@ class DefaultCategoriesTest {
         assertTrue(DefaultCategories.all.filter { it.id == "mp-ingresos" || it.parentId == "mp-ingresos" }.all { it.kind == CategoryKind.INGRESO })
         assertTrue(DefaultCategories.all.filterNot { it.id == "mp-ingresos" || it.parentId == "mp-ingresos" }.all { it.kind == CategoryKind.GASTO })
         assertEquals(DefaultCategories.all.size, DefaultCategories.all.map { it.id }.distinct().size)
+        assertTrue(DefaultCategories.all.none { it.id in DefaultCategories.removedChildrenIds })
+        assertTrue(DefaultCategories.all.all { it.icon in CategoryIcons.keys })
         assertTrue(DefaultCategories.all.all { it.id.matches(Regex("mp-[a-z0-9]+(?:-[a-z0-9]+)*")) })
         assertEquals("Parking 🅿️", DefaultCategories.all.single { it.id == "mp-coche-parking" }.name)
         assertEquals("Joyería/Bisutería", DefaultCategories.all.single { it.id == "mp-cuidados-joyeria-bisuteria" }.name)

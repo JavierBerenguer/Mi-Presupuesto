@@ -53,6 +53,7 @@ import com.mipatrimonio.app.ui.common.charts.DonutSlice
 import com.mipatrimonio.app.ui.common.charts.GroupedBarChart
 import com.mipatrimonio.app.ui.common.label
 import com.mipatrimonio.app.ui.common.monthLabel
+import com.mipatrimonio.app.ui.common.resolvedIconKey
 import com.mipatrimonio.app.ui.components.PillTabs
 import com.mipatrimonio.app.ui.components.ProgressBar
 import com.mipatrimonio.app.ui.components.SectionCard
@@ -140,7 +141,7 @@ fun HomeScreen(
             DonutChart(
                 slices = s.expenseByCategory.map { spend ->
                     val category = categories.find { it.id == spend.categoryId }
-                    DonutSlice(category?.name ?: noCategory, spend.amountMinor, category.colorOrDefault())
+                    DonutSlice(category?.name ?: noCategory, spend.amountMinor, category.colorOrDefault(), category?.resolvedIconKey(categories) ?: "other")
                 },
                 centerLabel = format(s.expenseByCategory.sumOf { it.amountMinor }),
                 formatValue = format,

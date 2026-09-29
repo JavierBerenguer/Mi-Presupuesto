@@ -73,6 +73,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mipatrimonio.app.R
 import com.mipatrimonio.app.ui.common.EmptyState
+import com.mipatrimonio.app.ui.common.CategoryIconBadge
 import com.mipatrimonio.app.ui.common.LoadingBox
 import com.mipatrimonio.app.ui.common.appViewModel
 import com.mipatrimonio.app.ui.common.formatDate
@@ -566,6 +567,9 @@ private fun CategoryRow(state: EntryFormUiState, onChoose: () -> Unit, onClear: 
                 .semantics { contentDescription = label },
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            state.selectedCategory?.let {
+                CategoryIconBadge(it, state.categories, size = 36.dp)
+            }
             Text(
                 state.selectedCategory?.let { categoryPath(it, state.categories) }
                     ?: stringResource(R.string.mov_category_unassigned),

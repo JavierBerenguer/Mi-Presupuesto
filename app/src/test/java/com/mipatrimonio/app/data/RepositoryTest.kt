@@ -75,7 +75,9 @@ class RepositoryTest {
         ledger.seedDefaultCategoriesIfEmpty()
         ledger.seedDefaultCategoriesIfEmpty()
         val cats = ledger.categories.first()
-        assertEquals(107, cats.size)
+        assertEquals(101, cats.size)
+        assertTrue(cats.all { it.icon != null })
+        assertTrue(cats.none { it.id.startsWith("mp-ninos") })
         assertTrue(cats.any { it.name == "Alimentos" && it.parentId == "mp-casa" })
     }
 
