@@ -3,12 +3,14 @@ package com.mipatrimonio.app.ui.accounts
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mipatrimonio.app.data.repository.AccountDependencies
+import com.mipatrimonio.app.data.repository.InvestmentRepository
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
 import com.mipatrimonio.app.domain.calc.BalanceCalculator
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountType
 import com.mipatrimonio.app.domain.model.MoneyMath
+import com.mipatrimonio.app.domain.model.Portfolio
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
@@ -34,9 +36,20 @@ data class ManagedAccount(
     val balanceMinor: Long,
 )
 
+data class CurrencyTotal(
+    val currency: String,
+    val amountMinor: Long,
+)
+
+private data class AccountSnapshot(
+    val accounts: List<ManagedAccount>,
+    val totals: List<CurrencyTotal>,
+)
+
 data class AccountsUiState(
     val isLoading: Boolean = true,
     val accounts: List<ManagedAccount> = emptyList(),
+    val totals: List<CurrencyTotal> = emptyList(),
     val dependencies: Map<String, AccountDependencies> = emptyMap(),
     val hideAmounts: Boolean = false,
     val error: String? = null,
@@ -44,24 +57,51 @@ data class AccountsUiState(
 
 class AccountsViewModel(
     private val ledger: LedgerRepository,
+    private val investments: InvestmentRepository,
     settings: SettingsRepository,
     private val today: () -> LocalDate = LocalDate::now,
 ) : ViewModel() {
     private val dependencies = MutableStateFlow<Map<String, AccountDependencies>>(emptyMap())
     private val error = MutableStateFlow<String?>(null)
 
-    val uiState: StateFlow<AccountsUiState> = combine(
+    private val accountSnapshot = combine(
         ledger.accounts,
         ledger.transactions,
         ledger.transfers,
+        investments.operations,
+    ) { accounts, transactions, transfers, operations ->
+        val managedAccounts = accounts
+            .map { account ->
+                ManagedAccount(
+                    account,
+                    BalanceCalculator.balance(account, transactions, transfers, operations, today()),
+                )
+            }
+            .sortedBy { it.account.name.lowercase() }
+        AccountSnapshot(
+            accounts = managedAccounts,
+            totals = managedAccounts
+                .filterNot { it.account.archived }
+                .groupBy { it.account.currency }
+                .map { (currency, items) ->
+                    CurrencyTotal(
+                        currency,
+                        items.fold(0L) { total, item -> Math.addExact(total, item.balanceMinor) },
+                    )
+                }
+                .sortedBy { it.currency },
+        )
+    }
+
+    val uiState: StateFlow<AccountsUiState> = combine(
+        accountSnapshot,
         settings.settings,
         combine(dependencies, error) { deps, message -> deps to message },
-    ) { accounts, transactions, transfers, currentSettings, local ->
+    ) { snapshot, currentSettings, local ->
         AccountsUiState(
             isLoading = false,
-            accounts = accounts.map { account ->
-                ManagedAccount(account, BalanceCalculator.balance(account, transactions, transfers, today = today()))
-            },
+            accounts = snapshot.accounts,
+            totals = snapshot.totals,
             dependencies = local.first,
             hideAmounts = currentSettings.hideAmounts,
             error = local.second,
@@ -86,6 +126,7 @@ class AccountsViewModel(
         type: AccountType,
         currency: String,
         initialBalanceText: String,
+        createLinkedPortfolio: Boolean = false,
         onSaved: () -> Unit,
     ) {
         if (name.isBlank()) {
@@ -107,7 +148,19 @@ class AccountsViewModel(
             archived = existing?.archived ?: false,
             createdAt = existing?.createdAt ?: System.currentTimeMillis(),
         )
-        launchAction(onSaved) { ledger.saveAccount(account) }
+        launchAction(onSaved) {
+            ledger.saveAccount(account)
+            if (existing == null && type == AccountType.INVERSION && createLinkedPortfolio) {
+                investments.savePortfolio(
+                    Portfolio(
+                        id = UUID.randomUUID().toString(),
+                        name = account.name,
+                        createdAt = System.currentTimeMillis(),
+                        defaultAccountId = account.id,
+                    ),
+                )
+            }
+        }
     }
 
     fun setArchived(account: Account, archived: Boolean, onSaved: () -> Unit) {

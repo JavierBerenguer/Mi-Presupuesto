@@ -167,9 +167,15 @@ class BudgetsViewModelTest {
         viewModel.save(valid.copy(alertThresholdPct = 49)) { result = it }
         assertEquals(BudgetSaveResult.InvalidThreshold, result)
 
-        viewModel.save(valid) { result = it }
+        val saved = kotlinx.coroutines.CompletableDeferred<BudgetSaveResult>()
+        viewModel.save(valid) { saved.complete(it) }
+        assertEquals(
+            BudgetSaveResult.Success,
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                kotlinx.coroutines.withTimeout(10_000) { saved.await() }
+            },
+        )
         viewModel.uiState.first { it.budgets.any { budget -> budget.name == "Comida" } }
-        assertEquals(BudgetSaveResult.Success, result)
         viewModel.save(valid) { result = it }
         assertEquals(BudgetSaveResult.Duplicate, result)
         val original = viewModel.uiState.first { it.budgets.size == 1 }.budgets.single()

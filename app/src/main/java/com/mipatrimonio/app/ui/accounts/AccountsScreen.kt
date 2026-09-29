@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -52,7 +53,7 @@ import com.mipatrimonio.app.ui.components.SegmentedControl
 
 @Composable
 fun AccountsScreen(
-    viewModel: AccountsViewModel = appViewModel { c -> AccountsViewModel(c.ledger, c.settings) },
+    viewModel: AccountsViewModel = appViewModel { c -> AccountsViewModel(c.ledger, c.investments, c.settings) },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var filter by remember { mutableStateOf(AccountFilter.ACTIVAS) }
@@ -75,6 +76,13 @@ fun AccountsScreen(
                 { filter = AccountFilter.entries[it] },
                 modifier = Modifier.padding(16.dp),
             )
+            if (state.totals.isNotEmpty()) {
+                CurrencyTotals(
+                    totals = state.totals,
+                    hideAmounts = state.hideAmounts,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
             if (visible.isEmpty()) {
                 EmptyState(
                     icon = Icons.Default.AccountBalanceWallet,
@@ -110,7 +118,7 @@ fun AccountsScreen(
         dependencies = null,
         error = state.error,
         onDismiss = { creating = false },
-        onSave = { n, t, c, b -> viewModel.save(null, n, t, c, b) { creating = false } },
+        onSave = { n, t, c, b, linked -> viewModel.save(null, n, t, c, b, linked) { creating = false } },
     )
     editing?.let { account ->
         AccountFormDialog(
@@ -118,7 +126,7 @@ fun AccountsScreen(
             state.dependencies[account.id],
             state.error,
             { editing = null },
-            { n, t, c, b -> viewModel.save(account, n, t, c, b) { editing = null } },
+            { n, t, c, b, _ -> viewModel.save(account, n, t, c, b) { editing = null } },
             { editing = null; archiving = state.accounts.firstOrNull { it.account.id == account.id } },
             { deleting = account },
         )
@@ -153,6 +161,31 @@ fun AccountsScreen(
 }
 
 @Composable
+private fun CurrencyTotals(
+    totals: List<CurrencyTotal>,
+    hideAmounts: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    SectionCard(modifier.fillMaxWidth()) {
+        Text(stringResource(R.string.accounts_active_totals), style = MaterialTheme.typography.titleMedium)
+        totals.forEach { total ->
+            Row(
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(total.currency)
+                Text(
+                    if (hideAmounts) stringResource(R.string.common_hidden_amount)
+                    else MoneyMath.format(total.amountMinor, total.currency),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun AccountRow(item: ManagedAccount, hidden: Boolean, onClick: () -> Unit) {
     SectionCard(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(Modifier.fillMaxWidth().heightIn(min = 52.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -174,7 +207,7 @@ private fun AccountFormDialog(
     dependencies: AccountDependencies?,
     error: String?,
     onDismiss: () -> Unit,
-    onSave: (String, AccountType, String, String) -> Unit,
+    onSave: (String, AccountType, String, String, Boolean) -> Unit,
     onArchive: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
 ) {
@@ -182,6 +215,7 @@ private fun AccountFormDialog(
     var type by remember(account?.id) { mutableStateOf(account?.type ?: AccountType.CORRIENTE) }
     var currency by remember(account?.id) { mutableStateOf(account?.currency ?: Currencies.EUR) }
     var balance by remember(account?.id) { mutableStateOf(account?.let { MoneyMath.toDecimal(it.initialBalanceMinor, it.currency).toPlainString() }.orEmpty()) }
+    var createLinkedPortfolio by remember(account?.id) { mutableStateOf(false) }
     val currencyEnabled = account == null || dependencies?.hasHistory == false
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -189,10 +223,36 @@ private fun AccountFormDialog(
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.accounts_name)) }, modifier = Modifier.fillMaxWidth())
-                DropdownField(stringResource(R.string.accounts_type), AccountType.entries, type, { it.label() }, { it?.let { selected -> type = selected } })
+                DropdownField(
+                    stringResource(R.string.accounts_type),
+                    AccountType.entries,
+                    type,
+                    { it.label() },
+                    { selected ->
+                        selected?.let {
+                            type = it
+                            if (it != AccountType.INVERSION) createLinkedPortfolio = false
+                        }
+                    },
+                )
                 DropdownField(stringResource(R.string.accounts_currency), Currencies.comunes, currency, { it }, { it?.let { selected -> currency = selected } }, enabled = currencyEnabled)
                 if (account != null && !currencyEnabled) Text(stringResource(R.string.accounts_currency_locked), style = MaterialTheme.typography.bodySmall)
                 AmountField(stringResource(R.string.accounts_initial_balance), balance, { balance = it }, suffix = currency)
+                if (account == null && type == AccountType.INVERSION) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(
+                            checked = createLinkedPortfolio,
+                            onCheckedChange = { createLinkedPortfolio = it },
+                        )
+                        Text(
+                            stringResource(R.string.accounts_create_linked_portfolio),
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 if (account != null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     TextButton(onClick = onArchive ?: {}) { Text(stringResource(if (account.archived) R.string.common_restore else R.string.common_archive)) }
@@ -200,7 +260,11 @@ private fun AccountFormDialog(
                 }
             }
         },
-        confirmButton = { TextButton({ onSave(name, type, currency, balance) }) { Text(stringResource(R.string.common_save)) } },
+        confirmButton = {
+            TextButton({ onSave(name, type, currency, balance, createLinkedPortfolio) }) {
+                Text(stringResource(R.string.common_save))
+            }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     )
 }

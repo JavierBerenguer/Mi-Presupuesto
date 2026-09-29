@@ -4,8 +4,16 @@ import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.ImportExport
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.mipatrimonio.app.R
@@ -50,4 +58,29 @@ object Rutas {
     fun apunte(id: String?) = "apunte/${id ?: NUEVO}"
     fun recurrente(id: String?) = "orden-permanente/${id ?: NUEVO}"
     fun activo(portfolioId: String, assetId: String) = "activo/$portfolioId/$assetId"
+}
+
+enum class MenuLocation { MAS, AJUSTES }
+
+enum class SecondaryMenuDestination(
+    val route: String,
+    @StringRes val title: Int,
+    val icon: ImageVector,
+    val location: MenuLocation,
+) {
+    CUENTAS(Rutas.CUENTAS, R.string.nav_cuentas, Icons.Filled.AccountBalanceWallet, MenuLocation.MAS),
+    CARTERAS(Rutas.CARTERAS, R.string.portfolios_title, Icons.Filled.ShowChart, MenuLocation.MAS),
+    ACTIVOS(Rutas.ACTIVOS, R.string.inv_assets_title, Icons.Filled.ShowChart, MenuLocation.MAS),
+    CATEGORIAS(Rutas.CATEGORIAS, R.string.nav_categorias, Icons.Filled.Category, MenuLocation.MAS),
+    RECURRENTES(Rutas.RECURRENTES, R.string.recurring_title, Icons.Filled.Schedule, MenuLocation.MAS),
+    PATRIMONIO(Rutas.PATRIMONIO, R.string.nav_patrimonio, Icons.Filled.AccountBalance, MenuLocation.MAS),
+    COPIAS(Rutas.COPIAS, R.string.more_import_export, Icons.Filled.ImportExport, MenuLocation.MAS),
+    AJUSTES(Rutas.AJUSTES, R.string.nav_ajustes, Icons.Filled.Settings, MenuLocation.MAS),
+    NOTIFICACIONES(Rutas.NOTIFICACIONES, R.string.aj_bank_notifications, Icons.Filled.Notifications, MenuLocation.AJUSTES),
+    PROPUESTAS(Rutas.PROPUESTAS, R.string.aj_pending_proposals, Icons.Filled.Schedule, MenuLocation.AJUSTES),
+    ;
+
+    companion object {
+        fun at(location: MenuLocation): List<SecondaryMenuDestination> = entries.filter { it.location == location }
+    }
 }

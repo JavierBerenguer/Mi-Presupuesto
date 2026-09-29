@@ -11,10 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.AccountBalanceWallet
-import androidx.compose.material.icons.filled.Category
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
@@ -41,13 +37,12 @@ import com.mipatrimonio.app.ui.common.DropdownField
 import com.mipatrimonio.app.ui.common.LoadingBox
 import com.mipatrimonio.app.ui.common.SectionCard
 import com.mipatrimonio.app.ui.common.appViewModel
+import com.mipatrimonio.app.ui.navigation.MenuLocation
+import com.mipatrimonio.app.ui.navigation.SecondaryMenuDestination
 
 @Composable
 fun SettingsScreen(
-    onOpenAccounts: () -> Unit,
-    onOpenCategories: () -> Unit,
-    onOpenNotificationSettings: () -> Unit,
-    onOpenPendingProposals: () -> Unit,
+    onNavigate: (String) -> Unit,
     viewModel: SettingsViewModel = appViewModel { c -> SettingsViewModel(c.settings, c.quoteSecrets) },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -72,27 +67,14 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            SectionCard(title = stringResource(R.string.aj_management)) {
-                SettingsNavigationRow(
-                    label = stringResource(R.string.aj_accounts),
-                    icon = { Icon(Icons.Default.AccountBalanceWallet, contentDescription = null) },
-                    onClick = onOpenAccounts,
-                )
-                SettingsNavigationRow(
-                    label = stringResource(R.string.aj_categories),
-                    icon = { Icon(Icons.Default.Category, contentDescription = null) },
-                    onClick = onOpenCategories,
-                )
-                SettingsNavigationRow(
-                    label = stringResource(R.string.aj_bank_notifications),
-                    icon = { Icon(Icons.Default.Notifications, contentDescription = null) },
-                    onClick = onOpenNotificationSettings,
-                )
-                SettingsNavigationRow(
-                    label = stringResource(R.string.aj_pending_proposals),
-                    icon = { Icon(Icons.Default.Schedule, contentDescription = null) },
-                    onClick = onOpenPendingProposals,
-                )
+            SectionCard(title = stringResource(R.string.aj_bank_automation)) {
+                SecondaryMenuDestination.at(MenuLocation.AJUSTES).forEach { destination ->
+                    SettingsNavigationRow(
+                        label = stringResource(destination.title),
+                        icon = { Icon(destination.icon, contentDescription = null) },
+                        onClick = { onNavigate(destination.route) },
+                    )
+                }
             }
         }
         item {

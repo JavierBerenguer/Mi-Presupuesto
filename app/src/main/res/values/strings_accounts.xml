@@ -29,4 +29,6 @@
     <string name="accounts_dependency_portfolios">Carteras asociadas: %1$d</string>
     <string name="accounts_dependency_apps">Apps de notificaciones: %1$d</string>
     <string name="accounts_loading_dependencies">Comprobando datos asociados…</string>
+    <string name="accounts_active_totals">Total de cuentas activas por divisa</string>
+    <string name="accounts_create_linked_portfolio">¿Crear también una cartera vinculada?</string>
 </resources>

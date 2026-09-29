@@ -67,7 +67,7 @@ class AccountsViewModelTest {
 
     @Test fun `elimina una cuenta sin referencias`() = runTest {
         ledger.saveAccount(account("a1"))
-        val viewModel = AccountsViewModel(ledger, settings)
+        val viewModel = AccountsViewModel(ledger, investments, settings)
         val managed = viewModel.uiState.first { !it.isLoading }.accounts.single().account
 
         viewModel.delete(managed) {}
@@ -84,7 +84,7 @@ class AccountsViewModelTest {
         investments.saveAsset(Asset("as1", "ETF", "ETF", "", AssetType.ETF, "", "EUR"))
         investments.addOperation(operation("a1"))
         db.notificationDao().upsertAuthorizationRule(NotificationAuthorizationEntity("bank.app", true, "a1", 1))
-        val viewModel = AccountsViewModel(ledger, settings)
+        val viewModel = AccountsViewModel(ledger, investments, settings)
 
         viewModel.inspect("a1")
 
@@ -101,7 +101,7 @@ class AccountsViewModelTest {
     @Test fun `archivar conserva saldo y desvincula la cartera`() = runTest {
         ledger.saveAccount(account("a1", initial = 12_345))
         investments.savePortfolio(Portfolio("p1", "Cartera", 1, "a1"))
-        val viewModel = AccountsViewModel(ledger, settings)
+        val viewModel = AccountsViewModel(ledger, investments, settings)
         val before = viewModel.uiState.first { !it.isLoading && it.accounts.isNotEmpty() }.accounts.single()
 
         viewModel.setArchived(before.account, true) {}
@@ -130,11 +130,62 @@ class AccountsViewModelTest {
         assertEquals(2, filterAccounts(listOf(active, archived), AccountFilter.TODAS).size)
     }
 
+    @Test fun `publica saldos derivados y total de cuentas activas por divisa`() = runTest {
+        ledger.saveAccount(account("b", initial = 20_00))
+        ledger.saveAccount(account("a", initial = 100_00))
+        ledger.saveAccount(account("usd", initial = 50_00, currency = "USD"))
+        ledger.saveAccount(account("old", initial = 999_00).copy(archived = true))
+        ledger.saveTransaction(transaction("income", "a", type = TransactionType.INGRESO, amount = 30_00))
+        ledger.saveTransaction(transaction("expense", "b", type = TransactionType.GASTO, amount = 5_00))
+        investments.savePortfolio(Portfolio("p1", "Cartera", 1, "a"))
+        investments.saveAsset(Asset("as1", "ETF", "ETF", "", AssetType.ETF, "", "EUR"))
+        investments.addOperation(operation("a"))
+        settings.setHideAmounts(true)
+
+        val state = AccountsViewModel(ledger, investments, settings) { LocalDate.of(2026, 9, 29) }.uiState.first {
+            !it.isLoading && it.accounts.size == 4
+        }
+
+        assertEquals(120_00L, state.accounts.first { it.account.id == "a" }.balanceMinor)
+        assertEquals(15_00L, state.accounts.first { it.account.id == "b" }.balanceMinor)
+        assertTrue(state.hideAmounts)
+        assertEquals(
+            listOf(CurrencyTotal("EUR", 135_00), CurrencyTotal("USD", 50_00)),
+            state.totals,
+        )
+    }
+
+    @Test fun `cuenta de inversion puede crear cartera vinculada`() = runTest {
+        val viewModel = AccountsViewModel(ledger, investments, settings)
+
+        viewModel.save(null, "Broker", AccountType.INVERSION, "EUR", "100", true) {}
+
+        val savedAccount = ledger.accounts.first { it.isNotEmpty() }.single()
+        val portfolio = investments.portfolios.first { it.isNotEmpty() }.single()
+        assertEquals(savedAccount.id, portfolio.defaultAccountId)
+        assertEquals("Broker", portfolio.name)
+    }
+
+    @Test fun `cuenta de inversion puede crearse sin cartera vinculada`() = runTest {
+        val viewModel = AccountsViewModel(ledger, investments, settings)
+
+        viewModel.save(null, "Broker", AccountType.INVERSION, "EUR", "", false) {}
+
+        ledger.accounts.first { it.isNotEmpty() }
+        assertTrue(investments.portfolios.first().isEmpty())
+    }
+
     private fun account(id: String, initial: Long = 0, currency: String = "EUR") =
         Account(id, "Cuenta", AccountType.CORRIENTE, currency, initial, false, 1)
 
-    private fun transaction(id: String, accountId: String, currency: String = "EUR") = Transaction(
-        id, TransactionType.GASTO, 100, currency, LocalDate.of(2026, 1, 1), accountId, null,
+    private fun transaction(
+        id: String,
+        accountId: String,
+        currency: String = "EUR",
+        type: TransactionType = TransactionType.GASTO,
+        amount: Long = 100,
+    ) = Transaction(
+        id, type, amount, currency, LocalDate.of(2026, 1, 1), accountId, null,
         "", "", "", TransactionSource.MANUAL, 1, 1,
     )
 

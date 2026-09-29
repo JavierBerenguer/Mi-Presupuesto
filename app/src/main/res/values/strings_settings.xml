@@ -1,10 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="aj_management">Gestión</string>
-    <string name="aj_accounts">Cuentas</string>
-    <string name="aj_categories">Categorías</string>
     <string name="aj_bank_notifications">Notificaciones bancarias</string>
     <string name="aj_pending_proposals">Propuestas pendientes</string>
+    <string name="aj_bank_automation">Automatización bancaria</string>
     <string name="aj_preferences">Preferencias</string>
     <string name="aj_dark_mode">Modo oscuro</string>
     <string name="aj_base_currency">Divisa principal</string>

@@ -147,35 +147,11 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
             )
         }
         composable(Destino.Mas.ruta) {
-            MoreScreen(
-                onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
-                onOpenNetWorth = { navController.navigate(Rutas.PATRIMONIO) },
-                onOpenCategories = { navController.navigate(Rutas.CATEGORIAS) },
-                onOpenNotifications = { navController.navigate(Rutas.NOTIFICACIONES) },
-                onOpenProposals = { navController.navigate(Rutas.PROPUESTAS) },
-                onOpenSettings = { navController.navigate(Rutas.AJUSTES) },
-                onOpenInvestments = {
-                    navController.navigate(Rutas.CARTERAS) { launchSingleTop = true }
-                    navController.currentBackStackEntry?.savedStateHandle?.set(Rutas.CREATE_PORTFOLIO_KEY, true)
-                },
-                onOpenPortfolios = { navController.navigate(Rutas.CARTERAS) },
-                onOpenAssets = { navController.navigate(Rutas.ACTIVOS) },
-                onNewAsset = {
-                    navController.navigate(Rutas.ACTIVOS) { launchSingleTop = true }
-                    navController.currentBackStackEntry?.savedStateHandle?.set(Rutas.CREATE_ASSET_KEY, true)
-                },
-                onOpenRecurring = { navController.navigate(Rutas.RECURRENTES) },
-                onOpenBackup = { navController.navigate(Rutas.COPIAS) },
-            )
+            MoreScreen(onNavigate = { navController.navigate(it) })
         }
         composable(Rutas.PATRIMONIO) { NetWorthScreen() }
         composable(Rutas.AJUSTES) {
-            SettingsScreen(
-                onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
-                onOpenCategories = { navController.navigate(Rutas.CATEGORIAS) },
-                onOpenNotificationSettings = { navController.navigate(Rutas.NOTIFICACIONES) },
-                onOpenPendingProposals = { navController.navigate(Rutas.PROPUESTAS) },
-            )
+            SettingsScreen(onNavigate = { navController.navigate(it) })
         }
         composable(Rutas.CUENTAS) { AccountsScreen() }
         composable(Rutas.ACTIVOS) { entry ->

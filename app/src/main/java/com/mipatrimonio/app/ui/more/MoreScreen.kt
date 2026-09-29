@@ -2,297 +2,72 @@ package com.mipatrimonio.app.ui.more
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.AccountBalance
-import androidx.compose.material.icons.filled.AccountBalanceWallet
-import androidx.compose.material.icons.filled.Category
-import androidx.compose.material.icons.filled.ImportExport
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material3.Icon
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.mipatrimonio.app.R
-import com.mipatrimonio.app.domain.model.Account
-import com.mipatrimonio.app.domain.model.AccountType
-import com.mipatrimonio.app.domain.model.Currencies
-import com.mipatrimonio.app.ui.common.AmountField
-import com.mipatrimonio.app.ui.common.DropdownField
-import com.mipatrimonio.app.ui.common.label
-import com.mipatrimonio.app.ui.common.LoadingBox
-import com.mipatrimonio.app.ui.common.appViewModel
-import com.mipatrimonio.app.ui.components.AmountKind
-import com.mipatrimonio.app.ui.components.AmountText
 import com.mipatrimonio.app.ui.components.SectionCard
+import com.mipatrimonio.app.ui.navigation.MenuLocation
+import com.mipatrimonio.app.ui.navigation.SecondaryMenuDestination
 import com.mipatrimonio.app.ui.theme.MiPatrimonioTheme
 
 @Composable
-fun MoreScreen(
-    onOpenAccounts: () -> Unit,
-    onOpenNetWorth: () -> Unit,
-    onOpenCategories: () -> Unit,
-    onOpenNotifications: () -> Unit,
-    onOpenProposals: () -> Unit,
-    onOpenSettings: () -> Unit,
-    onOpenInvestments: () -> Unit,
-    onOpenPortfolios: () -> Unit,
-    onOpenAssets: () -> Unit,
-    onNewAsset: () -> Unit,
-    onOpenRecurring: () -> Unit,
-    onOpenBackup: () -> Unit,
-    viewModel: MoreViewModel = appViewModel { c -> MoreViewModel(c.ledger, c.investments, c.settings) },
-) {
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var showAddMenu by remember { mutableStateOf(false) }
-    var showAccountDialog by remember { mutableStateOf(false) }
-    if (state.isLoading) {
-        LoadingBox()
-        return
-    }
-    MoreContent(
-        state,
-        onOpenAccounts,
-        { showAddMenu = true },
-        onOpenNetWorth,
-        onOpenCategories,
-        onOpenNotifications,
-        onOpenProposals,
-        onOpenSettings,
-        onOpenPortfolios,
-        onOpenAssets,
-        onOpenRecurring,
-        onOpenBackup,
-    )
-    if (showAddMenu) AlertDialog(
-        onDismissRequest = { showAddMenu = false },
-        title = { Text(stringResource(R.string.more_add_title)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(
-                    onClick = { showAddMenu = false; showAccountDialog = true },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                ) { Text(stringResource(R.string.more_add_account)) }
-                TextButton(
-                    onClick = { showAddMenu = false; onOpenInvestments() },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                ) { Text(stringResource(R.string.more_add_portfolio)) }
-                TextButton(
-                    onClick = { showAddMenu = false; onNewAsset() },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-                ) { Text(stringResource(R.string.more_add_asset)) }
-            }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = { showAddMenu = false }) { Text(stringResource(R.string.common_cancel)) }
-        },
-    )
-    if (showAccountDialog) AddAccountDialog(
-        onDismiss = { showAccountDialog = false },
-        onSave = { name, type, currency, initial, linked, result ->
-            viewModel.createAccount(name, type, currency, initial, linked, result)
-        },
-    )
+fun MoreScreen(onNavigate: (String) -> Unit) {
+    MoreContent(onNavigate = onNavigate)
 }
 
 @Composable
-private fun AddAccountDialog(
-    onDismiss: () -> Unit,
-    onSave: (String, AccountType, String, String, Boolean, (MoreAccountError?) -> Unit) -> Unit,
-) {
-    var name by remember { mutableStateOf("") }
-    var type by remember { mutableStateOf(AccountType.CORRIENTE) }
-    var currency by remember { mutableStateOf(Currencies.EUR) }
-    var initial by remember { mutableStateOf("") }
-    var linked by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<MoreAccountError?>(null) }
-    val errorText = when (val current = error) {
-        MoreAccountError.BlankName -> stringResource(R.string.more_error_name)
-        MoreAccountError.InvalidBalance -> stringResource(R.string.more_error_balance)
-        MoreAccountError.BalanceTooLarge -> stringResource(R.string.more_error_balance_large)
-        is MoreAccountError.Repository -> current.message.ifBlank { stringResource(R.string.more_error_saving) }
-        null -> null
-    }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.more_add_account)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(name, { name = it; error = null }, label = { Text(stringResource(R.string.more_account_name)) })
-                DropdownField(
-                    stringResource(R.string.more_account_type), AccountType.entries, type,
-                    { it.label() }, { it?.let { selected -> type = selected; linked = false } },
-                )
-                DropdownField(
-                    stringResource(R.string.more_account_currency), Currencies.comunes, currency,
-                    { it }, { it?.let { selected -> currency = selected } },
-                )
-                AmountField(
-                    stringResource(R.string.more_initial_balance),
-                    initial,
-                    { initial = it; error = null },
-                    suffix = currency,
-                )
-                if (type == AccountType.INVERSION) Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(linked, { linked = it })
-                    Text(stringResource(R.string.more_create_linked_portfolio), modifier = Modifier.weight(1f))
-                }
-                errorText?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onSave(name, type, currency, initial, linked) { result -> if (result == null) onDismiss() else error = result } }) {
-                Text(stringResource(R.string.common_save))
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
-    )
-}
-
-@Composable
-private fun MoreContent(
-    state: MoreUiState,
-    onOpenAccounts: () -> Unit,
-    onAdd: () -> Unit,
-    onOpenNetWorth: () -> Unit,
-    onOpenCategories: () -> Unit,
-    onOpenNotifications: () -> Unit,
-    onOpenProposals: () -> Unit,
-    onOpenSettings: () -> Unit,
-    onOpenPortfolios: () -> Unit,
-    onOpenAssets: () -> Unit,
-    onOpenRecurring: () -> Unit,
-    onOpenBackup: () -> Unit,
-) {
+private fun MoreContent(onNavigate: (String) -> Unit) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
             SectionCard {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(stringResource(R.string.more_accounts), style = MaterialTheme.typography.titleLarge)
-                    Row {
-                        TextButton(onClick = onOpenAccounts) { Text(stringResource(R.string.more_manage)) }
-                        TextButton(onClick = onAdd) { Text(stringResource(R.string.common_add)) }
-                    }
-                }
-                if (state.accounts.isEmpty()) {
-                    Column(
-                        Modifier.fillMaxWidth().padding(vertical = 20.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Text(stringResource(R.string.more_no_accounts), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        TextButton(onClick = onOpenAccounts) { Text(stringResource(R.string.more_add_first_account)) }
-                    }
-                } else {
-                    state.accounts.forEach { AccountRow(it, state.hideAmounts) }
-                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
-                        Text(stringResource(R.string.more_total), style = MaterialTheme.typography.labelMedium)
-                        state.totals.forEach { total ->
-                            if (state.hideAmounts) Text(stringResource(R.string.common_hidden_amount), style = MaterialTheme.typography.titleLarge)
-                            else AmountText(total.amountMinor, total.currency, AmountKind.NEUTRAL, style = MaterialTheme.typography.titleLarge)
-                        }
-                    }
+                SecondaryMenuDestination.at(MenuLocation.MAS).forEach { destination ->
+                    MoreLink(
+                        destination = destination,
+                        onClick = { onNavigate(destination.route) },
+                    )
                 }
             }
         }
-        item {
-            SectionCard {
-                MoreLink(Icons.Default.AccountBalance, stringResource(R.string.nav_patrimonio), onOpenNetWorth)
-                MoreLink(Icons.Default.ShowChart, stringResource(R.string.portfolios_title), onOpenPortfolios)
-                MoreLink(Icons.Default.ShowChart, stringResource(R.string.inv_assets_title), onOpenAssets)
-                MoreLink(Icons.Default.Category, stringResource(R.string.nav_categorias), onOpenCategories)
-                MoreLink(Icons.Default.Schedule, stringResource(R.string.recurring_title), onOpenRecurring)
-                MoreLink(Icons.Default.Notifications, stringResource(R.string.aj_bank_notifications), onOpenNotifications)
-                MoreLink(Icons.Default.Schedule, stringResource(R.string.aj_pending_proposals), onOpenProposals)
-                MoreLink(
-                    Icons.Default.ImportExport,
-                    stringResource(R.string.more_import_export),
-                    onClick = onOpenBackup,
-                )
-                MoreLink(Icons.Default.Settings, stringResource(R.string.nav_ajustes), onOpenSettings)
-            }
-        }
-    }
-}
-
-@Composable
-private fun AccountRow(item: MoreAccountItem, hideAmounts: Boolean) {
-    Row(
-        Modifier.fillMaxWidth().heightIn(min = 56.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(item.account.name, style = MaterialTheme.typography.titleMedium)
-            Text(item.account.currency, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        if (hideAmounts) Text(stringResource(R.string.common_hidden_amount), style = MaterialTheme.typography.titleMedium)
-        else AmountText(item.balanceMinor, item.account.currency, AmountKind.NEUTRAL, style = MaterialTheme.typography.titleMedium)
     }
 }
 
 @Composable
 private fun MoreLink(
-    icon: ImageVector,
-    label: String,
-    onClick: (() -> Unit)?,
-    supportingText: String? = null,
-    iconColor: Color = MaterialTheme.colorScheme.primary,
+    destination: SecondaryMenuDestination,
+    onClick: () -> Unit,
 ) {
     Row(
-        Modifier
+        modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+            .clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Icon(icon, contentDescription = null, tint = iconColor)
-        Column(Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.titleMedium)
-            supportingText?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        if (onClick != null) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
-        }
+        Icon(destination.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        Text(
+            text = stringResource(destination.title),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.weight(1f),
+        )
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
     }
 }
 
@@ -300,23 +75,14 @@ private fun MoreLink(
 @Composable
 private fun MoreDarkPreview() {
     MiPatrimonioTheme {
-        MoreContent(
-            MoreUiState(
-                isLoading = false,
-                accounts = listOf(
-                    MoreAccountItem(Account("preview", "Cuenta principal", AccountType.CORRIENTE, "EUR", 0, false, 0), 124050),
-                ),
-                totals = listOf(CurrencyTotal("EUR", 124050)),
-            ),
-            {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
-        )
+        MoreContent(onNavigate = {})
     }
 }
 
 @Preview(showBackground = true)
 @Composable
-private fun MoreEmptyLightPreview() {
+private fun MoreLightPreview() {
     MiPatrimonioTheme(modoOscuro = false) {
-        MoreContent(MoreUiState(isLoading = false), {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})
+        MoreContent(onNavigate = {})
     }
 }
