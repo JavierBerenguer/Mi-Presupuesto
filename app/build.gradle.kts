@@ -21,6 +21,12 @@ android {
     }
 
     buildTypes {
+        create("prueba") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".prueba"
+            versionNameSuffix = "-prueba"
+            matchingFallbacks += listOf("debug")
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
