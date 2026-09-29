@@ -104,6 +104,65 @@ class TradeRepublicImportRepositoryTest {
         assertEquals(0, repository.execute(repeated).totalCreated)
     }
 
+    @Test fun `dividendo con ISIN no duplica caja mantiene posicion y reimportacion es idempotente`() = runBlocking<Unit> {
+        val repository = TradeRepublicImportRepository(db)
+        val dividend = movement("cash-dividend", ImportedKind.DIVIDENDO, 2_000).copy(
+            rawType = "DIVIDEND", isin = "ES0000000009", assetName = "Empresa",
+            assetClass = "STOCK", taxCents = -380, feeCents = -20,
+        )
+
+        val before = BalanceCalculator.balance(
+            ledger.accounts.first().single(), ledger.transactions.first(), ledger.transfers.first(),
+            investments.operations.first(), LocalDate.of(2100, 1, 1),
+        )
+        val report = repository.execute(repository.plan(preview(dividend), "cash"))
+        val transaction = ledger.transactions.first().single()
+        val operation = investments.operations.first().single()
+        val position = PositionCalculator.compute(listOf(operation))
+        val after = BalanceCalculator.balance(
+            ledger.accounts.first().single(), ledger.transactions.first(), ledger.transfers.first(),
+            investments.operations.first(), LocalDate.of(2100, 1, 1),
+        )
+
+        assertEquals(1, report.transactions)
+        assertEquals(1, report.operations)
+        assertEquals(1_600L, transaction.amountMinor)
+        assertEquals("import:tr:cash-dividend:div", operation.id)
+        assertEquals(null, operation.accountId)
+        assertEquals(BigDecimal.ZERO, position.quantity)
+        assertEquals(BigDecimal.ZERO, position.costBasis)
+        assertEquals(BigDecimal("16.00"), position.dividendsNet)
+        assertEquals(before + 1_600L, after)
+
+        val repeated = repository.plan(preview(dividend), "cash")
+        assertEquals(1, repeated.alreadyImported)
+        assertEquals(0, repository.execute(repeated).totalCreated)
+        assertEquals(1, ledger.transactions.first().size)
+        assertEquals(1, investments.operations.first().size)
+    }
+
+    @Test fun `reimportar dividendo antiguo crea solo la operacion que falta`() = runBlocking<Unit> {
+        val repository = TradeRepublicImportRepository(db)
+        val withoutIsin = movement("legacy-dividend", ImportedKind.DIVIDENDO, 1_000).copy(
+            rawType = "DIVIDEND", taxCents = -190,
+        )
+        repository.execute(repository.plan(preview(withoutIsin), "cash"))
+        assertEquals(1, ledger.transactions.first().size)
+        assertEquals(0, investments.operations.first().size)
+
+        val completedRow = withoutIsin.copy(isin = "ES0000000010", assetName = "Empresa", assetClass = "STOCK")
+        val completion = repository.plan(preview(completedRow), "cash")
+        assertTrue(completion.rows.single().record is ImportRecord.Operation)
+        assertEquals(0L, completion.rows.single().cashEffectMinor)
+        val report = repository.execute(completion)
+
+        assertEquals(0, report.transactions)
+        assertEquals(1, report.operations)
+        assertEquals(1, ledger.transactions.first().size)
+        assertEquals(1, investments.operations.first().size)
+        assertEquals(1, repository.plan(preview(completedRow), "cash").alreadyImported)
+    }
+
     @Test fun `fallo a mitad revierte todos los registros y activos`() {
         val repository = TradeRepublicImportRepository(db) { inserted -> if (inserted == 2) error("fallo simulado") }
         val plan = runBlocking { repository.plan(preview(movement("a", ImportedKind.GASTO, -100), movement("b", ImportedKind.INTERES, 20)), "cash") }

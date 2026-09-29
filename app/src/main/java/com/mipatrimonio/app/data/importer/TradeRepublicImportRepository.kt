@@ -45,6 +45,8 @@ class TradeRepublicImportRepository(
             if (db.transactionDao().getById(id) != null || db.transferDao().getById(id) != null ||
                 db.investmentDao().getOperation(id) != null
             ) ids += id
+            val dividendId = TradeRepublicImportPlanner.dividendRecordId(row.externalId)
+            if (db.investmentDao().getOperation(dividendId) != null) ids += dividendId
         }
         val plan = TradeRepublicImportPlanner.plan(
             preview,
@@ -73,23 +75,22 @@ class TradeRepublicImportRepository(
         plan.newAssets.forEach { asset ->
             if (db.investmentDao().insertAssetIfAbsent(asset.toEntity(System.currentTimeMillis())) != -1L) assetCount++
         }
-        val operationRows = plan.rows.filter { it.status == ImportRowStatus.CREATE && it.record is ImportRecord.Operation }
-        operationRows.groupBy {
-            val operation = (it.record as ImportRecord.Operation).value
-            operation.portfolioId to operation.assetId
-        }.forEach { (key, additions) ->
+        val operationRows = plan.rows.filter { it.status == ImportRowStatus.CREATE }.flatMap { row ->
+            row.records.filterIsInstance<ImportRecord.Operation>().map { row to it.value }
+        }
+        operationRows.groupBy { (_, operation) -> operation.portfolioId to operation.assetId }.forEach { (key, additions) ->
             val existing = db.investmentDao().operationsFor(key.first, key.second).map { it.toDomain() }
             val accepted = mutableListOf<InvestmentOperation>()
-            additions.forEach { row ->
-                val addition = (row.record as ImportRecord.Operation).value
+            additions.forEach { (row, addition) ->
                 if (existing.none { it.id == addition.id }) accepted += addition
                 runCatching { PositionCalculator.compute(existing + accepted) }
                     .getOrElse { throw rowImportException(row, it) }
             }
         }
         plan.rows.filter { it.status == ImportRowStatus.CREATE }.forEach { row ->
-            runCatching {
-                when (val record = row.record) {
+            row.records.forEach { record ->
+                runCatching {
+                    when (record) {
                     is ImportRecord.Movement -> {
                         val categoryId = record.value.categoryId?.let { id ->
                             db.categoryDao().getByIds(listOf(id)).singleOrNull()?.takeUnless { it.archived }?.id
@@ -97,11 +98,11 @@ class TradeRepublicImportRepository(
                         if (db.transactionDao().insertIfAbsent(record.value.copy(categoryId = categoryId).toEntity()) != -1L) transactionCount++
                     }
                     is ImportRecord.Operation -> if (db.investmentDao().insertOperationIfAbsent(record.value.toEntity()) != -1L) operationCount++
-                    null -> Unit
-                }
-                inserted++
-                afterInsert(inserted)
-            }.getOrElse { throw rowImportException(row, it) }
+                    }
+                    inserted++
+                    afterInsert(inserted)
+                }.getOrElse { throw rowImportException(row, it) }
+            }
         }
         val omittedReasons = buildList {
             plan.rows.filter { it.status != ImportRowStatus.CREATE }.forEach {
@@ -118,13 +119,17 @@ class TradeRepublicImportRepository(
     }
 
     private suspend fun withoutUnavailableCategories(plan: TradeRepublicImportPlan): TradeRepublicImportPlan {
-        val categoryIds = plan.rows.mapNotNull { ((it.record as? ImportRecord.Movement)?.value?.categoryId) }.distinct()
+        val categoryIds = plan.rows.flatMap { it.records }.mapNotNull { (it as? ImportRecord.Movement)?.value?.categoryId }.distinct()
         if (categoryIds.isEmpty()) return plan
         val activeIds = db.categoryDao().getByIds(categoryIds).filterNot { it.archived }.mapTo(hashSetOf()) { it.id }
         return plan.copy(rows = plan.rows.map { row ->
-            val movement = (row.record as? ImportRecord.Movement)?.value ?: return@map row
-            if (movement.categoryId == null || movement.categoryId in activeIds) row
-            else row.copy(record = ImportRecord.Movement(movement.copy(categoryId = null)))
+            fun withoutCategory(record: ImportRecord): ImportRecord = if (record is ImportRecord.Movement &&
+                record.value.categoryId != null && record.value.categoryId !in activeIds
+            ) ImportRecord.Movement(record.value.copy(categoryId = null)) else record
+            row.copy(
+                record = row.record?.let(::withoutCategory),
+                additionalRecords = row.additionalRecords.map(::withoutCategory),
+            )
         })
     }
 

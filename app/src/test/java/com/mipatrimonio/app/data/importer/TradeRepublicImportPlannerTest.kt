@@ -105,6 +105,56 @@ class TradeRepublicImportPlannerTest {
         assertEquals(1_104L, result.outgoingMinor)
     }
 
+    @Test fun `dividendo CASH con ISIN crea ingreso neto y operacion sin cuenta por el bruto`() {
+        val row = cash("dividend-isin", "DIVIDEND", 2_000).copy(
+            isin = " DE000TEST001 ", assetName = "Empresa", assetClass = "STOCK",
+            taxCents = -380, feeCents = -20, time = java.time.LocalTime.of(12, 34),
+        )
+
+        val result = plan(row)
+        val planned = result.rows.single()
+        val movement = planned.records.filterIsInstance<ImportRecord.Movement>().single().value
+        val operation = planned.records.filterIsInstance<ImportRecord.Operation>().single().value
+
+        assertEquals(1, result.toCreate)
+        assertEquals(1_600L, movement.amountMinor)
+        assertEquals(TransactionType.INGRESO, movement.type)
+        assertEquals("import:tr:dividend-isin:div", operation.id)
+        assertEquals(OperationType.DIVIDENDO, operation.type)
+        assertEquals(BigDecimal.ONE, operation.quantity)
+        assertEquals(BigDecimal("20.00"), operation.unitPrice)
+        assertEquals(400L, operation.feesMinor)
+        assertNull(operation.accountId)
+        assertEquals(row.date, operation.date)
+        assertEquals(row.time, operation.time)
+        assertEquals(listOf("TR Valores"), result.newPortfolios.map { it.name })
+        assertEquals("DE000TEST001", result.newAssets.single().isin)
+    }
+
+    @Test fun `dividendo CASH sin ISIN conserva solo el ingreso`() {
+        val result = plan(cash("dividend-no-isin", "DIVIDEND", 1_000).copy(taxCents = -190))
+
+        assertEquals(1, result.rows.single().records.size)
+        assertTrue(result.rows.single().record is ImportRecord.Movement)
+        assertTrue(result.newAssets.isEmpty())
+        assertTrue(result.newPortfolios.isEmpty())
+    }
+
+    @Test fun `reimportacion de dividendo completa solo la operacion ausente y luego es idempotente`() {
+        val row = cash("old-dividend", "DIVIDEND", 1_000).copy(isin = "ISIN", taxCents = -190)
+        val onlyMovementExists = context.copy(existingRecordIds = setOf(TradeRepublicImportPlanner.recordId(row.externalId)))
+
+        val completion = TradeRepublicImportPlanner.plan(preview(row), onlyMovementExists)
+        assertEquals(1, completion.toCreate)
+        assertTrue(completion.rows.single().record is ImportRecord.Operation)
+        assertEquals(0L, completion.rows.single().cashEffectMinor)
+
+        val completeIds = onlyMovementExists.existingRecordIds + TradeRepublicImportPlanner.dividendRecordId(row.externalId)
+        val repeated = TradeRepublicImportPlanner.plan(preview(row), context.copy(existingRecordIds = completeIds))
+        assertEquals(1, repeated.alreadyImported)
+        assertEquals(0, repeated.toCreate)
+    }
+
     @Test fun `CASH con neto cero se ignora aunque tenga bruto`() {
         val result = plan(cash("zero-net", "BONUS", 100).copy(feeCents = -100))
 

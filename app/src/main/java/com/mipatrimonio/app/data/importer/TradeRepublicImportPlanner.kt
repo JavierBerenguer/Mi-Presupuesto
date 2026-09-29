@@ -35,9 +35,12 @@ data class PlannedImportRow(
     val source: ImportedMovement,
     val status: ImportRowStatus,
     val record: ImportRecord? = null,
+    val additionalRecords: List<ImportRecord> = emptyList(),
     val reason: String? = null,
     val cashEffectMinor: Long = 0,
-)
+) {
+    val records: List<ImportRecord> get() = listOfNotNull(record) + additionalRecords
+}
 
 data class TradeRepublicImportPlan(
     val rows: List<PlannedImportRow>,
@@ -87,7 +90,14 @@ object TradeRepublicImportPlanner {
             val privateCash = privatePairs[row.externalId]
             val pairedDeliveryId = privatePairs.entries.firstOrNull { it.value.externalId == row.externalId }?.key
             val id = recordId(row.externalId)
-            if (id in context.existingRecordIds || pairedDeliveryId?.let(::recordId) in context.existingRecordIds) {
+            val dividendWithIsin = isCashDividendWithIsin(row)
+            val dividendId = dividendRecordId(row.externalId)
+            val baseExists = id in context.existingRecordIds
+            val dividendExists = dividendId in context.existingRecordIds
+            if ((!dividendWithIsin && baseExists) ||
+                (dividendWithIsin && baseExists && dividendExists) ||
+                pairedDeliveryId?.let(::recordId) in context.existingRecordIds
+            ) {
                 return@map PlannedImportRow(row, ImportRowStatus.ALREADY_IMPORTED)
             }
             if (row.externalId in pairedCashIds) {
@@ -111,7 +121,12 @@ object TradeRepublicImportPlanner {
                 }
             }
             when (category) {
-                CATEGORY_CASH -> cashRow(row, context, decision)
+                CATEGORY_CASH -> if (dividendWithIsin) {
+                    dividendCashRow(
+                        row, context, decision, baseExists, dividendExists,
+                        assetsByIsin, newAssets, portfoliosByName, newPortfolios,
+                    )
+                } else cashRow(row, context, decision)
                 CATEGORY_TRADING -> tradingRow(row, privateCash, context, decision, assetsByIsin, newAssets, portfoliosByName, newPortfolios)
                 else -> error("Categoría filtrada inesperada")
             }
@@ -128,6 +143,72 @@ object TradeRepublicImportPlanner {
             ?: return PlannedImportRow(row, ImportRowStatus.REVIEW, reason = "El importe está fuera de rango")
         if (netAmount == 0L) return PlannedImportRow(row, ImportRowStatus.IGNORED, reason = "Fila de caja sin importe")
         return transactionRow(row, context, decision, netAmount, includeCashBreakdown = true)
+    }
+
+    private fun dividendCashRow(
+        row: ImportedMovement,
+        context: TradeRepublicPlanningContext,
+        decision: ImportRowDecision?,
+        movementExists: Boolean,
+        dividendExists: Boolean,
+        assetsByIsin: MutableMap<String, Asset>,
+        newAssets: MutableMap<String, Asset>,
+        portfoliosByName: MutableMap<String, Portfolio>,
+        newPortfolios: MutableMap<String, Portfolio>,
+    ): PlannedImportRow {
+        val movementRow = if (movementExists) null else cashRow(row, context, decision)
+        if (movementRow != null && movementRow.status != ImportRowStatus.CREATE) return movementRow
+        if (dividendExists) return requireNotNull(movementRow)
+
+        val isin = normalizeIsin(row.isin.orEmpty())
+        val currency = row.currency ?: context.accountCurrency
+        val portfolioName = portfolioName(row.assetClass)
+            ?: return PlannedImportRow(row, ImportRowStatus.REVIEW, reason = "Clase de activo no compatible")
+        val existingPortfolio = portfoliosByName[portfolioName]
+        val portfolio = existingPortfolio ?: Portfolio(
+            portfolioId(portfolioName, context.existingPortfolios), portfolioName, context.now, context.accountId,
+        )
+        val existingAsset = assetsByIsin[isin]
+        val asset = existingAsset ?: Asset(
+            "import:tr:asset:$isin", row.assetName?.takeIf(String::isNotBlank) ?: isin, "", isin,
+            assetType(row.assetClass), "", currency,
+        )
+        val operation = runCatching {
+            InvestmentOperation(
+                id = dividendRecordId(row.externalId),
+                portfolioId = portfolio.id,
+                assetId = asset.id,
+                type = OperationType.DIVIDENDO,
+                date = row.date,
+                quantity = BigDecimal.ONE,
+                unitPrice = MoneyMath.toDecimal(row.amountCents, currency),
+                feesMinor = positiveChargesMinor(row),
+                currency = currency,
+                note = tradingDescription(row),
+                createdAt = context.now,
+                accountId = null,
+                time = row.time,
+            )
+        }.getOrElse {
+            return PlannedImportRow(row, ImportRowStatus.REVIEW, reason = "Los datos numÃ©ricos estÃ¡n fuera de rango")
+        }
+        operationValidationReason(operation, asset, context)?.let { reason ->
+            return PlannedImportRow(row, ImportRowStatus.REVIEW, reason = reason)
+        }
+        if (existingAsset == null) {
+            assetsByIsin[isin] = asset
+            newAssets[isin] = asset
+        }
+        if (existingPortfolio == null) {
+            portfoliosByName[portfolioName] = portfolio
+            newPortfolios[portfolioName] = portfolio
+        }
+        val dividendRecord = ImportRecord.Operation(operation)
+        return if (movementRow == null) {
+            PlannedImportRow(row, ImportRowStatus.CREATE, dividendRecord)
+        } else {
+            movementRow.copy(additionalRecords = listOf(dividendRecord))
+        }
     }
 
     private fun transactionRow(
@@ -319,6 +400,7 @@ object TradeRepublicImportPlanner {
     }.getOrDefault(false)
 
     private fun portfolioName(assetClass: String): String? = when (assetClass.uppercase(Locale.ROOT)) {
+        "" -> "TR Valores"
         "STOCK", "FUND" -> "TR Valores"
         "CRYPTO" -> "TR - Cripto"
         "PRIVATE_FUND" -> "TR - Equity"
@@ -326,6 +408,7 @@ object TradeRepublicImportPlanner {
     }
 
     private fun assetType(assetClass: String): AssetType = when (assetClass.uppercase(Locale.ROOT)) {
+        "" -> AssetType.ACCION
         "STOCK" -> AssetType.ACCION
         "FUND" -> AssetType.ETF
         "CRYPTO" -> AssetType.CRIPTO
@@ -376,6 +459,7 @@ object TradeRepublicImportPlanner {
     }.also { id -> check(DefaultCategories.all.any { it.id == id }) }
 
     fun recordId(externalId: String) = "import:tr:$externalId"
+    fun dividendRecordId(externalId: String) = "${recordId(externalId)}:div"
     fun provisionalPrivateMarketId(row: ImportedMovement) = recordId(row.externalId)
     private fun portfolioId(name: String, existing: List<Portfolio>): String {
         val base = "import:tr:portfolio:" + name.lowercase(Locale.ROOT).replace(" ", "-")
@@ -406,6 +490,8 @@ object TradeRepublicImportPlanner {
     }
     private fun absExact(value: Long) = if (value == Long.MIN_VALUE) throw ArithmeticException("Importe fuera de rango") else kotlin.math.abs(value)
     private fun isPrivateFundBuy(row: ImportedMovement) = row.rawType.equals("BUY", true) && row.assetClass.equals("PRIVATE_FUND", true) && row.amountCents == 0L
+    private fun isCashDividendWithIsin(row: ImportedMovement) =
+        row.category.equals(CATEGORY_CASH, true) && row.rawType.equals("DIVIDEND", true) && normalizeIsin(row.isin.orEmpty()).isNotBlank()
 
     private val importedDateTimeOrder = compareBy<ImportedMovement>({ it.date }, { it.time }, { it.externalId })
     private val SUPPORTED_CATEGORIES = setOf(CATEGORY_CASH, CATEGORY_TRADING)
