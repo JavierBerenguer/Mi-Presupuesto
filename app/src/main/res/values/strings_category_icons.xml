@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cat_icon_search">Buscar icono</string>
+    <string name="cat_icon_none">Sin icono personalizado</string>
+    <string name="cat_icon_car">Coche</string><string name="cat_icon_fuel">Gasolina</string><string name="cat_icon_parking">Aparcamiento</string><string name="cat_icon_car_wash">Lavado de coche</string>
+    <string name="cat_icon_restaurant">Restaurante</string><string name="cat_icon_bar">Bar</string><string name="cat_icon_cafe">Café</string><string name="cat_icon_cinema">Cine</string><string name="cat_icon_music">Música</string>
+    <string name="cat_icon_sports">Deporte</string><string name="cat_icon_gym">Gimnasio</string><string name="cat_icon_pool">Natación</string><string name="cat_icon_travel">Viaje</string><string name="cat_icon_hotel">Hotel</string>
+    <string name="cat_icon_train">Tren</string><string name="cat_icon_bus">Autobús</string><string name="cat_icon_taxi">Taxi</string><string name="cat_icon_home">Casa</string><string name="cat_icon_rent">Alquiler</string>
+    <string name="cat_icon_electricity">Electricidad</string><string name="cat_icon_water">Agua</string><string name="cat_icon_gas">Gas</string><string name="cat_icon_internet">Internet</string><string name="cat_icon_phone">Teléfono</string>
+    <string name="cat_icon_tv">Televisión</string><string name="cat_icon_furniture">Muebles</string><string name="cat_icon_garden">Jardín</string><string name="cat_icon_pet">Mascota</string><string name="cat_icon_pharmacy">Farmacia</string>
+    <string name="cat_icon_health">Salud</string><string name="cat_icon_glasses">Óptica</string><string name="cat_icon_haircut">Peluquería</string><string name="cat_icon_clothes">Ropa</string><string name="cat_icon_jewelry">Joyería</string><string name="cat_icon_beauty">Belleza</string>
+    <string name="cat_icon_education">Educación</string><string name="cat_icon_book">Libro</string><string name="cat_icon_school">Escuela</string><string name="cat_icon_computer">Ordenador</string><string name="cat_icon_smartphone">Smartphone</string>
+    <string name="cat_icon_camera">Cámara</string><string name="cat_icon_printer">Impresora</string><string name="cat_icon_ai">Inteligencia artificial</string><string name="cat_icon_salary">Salario</string><string name="cat_icon_gift">Regalo</string>
+    <string name="cat_icon_savings">Ahorro</string><string name="cat_icon_interest">Intereses</string><string name="cat_icon_dividends">Dividendos</string><string name="cat_icon_investment">Inversión</string><string name="cat_icon_fees">Comisiones</string>
+    <string name="cat_icon_taxes">Impuestos</string><string name="cat_icon_insurance">Seguro</string><string name="cat_icon_credit">Crédito</string><string name="cat_icon_shopping">Compras</string><string name="cat_icon_subscriptions">Suscripciones</string>
+    <string name="cat_icon_games">Juegos</string><string name="cat_icon_events">Eventos</string><string name="cat_icon_theater">Teatro</string><string name="cat_icon_museum">Museo</string><string name="cat_icon_build">Reparaciones</string><string name="cat_icon_other">Otros</string>
+</resources>

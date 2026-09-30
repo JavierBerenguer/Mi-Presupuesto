@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="ini_welcome_empty">Bienvenido a Mi Patrimonio. Crea tu primera cuenta para empezar a registrar tus finanzas.</string>
+    <string name="ini_create_account">Crear cuenta</string>
+    <string name="ini_networth">Patrimonio neto</string>
+    <string name="ini_available">Dinero disponible</string>
+    <string name="ini_investments">Inversiones</string>
+    <string name="ini_month">Este mes</string>
+    <string name="ini_income">Ingresos</string>
+    <string name="ini_expenses">Gastos</string>
+    <string name="ini_balance">Balance</string>
+    <string name="ini_month_excluded">%1$d movimientos en otra divisa no se han contabilizado.</string>
+    <string name="ini_budget_remaining">Presupuesto restante del mes</string>
+    <string name="ini_no_budgets">Sin presupuestos mensuales</string>
+    <string name="ini_chart_networth">Evolución del patrimonio</string>
+    <string name="ini_chart_networth_note">Las inversiones se valoran a coste en el histórico.</string>
+    <string name="ini_chart_networth_desc">Gráfico de línea con la evolución del patrimonio neto en el periodo seleccionado.</string>
+    <string name="ini_chart_income_vs_expenses">Ingresos frente a gastos</string>
+    <string name="ini_chart_income_vs_expenses_desc">Gráfico de barras de ingresos y gastos por mes.</string>
+    <string name="ini_chart_expense_distribution">Distribución de gastos</string>
+    <string name="ini_chart_expense_distribution_desc">Gráfico circular con el reparto de gastos por categoría.</string>
+    <string name="ini_chart_asset_distribution">Distribución de activos</string>
+    <string name="ini_chart_asset_distribution_desc">Gráfico circular con el reparto del patrimonio entre efectivo por tipo de cuenta e inversiones.</string>
+    <string name="ini_no_data_period">Sin datos en este periodo.</string>
+    <string name="ini_no_category">Sin categoría</string>
+    <string name="ini_investments_label">Inversiones</string>
+    <string name="ini_total">Total</string>
+    <string name="ini_add_to_networth">Sumar al patrimonio</string>
+    <string name="ini_accounts">Cuentas</string>
+    <string name="ini_hide_amounts">Ocultar importes</string>
+    <string name="ini_show_amounts">Mostrar importes</string>
+    <string name="ini_period_max">M&#225;x</string>
+    <string name="ini_period_1m">1M</string>
+    <string name="ini_period_3m">3M</string>
+    <string name="ini_period_6m">6M</string>
+    <string name="ini_period_1y">1A</string>
+    <string name="ini_period_variation">%1$s%2$s en el periodo</string>
+    <plurals name="ini_automatic_count">
+        <item quantity="one">%1$d apunte creado desde notificaciones</item>
+        <item quantity="other">%1$d apuntes creados desde notificaciones</item>
+    </plurals>
+    <string name="ini_automatic_help">Rev&#237;salos o corr&#237;gelos cuando quieras</string>
+    <string name="ini_open_automatic">Abrir movimientos autom&#225;ticos</string>
+    <string name="ini_saving">Ahorro</string>
+    <string name="ini_spent_percent">%1$d %% de los ingresos gastado</string>
+</resources>

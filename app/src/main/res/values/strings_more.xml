@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nav_presupuesto">Presupuesto</string>
+    <string name="nav_cartera">Cartera</string>
+    <string name="nav_mas">Más</string>
+    <string name="more_import_export">Importar y exportar</string>
+</resources>

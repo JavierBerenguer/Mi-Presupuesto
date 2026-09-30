@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Mi Patrimonio</string>
+
+    <string name="nav_inicio">Inicio</string>
+    <string name="nav_movimientos">Movimientos</string>
+    <string name="nav_presupuestos">Presupuestos</string>
+    <string name="nav_inversiones">Inversiones</string>
+    <string name="nav_patrimonio">Patrimonio</string>
+    <string name="nav_ajustes">Ajustes</string>
+    <string name="nav_cuentas">Cuentas</string>
+    <string name="nav_categorias">Categorías</string>
+    <string name="nav_nuevo_movimiento">Nuevo movimiento</string>
+    <string name="nav_editar_movimiento">Editar movimiento</string>
+    <string name="nav_nueva_transferencia">Nueva transferencia</string>
+    <string name="nav_editar_transferencia">Editar transferencia</string>
+    <string name="common_hidden_amount">&#8226;&#8226;&#8226;&#8226;</string>
+    <string name="common_generic_category_mark">&#8226;</string>
+    <string name="common_transfer_mark">&#8596;</string>
+</resources>
