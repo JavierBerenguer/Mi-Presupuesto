@@ -46,3 +46,6 @@ Resumen; lista de archivos creados/modificados; comandos ejecutados con su resul
 
 ## Pantallas de primer nivel con cabecera propia (lección de T-028)
 Si una pantalla dibuja su propio título (Fraunces 28 sp) debe: (a) añadirse a `hasOwnTopBar` en `ui/navigation/MiPatrimonioApp.kt` (si no, aparece un segundo título en la barra superior) y (b) aplicar `Modifier.statusBarsPadding()` en su contenedor raíz (si no, el título queda bajo la barra de estado).
+
+## Expresiones regulares en Android (lección de T-065)
+Los tests JVM usan el motor de regex de Java, pero en el dispositivo se usa ICU, que es más estricto: una `}` o `{` literal **siempre** debe ir escapada (`\}`), igual que cualquier metacarácter usado como texto. Un patrón que pasa los tests puede cerrar la app en el móvil.

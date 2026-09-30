@@ -31,7 +31,8 @@ class NotificationRepository(
     val pendingProposals: Flow<List<PendingProposal>> = dao.observePendingProposals().map { rows -> rows.map { it.toDomain() } }
     val diagnostics: Flow<List<NotificationDiagnostic>> = dao.observeDiagnostics().onStart { pruneDiagnostics() }
         .map { rows -> rows.map { it.toDomain() } }
-    val structures: Flow<List<NotificationStructure>> = dao.observeStructures().map { rows -> rows.map { it.toDomain() } }
+    val structures: Flow<List<NotificationStructure>> =
+        dao.observeStructures().map { rows -> rows.mapNotNull { runCatching { it.toDomain() }.getOrNull() } }
     val diagnosticTextEnabled: Flow<Boolean> = diagnosticTextState
 
     fun records(status: NotificationRecordStatus): Flow<List<NotificationRecord>> =

@@ -50,4 +50,6 @@ data class NotificationPreview(
     val kind: ProposalKind, val description: String, val notes: String, val categoryId: String?,
 )
 
-fun normalizeVariable(value: String): String = normalizeNotificationText(value).trim().replace(Regex("\\s+"), " ")
+// La puntuación final se ignora para que «S.L» y «S.L.» sean la misma regla (reglas guardadas antes de T-065).
+fun normalizeVariable(value: String): String =
+    normalizeNotificationText(value).trim().trimEnd('.', ',', ';', ':', '-', '!', '?').trim().replace(Regex("\\s+"), " ")
