@@ -13,7 +13,7 @@
     <string name="auto_mark_text">Selecciona el patrón</string>
     <string name="auto_mark_key">Marcar texto clave</string>
     <string name="auto_mark_variable">Marcar texto variable</string>
-    <string name="auto_selection_help">Pulsa la primera y la última palabra de cada fragmento. Puedes pulsar una sola palabra.</string>
+    <string name="auto_selection_help">Pulsa la primera y la última palabra de cada fragmento. Puedes pulsar una sola palabra. El importe (en rojo) se detecta solo; el texto clave puede incluirlo.</string>
     <string name="auto_error_key">Selecciona el texto clave.</string>
     <string name="auto_error_variable">Selecciona el texto variable.</string>
     <string name="auto_error_overlap">El texto clave y el variable no pueden solaparse.</string>
@@ -35,6 +35,7 @@
     <string name="auto_structure_explanation">Se aplican a todos los apuntes de %1$s.</string>
     <string name="auto_rule_values">Valores de este comercio, persona o activo</string>
     <string name="auto_rule_explanation">Se aplican solo a %1$s y tienen prioridad sobre la estructura.</string>
+    <string name="auto_rule_explanation_without_variable">Se aplican solo al comercio, persona o activo marcado como texto variable y tienen prioridad sobre la estructura.</string>
     <string name="auto_this_operation">esta operación</string>
     <string name="auto_title_optional">Título (opcional)</string>
     <string name="auto_detail_optional">Detalle (opcional)</string>

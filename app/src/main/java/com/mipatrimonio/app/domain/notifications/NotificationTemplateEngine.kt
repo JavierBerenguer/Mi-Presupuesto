@@ -2,17 +2,23 @@ package com.mipatrimonio.app.domain.notifications
 
 object NotificationTemplateBuilder {
     fun build(text: String, keyRange: IntRange, variableRange: IntRange): NotificationTemplate {
-        val amount = NotificationAmountRecognizer.findAll(text).firstOrNull { amount ->
-            !overlaps(amount.range, keyRange) && !overlaps(amount.range, variableRange)
-        } ?: throw IllegalArgumentException("No se ha detectado un importe válido")
         require(validRange(text, keyRange) && validRange(text, variableRange)) { "Los rangos seleccionados no son válidos" }
-        require(text.substring(keyRange).isNotBlank()) { "El texto clave es obligatorio" }
-        val selected = listOf(
-            Selection(keyRange, TemplateSegment.Literal(text.substring(keyRange))),
+        val amount = NotificationAmountRecognizer.first(text)
+            ?: throw IllegalArgumentException("No se ha detectado ningún importe en la notificación")
+        require(!overlaps(amount.range, variableRange)) { "El texto variable no puede incluir el importe" }
+        require(!overlaps(keyRange, variableRange)) { "El texto clave y el variable no pueden solaparse" }
+
+        val effectiveKeyRange = if (overlaps(keyRange, amount.range)) {
+            minOf(keyRange.first, amount.range.first)..maxOf(keyRange.last, amount.range.last)
+        } else keyRange
+        val keySelections = keySelections(text, effectiveKeyRange, amount.range)
+        require(keySelections.any { (it.segment as? TemplateSegment.Literal)?.text?.isNotBlank() == true }) {
+            "El texto clave es obligatorio"
+        }
+        val selected = (keySelections + listOf(
             Selection(amount.range, TemplateSegment.Amount),
             Selection(variableRange, TemplateSegment.Variable),
-        ).sortedBy { it.range.first }
-        require(selected.zipWithNext().none { (a, b) -> overlaps(a.range, b.range) }) { "Los rangos no pueden solaparse" }
+        )).distinctBy { it.range to it.segment }.sortedBy { it.range.first }
         val segments = mutableListOf<TemplateSegment>()
         selected.forEachIndexed { index, selection ->
             if (index > 0) {
@@ -23,6 +29,22 @@ object NotificationTemplateBuilder {
             segments += selection.segment
         }
         return NotificationTemplate(mergeLiterals(segments)).also { require(it.isValid) { "La plantilla no es válida" } }
+    }
+
+    private fun keySelections(text: String, keyRange: IntRange, amountRange: IntRange): List<Selection> {
+        if (!overlaps(keyRange, amountRange)) {
+            return listOf(Selection(keyRange, TemplateSegment.Literal(text.substring(keyRange))))
+        }
+        return buildList {
+            if (keyRange.first < amountRange.first) {
+                val before = keyRange.first until amountRange.first
+                add(Selection(before, TemplateSegment.Literal(text.substring(before))))
+            }
+            if (amountRange.last < keyRange.last) {
+                val after = (amountRange.last + 1)..keyRange.last
+                add(Selection(after, TemplateSegment.Literal(text.substring(after))))
+            }
+        }
     }
 
     private fun validRange(text: String, range: IntRange) = range.first >= 0 && range.last < text.length && !range.isEmpty()
@@ -51,7 +73,7 @@ object NotificationTemplateMatcher {
             val start = normalized.map.getOrElse(group.range.first) { text.length }
             val end = normalized.map.getOrElse(group.range.last) { text.lastIndex } + 1
             val variable = text.substring(start.coerceAtMost(text.length), end.coerceAtMost(text.length))
-                .trim().trimEnd(',', '.', ';', ':', '-', '!', '?').trim()
+                .trim().trimEnd(',', ';', ':', '-', '!', '?').trim()
             variable.takeIf { it.isNotEmpty() }?.let { TemplateMatch(it, amount) }
         }
     }
@@ -99,7 +121,8 @@ object NotificationTemplateJson {
     }
 
     fun decode(json: String): NotificationTemplate {
-        val item = Regex("\\{\\\"type\\\":\\\"(LITERAL|IMPORTE|VARIABLE)\\\"(?:,\\\"text\\\":\\\"((?:\\\\.|[^\\\"])*)\\\")?}")
+        // La llave final debe ir escapada: el motor de regex de Android (ICU) rechaza «}» suelta aunque la JVM la acepte.
+        val item = Regex("\\{\\\"type\\\":\\\"(LITERAL|IMPORTE|VARIABLE)\\\"(?:,\\\"text\\\":\\\"((?:\\\\.|[^\\\"])*)\\\")?\\}")
         val segments = item.findAll(json).map { match -> when (match.groupValues[1]) {
             "LITERAL" -> TemplateSegment.Literal(unescape(match.groupValues[2]))
             "IMPORTE" -> TemplateSegment.Amount

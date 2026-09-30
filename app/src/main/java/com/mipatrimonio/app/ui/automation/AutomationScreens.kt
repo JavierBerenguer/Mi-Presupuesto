@@ -220,7 +220,7 @@ fun TeachStructureScreen(
         item {
             ValuesEditor(
                 title = stringResource(R.string.auto_rule_values),
-                explanation = stringResource(R.string.auto_rule_explanation, state.preview?.variableText.orEmpty()),
+                explanation = ruleExplanation(state.preview?.variableText.orEmpty()),
                 titleValue = state.editor.ruleValues.title.orEmpty(),
                 detailValue = state.editor.ruleValues.detail.orEmpty(),
                 categoryId = state.editor.ruleValues.categoryId,
@@ -305,7 +305,7 @@ fun ConfigureRuleScreen(
         item {
             ValuesEditor(
                 title = stringResource(R.string.auto_rule_values),
-                explanation = stringResource(R.string.auto_rule_explanation, state.record?.variableText.orEmpty()),
+                explanation = ruleExplanation(state.record?.variableText.orEmpty()),
                 titleValue = state.values.title.orEmpty(), detailValue = state.values.detail.orEmpty(),
                 categoryId = state.values.categoryId, categories = state.categories,
                 onChange = { title, detail, category -> viewModel.setValues(NotificationRuleValues(title, detail, category)) },
@@ -455,11 +455,22 @@ private fun RuleEditor(rule: NotificationRule, categories: List<Category>, onSav
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) { Text(rule.variableDisplay, Modifier.weight(1f), fontWeight = FontWeight.Bold); Switch(rule.enabled, { onEnabled(rule.id, it) }) }
             OutlinedTextField(variable, { variable = it }, label = { Text(stringResource(R.string.auto_variable_text)) }, modifier = Modifier.fillMaxWidth())
-            ValuesEditor(stringResource(R.string.auto_rule_values), stringResource(R.string.auto_rule_explanation, rule.variableDisplay), values.title.orEmpty(), values.detail.orEmpty(), values.categoryId, categories) { a, b, c -> values = NotificationRuleValues(a, b, c) }
+            ValuesEditor(stringResource(R.string.auto_rule_values), ruleExplanation(rule.variableDisplay), values.title.orEmpty(), values.detail.orEmpty(), values.categoryId, categories) { a, b, c -> values = NotificationRuleValues(a, b, c) }
             Row { Button(onClick = { onSave(rule.copy(variableDisplay = variable, title = values.title, detail = values.detail, categoryId = values.categoryId)) }, enabled = variable.isNotBlank()) { Text(stringResource(R.string.common_save)) }; TextButton(onClick = { onDelete(rule) }) { Text(stringResource(R.string.common_delete)) } }
         }
     }
 }
+
+@Composable
+private fun ruleExplanation(variableText: String): String = if (variableText.isBlank()) {
+    stringResource(ruleExplanationResource(variableText))
+} else {
+    stringResource(ruleExplanationResource(variableText), variableText)
+}
+
+internal fun ruleExplanationResource(variableText: String): Int = if (variableText.isBlank()) {
+    R.string.auto_rule_explanation_without_variable
+} else R.string.auto_rule_explanation
 
 @Composable private fun ErrorText(value: String) = Text(value, color = MaterialTheme.colorScheme.error)
 

@@ -14,6 +14,7 @@ import com.mipatrimonio.app.domain.notifications.NotificationDirection
 import com.mipatrimonio.app.domain.notifications.NotificationEngine
 import com.mipatrimonio.app.domain.notifications.NotificationRecordStatus
 import com.mipatrimonio.app.domain.notifications.NotificationRuleValues
+import com.mipatrimonio.app.domain.notifications.TemplateSegment
 import com.mipatrimonio.app.testutil.awaitValue
 import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
@@ -97,6 +98,47 @@ class AutomationViewModelsTest {
         val saved = viewModel.uiState.first { it.savedAdditionalCount != null }
         assertEquals(1, saved.savedAdditionalCount)
         assertEquals(2, notifications.records(NotificationRecordStatus.AUTOMATIZADA).first().size)
+    }
+
+    @Test fun `ensenanza permite clave alrededor del importe y habilita guardar`() = runTest {
+        authorize()
+        val seed = (notifications.ingest(BankNotification(
+            PACKAGE,
+            "CHANGLONET, S.L.",
+            "Gastaste 3,75 € en CHANGLONET, S.L.",
+            1_000,
+        )) as com.mipatrimonio.app.domain.notifications.NotificationOutcome.Registrada).recordId
+        val viewModel = TeachStructureViewModel(seed, notifications, ledger)
+        viewModel.uiState.first { !it.isLoading }
+
+        viewModel.selectWord(2)
+        viewModel.selectWord(5)
+        viewModel.selectMode(SelectionMode.VARIABLE)
+        viewModel.selectWord(6)
+        viewModel.setName("Pago con tarjeta")
+
+        val state = viewModel.uiState.first { it.preview != null && it.canSave }
+        assertEquals("CHANGLONET, S.L.", state.preview?.variableText)
+        assertEquals(
+            listOf(
+                TemplateSegment.Literal("Gastaste "), TemplateSegment.Amount,
+                TemplateSegment.Literal(" en "), TemplateSegment.Variable,
+            ),
+            state.preview?.template?.segments,
+        )
+        assertTrue(state.canSave)
+    }
+
+    @Test fun `explicacion sin variable usa texto alternativo sin hueco`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+
+        val explanation = context.getString(ruleExplanationResource(""))
+
+        assertEquals(
+            "Se aplican solo al comercio, persona o activo marcado como texto variable y tienen prioridad sobre la estructura.",
+            explanation,
+        )
+        assertFalse(explanation.contains("solo a  y"))
     }
 
     @Test fun `ensenanza impide solapamiento y no permite seleccionar importe`() = runTest {
