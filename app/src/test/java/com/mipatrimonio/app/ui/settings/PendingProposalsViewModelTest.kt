@@ -14,7 +14,6 @@ import com.mipatrimonio.app.domain.model.AccountType
 import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.BudgetPeriod
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.CategoryKind
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.notifications.AutoConfirmMode
@@ -80,8 +79,8 @@ class PendingProposalsViewModelTest {
     @Test
     fun `confirma un gasto con categoria comercio y descripcion`() = runTest {
         ledger.saveAccount(account("account-1"))
-        ledger.saveCategory(category("shopping", CategoryKind.GASTO))
-        ledger.saveCategory(category("books", CategoryKind.GASTO, parentId = "shopping"))
+        ledger.saveCategory(category("shopping"))
+        ledger.saveCategory(category("books", parentId = "shopping"))
         val proposal = proposal("Compra de 12,50 EUR en Librería", "account-1")
         val viewModel = readyViewModel()
 
@@ -223,10 +222,10 @@ class PendingProposalsViewModelTest {
     }
 
     @Test
-    fun `rechaza categoria archivada o de otro tipo`() = runTest {
+    fun `rechaza categoria archivada y acepta cualquier categoria activa`() = runTest {
         ledger.saveAccount(account("account"))
-        ledger.saveCategory(category("archived", CategoryKind.GASTO, archived = true))
-        ledger.saveCategory(category("income", CategoryKind.INGRESO))
+        ledger.saveCategory(category("archived", archived = true))
+        ledger.saveCategory(category("income"))
         val proposal = proposal("Compra de 10 EUR", "account")
         val viewModel = readyViewModel()
         viewModel.requestConfirmation(proposal.id)
@@ -238,8 +237,11 @@ class PendingProposalsViewModelTest {
         assertError(viewModel, PendingProposalError.CategoryUnavailable)
 
         viewModel.confirm(ProposalConfirmation(ProposalKind.GASTO, "account", categoryId = "income"))
-        assertError(viewModel, PendingProposalError.CategoryUnavailable)
-        assertTrue(ledger.transactions.first().isEmpty())
+        assertEquals(
+            "income",
+            ledger.transactions.awaitValue { transactions -> transactions.singleOrNull()?.categoryId == "income" }
+                .single().categoryId,
+        )
     }
 
     @Test
@@ -374,13 +376,11 @@ class PendingProposalsViewModelTest {
 
     private fun category(
         id: String,
-        kind: CategoryKind,
         archived: Boolean = false,
         parentId: String? = null,
     ) = Category(
         id = id,
         name = "Categoría $id",
-        kind = kind,
         parentId = parentId,
         colorArgb = 0,
         archived = archived,

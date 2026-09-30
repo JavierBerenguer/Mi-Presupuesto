@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.mipatrimonio.app.data.db.AppDatabase
 import com.mipatrimonio.app.data.db.BudgetEntity
+import com.mipatrimonio.app.data.db.CategoryEntity
 import com.mipatrimonio.app.data.db.RecurringRuleEntity
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.domain.calc.BalanceCalculator
@@ -14,7 +15,6 @@ import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.BudgetCategoryRule
 import com.mipatrimonio.app.domain.model.BudgetPeriod
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.CategoryKind
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
@@ -154,21 +154,20 @@ class CategoryDeletionRepositoryTest {
     }
 
     @Test
-    fun `presupuesto obliga a destino de gasto externo al arbol`() = runTest {
+    fun `presupuesto acepta como destino una categoria antigua de ingreso externa al arbol`() = runTest {
         ledger.saveCategory(category("root"))
         ledger.saveCategory(category("child", parentId = "root"))
-        ledger.saveCategory(category("income", kind = CategoryKind.INGRESO))
+        db.categoryDao().upsert(CategoryEntity("income", "income", "INGRESO", null, 1, false, 0))
         ledger.saveCategory(category("expense"))
         ledger.saveBudget(budget(listOf(BudgetCategoryRule("child", true))))
 
         assertFails { ledger.deleteCategory("root", null) }
         assertFails { ledger.deleteCategory("root", "root") }
         assertFails { ledger.deleteCategory("root", "child") }
-        assertFails { ledger.deleteCategory("root", "income") }
         assertEquals(setOf("root", "child", "income", "expense"), ledger.categories.first().mapTo(mutableSetOf()) { it.id })
 
-        ledger.deleteCategory("root", "expense")
-        assertEquals(listOf(BudgetCategoryRule("expense", true)), ledger.budgets.first().single().categoryRules)
+        ledger.deleteCategory("root", "income")
+        assertEquals(listOf(BudgetCategoryRule("income", true)), ledger.budgets.first().single().categoryRules)
     }
 
     @Test
@@ -209,8 +208,7 @@ class CategoryDeletionRepositoryTest {
     private fun category(
         id: String,
         parentId: String? = null,
-        kind: CategoryKind = CategoryKind.GASTO,
-    ) = Category(id, id, kind, parentId, 1, false)
+    ) = Category(id, id, parentId, 1, false)
 
     private fun transaction(id: String, categoryId: String, amountMinor: Long) = Transaction(
         id, TransactionType.GASTO, amountMinor, "EUR", DAY, "from", categoryId,

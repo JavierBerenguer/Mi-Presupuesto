@@ -27,6 +27,7 @@ data class AccountEntity(
 data class CategoryEntity(
     @PrimaryKey val id: String,
     val name: String,
+    /** Columna heredada para compatibilidad de Room y copias de seguridad; el dominio ya no la usa. */
     val kind: String,
     val parentId: String?,
     val colorArgb: Long,

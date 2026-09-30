@@ -9,7 +9,6 @@ import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.BudgetCategoryRule
 import com.mipatrimonio.app.domain.model.BudgetPeriod
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.CategoryKind
 import com.mipatrimonio.app.domain.model.InvestmentOperation
 import com.mipatrimonio.app.domain.model.OperationType
 import com.mipatrimonio.app.domain.model.Portfolio
@@ -91,8 +90,9 @@ class CsvExportTest {
         assertTrue(accounts.contains("1000;2200;Sí;2023-11-14"))
 
         val categories = csvText(entries.getValue("categorias.csv"))
-        assertTrue(categories.contains("id;nombre;tipo;categoria_padre;icono;archivada"))
-        assertTrue(categories.contains("c-sub;Niñez;Gasto;Casa;clothes;Sí"))
+        assertTrue(categories.contains("id;nombre;categoria_padre;icono;archivada"))
+        assertTrue(categories.contains("c-sub;Niñez;Casa;clothes;Sí"))
+        assertFalse(categories.lineSequence().first().split(';').contains("tipo"))
 
         val movements = csvText(entries.getValue("movimientos.csv"))
         assertTrue(movements.contains("Casa;Niñez;\"Descripción; con \"\"comillas\"\"\";Señor Ñ;\"línea 1\nlinea 2\";Notificación;Ejecutado"))
@@ -143,8 +143,8 @@ class CsvExportTest {
     private fun sampleData(): CsvExportData {
         val euros = Account("a-eur", "Euros", AccountType.CORRIENTE, "EUR", 100_000_000_000_000L, false, CREATED)
         val yen = Account("a-jpy", "Yenes", AccountType.AHORRO, "JPY", 1_000, true, CREATED)
-        val root = Category("c-root", "Casa", CategoryKind.GASTO, null, 0, false, "home")
-        val sub = Category("c-sub", "Niñez", CategoryKind.GASTO, root.id, 0, true, "clothes")
+        val root = Category("c-root", "Casa", null, 0, false, "home")
+        val sub = Category("c-sub", "Niñez", root.id, 0, true, "clothes")
         val transaction = Transaction(
             "t1", TransactionType.GASTO, 3_000, "EUR", TODAY, euros.id, sub.id,
             "Descripción; con \"comillas\"", "Señor Ñ", "línea 1\nlinea 2", TransactionSource.NOTIFICACION, 1, 1,

@@ -10,7 +10,6 @@ import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.BudgetCategoryRule
 import com.mipatrimonio.app.domain.model.BudgetPeriod
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.CategoryKind
 import com.mipatrimonio.app.domain.model.MoneyMath
 import com.mipatrimonio.app.domain.model.Transaction
 import java.time.LocalDate
@@ -37,7 +36,7 @@ data class BudgetsUiState(
     val incomeStatistics: MonthlyStatistics = MonthlyStatistics(emptyList(), 0, 0),
 ) {
     val expenseCategories: List<Category>
-        get() = categories.filter { it.kind == CategoryKind.GASTO && !it.archived }
+        get() = categories.filterNot { it.archived }
 }
 
 data class BudgetDraft(
@@ -151,7 +150,7 @@ class BudgetFormViewModel(
     val uiState: StateFlow<BudgetFormUiState> = combine(
         ledger.budgets, ledger.categories, settings.settings,
     ) { budgets, categories, config ->
-        BudgetFormUiState(false, budgets, categories.filter { it.kind == CategoryKind.GASTO && !it.archived }, config.baseCurrency)
+        BudgetFormUiState(false, budgets, categories.filterNot { it.archived }, config.baseCurrency)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BudgetFormUiState())
 
     fun save(draft: BudgetDraft, onResult: (BudgetSaveResult) -> Unit) {

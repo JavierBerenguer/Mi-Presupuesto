@@ -4,7 +4,9 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.mipatrimonio.app.data.db.*
+import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.testutil.SettingsStoreRule
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.json.JSONObject
 import org.junit.After
@@ -113,6 +115,21 @@ class BackupTest {
         assertTrue(decoded.notificationStructures.isEmpty())
         assertTrue(decoded.notificationRules.isEmpty())
         assertTrue(decoded.notificationRecords.isEmpty())
+    }
+
+    @Test
+    fun `restaura copia antigua con categoria de ingreso como categoria generica`() = runTest {
+        val oldBackup = fullBackupData().copy(
+            categories = fullBackupData().categories.map { it.copy(kind = "INGRESO") },
+        )
+        val codec = BackupJson()
+        val decoded = codec.decode(codec.encode(oldBackup))
+        val repository = BackupRepository(db, settingsRule.repository, "test")
+
+        repository.restore(decoded)
+
+        assertTrue(db.categoryDao().getAllForBackup().all { it.kind == "INGRESO" })
+        assertEquals(setOf("Comida", "Restaurantes"), LedgerRepository(db).categories.first().mapTo(mutableSetOf()) { it.name })
     }
 
     @Test

@@ -4,12 +4,12 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.mipatrimonio.app.data.db.AppDatabase
+import com.mipatrimonio.app.data.db.CategoryEntity
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.BudgetCategoryRule
 import com.mipatrimonio.app.domain.model.BudgetPeriod
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.CategoryKind
 import java.time.LocalDate
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -67,8 +67,17 @@ class BudgetRepositoryTest {
         assertEquals(listOf(BudgetCategoryRule("food", true)), saved.categoryRules)
     }
 
+    @Test fun `guarda presupuesto con categoria heredada de ingreso`() = runTest {
+        db.categoryDao().upsert(CategoryEntity("income", "Ingresos", "INGRESO", null, 1, false, 0))
+
+        repository.saveBudget(budget(listOf(BudgetCategoryRule("income", true))))
+
+        assertEquals(listOf(BudgetCategoryRule("income", true)), repository.budgets.first().single().categoryRules)
+        assertEquals("Ingresos", repository.categories.first().single().name)
+    }
+
     private fun category(id: String, archived: Boolean = false) =
-        Category(id, id, CategoryKind.GASTO, null, 1, archived)
+        Category(id, id, null, 1, archived)
     private fun budget(rules: List<BudgetCategoryRule>) = Budget(
         "budget", "Casa", 10_000, "EUR", BudgetPeriod.MENSUAL, LocalDate.of(2026, 1, 1), null, 90, rules, false,
     )

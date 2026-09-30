@@ -130,7 +130,6 @@ class LedgerRepository(
         }
         if (usage.budgets > 0) {
             require(target != null) { "Los presupuestos necesitan una categoría de destino" }
-            require(target.kind == "GASTO") { "Los presupuestos necesitan una categoría de gasto" }
         }
 
         transactionDao.moveCategories(categoryIds, targetId)
@@ -209,8 +208,8 @@ class LedgerRepository(
         }
         val requestedIds = budget.categoryRules.map { it.categoryId }.distinct()
         val requestedCategories = if (requestedIds.isEmpty()) emptyList() else categoryDao.getByIds(requestedIds)
-        require(requestedCategories.size == requestedIds.size && requestedCategories.all { it.kind == "GASTO" }) {
-            "Las categorías del presupuesto deben ser categorías de gasto"
+        require(requestedCategories.size == requestedIds.size) {
+            "Las categorías del presupuesto deben existir"
         }
         // Una categoría archivada ya vinculada sigue computando (T-031); solo se rechazan altas nuevas.
         val existingRuleIds = budgetDao.getRulesForBudget(budget.id).map { it.categoryId }.toSet()

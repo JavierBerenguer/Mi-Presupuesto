@@ -3,7 +3,6 @@ package com.mipatrimonio.app.ui.movements
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountType
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.CategoryKind
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
@@ -29,9 +28,9 @@ class MovementFiltersTest {
         Account("a2", "Efectivo", AccountType.EFECTIVO, "EUR", 0, false, 0),
     )
     private val categories = listOf(
-        Category("comida", "Alimentación", CategoryKind.GASTO, null, 0, false),
-        Category("super", "Supermercado", CategoryKind.GASTO, "comida", 0, false),
-        Category("nomina", "Nómina", CategoryKind.INGRESO, null, 0, false),
+        Category("comida", "Alimentación", null, 0, false),
+        Category("super", "Supermercado", "comida", 0, false),
+        Category("nomina", "Nómina", null, 0, false),
     )
 
     private fun tx(

@@ -1,6 +1,5 @@
 package com.mipatrimonio.app.data.repository
 
-import com.mipatrimonio.app.domain.model.CategoryKind
 import com.mipatrimonio.app.ui.common.CategoryIcons
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -9,7 +8,7 @@ import org.junit.Test
 
 class DefaultCategoriesTest {
     @Test
-    fun `catalogo literal conserva jerarquia orden tipos colores e ids unicos`() {
+    fun `catalogo literal conserva jerarquia orden colores e ids unicos`() {
         val expected = linkedMapOf(
             "Coche" to listOf("Cuotas", "Llantas", "Reparación", "Servicio", "Impuestos", "Gasolina", "Seguro", "Lavado de coche", "Accesorios", "Parking 🅿️"),
             "Educación" to listOf("Libros", "Desplazamientos", "Clases particulares", "Tasas", "Seminarios"),
@@ -33,10 +32,8 @@ class DefaultCategoriesTest {
             val parent = main.single { it.name == parentName }
             val children = DefaultCategories.all.filter { it.parentId == parent.id }
             assertEquals(childNames, children.map { it.name })
-            assertTrue(children.all { it.colorArgb == parent.colorArgb && it.kind == parent.kind })
+            assertTrue(children.all { it.colorArgb == parent.colorArgb })
         }
-        assertTrue(DefaultCategories.all.filter { it.id == "mp-ingresos" || it.parentId == "mp-ingresos" }.all { it.kind == CategoryKind.INGRESO })
-        assertTrue(DefaultCategories.all.filterNot { it.id == "mp-ingresos" || it.parentId == "mp-ingresos" }.all { it.kind == CategoryKind.GASTO })
         assertEquals(DefaultCategories.all.size, DefaultCategories.all.map { it.id }.distinct().size)
         assertTrue(DefaultCategories.all.none { it.id in DefaultCategories.removedChildrenIds })
         assertTrue(DefaultCategories.all.all { it.icon in CategoryIcons.keys })

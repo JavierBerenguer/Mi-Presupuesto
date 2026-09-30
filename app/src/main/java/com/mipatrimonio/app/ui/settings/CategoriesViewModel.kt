@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.mipatrimonio.app.data.repository.CategoryUsage
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.CategoryKind
 import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -78,7 +77,6 @@ class CategoriesViewModel(
 
     fun saveCategory(
         existing: Category?,
-        kind: CategoryKind,
         name: String,
         parentId: String?,
         colorArgb: Long,
@@ -97,7 +95,6 @@ class CategoriesViewModel(
         val category = Category(
             id = existing?.id ?: UUID.randomUUID().toString(),
             name = name.trim(),
-            kind = existing?.kind ?: kind,
             parentId = parentId,
             colorArgb = colorArgb,
             archived = existing?.archived ?: false,
@@ -146,7 +143,6 @@ class CategoriesViewModel(
                         targets = categoryDeleteTargets(
                             categoryId = category.id,
                             categories = uiState.value.categories,
-                            expenseOnly = usage.budgets > 0,
                         ),
                     )
                 }

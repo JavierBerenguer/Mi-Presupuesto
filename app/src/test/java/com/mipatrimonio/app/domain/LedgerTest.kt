@@ -144,15 +144,15 @@ class LedgerTest {
     }
 
     @Test
-    fun `presupuesto calcula consumo solo con gastos de su periodo y categoria`() {
-        val cats = listOf(category("comida"), category("super", parentId = "comida"), category("ocio"))
-        val budget = Budget("b1", "comida", BudgetPeriod.MENSUAL, 200_00, "EUR", false)
+    fun `presupuesto sobre ingresos calcula consumo solo con gastos de su periodo y categoria`() {
+        val cats = listOf(category("ingresos"), category("intereses", parentId = "ingresos"), category("ocio"))
+        val budget = Budget("b1", "ingresos", BudgetPeriod.MENSUAL, 200_00, "EUR", false)
         val txs = listOf(
-            tx(GASTO, 50_00, category = "comida"),
-            tx(GASTO, 70_00, category = "super"), // subcategoría cuenta
+            tx(GASTO, 50_00, category = "ingresos"),
+            tx(GASTO, 70_00, category = "intereses"), // subcategoría cuenta
             tx(GASTO, 999_00, category = "ocio"), // otra categoría
-            tx(INGRESO, 500_00, category = "comida"), // ingreso no cuenta
-            tx(GASTO, 999_00, category = "comida", date = LocalDate.of(2026, 2, 28)), // otro mes
+            tx(INGRESO, 500_00, category = "ingresos"), // ingreso no cuenta
+            tx(GASTO, 999_00, category = "ingresos", date = LocalDate.of(2026, 2, 28)), // otro mes
         )
         val s = BudgetCalculator.status(budget, txs, cats, LocalDate.of(2026, 3, 15), cutoff)
         assertEquals(120_00L, s.spentMinor)

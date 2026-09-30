@@ -1,7 +1,6 @@
 package com.mipatrimonio.app.data.repository
 
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.CategoryKind
 import java.util.Locale
 
 object DefaultCategories {
@@ -22,7 +21,7 @@ object DefaultCategories {
     val all: List<Category> = buildList {
         category("coche", "Coche", 0xFF1565C0, "car", "Cuotas", "Llantas", "Reparación", "Servicio", "Impuestos", "Gasolina", "Seguro", "Lavado de coche", "Accesorios", "Parking 🅿️")
         category("educacion", "Educación", 0xFF6A1B9A, "education", "Libros", "Desplazamientos", "Clases particulares", "Tasas", "Seminarios")
-        category("ingresos", "Ingresos", 0xFF2E7D32, "salary", "Beneficios de desempleo", "Dividendos", "Salario", "Regalo", "Subsidio familiar", "Empleo secundario", "Pensión", "Devolución de impuestos", "Intereses", "Ventas", kind = CategoryKind.INGRESO)
+        category("ingresos", "Ingresos", 0xFF2E7D32, "salary", "Beneficios de desempleo", "Dividendos", "Salario", "Regalo", "Subsidio familiar", "Empleo secundario", "Pensión", "Devolución de impuestos", "Intereses", "Ventas")
         category("electronica", "Electrónica", 0xFF00838F, "computer", "Ordenador", "Impresora", "Cámara", "Monitores", "Portátil", "Smartphones", "TV", "Accesorios", "Servicios", "AI")
         category("ocio", "Ocio", 0xFFC62828, "events", "Libros", "Discoteca", "Parque de atracciones", "Cine", "Bar", "Concierto", "Museo", "Restaurante", "Natación", "Juegos", "Teatro", "Vacaciones", "Eventos", "Streaming", "Pádel", "Dulces / Salados", "Hospedaje", "Transporte")
         category("otros", "Otros", 0xFF546E7A, "other", "Tren", "Contribuciones", "Autobús", "Cosméticos", "Medicamentos", "Aparcar", "Taxi", "Seguros", "Revistas")
@@ -38,12 +37,11 @@ object DefaultCategories {
         color: Long,
         icon: String,
         vararg subcategories: String,
-        kind: CategoryKind = CategoryKind.GASTO,
     ) {
         val parentId = "mp-$slug"
-        add(Category(parentId, name, kind, null, color, false, icon))
+        add(Category(parentId, name, null, color, false, icon))
         subcategories.forEach { subcategory ->
-            add(Category("$parentId-${slug(subcategory)}", subcategory, kind, parentId, color, false, subcategoryIcon(subcategory)))
+            add(Category("$parentId-${slug(subcategory)}", subcategory, parentId, color, false, subcategoryIcon(subcategory)))
         }
     }
 

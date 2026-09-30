@@ -1,7 +1,6 @@
 package com.mipatrimonio.app.ui.settings
 
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.CategoryKind
 
 data class CategoryNode(
     val category: Category,
@@ -20,10 +19,9 @@ data class CategoryDeleteTarget(
     val label: String,
 )
 
-fun buildTree(categories: List<Category>, kind: CategoryKind): List<CategoryNode> {
-    val filtered = categories.filter { it.kind == kind }
-    val byId = filtered.associateBy(Category::id)
-    val roots = filtered.filter { category ->
+fun buildTree(categories: List<Category>): List<CategoryNode> {
+    val byId = categories.associateBy(Category::id)
+    val roots = categories.filter { category ->
         val parent = category.parentId?.let(byId::get)
         parent == null || parent.parentId != null
     }.sortedBy(Category::archived)
@@ -32,7 +30,7 @@ fun buildTree(categories: List<Category>, kind: CategoryKind): List<CategoryNode
     return roots.map { root ->
         CategoryNode(
             category = root,
-            children = filtered
+            children = categories
                 .filter { it.id !in rootIds && it.parentId == root.id }
                 .sortedBy(Category::archived),
         )
@@ -41,12 +39,11 @@ fun buildTree(categories: List<Category>, kind: CategoryKind): List<CategoryNode
 
 fun buildCategoryDisplayTree(
     categories: List<Category>,
-    kind: CategoryKind,
     expandedCategoryIds: Set<String>,
     query: String = "",
 ): List<CategoryDisplayNode> {
     val normalizedQuery = query.trim()
-    return buildTree(categories, kind).mapNotNull { node ->
+    return buildTree(categories).mapNotNull { node ->
         val matchingChildren = if (normalizedQuery.isBlank() || node.category.name.contains(normalizedQuery, true)) {
             node.children
         } else {
@@ -80,27 +77,21 @@ fun canSetParent(
     if (parent.archived || parent.parentId != null) return false
 
     val category = categoryId?.let { id -> categories.firstOrNull { it.id == id } } ?: return true
-    if (category.kind != parent.kind) return false
     return categories.none { it.parentId == category.id }
 }
 
 fun categoryDeleteTargets(
     categoryId: String,
     categories: List<Category>,
-    expenseOnly: Boolean,
 ): List<CategoryDeleteTarget> {
     val excludedIds = categories
         .filter { it.id == categoryId || it.parentId == categoryId }
         .mapTo(mutableSetOf()) { it.id }
-    val active = categories.filter {
-        !it.archived && it.id !in excludedIds && (!expenseOnly || it.kind == CategoryKind.GASTO)
-    }
+    val active = categories.filter { !it.archived && it.id !in excludedIds }
     val byId = active.associateBy { it.id }
-    return CategoryKind.entries.flatMap { kind ->
-        buildTree(active, kind).flatMap { node ->
-            listOf(CategoryDeleteTarget(node.category, node.category.name)) + node.children.map { child ->
-                CategoryDeleteTarget(child, "${node.category.name} · ${child.name}")
-            }
+    return buildTree(active).flatMap { node ->
+        listOf(CategoryDeleteTarget(node.category, node.category.name)) + node.children.map { child ->
+            CategoryDeleteTarget(child, "${node.category.name} · ${child.name}")
         }
     }.filter { target ->
         val parentId = target.category.parentId

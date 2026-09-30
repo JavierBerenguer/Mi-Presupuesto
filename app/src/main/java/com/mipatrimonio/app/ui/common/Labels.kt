@@ -7,7 +7,6 @@ import com.mipatrimonio.app.R
 import com.mipatrimonio.app.domain.model.AccountType
 import com.mipatrimonio.app.domain.model.AssetType
 import com.mipatrimonio.app.domain.model.BudgetPeriod
-import com.mipatrimonio.app.domain.model.CategoryKind
 import com.mipatrimonio.app.domain.model.OperationType
 import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.usecase.Period
@@ -22,11 +21,6 @@ fun AccountType.label(): String = stringResource(
         AccountType.CRIPTO -> R.string.common_account_cripto
         AccountType.OTRA -> R.string.common_account_otra
     },
-)
-
-@Composable
-fun CategoryKind.label(): String = stringResource(
-    if (this == CategoryKind.GASTO) R.string.common_kind_gasto else R.string.common_kind_ingreso,
 )
 
 @Composable

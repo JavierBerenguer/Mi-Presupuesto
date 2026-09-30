@@ -12,7 +12,6 @@ import com.mipatrimonio.app.domain.model.AccountType
 import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.BudgetPeriod
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.CategoryKind
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
@@ -208,7 +207,7 @@ class BudgetsViewModelTest {
         Account(id, "Cuenta $id", AccountType.CORRIENTE, currency, initial, false, 1)
 
     private fun category(id: String, name: String, parentId: String? = null) =
-        Category(id, name, CategoryKind.GASTO, parentId, 0xFF336655, false)
+        Category(id, name, parentId, 0xFF336655, false)
 
     private fun tx(
         id: String,

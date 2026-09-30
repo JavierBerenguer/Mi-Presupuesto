@@ -8,7 +8,6 @@ import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountType
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.CategoryKind
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
@@ -82,7 +81,7 @@ class EntryFormViewModelTest {
     fun `guarda transferencia categorizada sin crear ingreso ni gasto`() = runTest {
         ledger.saveAccount(account("eur-1"))
         ledger.saveAccount(account("eur-2"))
-        ledger.saveCategory(category("salary", CategoryKind.INGRESO))
+        ledger.saveCategory(category("salary"))
         val viewModel = viewModel()
         viewModel.ready()
         viewModel.setKind(EntryKind.TRANSFER)
@@ -181,11 +180,11 @@ class EntryFormViewModelTest {
     }
 
     @Test
-    fun `ofrece todas las categorias activas para cualquier tipo y permite cruzar sus tipos`() = runTest {
+    fun `ofrece todas las categorias activas para cualquier tipo de apunte`() = runTest {
         ledger.saveAccount(account("a"))
         ledger.saveAccount(account("b"))
-        ledger.saveCategory(category("expense", CategoryKind.GASTO))
-        ledger.saveCategory(category("income", CategoryKind.INGRESO))
+        ledger.saveCategory(category("expense"))
+        ledger.saveCategory(category("income"))
 
         val viewModel = viewModel()
         val expected = setOf("expense", "income")
@@ -220,8 +219,8 @@ class EntryFormViewModelTest {
     fun `edita transferencia para asignar y quitar categoria y conserva una archivada existente`() = runTest {
         ledger.saveAccount(account("a"))
         ledger.saveAccount(account("b"))
-        ledger.saveCategory(category("active", CategoryKind.GASTO))
-        ledger.saveCategory(category("archived", CategoryKind.INGRESO, archived = true))
+        ledger.saveCategory(category("active"))
+        ledger.saveCategory(category("archived", archived = true))
         ledger.saveTransfer(
             Transfer("tr", "a", "b", 100, 100, fixedToday, "", 1, categoryId = "archived"),
         )
@@ -267,9 +266,9 @@ class EntryFormViewModelTest {
     @Test
     fun `categorias frecuentes usan los ultimos noventa dias y el tipo actual`() = runTest {
         ledger.saveAccount(account("a"))
-        ledger.saveCategory(category("food", CategoryKind.GASTO))
-        ledger.saveCategory(category("transport", CategoryKind.GASTO))
-        ledger.saveCategory(category("salary", CategoryKind.INGRESO))
+        ledger.saveCategory(category("food"))
+        ledger.saveCategory(category("transport"))
+        ledger.saveCategory(category("salary"))
         ledger.saveTransaction(transaction("f1", TransactionType.GASTO, 100, "a", "food", fixedToday))
         ledger.saveTransaction(transaction("f2", TransactionType.GASTO, 100, "a", "food", fixedToday.minusDays(89)))
         ledger.saveTransaction(transaction("t1", TransactionType.GASTO, 100, "a", "transport", fixedToday))
@@ -340,10 +339,9 @@ class EntryFormViewModelTest {
         createdAt = 1,
     )
 
-    private fun category(id: String, kind: CategoryKind, archived: Boolean = false) = Category(
+    private fun category(id: String, archived: Boolean = false) = Category(
         id = id,
         name = id,
-        kind = kind,
         parentId = null,
         colorArgb = 0,
         archived = archived,

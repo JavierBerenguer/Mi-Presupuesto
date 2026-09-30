@@ -16,12 +16,9 @@ data class Account(
     val createdAt: Long,
 )
 
-enum class CategoryKind { GASTO, INGRESO }
-
 data class Category(
     val id: String,
     val name: String,
-    val kind: CategoryKind,
     val parentId: String?,
     val colorArgb: Long,
     val archived: Boolean,

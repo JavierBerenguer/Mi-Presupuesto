@@ -37,10 +37,7 @@
     <string name="aj_error_invalid_initial_balance">El saldo inicial no es válido.</string>
     <string name="aj_error_saving">No se han podido guardar los cambios.</string>
 
-    <string name="aj_expenses">Gastos</string>
-    <string name="aj_income">Ingresos</string>
-    <string name="aj_no_expense_categories">Todavía no hay categorías de gastos.</string>
-    <string name="aj_no_income_categories">Todavía no hay categorías de ingresos.</string>
+    <string name="aj_no_categories">No hay categorías.</string>
     <string name="aj_new_category">Nueva categoría</string>
     <string name="aj_search_categories">Buscar categorías</string>
     <string name="aj_clear_category_search">Borrar búsqueda de categorías</string>
@@ -74,7 +71,7 @@
     <string name="aj_delete_category_counts">Movimientos: %1$d · Transferencias: %2$d · Órdenes permanentes: %3$d · Presupuestos: %4$d · Propuestas pendientes: %5$d</string>
     <string name="aj_delete_category_target">Categoría de destino</string>
     <string name="aj_without_category">Sin categoría</string>
-    <string name="aj_delete_category_budget_restriction">Como hay presupuestos asociados, el destino debe ser una categoría de gasto. No se puede elegir «Sin categoría».</string>
+    <string name="aj_delete_category_budget_restriction">Como hay presupuestos asociados, debes elegir una categoría de destino. No se puede elegir «Sin categoría».</string>
     <string name="aj_quotes">Cotizaciones</string>
     <string name="aj_quotes_notice">Los datos gratuitos pueden ir retrasados o corresponder al cierre. Nunca se consideran datos en tiempo real.</string>
     <string name="aj_twelve_data_key">Clave de Twelve Data</string>

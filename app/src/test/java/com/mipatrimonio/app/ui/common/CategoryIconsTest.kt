@@ -1,7 +1,6 @@
 package com.mipatrimonio.app.ui.common
 
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.CategoryKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertNotEquals
@@ -25,5 +24,5 @@ class CategoryIconsTest {
     }
 
     private fun category(id: String, parentId: String?, icon: String?) =
-        Category(id, id, CategoryKind.GASTO, parentId, 1, false, icon)
+        Category(id, id, parentId, 1, false, icon)
 }

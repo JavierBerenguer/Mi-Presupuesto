@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.mipatrimonio.app.data.db.AppDatabase
+import com.mipatrimonio.app.data.db.CategoryEntity
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountType
@@ -11,7 +12,6 @@ import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.BudgetCategoryRule
 import com.mipatrimonio.app.domain.model.BudgetPeriod
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.CategoryKind
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
@@ -94,7 +94,7 @@ class CategoriesViewModelTest {
         val viewModel = readyViewModel()
         viewModel.toggleCategoryExpanded(parent.id)
 
-        viewModel.saveCategory(parent, parent.kind, "Nombre nuevo", null, parent.colorArgb) {}
+        viewModel.saveCategory(parent, "Nombre nuevo", null, parent.colorArgb) {}
 
         val state = viewModel.uiState.first { uiState ->
             uiState.categories.any { it.id == parent.id && it.name == "Nombre nuevo" }
@@ -108,12 +108,26 @@ class CategoriesViewModelTest {
         ledger.saveCategory(parent)
         val viewModel = readyViewModel()
 
-        viewModel.saveCategory(null, CategoryKind.GASTO, "Hija", parent.id, 2L) {}
+        viewModel.saveCategory(null, "Hija", parent.id, 2L) {}
 
         val state = viewModel.uiState.first { uiState ->
             uiState.categories.any { it.parentId == parent.id && it.name == "Hija" }
         }
         assertTrue(parent.id in state.expandedCategoryIds)
+    }
+
+    @Test
+    fun `categoria heredada de ingreso aparece y puede ser padre`() = runTest {
+        db.categoryDao().upsert(CategoryEntity("income", "Ingresos", "INGRESO", null, 1, false, 0))
+        val viewModel = readyViewModel()
+
+        assertEquals("Ingresos", viewModel.uiState.first { !it.isLoading }.categories.single().name)
+        viewModel.saveCategory(null, "Intereses", "income", 2L) {}
+
+        val state = viewModel.uiState.first { uiState ->
+            uiState.categories.any { it.name == "Intereses" && it.parentId == "income" }
+        }
+        assertTrue("income" in state.expandedCategoryIds)
     }
 
     @Test
@@ -144,13 +158,13 @@ class CategoriesViewModelTest {
     }
 
     @Test
-    fun `presupuesto filtra sin categoria ingresos archivadas y arbol eliminado`() = runTest {
+    fun `presupuesto ofrece cualquier categoria activa fuera del arbol eliminado`() = runTest {
         val categories = listOf(
             category("source"),
             category("source-child", parentId = "source"),
             category("expense"),
             category("expense-child", parentId = "expense"),
-            category("income", kind = CategoryKind.INGRESO),
+            category("income"),
             category("archived", archived = true),
         )
         categories.forEach { ledger.saveCategory(it) }
@@ -166,8 +180,8 @@ class CategoriesViewModelTest {
 
         val deletion = viewModel.uiState.first { it.deletion != null }.deletion!!
         assertEquals(1, deletion.usage.budgets)
-        assertEquals(listOf("expense", "expense-child"), deletion.targets.map { it.category.id })
-        assertEquals(listOf("expense", "expense · expense-child"), deletion.targets.map { it.label })
+        assertEquals(listOf("expense", "expense-child", "income"), deletion.targets.map { it.category.id })
+        assertEquals(listOf("expense", "expense · expense-child", "income"), deletion.targets.map { it.label })
         assertFalse(deletion.targetSelected)
     }
 
@@ -180,9 +194,8 @@ class CategoriesViewModelTest {
     private fun category(
         id: String,
         parentId: String? = null,
-        kind: CategoryKind = CategoryKind.GASTO,
         archived: Boolean = false,
-    ) = Category(id, id, kind, parentId, 1, archived)
+    ) = Category(id, id, parentId, 1, archived)
 
     private companion object {
         val DAY: LocalDate = LocalDate.of(2026, 9, 1)

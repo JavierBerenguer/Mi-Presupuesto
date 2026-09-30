@@ -7,7 +7,6 @@ import com.mipatrimonio.app.data.repository.NotificationRepository
 import com.mipatrimonio.app.domain.calc.BalanceCalculator
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.CategoryKind
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
@@ -176,9 +175,8 @@ class PendingProposalsViewModel(
                 return PendingProposalError.AccountsMustDiffer
             }
         } else if (confirmation.categoryId != null) {
-            val expectedKind = confirmation.kind.categoryKind()
             val categoryIsAvailable = uiState.value.activeCategories.any {
-                it.id == confirmation.categoryId && it.kind == expectedKind
+                it.id == confirmation.categoryId
             }
             if (!categoryIsAvailable) return PendingProposalError.CategoryUnavailable
         }
@@ -248,10 +246,4 @@ private fun ProposalKind.transactionType(): TransactionType = when (this) {
     ProposalKind.GASTO -> TransactionType.GASTO
     ProposalKind.INGRESO -> TransactionType.INGRESO
     ProposalKind.TRANSFERENCIA -> error("Una transferencia no se guarda como movimiento")
-}
-
-private fun ProposalKind.categoryKind(): CategoryKind = when (this) {
-    ProposalKind.GASTO -> CategoryKind.GASTO
-    ProposalKind.INGRESO -> CategoryKind.INGRESO
-    ProposalKind.TRANSFERENCIA -> error("Una transferencia no tiene categoría")
 }

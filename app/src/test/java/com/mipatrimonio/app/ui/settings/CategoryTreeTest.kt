@@ -1,7 +1,6 @@
 package com.mipatrimonio.app.ui.settings
 
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.CategoryKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -18,31 +17,31 @@ class CategoryTreeTest {
             category("hija-activa", parentId = "activa-1"),
         )
 
-        val tree = buildTree(categories, CategoryKind.GASTO)
+        val tree = buildTree(categories)
 
         assertEquals(listOf("activa-1", "activa-2", "archivada"), tree.map { it.category.id })
         assertEquals(listOf("hija-activa", "hija-archivada"), tree.first().children.map { it.id })
     }
 
     @Test
-    fun `filtra el arbol por tipo`() {
+    fun `construye un unico arbol con todas las categorias`() {
         val categories = listOf(
             category("gasto"),
-            category("ingreso", kind = CategoryKind.INGRESO),
-            category("hija-ingreso", kind = CategoryKind.INGRESO, parentId = "ingreso"),
+            category("ingreso"),
+            category("hija-ingreso", parentId = "ingreso"),
         )
 
-        val tree = buildTree(categories, CategoryKind.INGRESO)
+        val tree = buildTree(categories)
 
-        assertEquals(listOf("ingreso"), tree.map { it.category.id })
-        assertEquals(listOf("hija-ingreso"), tree.single().children.map { it.id })
+        assertEquals(listOf("gasto", "ingreso"), tree.map { it.category.id })
+        assertEquals(listOf("hija-ingreso"), tree.last().children.map { it.id })
     }
 
     @Test
     fun `una categoria huerfana se trata como raiz`() {
         val orphan = category("huerfana", parentId = "no-existe")
 
-        val tree = buildTree(listOf(orphan), CategoryKind.GASTO)
+        val tree = buildTree(listOf(orphan))
 
         assertEquals(listOf("huerfana"), tree.map { it.category.id })
         assertTrue(tree.single().children.isEmpty())
@@ -52,7 +51,7 @@ class CategoryTreeTest {
     fun `el arbol visible empieza plegado`() {
         val categories = listOf(category("padre"), category("hija", parentId = "padre"))
 
-        val tree = buildCategoryDisplayTree(categories, CategoryKind.GASTO, emptySet())
+        val tree = buildCategoryDisplayTree(categories, emptySet())
 
         assertFalse(tree.single().isExpanded)
         assertEquals(1, tree.single().childCount)
@@ -63,7 +62,7 @@ class CategoryTreeTest {
     fun `el arbol visible muestra los hijos de una categoria desplegada`() {
         val categories = listOf(category("padre"), category("hija", parentId = "padre"))
 
-        val tree = buildCategoryDisplayTree(categories, CategoryKind.GASTO, setOf("padre"))
+        val tree = buildCategoryDisplayTree(categories, setOf("padre"))
 
         assertTrue(tree.single().isExpanded)
         assertEquals(listOf("hija"), tree.single().children.map { it.id })
@@ -79,7 +78,6 @@ class CategoryTreeTest {
 
         val tree = buildCategoryDisplayTree(
             categories = categories,
-            kind = CategoryKind.GASTO,
             expandedCategoryIds = emptySet(),
             query = "mercado",
         )
@@ -108,13 +106,13 @@ class CategoryTreeTest {
     }
 
     @Test
-    fun `no permite un padre de otro tipo`() {
+    fun `permite mover intereses bajo una categoria de gasto`() {
         val categories = listOf(
+            category("intereses"),
             category("gasto"),
-            category("ingreso", kind = CategoryKind.INGRESO),
         )
 
-        assertFalse(canSetParent("gasto", "ingreso", categories))
+        assertTrue(canSetParent("intereses", "gasto", categories))
     }
 
     @Test
@@ -135,7 +133,7 @@ class CategoryTreeTest {
     }
 
     @Test
-    fun `permite a una categoria sin hijos usar una raiz activa del mismo tipo`() {
+    fun `permite a una categoria sin hijos usar una raiz activa`() {
         val categories = listOf(category("categoria"), category("padre"))
 
         assertTrue(canSetParent("categoria", "padre", categories))
@@ -143,13 +141,11 @@ class CategoryTreeTest {
 
     private fun category(
         id: String,
-        kind: CategoryKind = CategoryKind.GASTO,
         parentId: String? = null,
         archived: Boolean = false,
     ) = Category(
         id = id,
         name = id,
-        kind = kind,
         parentId = parentId,
         colorArgb = 0xFF123456,
         archived = archived,

@@ -3,7 +3,6 @@ package com.mipatrimonio.app.domain
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountType
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.CategoryKind
 import com.mipatrimonio.app.domain.model.InvestmentOperation
 import com.mipatrimonio.app.domain.model.OperationType
 import com.mipatrimonio.app.domain.model.Transaction
@@ -23,8 +22,8 @@ object TestData {
         archived: Boolean = false,
     ) = Account(id, "Cuenta $id", type, currency, initial, archived, 0)
 
-    fun category(id: String, parentId: String? = null, kind: CategoryKind = CategoryKind.GASTO) =
-        Category(id, id, kind, parentId, 0xFF000000, false)
+    fun category(id: String, parentId: String? = null) =
+        Category(id, id, parentId, 0xFF000000, false)
 
     fun tx(
         type: TransactionType,

@@ -42,8 +42,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -68,7 +66,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mipatrimonio.app.R
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.CategoryKind
 import com.mipatrimonio.app.ui.common.ConfirmDialog
 import com.mipatrimonio.app.ui.common.CategoryIconBadge
 import com.mipatrimonio.app.ui.common.CategoryIconPickerViewModel
@@ -105,31 +102,17 @@ fun CategoriesScreen(
         return
     }
 
-    var selectedKind by remember { mutableStateOf(CategoryKind.GASTO) }
     var editingCategory by remember { mutableStateOf<Category?>(null) }
     var showCreateDialog by remember { mutableStateOf(false) }
     var categoryToArchive by remember { mutableStateOf<Category?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
     val tree = buildCategoryDisplayTree(
         categories = state.categories,
-        kind = selectedKind,
         expandedCategoryIds = state.expandedCategoryIds,
         query = query,
     )
 
     Column(Modifier.fillMaxSize()) {
-        TabRow(selectedTabIndex = if (selectedKind == CategoryKind.GASTO) 0 else 1) {
-            Tab(
-                selected = selectedKind == CategoryKind.GASTO,
-                onClick = { selectedKind = CategoryKind.GASTO },
-                text = { Text(stringResource(R.string.aj_expenses)) },
-            )
-            Tab(
-                selected = selectedKind == CategoryKind.INGRESO,
-                onClick = { selectedKind = CategoryKind.INGRESO },
-                text = { Text(stringResource(R.string.aj_income)) },
-            )
-        }
         OutlinedTextField(
             value = query,
             onValueChange = { query = it },
@@ -156,15 +139,7 @@ fun CategoriesScreen(
                     icon = Icons.Default.Category,
                     message = if (query.isNotBlank()) {
                         stringResource(R.string.aj_no_categories_found)
-                    } else {
-                        stringResource(
-                            if (selectedKind == CategoryKind.GASTO) {
-                                R.string.aj_no_expense_categories
-                            } else {
-                                R.string.aj_no_income_categories
-                            },
-                        )
-                    },
+                    } else stringResource(R.string.aj_no_categories),
                     actionLabel = stringResource(R.string.aj_new_category),
                     onAction = {
                         viewModel.clearFormError()
@@ -227,7 +202,6 @@ fun CategoriesScreen(
     if (showCreateDialog) {
         CategoryFormDialog(
             category = null,
-            kind = selectedKind,
             categories = state.categories,
             error = state.formError,
             onDismiss = {
@@ -235,7 +209,7 @@ fun CategoriesScreen(
                 showCreateDialog = false
             },
             onSave = { name, parentId, color, icon ->
-                viewModel.saveCategory(null, selectedKind, name, parentId, color, icon) {
+                viewModel.saveCategory(null, name, parentId, color, icon) {
                     showCreateDialog = false
                 }
             },
@@ -244,7 +218,6 @@ fun CategoriesScreen(
     editingCategory?.let { category ->
         CategoryFormDialog(
             category = category,
-            kind = category.kind,
             categories = state.categories,
             error = state.formError,
             onDismiss = {
@@ -252,7 +225,7 @@ fun CategoriesScreen(
                 editingCategory = null
             },
             onSave = { name, parentId, color, icon ->
-                viewModel.saveCategory(category, category.kind, name, parentId, color, icon) {
+                viewModel.saveCategory(category, name, parentId, color, icon) {
                     editingCategory = null
                 }
             },
@@ -446,7 +419,6 @@ private fun CategoryDeleteDialog(
 @Composable
 private fun CategoryFormDialog(
     category: Category?,
-    kind: CategoryKind,
     categories: List<Category>,
     error: CategoryFormError?,
     onDismiss: () -> Unit,
@@ -462,8 +434,7 @@ private fun CategoryFormDialog(
     LaunchedEffect(category?.id) { iconPicker.reset(category?.icon) }
     val hasChildren = category != null && categories.any { it.parentId == category.id }
     val parentOptions = categories.filter { candidate ->
-        candidate.kind == kind &&
-            candidate.parentId == null &&
+        candidate.parentId == null &&
             !candidate.archived &&
             candidate.id != category?.id &&
             !hasChildren
@@ -509,7 +480,7 @@ private fun CategoryFormDialog(
                     )
                 }
                 CategoryIconBadge(
-                    category = Category("preview", name, kind, parentId, colorArgb, false, iconState.selectedKey),
+                    category = Category("preview", name, parentId, colorArgb, false, iconState.selectedKey),
                     categories = categories,
                     modifier = Modifier.align(Alignment.CenterHorizontally),
                     size = 56.dp,

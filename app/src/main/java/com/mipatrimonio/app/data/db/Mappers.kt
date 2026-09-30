@@ -9,7 +9,6 @@ import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.BudgetCategoryRule
 import com.mipatrimonio.app.domain.model.BudgetPeriod
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.CategoryKind
 import com.mipatrimonio.app.domain.model.InvestmentOperation
 import com.mipatrimonio.app.domain.model.OperationType
 import com.mipatrimonio.app.domain.model.Portfolio
@@ -29,8 +28,8 @@ import java.time.LocalTime
 fun AccountEntity.toDomain() = Account(id, name, AccountType.valueOf(type), currency, initialBalanceMinor, archived, createdAt)
 fun Account.toEntity(updatedAt: Long) = AccountEntity(id, name, type.name, currency, initialBalanceMinor, archived, createdAt, updatedAt)
 
-fun CategoryEntity.toDomain() = Category(id, name, CategoryKind.valueOf(kind), parentId, colorArgb, archived, icon)
-fun Category.toEntity(sortOrder: Int = 0) = CategoryEntity(id, name, kind.name, parentId, colorArgb, archived, sortOrder, icon)
+fun CategoryEntity.toDomain() = Category(id, name, parentId, colorArgb, archived, icon)
+fun Category.toEntity(sortOrder: Int = 0) = CategoryEntity(id, name, "GASTO", parentId, colorArgb, archived, sortOrder, icon)
 
 fun TransactionEntity.toDomain() = Transaction(
     id, TransactionType.valueOf(type), amountMinor, currency, LocalDate.ofEpochDay(epochDay), accountId, categoryId,

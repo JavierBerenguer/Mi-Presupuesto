@@ -34,7 +34,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mipatrimonio.app.R
-import com.mipatrimonio.app.domain.model.CategoryKind
 import com.mipatrimonio.app.domain.notifications.Confidence
 import com.mipatrimonio.app.domain.notifications.PendingProposal
 import com.mipatrimonio.app.domain.notifications.ProposalKind
@@ -189,12 +188,7 @@ private fun ProposalReviewDialog(
     var description by remember(proposal.id) { mutableStateOf("") }
     val selectedAccount = state.activeAccounts.firstOrNull { it.id == accountId }
     val selectedDestination = state.activeAccounts.firstOrNull { it.id == destinationAccountId }
-    val categoryKind = when (kind) {
-        ProposalKind.GASTO -> CategoryKind.GASTO
-        ProposalKind.INGRESO -> CategoryKind.INGRESO
-        ProposalKind.TRANSFERENCIA -> null
-    }
-    val categories = state.activeCategories.filter { it.kind == categoryKind }
+    val categories = state.activeCategories
     val selectedCategory = categories.firstOrNull { it.id == categoryId }
     val isProcessing = proposal.id in state.processingIds
 
