@@ -173,12 +173,13 @@ class MovementsViewModelTest {
 
     @Test
     fun `ocultar futuros los elimina antes de agrupar`() = runTest {
-        val today = LocalDate.now()
+        // Fecha fija: con LocalDate.now() el último día del mes «mañana» cae en otro mes.
+        val today = LocalDate.of(2026, 6, 15)
         val future = today.plusDays(1)
         ledger.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
         ledger.saveTransaction(tx("today", TransactionType.INGRESO, 100, today, TransactionSource.MANUAL))
         ledger.saveTransaction(tx("future", TransactionType.INGRESO, 900, future, TransactionSource.RECURRENTE))
-        val viewModel = MovementsViewModel(ledger, investments, settings)
+        val viewModel = MovementsViewModel(ledger, investments, settings) { today }
         viewModel.setMonth(YearMonth.from(future))
         viewModel.setHideFuture(true)
 

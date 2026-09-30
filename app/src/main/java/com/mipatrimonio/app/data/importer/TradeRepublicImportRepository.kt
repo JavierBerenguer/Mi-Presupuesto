@@ -23,6 +23,7 @@ data class ImportExecutionReport(
     val assets: Int,
     val omitted: Int,
     val omittedByReason: Map<String, Int>,
+    val notes: Map<String, Int> = emptyMap(),
 ) {
     val totalCreated get() = transactions + transfers + operations
 }
@@ -31,6 +32,16 @@ class TradeRepublicImportRepository(
     private val db: AppDatabase,
     private val afterInsert: (Int) -> Unit = {},
 ) {
+    private val neverless = NeverlessImportRepository(db)
+
+    suspend fun planNeverless(
+        preview: NeverlessPreview,
+        accountId: String,
+        decisions: Map<String, NeverlessRowDecision> = emptyMap(),
+    ): NeverlessImportPlan = neverless.plan(preview, accountId, decisions)
+
+    suspend fun executeNeverless(plan: NeverlessImportPlan): ImportExecutionReport = neverless.execute(plan)
+
     suspend fun plan(
         preview: ImportPreview,
         accountId: String,

@@ -32,6 +32,8 @@ data class Settings(
     val movementsIgnoreTransfers: Boolean = false,
     val tradeRepublicAccountId: String? = null,
     val tradeRepublicPortfolioId: String? = null,
+    val neverlessAccountId: String? = null,
+    val neverlessPortfolioId: String? = null,
     val categoryCatalogVersion: Int = 0,
 )
 
@@ -52,6 +54,8 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
     private val movementsIgnoreTransfersKey = booleanPreferencesKey("movements_ignore_transfers")
     private val tradeRepublicAccountIdKey = stringPreferencesKey("trade_republic_account_id")
     private val tradeRepublicPortfolioIdKey = stringPreferencesKey("trade_republic_portfolio_id")
+    private val neverlessAccountIdKey = stringPreferencesKey("neverless_account_id")
+    private val neverlessPortfolioIdKey = stringPreferencesKey("neverless_portfolio_id")
     private val categoryCatalogVersionKey = intPreferencesKey("category_catalog_version")
 
     /** Modo oscuro activado por defecto; divisa base EUR por defecto. */
@@ -73,6 +77,8 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
             movementsIgnoreTransfers = p[movementsIgnoreTransfersKey] ?: false,
             tradeRepublicAccountId = p[tradeRepublicAccountIdKey]?.takeIf(String::isNotBlank),
             tradeRepublicPortfolioId = p[tradeRepublicPortfolioIdKey]?.takeIf(String::isNotBlank),
+            neverlessAccountId = p[neverlessAccountIdKey]?.takeIf(String::isNotBlank),
+            neverlessPortfolioId = p[neverlessPortfolioIdKey]?.takeIf(String::isNotBlank),
             categoryCatalogVersion = p[categoryCatalogVersionKey] ?: 0,
         )
     }
@@ -138,6 +144,17 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
         store.edit { it[tradeRepublicAccountIdKey] = accountId }
     }
 
+    suspend fun setNeverlessAccount(accountId: String) {
+        store.edit { it[neverlessAccountIdKey] = accountId }
+    }
+
+    suspend fun setNeverlessDestination(accountId: String, portfolioId: String) {
+        store.edit {
+            it[neverlessAccountIdKey] = accountId
+            it[neverlessPortfolioIdKey] = portfolioId
+        }
+    }
+
     suspend fun setCategoryCatalogVersion(version: Int) {
         store.edit { it[categoryCatalogVersionKey] = version }
     }
@@ -159,6 +176,8 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
             "movements_ignore_transfers" to value.movementsIgnoreTransfers,
             "trade_republic_account_id" to value.tradeRepublicAccountId,
             "trade_republic_portfolio_id" to value.tradeRepublicPortfolioId,
+            "neverless_account_id" to value.neverlessAccountId,
+            "neverless_portfolio_id" to value.neverlessPortfolioId,
             "category_catalog_version" to value.categoryCatalogVersion,
         ).filterValues { it != null }
     }
@@ -187,6 +206,12 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
             }
             if (values.containsKey("trade_republic_portfolio_id")) {
                 preferences[tradeRepublicPortfolioIdKey] = (values["trade_republic_portfolio_id"] as? String).orEmpty()
+            }
+            if (values.containsKey("neverless_account_id")) {
+                preferences[neverlessAccountIdKey] = (values["neverless_account_id"] as? String).orEmpty()
+            }
+            if (values.containsKey("neverless_portfolio_id")) {
+                preferences[neverlessPortfolioIdKey] = (values["neverless_portfolio_id"] as? String).orEmpty()
             }
             preferences[categoryCatalogVersionKey] =
                 (values["category_catalog_version"] as? Number)?.toInt() ?: 0

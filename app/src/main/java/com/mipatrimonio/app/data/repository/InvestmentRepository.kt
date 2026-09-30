@@ -180,6 +180,7 @@ class InvestmentRepository(
         networkFeeQuantity: BigDecimal,
         dateTime: LocalDateTime,
         existingGroupId: String? = null,
+        newGroupId: String? = null,
     ): String = db.withTransaction {
         require(sourcePortfolioId != destinationPortfolioId) { "Las carteras de origen y destino deben ser distintas" }
         require(quantity.signum() > 0) { "La cantidad debe ser positiva" }
@@ -194,7 +195,7 @@ class InvestmentRepository(
         val asset = dao.getAsset(assetId) ?: throw IllegalArgumentException("El activo no existe")
         require(!asset.archived && asset.type == AssetType.CRIPTO.name) { "Solo se pueden traspasar criptomonedas activas" }
 
-        val groupId = existingGroupId ?: UUID.randomUUID().toString()
+        val groupId = existingGroupId ?: newGroupId ?: UUID.randomUUID().toString()
         if (existingGroupId != null) {
             val previous = dao.operationsForTransfer(existingGroupId)
             require(previous.size == 2 && previous.all { it.assetId == assetId }) { "El traspaso no existe o está incompleto" }
