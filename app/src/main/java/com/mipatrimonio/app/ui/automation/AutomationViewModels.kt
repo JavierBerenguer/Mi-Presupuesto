@@ -157,7 +157,7 @@ class TeachStructureViewModel(
             editor = edit,
             preview = currentPreview,
             account = source.accounts.find { it.id == source.linkedAccountId },
-            categories = source.categories.filterNot(Category::archived),
+            categories = source.categories,
             suggestedNames = source.structures.map(NotificationStructure::name).distinct().sorted(),
             validationError = validateSelection(key, variable, edit.name),
             errorMessage = message,
@@ -281,7 +281,7 @@ class ConfigureRuleViewModel(
         ) else null
         val accountId = source.authorizations.find { it.packageName == record?.packageName }?.accountId
         ConfigureRuleUiState(record == null, record, structure, current, result, source.accounts.find { it.id == accountId },
-            source.categories.filterNot(Category::archived), message, count)
+            source.categories, message, count)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ConfigureRuleUiState())
 
     fun setValues(value: NotificationRuleValues) { values.value = value }
@@ -319,7 +319,7 @@ class StructuresViewModel(
     }
     val uiState: StateFlow<StructuresUiState> = combine(managed, ledger.categories, error) { values, categories, message ->
         StructuresUiState(false, values.groupBy { it.structure.packageName }.map { StructureGroup(it.key, it.value) },
-            categories.filterNot(Category::archived), message)
+            categories, message)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StructuresUiState())
 
     fun saveStructure(value: NotificationStructure) = operate { notifications.saveStructure(value) }

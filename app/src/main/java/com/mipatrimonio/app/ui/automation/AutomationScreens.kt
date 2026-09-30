@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -19,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -26,6 +28,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,11 +43,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mipatrimonio.app.R
 import com.mipatrimonio.app.domain.model.Category
@@ -59,12 +65,14 @@ import com.mipatrimonio.app.domain.notifications.NotificationRuleValues
 import com.mipatrimonio.app.domain.notifications.NotificationStructure
 import com.mipatrimonio.app.domain.notifications.ProposalKind
 import com.mipatrimonio.app.ui.common.ConfirmDialog
+import com.mipatrimonio.app.ui.common.CategoryIconBadge
 import com.mipatrimonio.app.ui.common.DropdownField
 import com.mipatrimonio.app.ui.common.EmptyState
 import com.mipatrimonio.app.ui.common.LoadingBox
 import com.mipatrimonio.app.ui.common.SectionCard
 import com.mipatrimonio.app.ui.common.appViewModel
 import com.mipatrimonio.app.ui.common.formatDate
+import com.mipatrimonio.app.ui.movements.CategoryPickerScreen
 import java.time.Instant
 import java.time.ZoneId
 
@@ -341,14 +349,60 @@ private fun ValuesEditor(
     title: String, explanation: String, titleValue: String, detailValue: String, categoryId: String?,
     categories: List<Category>, onChange: (String, String, String?) -> Unit,
 ) {
+    var showCategoryPicker by rememberSaveable { mutableStateOf(false) }
     SectionCard(title = title) {
         Text(explanation, style = MaterialTheme.typography.bodySmall)
         OutlinedTextField(titleValue, { onChange(it, detailValue, categoryId) }, label = { Text(stringResource(R.string.auto_title_optional)) }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(detailValue, { onChange(titleValue, it, categoryId) }, label = { Text(stringResource(R.string.auto_detail_optional)) }, modifier = Modifier.fillMaxWidth())
-        DropdownField(
-            label = stringResource(R.string.notif_category), options = categories,
-            selected = categories.find { it.id == categoryId }, optionLabel = { it.name },
-            onSelected = { onChange(titleValue, detailValue, it?.id) }, noneLabel = stringResource(R.string.notif_no_category),
+        AutomationCategoryField(
+            categoryId = categoryId,
+            categories = categories,
+            onClick = { showCategoryPicker = true },
+        )
+    }
+    if (showCategoryPicker) {
+        Dialog(
+            onDismissRequest = { showCategoryPicker = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            Surface(Modifier.fillMaxSize()) {
+                CategoryPickerScreen(
+                    categories = selectableAutomationCategories(categories),
+                    frequentCategories = emptyList(),
+                    selectedId = categoryId,
+                    onSelected = {
+                        onChange(titleValue, detailValue, it)
+                        showCategoryPicker = false
+                    },
+                    onBack = { showCategoryPicker = false },
+                    onNewCategory = null,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AutomationCategoryField(categoryId: String?, categories: List<Category>, onClick: () -> Unit) {
+    val label = stringResource(R.string.notif_category)
+    val category = categories.find { it.id == categoryId }
+    val value = automationCategoryLabel(category, categories, stringResource(R.string.notif_no_category))
+    Box(Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            leadingIcon = category?.let { selected ->
+                { CategoryIconBadge(selected, categories, size = 36.dp) }
+            },
+            trailingIcon = { androidx.compose.material3.Icon(Icons.Outlined.ChevronRight, contentDescription = null) },
+            maxLines = 2,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Box(
+            Modifier.matchParentSize().clickable(role = Role.Button, onClick = onClick)
+                .semantics { contentDescription = label },
         )
     }
 }

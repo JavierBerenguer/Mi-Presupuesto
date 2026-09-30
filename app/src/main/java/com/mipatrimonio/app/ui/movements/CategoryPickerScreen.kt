@@ -70,7 +70,7 @@ fun CategoryPickerScreen(
     selectedId: String?,
     onSelected: (String?) -> Unit,
     onBack: () -> Unit,
-    onNewCategory: () -> Unit,
+    onNewCategory: (() -> Unit)? = null,
 ) {
     var query by remember { mutableStateOf("") }
     val tabs = if (frequentCategories.isEmpty()) {
@@ -337,7 +337,7 @@ private fun UnderlineTabs(
 }
 
 @Composable
-private fun CategoryActionBar(onUnassigned: () -> Unit, onNewCategory: () -> Unit) {
+private fun CategoryActionBar(onUnassigned: () -> Unit, onNewCategory: (() -> Unit)?) {
     Surface(
         modifier = Modifier.fillMaxWidth().imePadding(),
         color = MaterialTheme.colorScheme.surface,
@@ -354,17 +354,19 @@ private fun CategoryActionBar(onUnassigned: () -> Unit, onNewCategory: () -> Uni
                 ) {
                     Text(stringResource(R.string.mov_category_unassigned), maxLines = 2, textAlign = TextAlign.Center)
                 }
-                Button(
-                    onClick = onNewCategory,
-                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                ) {
-                    Icon(Icons.Outlined.Add, contentDescription = null)
-                    Text(
-                        stringResource(R.string.aj_new_category),
-                        modifier = Modifier.padding(start = 6.dp),
-                        maxLines = 2,
-                        textAlign = TextAlign.Center,
-                    )
+                if (onNewCategory != null) {
+                    Button(
+                        onClick = onNewCategory,
+                        modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    ) {
+                        Icon(Icons.Outlined.Add, contentDescription = null)
+                        Text(
+                            stringResource(R.string.aj_new_category),
+                            modifier = Modifier.padding(start = 6.dp),
+                            maxLines = 2,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
                 }
             }
         }
