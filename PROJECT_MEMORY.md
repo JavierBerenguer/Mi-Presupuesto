@@ -507,3 +507,16 @@ El usuario dejó `datos-privados/Documento de cambios/Documento.md` (+ 4 captura
 - Próxima acción: siguiente bloque del ROADMAP (multidivisa/tipos de cambio, objetivos, alertas de presupuesto, bloqueo biométrico) salvo nuevas peticiones del usuario. Pendientes de datos del usuario: prueba real de EODHD con su clave; diferencia de saldo de TR (57,12 € fuera del CSV).
 - Nota operativa: el verificador de permisos de Bash/PowerShell falla a veces de forma transitoria («no verdict»); mientras tanto usar Read/Grep/Glob, que no dependen de él.
 - **Próxima acción exacta:** esperar ronda 2 de Codex en T-038 → `gradlew testDebugUnitTest assembleDebug` en `.local/worktrees/t-038` → integrar → APK en `.local/apk/` → lanzar T-039.
+- **Nueva sesión (2026-10-27):** proyecto clonado de GitHub en la carpeta nueva `D:\XX_Claude\App - Rea - Rumbo\apk finanzas` (con `datos-privados/` y `.local/` copiadas por el usuario). **Regla del usuario:** el espacio tiene tres carpetas (`apk finanzas` = esta app; `rea-main` = instrucciones para analizar Rumbo, que lanzará otro agente; `rumbo-main` = app de PC de referencia que posiblemente se integre). Hasta nuevo aviso se trabaja **solo** en `apk finanzas`. Se anuncian cambios grandes en inversión (posible rehacer desde cero con Rumbo como referencia).
+- **Peticiones del usuario (2026-10-27):**
+  1. Una notificación con estructura reconocida y comercio nuevo se registra con la estructura general. El comercio se puede configurar después en Ajustes → **T-067**.
+  2. Pulsación larga para seleccionar varios apuntes y agruparlos sobre un gasto principal (Bizums recibidos de terceros) → **T-068**.
+
+  Decisiones del usuario:
+  - Los `PENDIENTE_REGLA` antiguos siguen pendientes.
+  - Configurar un comercio solo afecta a los apuntes futuros.
+  - Un grupo computa como **gasto neto** en estadísticas y presupuestos; los saldos de las cuentas no cambian.
+  - En Movimientos, una fila con el neto y «+N» desplegable.
+
+  Rama `claude/notificaciones-y-agrupacion`. Al terminar, el usuario pidió subir el APK a GitHub e hibernar el PC.
+- Nota operativa: lanzar `delegate-codex.ps1` desde la herramienta PowerShell **sin** redirección `*>`. Con ella, PowerShell 5.1 convierte el stderr de git en error y el script aborta.
