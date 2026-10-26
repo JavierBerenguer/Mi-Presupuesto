@@ -90,6 +90,7 @@ fun EntryFormScreen(
     onDone: () -> Unit,
     onOpenAccounts: () -> Unit,
     onOpenCategories: () -> Unit,
+    onConfigureMerchant: (String) -> Unit = {},
     viewModel: EntryFormViewModel = appViewModel { container ->
         EntryFormViewModel(container.ledger, entryId, notifications = container.notifications)
     },
@@ -132,6 +133,7 @@ fun EntryFormScreen(
             onBack = requestBack,
             onOpenAccounts = onOpenAccounts,
             onChooseCategory = { showCategoryPicker = true },
+            onConfigureMerchant = onConfigureMerchant,
             onRequestClear = {
                 if (state.hasData) confirmClear = true else viewModel.clear()
             },
@@ -172,6 +174,7 @@ private fun EntryFormScaffold(
     onBack: () -> Unit,
     onOpenAccounts: () -> Unit,
     onChooseCategory: () -> Unit,
+    onConfigureMerchant: (String) -> Unit,
     onRequestClear: () -> Unit,
 ) {
     Scaffold(
@@ -228,6 +231,7 @@ private fun EntryFormScaffold(
                 state = state,
                 viewModel = viewModel,
                 onChooseCategory = onChooseCategory,
+                onConfigureMerchant = onConfigureMerchant,
                 onRequestClear = onRequestClear,
                 modifier = Modifier.padding(padding),
             )
@@ -240,6 +244,7 @@ private fun EntryFormContent(
     state: EntryFormUiState,
     viewModel: EntryFormViewModel,
     onChooseCategory: () -> Unit,
+    onConfigureMerchant: (String) -> Unit,
     onRequestClear: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -399,7 +404,20 @@ private fun EntryFormContent(
                     Text(stringResource(R.string.auto_original_notification), fontWeight = FontWeight.Bold)
                     Text(original.text)
                     original.structureName?.let { Text(stringResource(R.string.auto_applied_structure, it)) }
-                    original.ruleName?.let { Text(stringResource(R.string.auto_applied_rule, it)) }
+                    when {
+                        original.usesStructureDefaults -> Text(
+                            stringResource(R.string.auto_applied_rule, stringResource(R.string.auto_general_rule)),
+                        )
+                        original.ruleName != null -> Text(stringResource(R.string.auto_applied_rule, original.ruleName))
+                    }
+                    original.configurableRecordId?.let { recordId ->
+                        OutlinedButton(
+                            onClick = { onConfigureMerchant(recordId) },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                        ) {
+                            Text(stringResource(R.string.auto_configure_this_merchant))
+                        }
+                    }
                 }
             }
         }

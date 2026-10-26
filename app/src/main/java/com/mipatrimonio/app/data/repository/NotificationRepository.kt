@@ -11,6 +11,7 @@ import java.time.ZoneId
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 
@@ -33,6 +34,33 @@ class NotificationRepository(
         .map { rows -> rows.map { it.toDomain() } }
     val structures: Flow<List<NotificationStructure>> =
         dao.observeStructures().map { rows -> rows.mapNotNull { runCatching { it.toDomain() }.getOrNull() } }
+    val merchantsUsingStructureDefaults: Flow<List<MerchantUsingStructureDefaults>> = combine(
+        dao.observeRecordsUsingStructureDefaults(),
+        dao.observeEnabledRules(),
+        structures,
+    ) { records, enabledRules, currentStructures ->
+        val enabledKeys = enabledRules.map { it.structureId to it.variableKey }.toSet()
+        val structuresById = currentStructures.associateBy(NotificationStructure::id)
+        records.groupBy { record -> requireNotNull(record.structureId) to normalizeVariable(requireNotNull(record.variableText)) }
+            .mapNotNull { (key, groupedRecords) ->
+                if (key in enabledKeys) return@mapNotNull null
+                val latest = groupedRecords.maxWithOrNull(compareBy<NotificationRecordEntity> { it.postedAt }.thenBy { it.createdAt })
+                    ?: return@mapNotNull null
+                val structure = structuresById[key.first] ?: return@mapNotNull null
+                MerchantUsingStructureDefaults(
+                    recordId = latest.id,
+                    structureId = structure.id,
+                    variableKey = key.second,
+                    variableText = requireNotNull(latest.variableText),
+                    structureName = structure.name,
+                    packageName = latest.packageName,
+                    transactionCount = groupedRecords.size,
+                    latestPostedAt = latest.postedAt,
+                    latestAmountMinor = requireNotNull(latest.amountMinor),
+                    currency = requireNotNull(latest.currency),
+                )
+            }.sortedByDescending(MerchantUsingStructureDefaults::latestPostedAt)
+    }
     val diagnosticTextEnabled: Flow<Boolean> = diagnosticTextState
 
     fun records(status: NotificationRecordStatus): Flow<List<NotificationRecord>> =
@@ -159,6 +187,8 @@ class NotificationRepository(
         check(dao.markRecordCreatedManually(id, transactionId) == 1) { "El registro ya tiene un apunte asociado" }
     }
     suspend fun recordForTransaction(transactionId: String): NotificationRecord? = dao.getRecordForTransaction(transactionId)?.toDomain()
+    suspend fun hasEnabledRule(structureId: String, variableText: String): Boolean =
+        dao.getEnabledRule(structureId, normalizeVariable(variableText)) != null
     suspend fun reprocessPending() = db.withTransaction { reprocessPendingLocked() }
 
     suspend fun markConfirmed(id: String, resultingTransactionId: String) { require(resultingTransactionId.isNotBlank()); dao.updatePendingStatus(id, ProposalStatus.CONFIRMADA.name, resultingTransactionId) }
@@ -184,7 +214,9 @@ class NotificationRepository(
         val account = authorization.accountId?.let { db.accountDao().getById(it) }
         if (account == null || account.archived || account.currency != base.currency) return base.copy(status = NotificationRecordStatus.PENDIENTE_CUENTA.name)
         if (structure == null || match == null) return base.copy(status = NotificationRecordStatus.PENDIENTE_ESTRUCTURA.name)
-        if (rule == null) return base.copy(status = NotificationRecordStatus.PENDIENTE_REGLA.name)
+        if (rule == null && row.status == NotificationRecordStatus.PENDIENTE_REGLA.name) {
+            return base.copy(status = NotificationRecordStatus.PENDIENTE_REGLA.name)
+        }
         val transactionId = idFactory()
         saveAutoTransaction(base.toTransaction(transactionId, account.id, structure, rule, match.amount, clock(), zoneId))
         return base.copy(status = NotificationRecordStatus.AUTOMATIZADA.name, transactionId = transactionId)
@@ -218,11 +250,24 @@ class NotificationRepository(
     }
 }
 
-private fun NotificationRecordEntity.toTransaction(id: String, accountId: String, structure: NotificationStructure, rule: NotificationRule, amount: RecognizedAmount, now: Long, zoneId: ZoneId): Transaction {
+data class MerchantUsingStructureDefaults(
+    val recordId: String,
+    val structureId: String,
+    val variableKey: String,
+    val variableText: String,
+    val structureName: String,
+    val packageName: String,
+    val transactionCount: Int,
+    val latestPostedAt: Long,
+    val latestAmountMinor: Long,
+    val currency: String,
+)
+
+private fun NotificationRecordEntity.toTransaction(id: String, accountId: String, structure: NotificationStructure, rule: NotificationRule?, amount: RecognizedAmount, now: Long, zoneId: ZoneId): Transaction {
     return Transaction(id, structure.direction.kindFor(amount).let { if (it == ProposalKind.INGRESO) TransactionType.INGRESO else TransactionType.GASTO },
         requireNotNull(amountMinor), requireNotNull(currency), Instant.ofEpochMilli(postedAt).atZone(zoneId).toLocalDate(), accountId,
-        rule.categoryId ?: structure.defaultCategoryId, rule.title.clean() ?: structure.defaultTitle.clean() ?: variableText.orEmpty(),
-        variableText.orEmpty(), rule.detail.clean() ?: structure.defaultDetail.clean().orEmpty(), TransactionSource.NOTIFICACION, now, now)
+        rule?.categoryId ?: structure.defaultCategoryId, rule?.title.clean() ?: structure.defaultTitle.clean() ?: variableText.orEmpty(),
+        variableText.orEmpty(), rule?.detail.clean() ?: structure.defaultDetail.clean().orEmpty(), TransactionSource.NOTIFICACION, now, now)
 }
 private fun NotificationAuthorizationEntity.toDomain() = AuthorizationRule(packageName, authorized, accountId, createdAt, runCatching { enumValueOf<AutoConfirmMode>(autoConfirmMode) }.getOrDefault(AutoConfirmMode.OFF))
 private fun PendingProposalEntity.toDomain() = PendingProposal(id, packageName, accountId, enumValueOf(kind), amountMinor, currency, merchant, enumValueOf(confidence), parserId, postedAt, enumValueOf(status), resultingTransactionId, createdAt)

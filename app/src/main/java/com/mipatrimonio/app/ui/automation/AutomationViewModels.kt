@@ -3,6 +3,7 @@ package com.mipatrimonio.app.ui.automation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mipatrimonio.app.data.repository.LedgerRepository
+import com.mipatrimonio.app.data.repository.MerchantUsingStructureDefaults
 import com.mipatrimonio.app.data.repository.NotificationRepository
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Category
@@ -55,19 +56,26 @@ fun rangesOverlap(first: IntRange?, second: IntRange?): Boolean =
 data class PendingAutomationUiState(
     val isLoading: Boolean = true,
     val records: List<NotificationRecord> = emptyList(),
+    val newMerchants: List<MerchantUsingStructureDefaults> = emptyList(),
     val errorMessage: String? = null,
 ) {
     val count: Int get() = records.size
+    val newMerchantCount: Int get() = newMerchants.size
 }
 
 class PendingAutomationViewModel(private val notifications: NotificationRepository) : ViewModel() {
     private val error = MutableStateFlow<String?>(null)
     val uiState: StateFlow<PendingAutomationUiState> = combine(
-        pendingRecords(notifications), error,
-    ) { records, message -> PendingAutomationUiState(false, records.sortedByDescending(NotificationRecord::postedAt), message) }
+        pendingRecords(notifications), notifications.merchantsUsingStructureDefaults, error,
+    ) { records, merchants, message ->
+        PendingAutomationUiState(false, records.sortedByDescending(NotificationRecord::postedAt), merchants, message)
+    }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PendingAutomationUiState())
 
     fun discard(id: String) = runOperation { notifications.discardRecord(id) }
+    fun alwaysUseStructureDefaults(recordId: String) = runOperation {
+        notifications.createRuleForRecord(recordId, NotificationRuleValues())
+    }
 
     private fun runOperation(block: suspend () -> Unit) {
         viewModelScope.launch {

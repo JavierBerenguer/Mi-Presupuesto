@@ -25,6 +25,8 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -72,5 +74,32 @@ class OriginalNotificationViewModelTest {
         assertEquals("Pago 10 EUR en Uno", original?.text)
         assertEquals("Pago con tarjeta", original?.structureName)
         assertEquals("Uno", original?.ruleName)
+        assertNull(original?.configurableRecordId)
+    }
+
+    @Test fun `movimiento con general permite configurar hasta que existe regla habilitada`() = runTest {
+        ledger.saveAccount(Account("account", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
+        notifications.setAuthorized("app.bank", true, "account")
+        val seed = (notifications.ingest(BankNotification("app.bank", "", "Pago 10 EUR en Uno", 1_000)) as NotificationOutcome.Registrada).recordId
+        notifications.createStructureFromRecord(seed, "Pago con tarjeta", 0..3, 15..17, NotificationDirection.GASTO)
+        val generalId = (notifications.ingest(BankNotification("app.bank", "", "Pago 20 EUR en Dos", 500_000)) as NotificationOutcome.Registrada).recordId
+        val transactionId = requireNotNull(db.notificationDao().getRecord(generalId)?.transactionId)
+
+        val beforeRule = EntryFormViewModel(
+            ledger = ledger,
+            entryId = transactionId,
+            notifications = notifications,
+        ).uiState.first { !it.isLoading && it.originalNotification != null }.originalNotification
+        assertTrue(beforeRule?.usesStructureDefaults == true)
+        assertEquals(generalId, beforeRule?.configurableRecordId)
+
+        notifications.createRuleForRecord(generalId, com.mipatrimonio.app.domain.notifications.NotificationRuleValues())
+        val afterRule = EntryFormViewModel(
+            ledger = ledger,
+            entryId = transactionId,
+            notifications = notifications,
+        ).uiState.first { !it.isLoading && it.originalNotification != null }.originalNotification
+        assertTrue(afterRule?.usesStructureDefaults == true)
+        assertNull(afterRule?.configurableRecordId)
     }
 }

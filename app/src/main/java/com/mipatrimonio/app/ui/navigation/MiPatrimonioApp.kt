@@ -199,6 +199,7 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
                 onDone = { navController.popBackStack() },
                 onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
                 onOpenCategories = { navController.navigate(Rutas.CATEGORIAS) },
+                onConfigureMerchant = { navController.navigate(Rutas.configurarRegla(it)) },
             )
         }
         composable(
