@@ -520,3 +520,9 @@ El usuario dejó `datos-privados/Documento de cambios/Documento.md` (+ 4 captura
 
   Rama `claude/notificaciones-y-agrupacion`. Al terminar, el usuario pidió subir el APK a GitHub e hibernar el PC.
 - Nota operativa: lanzar `delegate-codex.ps1` desde la herramienta PowerShell **sin** redirección `*>`. Con ella, PowerShell 5.1 convierte el stderr de git en error y el script aborta.
+- **Petición adicional del usuario (2026-10-27):** aviso push propio cuando llegue una notificación con estructura nueva o con un comercio nuevo («subestructura»); al pulsarlo se abre Ajustes → Automatización → **T-069** (después de T-067). Decisiones de Claude:
+  - una única notificación agregada que se actualiza, sin datos bancarios;
+  - solo avisa el primer registro de cada comercio;
+  - canal `automation_pending`;
+  - preferencia «Avisarme de automatizaciones pendientes», activada por defecto.
+- **Orden:** T-067 → T-069 → T-068.
