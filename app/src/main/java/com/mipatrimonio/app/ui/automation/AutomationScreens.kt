@@ -41,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.Role
@@ -53,6 +54,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mipatrimonio.app.R
+import com.mipatrimonio.app.data.repository.MerchantUsingStructureDefaults
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.model.MoneyMath
 import com.mipatrimonio.app.domain.notifications.NotificationDefaults
@@ -76,8 +78,9 @@ import com.mipatrimonio.app.ui.movements.CategoryPickerScreen
 import java.time.Instant
 import java.time.ZoneId
 
-private enum class AutomationTab { PENDING, STRUCTURES }
+private enum class AutomationTab { PENDING, NEW_MERCHANTS, STRUCTURES }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AutomationScreen(
     onTeach: (String) -> Unit,
@@ -89,11 +92,16 @@ fun AutomationScreen(
     var tab by rememberSaveable { mutableStateOf(AutomationTab.PENDING) }
     var discardId by rememberSaveable { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(
                 selected = tab == AutomationTab.PENDING,
                 onClick = { tab = AutomationTab.PENDING },
                 label = { Text(stringResource(R.string.auto_pending_tab, state.count)) },
+            )
+            FilterChip(
+                selected = tab == AutomationTab.NEW_MERCHANTS,
+                onClick = { tab = AutomationTab.NEW_MERCHANTS },
+                label = { Text(stringResource(R.string.auto_new_merchants_tab, state.newMerchantCount)) },
             )
             FilterChip(
                 selected = tab == AutomationTab.STRUCTURES,
@@ -101,16 +109,20 @@ fun AutomationScreen(
                 label = { Text(stringResource(R.string.auto_structures_tab)) },
             )
         }
-        if (tab == AutomationTab.PENDING) {
-            PendingContent(
+        when (tab) {
+            AutomationTab.PENDING -> PendingContent(
                 state = state,
                 onTeach = onTeach,
                 onConfigureRule = onConfigureRule,
                 onOpenNotificationSettings = onOpenNotificationSettings,
                 onDiscard = { discardId = it },
             )
-        } else {
-            StructuresScreen()
+            AutomationTab.NEW_MERCHANTS -> NewMerchantsContent(
+                state = state,
+                onConfigureRule = onConfigureRule,
+                onAlwaysUseStructureDefaults = viewModel::alwaysUseStructureDefaults,
+            )
+            AutomationTab.STRUCTURES -> StructuresScreen()
         }
     }
     discardId?.let { id ->
@@ -121,6 +133,59 @@ fun AutomationScreen(
             onConfirm = { viewModel.discard(id); discardId = null },
             onDismiss = { discardId = null },
         )
+    }
+}
+
+@Composable
+private fun NewMerchantsContent(
+    state: PendingAutomationUiState,
+    onConfigureRule: (String) -> Unit,
+    onAlwaysUseStructureDefaults: (String) -> Unit,
+) {
+    if (state.isLoading) { LoadingBox(); return }
+    if (state.newMerchants.isEmpty()) {
+        EmptyState(Icons.Filled.Notifications, stringResource(R.string.auto_no_new_merchants))
+        return
+    }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 88.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        items(state.newMerchants, key = { "${it.structureId}:${it.variableKey}" }) { merchant ->
+            NewMerchantCard(merchant, onConfigureRule, onAlwaysUseStructureDefaults)
+        }
+        state.errorMessage?.let { item { ErrorText(it) } }
+    }
+}
+
+@Composable
+private fun NewMerchantCard(
+    merchant: MerchantUsingStructureDefaults,
+    onConfigureRule: (String) -> Unit,
+    onAlwaysUseStructureDefaults: (String) -> Unit,
+) {
+    Card(Modifier.fillMaxWidth(), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(merchant.variableText, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.auto_merchant_structure, merchant.structureName, merchant.packageName))
+            Text(pluralStringResource(R.plurals.auto_general_transaction_count, merchant.transactionCount, merchant.transactionCount))
+            Text(
+                stringResource(
+                    R.string.auto_latest_transaction,
+                    formatDate(Instant.ofEpochMilli(merchant.latestPostedAt).atZone(ZoneId.systemDefault()).toLocalDate()),
+                    MoneyMath.format(merchant.latestAmountMinor, merchant.currency),
+                ),
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { onConfigureRule(merchant.recordId) }, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.auto_configure_merchant))
+                }
+                OutlinedButton(onClick = { onAlwaysUseStructureDefaults(merchant.recordId) }, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.auto_always_use_general))
+                }
+            }
+        }
     }
 }
 

@@ -2,12 +2,21 @@
 <resources>
     <string name="auto_title">Automatización de notificaciones</string>
     <string name="auto_pending_tab">Pendientes (%1$d)</string>
+    <string name="auto_new_merchants_tab">Comercios nuevos (%1$d)</string>
     <string name="auto_structures_tab">Estructuras</string>
     <string name="auto_no_pending">No hay notificaciones pendientes de configurar.</string>
+    <string name="auto_no_new_merchants">No hay comercios nuevos usando la configuración general de una estructura.</string>
     <string name="auto_no_structures">Todavía no has enseñado ninguna estructura.</string>
     <string name="auto_account_needed">Esta aplicación necesita una cuenta activa asociada y con la misma divisa que la notificación.</string>
     <string name="auto_teach">Enseñar</string>
     <string name="auto_configure_merchant">Configurar comercio</string>
+    <string name="auto_always_use_general">Usar siempre la general</string>
+    <string name="auto_merchant_structure">%1$s · %2$s</string>
+    <plurals name="auto_general_transaction_count">
+        <item quantity="one">%1$d apunte registrado con la general</item>
+        <item quantity="other">%1$d apuntes registrados con la general</item>
+    </plurals>
+    <string name="auto_latest_transaction">Más reciente: %1$s · %2$s</string>
     <string name="auto_discard_title">Descartar notificación</string>
     <string name="auto_discard_message">La notificación dejará de estar pendiente. No se eliminará ningún apunte ya creado.</string>
     <string name="auto_mark_text">Selecciona el patrón</string>
@@ -58,4 +67,6 @@
     <string name="auto_original_notification">Notificación original</string>
     <string name="auto_applied_structure">Estructura: %1$s</string>
     <string name="auto_applied_rule">Regla: %1$s</string>
+    <string name="auto_general_rule">general de la estructura</string>
+    <string name="auto_configure_this_merchant">Configurar este comercio</string>
 </resources>

@@ -374,11 +374,24 @@ interface NotificationDao {
     suspend fun getRuleForKey(structureId: String, variableKey: String): NotificationRuleEntity?
 
     @Query("SELECT * FROM notification_rule WHERE id = :id") suspend fun getRule(id: String): NotificationRuleEntity?
+    @Query("SELECT * FROM notification_rule WHERE enabled = 1 ORDER BY createdAt, id")
+    fun observeEnabledRules(): Flow<List<NotificationRuleEntity>>
     @Upsert suspend fun upsertRule(row: NotificationRuleEntity)
     @Query("DELETE FROM notification_rule WHERE id = :id") suspend fun deleteRule(id: String)
 
     @Query("SELECT * FROM notification_record WHERE status = :status ORDER BY postedAt DESC, createdAt DESC")
     fun observeRecordsByStatus(status: String): Flow<List<NotificationRecordEntity>>
+
+    @Query("""
+        SELECT * FROM notification_record
+        WHERE status = 'AUTOMATIZADA'
+          AND ruleId IS NULL
+          AND structureId IS NOT NULL
+          AND variableText IS NOT NULL
+          AND transactionId IS NOT NULL
+        ORDER BY postedAt DESC, createdAt DESC
+    """)
+    fun observeRecordsUsingStructureDefaults(): Flow<List<NotificationRecordEntity>>
 
     @Query("SELECT * FROM notification_record WHERE id = :id") suspend fun getRecord(id: String): NotificationRecordEntity?
     @Query("SELECT * FROM notification_record WHERE transactionId = :transactionId LIMIT 1")

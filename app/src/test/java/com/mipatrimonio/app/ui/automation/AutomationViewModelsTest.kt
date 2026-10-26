@@ -77,6 +77,23 @@ class AutomationViewModelsTest {
         assertEquals(2, final.count)
     }
 
+    @Test fun `comercios nuevos lista y usar siempre general lo quita`() = runTest {
+        authorize()
+        val seed = ingest("Pago 10 EUR en Uno", 1_000)
+        notifications.createStructureFromRecord(seed, "Pago", 0..3, 15..17, NotificationDirection.GASTO)
+        val general = ingest("Pago 20 EUR en Dos", 500_000)
+        val viewModel = PendingAutomationViewModel(notifications)
+
+        val initial = viewModel.uiState.first { !it.isLoading && it.newMerchantCount == 1 }
+        assertEquals(general, initial.newMerchants.single().recordId)
+        assertEquals("Dos", initial.newMerchants.single().variableText)
+        viewModel.alwaysUseStructureDefaults(general)
+
+        val final = viewModel.uiState.first { !it.isLoading && it.newMerchants.isEmpty() }
+        assertEquals(0, final.newMerchantCount)
+        assertNotNull(notifications.rules(initial.newMerchants.single().structureId).first().find { it.variableDisplay == "Dos" })
+    }
+
     @Test fun `ensenanza selecciona palabras valida previsualiza guarda y reprocesa`() = runTest {
         authorize()
         val seed = ingest("Pago 10 EUR en Uno", 1_000)
@@ -172,9 +189,12 @@ class AutomationViewModelsTest {
         viewModel.save()
 
         viewModel.uiState.first { it.savedAdditionalCount != null }
-        val transaction = ledger.transactions.awaitValue { rows -> rows.any { it.description == "Cafetería Dos" } }
-            .first { it.description == "Cafetería Dos" }
+        ingest("Pago 30 EUR en Dos", 200_000)
+        val rows = ledger.transactions.awaitValue { rows -> rows.any { it.description == "Cafetería Dos" } }
+        val transaction = rows.single { it.description == "Cafetería Dos" }
         assertEquals("Desayuno", transaction.notes)
+        assertEquals(3000L, transaction.amountMinor)
+        assertEquals(1, rows.count { it.description == "Dos" && it.amountMinor == 2000L })
     }
 
     @Test fun `gestiona edicion desactivacion y eliminacion de estructuras y reglas`() = runTest {

@@ -56,6 +56,8 @@ data class OriginalNotificationUi(
     val text: String,
     val structureName: String?,
     val ruleName: String?,
+    val usesStructureDefaults: Boolean = false,
+    val configurableRecordId: String? = null,
 )
 
 data class EntryFormUiState(
@@ -152,7 +154,18 @@ class EntryFormViewModel(
                     notificationRepository?.recordForTransaction(transaction.id)?.let { record ->
                         val structure = notificationRepository.structures.first().find { it.id == record.structureId }
                         val rule = structure?.let { value -> notificationRepository.rules(value.id).first().find { it.id == record.ruleId } }
-                        OriginalNotificationUi(record.text, structure?.name, rule?.variableDisplay)
+                        val usesStructureDefaults = record.status == com.mipatrimonio.app.domain.notifications.NotificationRecordStatus.AUTOMATIZADA &&
+                            record.ruleId == null && record.structureId != null && record.variableText != null && record.transactionId != null
+                        val hasEnabledRule = if (usesStructureDefaults && structure != null) {
+                            notificationRepository.hasEnabledRule(structure.id, requireNotNull(record.variableText))
+                        } else false
+                        OriginalNotificationUi(
+                            text = record.text,
+                            structureName = structure?.name,
+                            ruleName = rule?.variableDisplay,
+                            usesStructureDefaults = usesStructureDefaults,
+                            configurableRecordId = record.id.takeIf { usesStructureDefaults && !hasEnabledRule },
+                        )
                     }
                 }.getOrNull()?.let { originalNotificationState.value = it }
             }
