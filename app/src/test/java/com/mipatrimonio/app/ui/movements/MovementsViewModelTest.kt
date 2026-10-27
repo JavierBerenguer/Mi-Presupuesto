@@ -1,0 +1,228 @@
+package com.mipatrimonio.app.ui.movements
+
+import android.content.Context
+import androidx.room.Room
+import androidx.test.core.app.ApplicationProvider
+import com.mipatrimonio.app.data.db.AppDatabase
+import com.mipatrimonio.app.data.repository.LedgerRepository
+import com.mipatrimonio.app.data.repository.SettingsRepository
+import com.mipatrimonio.app.testutil.SettingsStoreRule
+import com.mipatrimonio.app.domain.model.Account
+import com.mipatrimonio.app.domain.model.AccountType
+import com.mipatrimonio.app.domain.model.Transaction
+import com.mipatrimonio.app.domain.model.TransactionSource
+import com.mipatrimonio.app.domain.model.TransactionType
+import com.mipatrimonio.app.domain.model.Transfer
+import com.mipatrimonio.app.domain.calc.MovementsCalculationMode
+import java.time.LocalDate
+import java.time.YearMonth
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+@OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
+class MovementsViewModelTest {
+    @get:Rule
+    val settingsRule = SettingsStoreRule()
+
+    private val dispatcher = UnconfinedTestDispatcher()
+    private lateinit var db: AppDatabase
+    private lateinit var ledger: LedgerRepository
+    private lateinit var settings: SettingsRepository
+
+    @Before
+    fun setUp() = runBlocking {
+        Dispatchers.setMain(dispatcher)
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
+        ledger = LedgerRepository(db)
+        settings = settingsRule.repository
+        settings.setHideAmounts(false)
+        settings.setMovementsIncludedAccountIds(emptySet())
+        settings.setMovementsAllAccounts(true)
+        settings.setMovementsCalculationMode(MovementsCalculationMode.SALDO_ACTUAL)
+        settings.setMovementsDailyBalance(true)
+        settings.setMovementsHideFuture(false)
+        settings.setMovementsIgnoreTransfers(false)
+    }
+
+    @After
+    fun tearDown() {
+        db.close()
+        Dispatchers.resetMain()
+    }
+
+    @Test
+    fun `agrupa por dia excluye transferencias del saldo y filtra automaticos`() = runTest {
+        val today = LocalDate.now()
+        ledger.saveAccount(Account("a", "Origen", AccountType.CORRIENTE, "EUR", 1_000_00, false, 1))
+        ledger.saveAccount(Account("b", "Destino", AccountType.CORRIENTE, "EUR", 0, false, 2))
+        ledger.saveTransaction(tx("income", TransactionType.INGRESO, 100_00, today, TransactionSource.MANUAL))
+        ledger.saveTransaction(tx("auto", TransactionType.GASTO, 30_00, today, TransactionSource.NOTIFICACION))
+        ledger.saveTransfer(Transfer("move", "a", "b", 500_00, 500_00, today, "", 1))
+        settings.setHideAmounts(true)
+        val viewModel = MovementsViewModel(ledger, settings)
+
+        val all = viewModel.uiState.first { it.dayGroups.singleOrNull()?.items?.size == 3 }
+        assertEquals(70_00L, all.dayGroups.single().balanceMinor)
+        assertTrue(all.hideAmounts)
+
+        viewModel.setSource(SourceFilter.AUTOMATICOS)
+        val automatic = viewModel.uiState.first { it.filters.source == SourceFilter.AUTOMATICOS }
+        assertEquals(1, automatic.visibleItems.size)
+        val item = automatic.visibleItems.single() as MovementItem.Tx
+        assertEquals(TransactionSource.NOTIFICACION, item.transaction.source)
+        assertTrue(item.isAutomatic)
+        assertTrue(automatic.dayGroups.single().items.single() is MovementItem.Tx)
+
+        viewModel.previousMonth()
+        val previous = viewModel.uiState.first { it.selectedMonth == java.time.YearMonth.from(today).minusMonths(1) }
+        assertTrue(previous.dayGroups.isEmpty())
+    }
+
+    @Test
+    fun `setMonth cambia el mes y recalcula los apuntes como las flechas`() = runTest {
+        val targetMonth = YearMonth.now().minusMonths(4)
+        val targetDate = targetMonth.atDay(10)
+        ledger.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
+        ledger.saveTransaction(tx("target", TransactionType.GASTO, 25_00, targetDate, TransactionSource.MANUAL))
+        val viewModel = MovementsViewModel(ledger, settings)
+
+        viewModel.setMonth(targetMonth)
+        val selected = viewModel.uiState.first {
+            it.selectedMonth == targetMonth && it.visibleItems.singleOrNull()?.date == targetDate
+        }
+        assertEquals("target", (selected.visibleItems.single() as MovementItem.Tx).transaction.id)
+
+        viewModel.nextMonth()
+        val next = viewModel.uiState.first { it.selectedMonth == targetMonth.plusMonths(1) }
+        assertTrue(next.visibleItems.isEmpty())
+
+        viewModel.previousMonth()
+        val returned = viewModel.uiState.first {
+            it.selectedMonth == targetMonth && it.visibleItems.singleOrNull()?.date == targetDate
+        }
+        assertEquals("target", (returned.visibleItems.single() as MovementItem.Tx).transaction.id)
+    }
+
+    @Test
+    fun `expone la fecha de un apunte futuro en el estado`() = runTest {
+        val futureDate = LocalDate.now().plusDays(1)
+        ledger.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
+        ledger.saveTransaction(tx("future", TransactionType.INGRESO, 40_00, futureDate, TransactionSource.RECURRENTE))
+        val viewModel = MovementsViewModel(ledger, settings)
+
+        viewModel.setMonth(YearMonth.from(futureDate))
+        val state = viewModel.uiState.first {
+            it.selectedMonth == YearMonth.from(futureDate) && it.visibleItems.singleOrNull()?.date == futureDate
+        }
+
+        assertEquals(futureDate, state.visibleItems.single().date)
+        assertTrue(state.visibleItems.single().date.isAfter(LocalDate.now()))
+    }
+
+    @Test
+    fun `calcula saldo con cuentas incluidas y persiste todas las opciones`() = runTest {
+        val today = LocalDate.now()
+        ledger.saveAccount(Account("a", "Incluida", AccountType.CORRIENTE, "EUR", 1_000, false, 1))
+        ledger.saveAccount(Account("b", "Excluida", AccountType.CORRIENTE, "EUR", 9_000, false, 2))
+        ledger.saveTransaction(tx("income", TransactionType.INGRESO, 500, today, TransactionSource.MANUAL))
+        settings.setMovementsIncludedAccountIds(setOf("a"))
+        settings.setMovementsAllAccounts(false)
+        val viewModel = MovementsViewModel(ledger, settings)
+
+        val initial = viewModel.uiState.first { !it.isLoading && it.balanceMinor == 1_500L }
+        assertEquals(setOf("a"), initial.includedAccountIds)
+
+        viewModel.setCalculationMode(MovementsCalculationMode.INGRESOS_MENSUALES)
+        viewModel.setDailyBalance(false)
+        viewModel.setHideFuture(true)
+        viewModel.setIgnoreTransfers(true)
+
+        val updated = viewModel.uiState.first {
+            it.calculationMode == MovementsCalculationMode.INGRESOS_MENSUALES &&
+                !it.dailyBalance && it.hideFuture && it.ignoreTransfers
+        }
+        assertEquals(500L, updated.balanceMinor)
+    }
+
+    @Test
+    fun `ocultar futuros los elimina antes de agrupar`() = runTest {
+        // Fecha fija: con LocalDate.now() el último día del mes «mañana» cae en otro mes.
+        val today = LocalDate.of(2026, 6, 15)
+        val future = today.plusDays(1)
+        ledger.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
+        ledger.saveTransaction(tx("today", TransactionType.INGRESO, 100, today, TransactionSource.MANUAL))
+        ledger.saveTransaction(tx("future", TransactionType.INGRESO, 900, future, TransactionSource.RECURRENTE))
+        val viewModel = MovementsViewModel(ledger, settings) { today }
+        viewModel.setMonth(YearMonth.from(future))
+        viewModel.setHideFuture(true)
+
+        val state = viewModel.uiState.first { it.hideFuture && it.visibleItems.size == 1 }
+        assertEquals("today", (state.visibleItems.single() as MovementItem.Tx).transaction.id)
+        assertEquals(100L, state.balanceMinor)
+    }
+
+    @Test fun `grupo oculta hijos muestra neto y seleccion permite agrupar y desagrupar`() = runTest {
+        val today = LocalDate.now()
+        ledger.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
+        ledger.saveTransaction(tx("p", TransactionType.GASTO, 6_000, today, TransactionSource.MANUAL))
+        ledger.saveTransaction(tx("c", TransactionType.INGRESO, 2_000, today, TransactionSource.MANUAL))
+        val viewModel = MovementsViewModel(ledger, settings)
+
+        viewModel.startSelection("p")
+        assertEquals(setOf("p"), viewModel.uiState.first { it.selectedIds.isNotEmpty() }.selectedIds)
+        viewModel.toggleSelection("c")
+        assertEquals(setOf("p", "c"), viewModel.uiState.first { it.selectedIds.size == 2 }.selectedIds)
+        viewModel.groupSelected("p")
+        val grouped = viewModel.uiState.first {
+            it.selectedIds.isEmpty() && (it.visibleItems.singleOrNull() as? MovementItem.Tx)?.groupChildren?.size == 1
+        }
+        val row = grouped.visibleItems.single() as MovementItem.Tx
+        assertEquals(4_000L, row.amountMinor)
+        assertEquals("c", row.groupChildren.single().id)
+
+        viewModel.duplicate(row.groupChildren.single())
+        val duplicate = ledger.transactions.first { it.size == 3 }.first { it.id !in setOf("p", "c") }
+        assertNull(duplicate.groupParentId)
+        viewModel.ungroup("p")
+        assertTrue(viewModel.uiState.first { it.visibleItems.size == 3 }.visibleItems.all { it is MovementItem.Tx })
+    }
+
+    @Test fun `seleccion sale al vaciar y conserva error al agrupar mal`() = runTest {
+        val today = LocalDate.now()
+        ledger.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
+        ledger.saveTransaction(tx("i1", TransactionType.INGRESO, 100, today, TransactionSource.MANUAL))
+        ledger.saveTransaction(tx("i2", TransactionType.INGRESO, 100, today, TransactionSource.MANUAL))
+        val viewModel = MovementsViewModel(ledger, settings)
+        viewModel.startSelection("i1")
+        viewModel.toggleSelection("i1")
+        assertTrue(viewModel.uiState.first { !it.isLoading && it.selectedIds.isEmpty() }.selectedIds.isEmpty())
+        viewModel.startSelection("i1")
+        viewModel.toggleSelection("i2")
+        viewModel.groupSelected("i1")
+        val failed = viewModel.uiState.first { it.error != null }
+        assertEquals(2, failed.selectedIds.size)
+        assertEquals(2, failed.visibleItems.size)
+    }
+
+    private fun tx(id: String, type: TransactionType, amount: Long, date: LocalDate, source: TransactionSource) =
+        Transaction(id, type, amount, "EUR", date, "a", null, "", "", "", source, 1, 1)
+}
