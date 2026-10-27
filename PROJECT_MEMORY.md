@@ -546,3 +546,9 @@ El usuario dejó `datos-privados/Documento de cambios/Documento.md` (+ 4 captura
   - el enlace del aviso abre la pestaña «Comercios nuevos» con la app abierta;
   - agrupar 60 € con 2 × 20 € da una fila con −20 € y «+2», Inicio muestra 20 € de gasto y 0 € de ingresos, y el saldo de la cuenta no cambia (80 €).
   - **Pendiente:** probarlo en el Pixel 9a. Para pasar de debug a release hace falta copia → desinstalar → instalar → restaurar.
+- **Nuevo bloque (2026-10-27): Rumbo (escritorio) + app + Supabase.** Plan aprobado en `C:\Users\Usuario\.claude\plans\se-vienen-cambios-muy-wise-lampson.md`. Rama `claude/cartera-supabase`.
+  - **T-070 aceptada:** `docs/arquitectura/ANALISIS_RUMBO.md` e `INVENTARIO_INVERSION_APP.md`.
+  - **ADR-001** (`docs/arquitectura/ADR-001-supabase.md`): esquema, RLS, quién escribe cada dato, efecto en caja, contrato de `resumen_cartera` y sincronización.
+  - **Decisión del usuario:** eliminar la inversión antigua **perdiendo los datos**, sin ajustar saldos.
+  - **T-074** (eliminación, Room v15) lanzada.
+  - Pendiente del usuario: proyecto Supabase (URL + clave anon) y autorizar el repositorio nuevo del fork de Rumbo.
