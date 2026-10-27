@@ -73,11 +73,13 @@ object MovementsBalanceCalculator {
             }
 
             MovementsCalculationMode.GASTOS_MENSUALES -> sumTransactions(
-                transactions, includedById, baseCurrency, TransactionType.GASTO, firstDay, monthlyEndDay,
+                TransactionGroups.netForStatistics(transactions), includedById, baseCurrency,
+                TransactionType.GASTO, firstDay, monthlyEndDay,
             )
 
             MovementsCalculationMode.INGRESOS_MENSUALES -> sumTransactions(
-                transactions, includedById, baseCurrency, TransactionType.INGRESO, firstDay, monthlyEndDay,
+                TransactionGroups.netForStatistics(transactions), includedById, baseCurrency,
+                TransactionType.INGRESO, firstDay, monthlyEndDay,
             )
         }
     }

@@ -320,6 +320,27 @@ class EntryFormViewModelTest {
         assertEquals(EntryFormError.ACCOUNT_REQUIRED, viewModel.uiState.value.error)
     }
 
+    @Test fun `editar hijo o principal conserva el grupo`() = runTest {
+        ledger.saveAccount(account("a"))
+        ledger.saveTransaction(transaction("p", TransactionType.GASTO, 600, "a"))
+        ledger.saveTransaction(transaction("c", TransactionType.INGRESO, 200, "a"))
+        ledger.groupTransactions("p", listOf("c"))
+
+        val child = viewModel("c")
+        assertEquals("p", child.ready().groupParentTitle?.let { "p" })
+        child.setTitle("Bizum editado")
+        child.save()
+        assertEquals("p", ledger.transactions.awaitValue { it.firstOrNull { tx -> tx.id == "c" }?.description == "Bizum editado" }
+            .first { it.id == "c" }.groupParentId)
+
+        val parent = viewModel("p")
+        assertEquals(1, parent.ready().groupChildCount)
+        parent.setTitle("Cena editada")
+        parent.save()
+        val values = ledger.transactions.awaitValue { it.firstOrNull { tx -> tx.id == "p" }?.description == "Cena editada" }
+        assertEquals("p", values.first { it.id == "c" }.groupParentId)
+    }
+
     private fun viewModel(id: String? = null) = EntryFormViewModel(
         ledger = ledger,
         entryId = id,

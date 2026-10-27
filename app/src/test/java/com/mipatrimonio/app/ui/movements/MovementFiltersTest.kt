@@ -257,4 +257,19 @@ class MovementFiltersTest {
         assertEquals(0L, investmentGroup.balanceMinor)
         assertEquals(1, investmentGroup.excludedCount)
     }
+
+    @Test fun `grupo filtra por tipo neto busca en hijos y suma neto por dia`() {
+        val parent = tx("parent", TransactionType.GASTO, 60_00, 4, description = "Cena")
+        val child = Transaction(
+            "child", TransactionType.INGRESO, 80_00, "EUR", LocalDate.of(2026, 2, 1), "a2", null,
+            "Bizum de Lucia", "", "", TransactionSource.MANUAL, 1, 1, "parent",
+        )
+        val grouped = (parent as MovementItem.Tx).copy(groupChildren = listOf(child))
+
+        assertEquals(TransactionType.INGRESO, grouped.displayedTransaction.type)
+        assertEquals(20_00L, grouped.amountMinor)
+        assertEquals(listOf(grouped), applyFilters(listOf(grouped), MovementFilters(kind = KindFilter.INGRESOS), accounts, categories))
+        assertEquals(listOf(grouped), applyFilters(listOf(grouped), MovementFilters(query = "lucia"), accounts, categories))
+        assertEquals(20_00L, groupMovementsByDay(listOf(grouped), "EUR").single().balanceMinor)
+    }
 }

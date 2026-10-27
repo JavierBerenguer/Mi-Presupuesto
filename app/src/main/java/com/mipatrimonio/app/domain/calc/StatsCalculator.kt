@@ -32,7 +32,7 @@ object StatsCalculator {
         var income = 0L
         var expense = 0L
         var excluded = 0
-        for (t in transactions) {
+        for (t in TransactionGroups.netForStatistics(transactions)) {
             if (t.date !in range || movementStatus(t.date, today) != MovementStatus.EJECUTADO) continue
             if (t.currency != baseCurrency) {
                 excluded++
@@ -74,7 +74,7 @@ object StatsCalculator {
     ): List<CategorySpend> {
         val byId = categories.associateBy { it.id }
         val sums = LinkedHashMap<String?, Long>()
-        for (t in transactions) {
+        for (t in TransactionGroups.netForStatistics(transactions)) {
             if (
                 t.type != TransactionType.GASTO || t.currency != baseCurrency || t.date !in range ||
                 movementStatus(t.date, today) != MovementStatus.EJECUTADO

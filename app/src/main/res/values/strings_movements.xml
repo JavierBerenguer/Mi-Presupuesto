@@ -154,4 +154,21 @@
     <string name="mov_all_accounts">Todas las cuentas</string>
     <string name="mov_close">Cerrar</string>
     <string name="mov_investment_transfer">Traspaso de criptomoneda</string>
+    <string name="mov_group_parent_summary">Agrupa %1$d ingresos Â· neto %2$s</string>
+    <string name="mov_group_child_summary">Agrupado en: %1$s</string>
+    <string name="mov_group_count">+%1$d</string>
+    <string name="mov_expand_group">Mostrar %1$d apuntes agrupados</string>
+    <string name="mov_collapse_group">Ocultar apuntes agrupados</string>
+    <string name="mov_group_child_metadata">%1$s Â· %2$s</string>
+    <string name="mov_ungroup">Desagrupar</string>
+    <string name="mov_ungroup_title">Desagrupar apuntes</string>
+    <string name="mov_ungroup_message">Los ingresos volverÃ¡n a aparecer como apuntes independientes.</string>
+    <string name="mov_remove_from_group">Quitar del grupo</string>
+    <string name="mov_delete_group_message">Esta acciÃ³n no se puede deshacer. Los apuntes agrupados quedarÃ¡n sueltos.</string>
+    <string name="mov_selected_count">%1$d seleccionados</string>
+    <string name="mov_exit_selection">Salir de la selecciÃ³n</string>
+    <string name="mov_group">Agrupar</string>
+    <string name="mov_choose_group_parent">Â¿Sobre quÃ© apunte se agrupan los demÃ¡s?</string>
+    <string name="mov_group_result">Neto resultante: %1$s</string>
+    <string name="mov_selected_item">Apunte seleccionado</string>
 </resources>

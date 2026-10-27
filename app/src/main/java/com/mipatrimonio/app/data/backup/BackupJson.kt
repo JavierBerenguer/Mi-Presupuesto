@@ -103,6 +103,7 @@ class BackupJson {
         "epochDay" to v.epochDay, "accountId" to v.accountId, "categoryId" to v.categoryId,
         "description" to v.description, "merchant" to v.merchant, "notes" to v.notes,
         "source" to v.source, "createdAt" to v.createdAt, "updatedAt" to v.updatedAt,
+        "groupParentId" to v.groupParentId,
     )
     private fun transfer(v: TransferEntity) = row(
         "id" to v.id, "fromAccountId" to v.fromAccountId, "toAccountId" to v.toAccountId,
@@ -176,7 +177,7 @@ class BackupJson {
 
     private fun readAccount(j: JSONObject) = AccountEntity(j.s("id"), j.s("name"), j.s("type"), j.s("currency"), j.l("initialBalanceMinor"), j.b("archived"), j.l("createdAt"), j.l("updatedAt"))
     private fun readCategory(j: JSONObject) = CategoryEntity(j.s("id"), j.s("name"), j.s("kind"), j.ns("parentId"), j.l("colorArgb"), j.b("archived"), j.i("sortOrder"), j.ns("icon"))
-    private fun readTransaction(j: JSONObject) = TransactionEntity(j.s("id"), j.s("type"), j.l("amountMinor"), j.s("currency"), j.l("epochDay"), j.s("accountId"), j.ns("categoryId"), j.s("description"), j.s("merchant"), j.s("notes"), j.s("source"), j.l("createdAt"), j.l("updatedAt"))
+    private fun readTransaction(j: JSONObject) = TransactionEntity(j.s("id"), j.s("type"), j.l("amountMinor"), j.s("currency"), j.l("epochDay"), j.s("accountId"), j.ns("categoryId"), j.s("description"), j.s("merchant"), j.s("notes"), j.s("source"), j.l("createdAt"), j.l("updatedAt"), j.ns("groupParentId"))
     private fun readTransfer(j: JSONObject) = TransferEntity(j.s("id"), j.s("fromAccountId"), j.s("toAccountId"), j.l("fromAmountMinor"), j.l("toAmountMinor"), j.l("epochDay"), j.s("description"), j.l("createdAt"), j.l("updatedAt"), j.ns("categoryId"))
     private fun readBudget(j: JSONObject) = BudgetEntity(j.s("id"), j.ns("categoryId"), j.s("period"), j.l("limitMinor"), j.s("currency"), j.b("archived"), j.l("createdAt"), j.os("name", ""), j.ol("startEpochDay", 0), j.nl("endEpochDay"), j.oi("alertThresholdPct", 90))
     private fun readBudgetCategory(j: JSONObject) = BudgetCategoryEntity(j.s("budgetId"), j.s("categoryId"), j.b("includeSubcategories"))

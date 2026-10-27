@@ -72,6 +72,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mipatrimonio.app.R
+import com.mipatrimonio.app.domain.model.MoneyMath
 import com.mipatrimonio.app.ui.common.EmptyState
 import com.mipatrimonio.app.ui.common.CategoryIconBadge
 import com.mipatrimonio.app.ui.common.LoadingBox
@@ -279,6 +280,27 @@ private fun EntryFormContent(
                 stringResource(R.string.mov_type_locked),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (state.groupChildCount > 0 && state.groupNetMinor != null && state.groupCurrency != null) {
+            Text(
+                stringResource(
+                    R.string.mov_group_parent_summary,
+                    state.groupChildCount,
+                    MoneyMath.format(state.groupNetMinor, state.groupCurrency),
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        state.groupParentTitle?.let { title ->
+            Text(
+                stringResource(
+                    R.string.mov_group_child_summary,
+                    title.ifBlank { stringResource(R.string.mov_no_description) },
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
             )
         }
         FormCard {

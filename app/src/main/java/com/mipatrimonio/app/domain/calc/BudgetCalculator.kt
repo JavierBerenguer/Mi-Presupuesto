@@ -99,7 +99,7 @@ object BudgetCalculator {
         val parentOf = categories.associate { it.id to it.parentId }
         var spent = 0L
         var excluded = 0
-        for (transaction in transactions) {
+        for (transaction in TransactionGroups.netForStatistics(transactions)) {
             if (
                 transaction.type != TransactionType.GASTO || transaction.date !in range ||
                 movementStatus(transaction.date, today) != MovementStatus.EJECUTADO
@@ -146,7 +146,7 @@ object BudgetCalculator {
         today: LocalDate,
     ): List<Transaction> {
         val parentOf = categories.associate { it.id to it.parentId }
-        return transactions.filter {
+        return TransactionGroups.netForStatistics(transactions).filter {
             it.type == TransactionType.GASTO && it.currency == budget.currency && it.date in range &&
                 movementStatus(it.date, today) == MovementStatus.EJECUTADO &&
                 matches(budget.categoryRules, it.categoryId, parentOf)

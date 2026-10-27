@@ -8,6 +8,7 @@ import com.mipatrimonio.app.data.db.toDomain
 import com.mipatrimonio.app.data.db.toEntity
 import com.mipatrimonio.app.data.db.toRuleEntities
 import com.mipatrimonio.app.domain.calc.BalanceCalculator
+import com.mipatrimonio.app.domain.calc.TransactionGroups
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.Category
@@ -181,10 +182,62 @@ class LedgerRepository(
         val account = accountDao.getById(transaction.accountId) ?: throw IllegalArgumentException("La cuenta no existe")
         require(!account.archived) { "La cuenta está archivada" }
         require(account.currency == transaction.currency) { "La divisa del movimiento debe ser la de la cuenta" }
+        validateTransactionGroupChange(transaction)
         transactionDao.upsert(transaction.copy(updatedAt = clock()).toEntity())
     }
 
-    suspend fun deleteTransaction(id: String) = transactionDao.delete(id)
+    suspend fun groupTransactions(parentId: String, childIds: List<String>) = db.withTransaction {
+        require(childIds.isNotEmpty()) { "Selecciona al menos un ingreso para agrupar" }
+        require(parentId !in childIds) { "El apunte principal no puede agruparse consigo mismo" }
+        val parent = transactionDao.getById(parentId)?.toDomain()
+            ?: throw IllegalArgumentException("El apunte principal no existe")
+        val distinctChildIds = childIds.distinct()
+        val children = distinctChildIds.map { id ->
+            transactionDao.getById(id)?.toDomain()
+                ?: throw IllegalArgumentException("Uno de los apuntes seleccionados no existe")
+        }
+        TransactionGroups.validate(parent, children)
+        children.forEach { child ->
+            require(transactionDao.countChildren(child.id) == 0) {
+                "Un apunte principal de otro grupo no puede ser un ingreso agrupado"
+            }
+        }
+        val newIds = children.filter { it.groupParentId == null }.map(Transaction::id)
+        if (newIds.isNotEmpty()) transactionDao.setGroupParent(newIds, parentId)
+    }
+
+    suspend fun ungroup(parentId: String) = db.withTransaction {
+        transactionDao.clearGroup(parentId)
+    }
+
+    suspend fun removeFromGroup(childId: String) = db.withTransaction {
+        transactionDao.setGroupParent(listOf(childId), null)
+    }
+
+    suspend fun deleteTransaction(id: String) = db.withTransaction {
+        transactionDao.clearGroup(id)
+        transactionDao.delete(id)
+    }
+
+    private suspend fun validateTransactionGroupChange(transaction: Transaction) {
+        val invalidGroupMessage = "Desagrupa los apuntes antes de cambiar el tipo o la divisa"
+        transaction.groupParentId?.let { parentId ->
+            val parent = transactionDao.getById(parentId)?.toDomain()
+                ?: throw IllegalArgumentException(invalidGroupMessage)
+            require(
+                transaction.type == com.mipatrimonio.app.domain.model.TransactionType.INGRESO &&
+                    parent.type == com.mipatrimonio.app.domain.model.TransactionType.GASTO &&
+                    parent.groupParentId == null && parent.currency == transaction.currency,
+            ) { invalidGroupMessage }
+        }
+        val children = transactionDao.getChildren(transaction.id).map { it.toDomain() }
+        if (children.isNotEmpty()) {
+            require(
+                transaction.type == com.mipatrimonio.app.domain.model.TransactionType.GASTO &&
+                    transaction.groupParentId == null && children.all { it.currency == transaction.currency },
+            ) { invalidGroupMessage }
+        }
+    }
 
     suspend fun saveTransfer(transfer: Transfer) = db.withTransaction {
         val from = accountDao.getById(transfer.fromAccountId)?.toDomain() ?: throw IllegalArgumentException("Cuenta de origen inexistente")

@@ -44,6 +44,7 @@ data class MovementsUiState(
     val hideFuture: Boolean = false,
     val ignoreTransfers: Boolean = false,
     val includedAccountIds: Set<String> = emptySet(),
+    val selectedIds: Set<String> = emptySet(),
 ) {
     val activeAccounts: List<Account> get() = accounts.filterNot(Account::archived)
     val hasActiveFilters: Boolean get() = filters != MovementFilters()
@@ -88,6 +89,7 @@ class MovementsViewModel(
     private val filters = MutableStateFlow(MovementFilters())
     private val error = MutableStateFlow<String?>(null)
     private val selectedMonth = MutableStateFlow(YearMonth.now())
+    private val selectedIds = MutableStateFlow<Set<String>>(emptySet())
 
     private val ledgerData = combine(
         ledger.accounts,
@@ -109,13 +111,16 @@ class MovementsViewModel(
         investmentData,
         settings.settings,
     ) { ledgerData, investmentData, currentSettings ->
+        val existingTransactionIds = ledgerData.transactions.mapTo(hashSetOf(), Transaction::id)
+        val retainedSelection = selectedIds.value.intersect(existingTransactionIds)
+        if (retainedSelection != selectedIds.value) selectedIds.value = retainedSelection
         val investmentItems = buildInvestmentMovementItems(
             investmentData.operations, investmentData.assets, investmentData.portfolios,
         )
         SourceData(
             accounts = ledgerData.accounts,
             categories = ledgerData.categories,
-            items = ledgerData.transactions.map(MovementItem::Tx) +
+            items = attachTransactionGroups(ledgerData.transactions) +
                 ledgerData.transfers.map(MovementItem::Move) + investmentItems,
             baseCurrency = currentSettings.baseCurrency,
             hideAmounts = currentSettings.hideAmounts,
@@ -132,8 +137,8 @@ class MovementsViewModel(
     }
 
     val uiState: StateFlow<MovementsUiState> = combine(
-        sourceData, filters, error, selectedMonth,
-    ) { data, currentFilters, currentError, month ->
+        sourceData, filters, error, selectedMonth, selectedIds,
+    ) { data, currentFilters, currentError, month, currentSelectedIds ->
         val currentDate = today()
         val monthFilters = currentFilters.copy(
             from = maxOf(currentFilters.from ?: month.atDay(1), month.atDay(1)),
@@ -180,6 +185,7 @@ class MovementsViewModel(
             hideFuture = data.hideFuture,
             ignoreTransfers = data.ignoreTransfers,
             includedAccountIds = data.includedAccountIds,
+            selectedIds = currentSelectedIds.intersect(data.transactions.mapTo(hashSetOf(), Transaction::id)),
         )
     }.stateIn(
         scope = viewModelScope,
@@ -223,6 +229,37 @@ class MovementsViewModel(
         error.value = null
     }
 
+    fun startSelection(id: String) {
+        selectedIds.value = setOf(id)
+    }
+
+    fun toggleSelection(id: String) {
+        selectedIds.value = selectedIds.value.toMutableSet().apply {
+            if (!add(id)) remove(id)
+        }
+    }
+
+    fun clearSelection() {
+        selectedIds.value = emptySet()
+    }
+
+    fun groupSelected(parentId: String) {
+        val ids = selectedIds.value
+        viewModelScope.launch {
+            runCatching { ledger.groupTransactions(parentId, ids.filter { it != parentId }) }
+                .onSuccess { selectedIds.value = emptySet() }
+                .onFailure { error.value = it.message }
+        }
+    }
+
+    fun ungroup(parentId: String) = viewModelScope.launch {
+        runCatching { ledger.ungroup(parentId) }.onFailure { error.value = it.message }
+    }
+
+    fun removeFromGroup(childId: String) = viewModelScope.launch {
+        runCatching { ledger.removeFromGroup(childId) }.onFailure { error.value = it.message }
+    }
+
     fun setCalculationMode(mode: MovementsCalculationMode) = updateSetting {
         settings.setMovementsCalculationMode(mode)
     }
@@ -256,6 +293,7 @@ class MovementsViewModel(
                         source = TransactionSource.MANUAL,
                         createdAt = now,
                         updatedAt = now,
+                        groupParentId = null,
                     ),
                 )
             }.onFailure { error.value = it.message }
@@ -272,5 +310,15 @@ class MovementsViewModel(
                 }
             }.onFailure { error.value = it.message }
         }
+    }
+}
+
+private fun attachTransactionGroups(transactions: List<Transaction>): List<MovementItem.Tx> {
+    val byId = transactions.associateBy(Transaction::id)
+    val childrenByParent = transactions.filter { it.groupParentId in byId }
+        .groupBy { requireNotNull(it.groupParentId) }
+    return transactions.mapNotNull { transaction ->
+        if (transaction.groupParentId in byId) null
+        else MovementItem.Tx(transaction, childrenByParent[transaction.id].orEmpty())
     }
 }

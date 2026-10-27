@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.NotificationRepository
 import com.mipatrimonio.app.domain.calc.BalanceCalculator
+import com.mipatrimonio.app.domain.calc.TransactionGroups
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.model.MoneyMath
@@ -73,6 +74,10 @@ data class EntryFormUiState(
     val error: EntryFormError? = null,
     val saveFailed: Boolean = false,
     val originalNotification: OriginalNotificationUi? = null,
+    val groupChildCount: Int = 0,
+    val groupNetMinor: Long? = null,
+    val groupCurrency: String? = null,
+    val groupParentTitle: String? = null,
 ) {
     val activeAccounts: List<Account> get() = accounts.filterNot(Account::archived)
     val selectedAccount: Account? get() = accounts.find { it.id == values.accountId }
@@ -189,6 +194,13 @@ class EntryFormViewModel(
     ) { data, currentValues, initial, isInitialized, presentation ->
         val originalNotification = presentation.first
         val status = presentation.second
+        val transaction = originalTransaction
+        val groupChildren = transaction?.let { parent ->
+            data?.transactions.orEmpty().filter { it.groupParentId == parent.id }
+        }.orEmpty()
+        val groupParent = transaction?.groupParentId?.let { parentId ->
+            data?.transactions.orEmpty().find { it.id == parentId }
+        }
         EntryFormUiState(
             isLoading = data == null || currentValues == null || !isInitialized,
             isEditing = entryId != null,
@@ -207,6 +219,11 @@ class EntryFormViewModel(
             error = status.second,
             saveFailed = status.third,
             originalNotification = originalNotification,
+            groupChildCount = groupChildren.size,
+            groupNetMinor = transaction?.takeIf { groupChildren.isNotEmpty() }
+                ?.let { TransactionGroups.netAmountMinor(it, groupChildren) },
+            groupCurrency = transaction?.currency,
+            groupParentTitle = groupParent?.description?.ifBlank { groupParent.merchant },
         )
     }.stateIn(
         scope = viewModelScope,
@@ -337,6 +354,7 @@ class EntryFormViewModel(
                     source = previous?.source ?: TransactionSource.MANUAL,
                     createdAt = previous?.createdAt ?: clock(),
                     updatedAt = clock(),
+                    groupParentId = previous?.groupParentId,
                 ),
             )
         }

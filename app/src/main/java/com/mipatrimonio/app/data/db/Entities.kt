@@ -42,7 +42,7 @@ data class CategoryEntity(
         ForeignKey(AccountEntity::class, ["id"], ["accountId"], onDelete = ForeignKey.RESTRICT),
         ForeignKey(CategoryEntity::class, ["id"], ["categoryId"], onDelete = ForeignKey.RESTRICT),
     ],
-    indices = [Index("accountId"), Index("categoryId"), Index("epochDay")],
+    indices = [Index("accountId"), Index("categoryId"), Index("epochDay"), Index("groupParentId")],
 )
 data class TransactionEntity(
     @PrimaryKey val id: String,
@@ -58,6 +58,7 @@ data class TransactionEntity(
     val source: String,
     val createdAt: Long,
     val updatedAt: Long,
+    val groupParentId: String? = null,
 )
 
 @Entity(
