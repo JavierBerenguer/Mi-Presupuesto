@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.mipatrimonio.app.data.db.*
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.NotificationRepository
+import com.mipatrimonio.app.data.repository.PendingAutomationAlert
 import com.mipatrimonio.app.domain.model.*
 import com.mipatrimonio.app.domain.notifications.*
 import java.time.ZoneId
@@ -139,6 +140,7 @@ class NotificationRepositoryTest {
         repository.reprocessPending()
         assertEquals(NotificationRecordStatus.PENDIENTE_REGLA.name, db.notificationDao().getRecord(pending.id)?.status)
         assertNull(db.notificationDao().getRecord(pending.id)?.transactionId)
+        assertNull(repository.pendingAlertFor(pending.id))
         repository.createRuleForRecord(pending.id, NotificationRuleValues(title = "Dos específico"))
         val automated = db.notificationDao().getRecord(pending.id)!!
         assertEquals(NotificationRecordStatus.AUTOMATIZADA.name, automated.status)
@@ -254,6 +256,62 @@ class NotificationRepositoryTest {
         repository.markRecordCreatedManually(manualRecord, transaction.id)
         assertEquals(NotificationRecordStatus.CREADA_MANUAL.name, db.notificationDao().getRecord(manualRecord)?.status)
         assertTrue(runCatching { repository.markRecordCreatedManually(manualRecord, transaction.id) }.exceptionOrNull() is IllegalStateException)
+    }
+
+    @Test fun `avisa de estructura nueva con recuentos y excluye resultados no avisables`() = runTest {
+        val (unauthorized, unauthorizedAlert) = repository.ingestWithPendingAlert(notification("Formato nuevo 1 EUR"))
+        assertEquals(NotificationOutcome.AppNoAutorizada, unauthorized)
+        assertNull(unauthorizedAlert)
+        authorizeWithAccount()
+        val (firstOutcome, firstAlert) = repository.ingestWithPendingAlert(notification("Formato nuevo 1 EUR"))
+        val first = firstOutcome as NotificationOutcome.Registrada
+        assertEquals(PendingAutomationAlert(1, 0), firstAlert)
+
+        val (duplicate, duplicateAlert) = repository.ingestWithPendingAlert(notification("Formato nuevo 1 EUR", 1_001))
+        assertTrue(duplicate is NotificationOutcome.Duplicada)
+        assertNull(duplicateAlert)
+
+        val (sensitive, sensitiveAlert) = repository.ingestWithPendingAlert(notification("Código de verificación 123456", 500_000))
+        assertTrue(sensitive is NotificationOutcome.NoInterpretable)
+        assertNull(sensitiveAlert)
+
+        repository.setAuthorized("sin.cuenta", true, null)
+        val pendingAccount = repository.ingest(BankNotification("sin.cuenta", "", "Otro formato 2 EUR", 500_000)) as NotificationOutcome.Registrada
+        assertEquals(NotificationRecordStatus.PENDIENTE_CUENTA, pendingAccount.status)
+        assertNull(repository.pendingAlertFor(pendingAccount.recordId))
+    }
+
+    @Test fun `comercio general solo avisa la primera vez usando clave normalizada y cuenta grupos`() = runTest {
+        authorizeWithAccount()
+        val seed = (repository.ingest(notification("Pago 1 EUR en Semilla")) as NotificationOutcome.Registrada).recordId
+        repository.createStructureFromRecord(seed, "Pago", 0..3, 14..20, NotificationDirection.GASTO)
+
+        val first = (repository.ingest(notification("Pago 2 EUR en CAFÉ", 500_000)) as NotificationOutcome.Registrada).recordId
+        assertEquals(PendingAutomationAlert(0, 1), repository.pendingAlertFor(first))
+        val repeated = (repository.ingest(notification("Pago 3 EUR en cafe", 900_000)) as NotificationOutcome.Registrada).recordId
+        assertNull(repository.pendingAlertFor(repeated))
+        val second = (repository.ingest(notification("Pago 4 EUR en Otro", 1_300_000)) as NotificationOutcome.Registrada).recordId
+        assertEquals(PendingAutomationAlert(0, 2), repository.pendingAlertFor(second))
+
+        val (_, combinedAlert) = repository.ingestWithPendingAlert(notification("Estructura distinta 6 EUR", 1_500_000))
+        assertEquals(PendingAutomationAlert(1, 2), combinedAlert)
+
+        repository.createRuleForRecord(first, NotificationRuleValues())
+        val configured = (repository.ingest(notification("Pago 5 EUR en CAFE", 1_700_000)) as NotificationOutcome.Registrada).recordId
+        assertNotNull(db.notificationDao().getRecord(configured)?.ruleId)
+        assertNull(repository.pendingAlertFor(configured))
+    }
+
+    @Test fun `comercio puede volver a avisar si se borro el unico apunte general vivo`() = runTest {
+        authorizeWithAccount()
+        val seed = (repository.ingest(notification("Pago 1 EUR en Uno")) as NotificationOutcome.Registrada).recordId
+        repository.createStructureFromRecord(seed, "Pago", 0..3, 14..16, NotificationDirection.GASTO)
+        val first = (repository.ingest(notification("Pago 2 EUR en Dos", 500_000)) as NotificationOutcome.Registrada).recordId
+        assertNotNull(repository.pendingAlertFor(first))
+        LedgerRepository(db).deleteTransaction(requireNotNull(db.notificationDao().getRecord(first)?.transactionId))
+
+        val returned = (repository.ingest(notification("Pago 3 EUR en DÓS", 900_000)) as NotificationOutcome.Registrada).recordId
+        assertEquals(PendingAutomationAlert(0, 1), repository.pendingAlertFor(returned))
     }
 
     private suspend fun authorizeWithAccount() { saveAccount("account", "EUR"); repository.setAuthorized(PACKAGE, true, "account") }

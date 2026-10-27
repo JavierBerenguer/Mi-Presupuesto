@@ -393,6 +393,23 @@ interface NotificationDao {
     """)
     fun observeRecordsUsingStructureDefaults(): Flow<List<NotificationRecordEntity>>
 
+    @Query("""
+        SELECT * FROM notification_record
+        WHERE status = 'AUTOMATIZADA'
+          AND ruleId IS NULL
+          AND structureId IS NOT NULL
+          AND variableText IS NOT NULL
+          AND transactionId IS NOT NULL
+        ORDER BY postedAt DESC, createdAt DESC
+    """)
+    suspend fun getRecordsUsingStructureDefaults(): List<NotificationRecordEntity>
+
+    @Query("SELECT * FROM notification_rule WHERE enabled = 1 ORDER BY createdAt, id")
+    suspend fun getEnabledRules(): List<NotificationRuleEntity>
+
+    @Query("SELECT COUNT(*) FROM notification_record WHERE status = 'PENDIENTE_ESTRUCTURA'")
+    suspend fun countPendingStructures(): Int
+
     @Query("SELECT * FROM notification_record WHERE id = :id") suspend fun getRecord(id: String): NotificationRecordEntity?
     @Query("SELECT * FROM notification_record WHERE transactionId = :transactionId LIMIT 1")
     suspend fun getRecordForTransaction(transactionId: String): NotificationRecordEntity?

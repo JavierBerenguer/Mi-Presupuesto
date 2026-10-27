@@ -16,6 +16,7 @@ import com.mipatrimonio.app.domain.notifications.NotificationRecordStatus
 import com.mipatrimonio.app.domain.notifications.NotificationRuleValues
 import com.mipatrimonio.app.domain.notifications.TemplateSegment
 import com.mipatrimonio.app.testutil.awaitValue
+import com.mipatrimonio.app.testutil.SettingsStoreRule
 import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -31,6 +32,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -40,6 +42,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class AutomationViewModelsTest {
+    @get:Rule val settingsRule = SettingsStoreRule()
     private lateinit var db: AppDatabase
     private lateinit var ledger: LedgerRepository
     private lateinit var notifications: NotificationRepository
@@ -65,7 +68,7 @@ class AutomationViewModelsTest {
         notifications.setAuthorized("app.unlinked", true, null)
         val newest = (notifications.ingest(BankNotification("app.unlinked", "", "Formato tres 3 EUR", 3_000)) as
             com.mipatrimonio.app.domain.notifications.NotificationOutcome.Registrada).recordId
-        val viewModel = PendingAutomationViewModel(notifications)
+        val viewModel = PendingAutomationViewModel(notifications, settingsRule.repository) {}
 
         val initial = viewModel.uiState.first { !it.isLoading && it.count == 3 }
         assertEquals(newest, initial.records.first().id)
@@ -82,7 +85,7 @@ class AutomationViewModelsTest {
         val seed = ingest("Pago 10 EUR en Uno", 1_000)
         notifications.createStructureFromRecord(seed, "Pago", 0..3, 15..17, NotificationDirection.GASTO)
         val general = ingest("Pago 20 EUR en Dos", 500_000)
-        val viewModel = PendingAutomationViewModel(notifications)
+        val viewModel = PendingAutomationViewModel(notifications, settingsRule.repository) {}
 
         val initial = viewModel.uiState.first { !it.isLoading && it.newMerchantCount == 1 }
         assertEquals(general, initial.newMerchants.single().recordId)

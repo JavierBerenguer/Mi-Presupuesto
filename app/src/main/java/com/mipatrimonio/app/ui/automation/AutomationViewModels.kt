@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.MerchantUsingStructureDefaults
 import com.mipatrimonio.app.data.repository.NotificationRepository
+import com.mipatrimonio.app.data.repository.SettingsRepository
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.notifications.NotificationDefaults
@@ -57,24 +58,42 @@ data class PendingAutomationUiState(
     val isLoading: Boolean = true,
     val records: List<NotificationRecord> = emptyList(),
     val newMerchants: List<MerchantUsingStructureDefaults> = emptyList(),
+    val alertsEnabled: Boolean = true,
     val errorMessage: String? = null,
 ) {
     val count: Int get() = records.size
     val newMerchantCount: Int get() = newMerchants.size
 }
 
-class PendingAutomationViewModel(private val notifications: NotificationRepository) : ViewModel() {
+class PendingAutomationViewModel(
+    private val notifications: NotificationRepository,
+    private val settings: SettingsRepository,
+    private val cancelAlert: () -> Unit,
+) : ViewModel() {
     private val error = MutableStateFlow<String?>(null)
+    init {
+        cancelAlert()
+    }
     val uiState: StateFlow<PendingAutomationUiState> = combine(
-        pendingRecords(notifications), notifications.merchantsUsingStructureDefaults, error,
-    ) { records, merchants, message ->
-        PendingAutomationUiState(false, records.sortedByDescending(NotificationRecord::postedAt), merchants, message)
+        pendingRecords(notifications), notifications.merchantsUsingStructureDefaults, settings.settings, error,
+    ) { records, merchants, currentSettings, message ->
+        PendingAutomationUiState(
+            false,
+            records.sortedByDescending(NotificationRecord::postedAt),
+            merchants,
+            currentSettings.pendingAutomationAlertsEnabled,
+            message,
+        )
     }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PendingAutomationUiState())
 
     fun discard(id: String) = runOperation { notifications.discardRecord(id) }
     fun alwaysUseStructureDefaults(recordId: String) = runOperation {
         notifications.createRuleForRecord(recordId, NotificationRuleValues())
+    }
+    fun setAlertsEnabled(enabled: Boolean) = runOperation {
+        settings.setPendingAutomationAlertsEnabled(enabled)
+        if (!enabled) cancelAlert()
     }
 
     private fun runOperation(block: suspend () -> Unit) {

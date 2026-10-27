@@ -35,6 +35,7 @@ data class Settings(
     val neverlessAccountId: String? = null,
     val neverlessPortfolioId: String? = null,
     val categoryCatalogVersion: Int = 0,
+    val pendingAutomationAlertsEnabled: Boolean = true,
 )
 
 class SettingsRepository(private val store: DataStore<Preferences>) {
@@ -57,6 +58,7 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
     private val neverlessAccountIdKey = stringPreferencesKey("neverless_account_id")
     private val neverlessPortfolioIdKey = stringPreferencesKey("neverless_portfolio_id")
     private val categoryCatalogVersionKey = intPreferencesKey("category_catalog_version")
+    private val pendingAutomationAlertsEnabledKey = booleanPreferencesKey("pending_automation_alerts_enabled")
 
     /** Modo oscuro activado por defecto; divisa base EUR por defecto. */
     val settings: Flow<Settings> = store.data.map { p ->
@@ -80,6 +82,7 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
             neverlessAccountId = p[neverlessAccountIdKey]?.takeIf(String::isNotBlank),
             neverlessPortfolioId = p[neverlessPortfolioIdKey]?.takeIf(String::isNotBlank),
             categoryCatalogVersion = p[categoryCatalogVersionKey] ?: 0,
+            pendingAutomationAlertsEnabled = p[pendingAutomationAlertsEnabledKey] ?: true,
         )
     }
 
@@ -159,6 +162,10 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
         store.edit { it[categoryCatalogVersionKey] = version }
     }
 
+    suspend fun setPendingAutomationAlertsEnabled(enabled: Boolean) {
+        store.edit { it[pendingAutomationAlertsEnabledKey] = enabled }
+    }
+
     suspend fun exportForBackup(): Map<String, Any?> {
         val value = settings.first()
         return linkedMapOf(
@@ -179,6 +186,7 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
             "neverless_account_id" to value.neverlessAccountId,
             "neverless_portfolio_id" to value.neverlessPortfolioId,
             "category_catalog_version" to value.categoryCatalogVersion,
+            "pending_automation_alerts_enabled" to value.pendingAutomationAlertsEnabled,
         ).filterValues { it != null }
     }
 
@@ -215,6 +223,9 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
             }
             preferences[categoryCatalogVersionKey] =
                 (values["category_catalog_version"] as? Number)?.toInt() ?: 0
+            (values["pending_automation_alerts_enabled"] as? Boolean)?.let {
+                preferences[pendingAutomationAlertsEnabledKey] = it
+            }
         }
     }
 }
