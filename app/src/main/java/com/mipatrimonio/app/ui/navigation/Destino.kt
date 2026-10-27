@@ -13,7 +13,6 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -39,8 +38,6 @@ object Rutas {
     const val MOVEMENT_SOURCE_KEY = "movement_source"
     const val NUEVO = "nuevo"
     const val CUENTAS = "cuentas"
-    const val ACTIVOS = "activos"
-    const val CARTERAS = "carteras"
     const val CATEGORIAS = "categorias"
     const val NOTIFICACIONES = "notificaciones"
     const val PROPUESTAS = "propuestas"
@@ -56,11 +53,9 @@ object Rutas {
     const val IMPORTAR_TRADE_REPUBLIC = "importar-trade-republic"
     const val RECURRENTE = "orden-permanente/{id}"
     const val APUNTE = "apunte/{id}"
-    const val ACTIVO = "activo/{portfolioId}/{assetId}"
 
     fun apunte(id: String?) = "apunte/${id ?: NUEVO}"
     fun recurrente(id: String?) = "orden-permanente/${id ?: NUEVO}"
-    fun activo(portfolioId: String, assetId: String) = "activo/$portfolioId/$assetId"
     fun ensenarNotificacion(id: String) = "automatizacion-notificaciones/ensenar/$id"
     fun configurarRegla(id: String) = "automatizacion-notificaciones/regla/$id"
     fun automatizacionNotificaciones(tab: String) = "$AUTOMATIZACION_NOTIFICACIONES?tab=$tab"
@@ -75,8 +70,6 @@ enum class SecondaryMenuDestination(
     val location: MenuLocation,
 ) {
     CUENTAS(Rutas.CUENTAS, R.string.nav_cuentas, Icons.Filled.AccountBalanceWallet, MenuLocation.MAS),
-    CARTERAS(Rutas.CARTERAS, R.string.portfolios_title, Icons.Filled.ShowChart, MenuLocation.MAS),
-    ACTIVOS(Rutas.ACTIVOS, R.string.inv_assets_title, Icons.Filled.ShowChart, MenuLocation.MAS),
     CATEGORIAS(Rutas.CATEGORIAS, R.string.nav_categorias, Icons.Filled.Category, MenuLocation.MAS),
     RECURRENTES(Rutas.RECURRENTES, R.string.recurring_title, Icons.Filled.Schedule, MenuLocation.MAS),
     PATRIMONIO(Rutas.PATRIMONIO, R.string.nav_patrimonio, Icons.Filled.AccountBalance, MenuLocation.MAS),

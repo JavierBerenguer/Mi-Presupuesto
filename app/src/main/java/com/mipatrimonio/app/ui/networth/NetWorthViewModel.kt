@@ -2,14 +2,9 @@ package com.mipatrimonio.app.ui.networth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.mipatrimonio.app.data.repository.InvestmentRepository
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
 import com.mipatrimonio.app.domain.model.Account
-import com.mipatrimonio.app.domain.model.Asset
-import com.mipatrimonio.app.domain.model.AssetPrice
-import com.mipatrimonio.app.domain.model.InvestmentOperation
-import com.mipatrimonio.app.domain.model.Portfolio
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.Transfer
 import com.mipatrimonio.app.domain.usecase.FinanceSnapshot
@@ -24,56 +19,30 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 
-data class NetWorthState(
-    val snapshot: FinanceSnapshot,
-    val period: Period,
-    val series: List<NetWorthPoint>,
-)
+data class NetWorthState(val snapshot: FinanceSnapshot, val period: Period, val series: List<NetWorthPoint>)
 
-class NetWorthViewModel(
-    ledger: LedgerRepository,
-    investments: InvestmentRepository,
-    settings: SettingsRepository,
-) : ViewModel() {
+class NetWorthViewModel(ledger: LedgerRepository, settings: SettingsRepository) : ViewModel() {
     private data class LedgerData(
         val accounts: List<Account>,
         val transactions: List<Transaction>,
         val transfers: List<Transfer>,
     )
 
-    private data class InvestmentData(
-        val portfolios: List<Portfolio>,
-        val assets: List<Asset>,
-        val operations: List<InvestmentOperation>,
-        val prices: Map<String, AssetPrice>,
-    )
-
     private val selectedPeriod = MutableStateFlow(Period.ANIO)
-
     private val ledgerData = combine(ledger.accounts, ledger.transactions, ledger.transfers, ::LedgerData)
-    private val investmentData = combine(
-        investments.portfolios, investments.assets, investments.operations, investments.latestPrices, ::InvestmentData,
-    )
 
-    val state: StateFlow<NetWorthState?> = combine(
-        ledgerData, investmentData, settings.settings, selectedPeriod,
-    ) { l, inv, config, period ->
+    val state: StateFlow<NetWorthState?> = combine(ledgerData, settings.settings, selectedPeriod) { data, config, period ->
         val today = LocalDate.now()
-        val firstActivity = (l.transactions.map { it.date } + l.transfers.map { it.date } + inv.operations.map { it.date }).minOrNull()
+        val firstActivity = (data.transactions.map { it.date } + data.transfers.map { it.date }).minOrNull()
         NetWorthState(
-            snapshot = SnapshotBuilder.build(
-                config.baseCurrency, l.accounts, l.transactions, l.transfers,
-                inv.portfolios, inv.assets, inv.operations, inv.prices, today,
-            ),
+            snapshot = SnapshotBuilder.build(config.baseCurrency, data.accounts, data.transactions, data.transfers, today),
             period = period,
             series = HistoryCalculator.netWorthSeries(
-                config.baseCurrency, l.accounts, l.transactions, l.transfers, inv.assets, inv.operations,
+                config.baseCurrency, data.accounts, data.transactions, data.transfers,
                 HistoryCalculator.sampleDates(period, today, firstActivity), today,
             ),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    fun selectPeriod(period: Period) {
-        selectedPeriod.value = period
-    }
+    fun selectPeriod(period: Period) { selectedPeriod.value = period }
 }

@@ -54,8 +54,6 @@ class CategorizedTransferInvariantTest {
                 accounts = accounts,
                 transactions = transactions,
                 transfers = listOf(transfer),
-                assets = emptyList(),
-                operations = emptyList(),
                 dates = listOf(date),
                 today = date,
             ).single().totalMinor,

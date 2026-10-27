@@ -1,15 +1,10 @@
 package com.mipatrimonio.app.data.export
 
 import com.mipatrimonio.app.domain.calc.BalanceCalculator
-import com.mipatrimonio.app.domain.model.AssetType
 import com.mipatrimonio.app.domain.model.BudgetPeriod
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.model.MoneyMath
 import com.mipatrimonio.app.domain.model.MovementStatus
-import com.mipatrimonio.app.domain.model.OperationType
-import com.mipatrimonio.app.domain.model.PriceQuality
-import com.mipatrimonio.app.domain.model.PriceSource
-import com.mipatrimonio.app.domain.model.QuoteProvider
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.model.movementStatus
@@ -31,24 +26,15 @@ class CsvExportService(
     suspend fun create(): CsvExportArchive = create(repository.load(), today(), zoneId)
 
     companion object {
-        private val dateTimeFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
-        private val timeFormat = DateTimeFormatter.ofPattern("HH:mm:ss")
         internal fun create(data: CsvExportData, today: LocalDate, zoneId: ZoneId): CsvExportArchive {
             val accounts = data.accounts.associateBy { it.id }
             val categories = data.categories.associateBy { it.id }
-            val portfolios = data.portfolios.associateBy { it.id }
-            val assets = data.assets.associateBy { it.id }
             val rows = linkedMapOf(
                 "cuentas.csv" to accountsRows(data, today, zoneId),
                 "categorias.csv" to categoryRows(data.categories, categories),
                 "movimientos.csv" to transactionRows(data, accounts, categories, today),
                 "transferencias.csv" to transferRows(data, accounts, categories, today),
                 "presupuestos.csv" to budgetRows(data, categories),
-                "carteras.csv" to portfolioRows(data, accounts, zoneId),
-                "activos.csv" to assetRows(data),
-                "operaciones.csv" to operationRows(data, portfolios, assets, accounts),
-                "dividendos.csv" to dividendRows(data, assets, accounts),
-                "precios.csv" to priceRows(data, assets, zoneId),
             )
             val output = ByteArrayOutputStream()
             ZipOutputStream(output, StandardCharsets.UTF_8).use { zip ->
@@ -70,7 +56,7 @@ class CsvExportService(
                     listOf(
                         account.id, account.name, account.type.name.toSpanishWords(), account.currency,
                         money(account.initialBalanceMinor, account.currency),
-                        money(BalanceCalculator.balance(account, data.transactions, data.transfers, data.operations, today), account.currency),
+                        money(BalanceCalculator.balance(account, data.transactions, data.transfers, today), account.currency),
                         yesNo(account.archived), Instant.ofEpochMilli(account.createdAt).atZone(zoneId).toLocalDate().toString(),
                     )
                 }
@@ -142,74 +128,6 @@ class CsvExportService(
             }
         }
 
-        private fun portfolioRows(
-            data: CsvExportData,
-            accounts: Map<String, com.mipatrimonio.app.domain.model.Account>,
-            zoneId: ZoneId,
-        ): List<List<String>> = rows(listOf("id", "nombre", "cuenta_predeterminada", "fecha_creacion", "archivada")) {
-            data.portfolios.map {
-                listOf(
-                    it.id, it.name, it.defaultAccountId?.let(accounts::get)?.name.orEmpty(),
-                    Instant.ofEpochMilli(it.createdAt).atZone(zoneId).toLocalDate().toString(),
-                    yesNo(it.archived),
-                )
-            }
-        }
-
-        private fun assetRows(data: CsvExportData): List<List<String>> = rows(
-            listOf("id", "nombre", "ticker", "isin", "tipo", "mercado", "divisa", "proveedor_cotizacion", "simbolo_cotizacion", "archivado"),
-        ) {
-            data.assets.map {
-                listOf(it.id, it.name, it.ticker, it.isin, assetType(it.type), it.market, it.currency, provider(it.quoteProvider), it.quoteSymbol.orEmpty(), yesNo(it.archived))
-            }
-        }
-
-        private fun operationRows(
-            data: CsvExportData,
-            portfolios: Map<String, com.mipatrimonio.app.domain.model.Portfolio>,
-            assets: Map<String, com.mipatrimonio.app.domain.model.Asset>,
-            accounts: Map<String, com.mipatrimonio.app.domain.model.Account>,
-        ): List<List<String>> = rows(
-            listOf("id", "fecha", "hora", "cartera", "activo", "tipo", "cantidad", "precio_unitario", "comisiones", "divisa", "cuenta", "traspaso"),
-        ) {
-            data.operations.map {
-                listOf(
-                    it.id, it.date.toString(), timeFormat.format(it.time), portfolios[it.portfolioId]?.name.orEmpty(),
-                    assets[it.assetId]?.name.orEmpty(), operationType(it.type), decimal(it.quantity), decimal(it.unitPrice),
-                    money(it.feesMinor, it.currency), it.currency, it.accountId?.let(accounts::get)?.name.orEmpty(),
-                    it.transferGroupId.orEmpty(),
-                )
-            }
-        }
-
-        private fun dividendRows(
-            data: CsvExportData,
-            assets: Map<String, com.mipatrimonio.app.domain.model.Asset>,
-            accounts: Map<String, com.mipatrimonio.app.domain.model.Account>,
-        ): List<List<String>> = rows(
-            listOf("fecha", "activo", "importe_bruto", "retencion", "importe_neto", "divisa", "cuenta"),
-        ) {
-            data.operations.filter { it.type == OperationType.DIVIDENDO }.map {
-                val gross = MoneyMath.toMinor(it.quantity.multiply(it.unitPrice, MoneyMath.CONTEXT), it.currency)
-                listOf(
-                    it.date.toString(), assets[it.assetId]?.name.orEmpty(), money(gross, it.currency),
-                    money(it.feesMinor, it.currency), money(Math.subtractExact(gross, it.feesMinor), it.currency),
-                    it.currency, it.accountId?.let(accounts::get)?.name.orEmpty(),
-                )
-            }
-        }
-
-        private fun priceRows(data: CsvExportData, assets: Map<String, com.mipatrimonio.app.domain.model.Asset>, zoneId: ZoneId): List<List<String>> = rows(
-            listOf("activo", "fecha_hora", "precio", "divisa", "origen", "calidad"),
-        ) {
-            data.prices.map {
-                listOf(
-                    assets[it.assetId]?.name.orEmpty(), dateTimeFormat.format(Instant.ofEpochMilli(it.asOfEpochMillis).atZone(zoneId)),
-                    decimal(it.price), it.currency, priceSource(it.source), priceQuality(it.quality),
-                )
-            }
-        }
-
         private fun rows(header: List<String>, body: () -> List<List<String>>) = listOf(header) + body()
         private fun money(minor: Long, currency: String): String = MoneyMath.toDecimal(minor, currency).toPlainString().replace('.', ',')
         private fun decimal(value: BigDecimal): String = value.toPlainString().replace('.', ',')
@@ -230,27 +148,6 @@ class CsvExportService(
             BudgetPeriod.ANUAL -> "Anual"
             BudgetPeriod.UNICO -> "Único"
         }
-        private fun operationType(value: OperationType) = when (value) {
-            OperationType.COMPRA -> "Compra"
-            OperationType.VENTA -> "Venta"
-            OperationType.DIVIDENDO -> "Dividendo"
-            OperationType.COMISION -> "Comisión"
-            OperationType.TRASPASO_SALIDA -> "Traspaso salida"
-            OperationType.TRASPASO_ENTRADA -> "Traspaso entrada"
-        }
-        private fun assetType(value: AssetType) = value.name.toSpanishWords()
-        private fun provider(value: QuoteProvider?) = when (value) {
-            QuoteProvider.TWELVE_DATA -> "Twelve Data"
-            QuoteProvider.COINGECKO -> "CoinGecko"
-            QuoteProvider.EODHD -> "EODHD"
-            null -> ""
-        }
-        private fun priceSource(value: PriceSource) = if (value == PriceSource.MANUAL) "Manual" else "Proveedor"
-        private fun priceQuality(value: PriceQuality?) = when (value) {
-            PriceQuality.RETRASADO -> "Retrasado"
-            PriceQuality.CIERRE -> "Cierre"
-            null -> ""
-        }
         private fun String.toSpanishWords() = lowercase().replace('_', ' ').replaceFirstChar { it.titlecase() }
 
         private fun readme(): String = """
@@ -267,11 +164,6 @@ class CsvExportService(
             movimientos.csv: id; fecha; tipo; importe positivo; divisa; cuenta; categoria raíz; subcategoria; descripcion; comercio; notas; origen; estado.
             transferencias.csv: id; fecha; cuenta_origen; importe_origen; divisa_origen; cuenta_destino; importe_destino; divisa_destino; categoria; descripcion; estado. Las divisas proceden de las cuentas relacionadas porque la transferencia solo guarda sus identificadores e importes.
             presupuestos.csv: id; nombre; periodo; importe_limite; divisa; fecha_inicio; fecha_fin; umbral_aviso (porcentaje entero); categorias (nombres separados por |); incluye_subcategorias (Sí/No alineados con categorias); archivado.
-            carteras.csv: id; nombre; cuenta_predeterminada; fecha_creacion.
-            activos.csv: id; nombre; ticker; isin; tipo; mercado; divisa; proveedor_cotizacion; simbolo_cotizacion; archivado. El modelo también conserva MIC de cotización, que no forma parte del formato solicitado.
-            operaciones.csv: id; fecha; hora; cartera; activo; tipo; cantidad; precio_unitario; comisiones (o retención en dividendos); divisa; cuenta; traspaso. Una cuenta vacía indica que la operación no tiene cuenta vinculada; traspaso identifica las dos patas del mismo traslado.
-            dividendos.csv: subconjunto de operaciones de tipo dividendo; fecha; activo; importe_bruto (cantidad × precio_unitario); retencion (campo de comisiones del modelo); importe_neto; divisa; cuenta.
-            precios.csv: activo; fecha_hora; precio; divisa; origen; calidad.
 
             No se incluyen ajustes, secretos, claves, autorizaciones, diagnósticos ni propuestas de notificaciones.
         """.trimIndent() + "\r\n"

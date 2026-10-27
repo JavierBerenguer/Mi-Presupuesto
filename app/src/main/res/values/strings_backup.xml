@@ -33,10 +33,6 @@
     <string name="backup_count_transfers">Transferencias</string>
     <string name="backup_count_budgets">Presupuestos</string>
     <string name="backup_count_budget_rules">Reglas de presupuesto</string>
-    <string name="backup_count_portfolios">Carteras</string>
-    <string name="backup_count_assets">Activos</string>
-    <string name="backup_count_operations">Operaciones de inversión</string>
-    <string name="backup_count_prices">Precios</string>
     <string name="backup_count_recurring">Órdenes permanentes</string>
     <string name="backup_count_authorizations">Autorizaciones bancarias</string>
     <string name="backup_count_proposals">Propuestas pendientes</string>

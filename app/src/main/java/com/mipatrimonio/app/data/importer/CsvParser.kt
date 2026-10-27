@@ -32,19 +32,19 @@ object CsvParser {
         val records = mutableListOf<ParsedRecord>()
         val fields = mutableListOf<String>()
         val field = StringBuilder()
-        var fieldWasQuoted = false
-        var inQuotes = false
-        var afterClosingQuote = false
+        var fieldWasEnclosed = false
+        var inEnclosure = false
+        var afterClosingEnclosure = false
         var recordHasCharacters = false
         var physicalLine = 1
         var recordStartLine = 1
         var index = 0
 
         fun finishField() {
-            fields += if (fieldWasQuoted) field.toString() else field.toString().trim()
+            fields += if (fieldWasEnclosed) field.toString() else field.toString().trim()
             field.clear()
-            fieldWasQuoted = false
-            afterClosingQuote = false
+            fieldWasEnclosed = false
+            afterClosingEnclosure = false
         }
 
         fun finishRecord() {
@@ -58,15 +58,15 @@ object CsvParser {
 
         while (index < text.length) {
             val character = text[index]
-            if (inQuotes) {
+            if (inEnclosure) {
                 when {
                     character == '"' && index + 1 < text.length && text[index + 1] == '"' -> {
                         field.append('"')
                         index += 2
                     }
                     character == '"' -> {
-                        inQuotes = false
-                        afterClosingQuote = true
+                        inEnclosure = false
+                        afterClosingEnclosure = true
                         index++
                     }
                     character == '\r' -> {
@@ -108,13 +108,13 @@ object CsvParser {
                     physicalLine++
                     recordStartLine = physicalLine
                 }
-                character == '"' && field.isEmpty() && !afterClosingQuote -> {
+                character == '"' && field.isEmpty() && !afterClosingEnclosure -> {
                     recordHasCharacters = true
-                    fieldWasQuoted = true
-                    inQuotes = true
+                    fieldWasEnclosed = true
+                    inEnclosure = true
                     index++
                 }
-                afterClosingQuote && character.isWhitespace() -> index++
+                afterClosingEnclosure && character.isWhitespace() -> index++
                 else -> {
                     recordHasCharacters = true
                     field.append(character)

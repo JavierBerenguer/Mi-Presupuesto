@@ -41,7 +41,6 @@ import com.mipatrimonio.app.R
 import com.mipatrimonio.app.data.backup.BackupSummary
 import com.mipatrimonio.app.ui.common.appViewModel
 import com.mipatrimonio.app.ui.components.SectionCard
-import com.mipatrimonio.app.ui.importer.NeverlessImportScreen
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -53,11 +52,6 @@ fun BackupScreen(
         BackupViewModel(c.backup, c.backupFiles, c.csvExport, c.csvExportFiles)
     },
 ) {
-    var showNeverless by rememberSaveable { mutableStateOf(false) }
-    if (showNeverless) {
-        NeverlessImportScreen(onClose = { showNeverless = false })
-        return
-    }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var createPassword by remember { mutableStateOf("") }
     var createConfirmation by remember { mutableStateOf("") }
@@ -105,18 +99,6 @@ fun BackupScreen(
                 Text(stringResource(R.string.backup_create_description))
                 Button(onClick = viewModel::openCreatePassword, enabled = !state.busy) {
                     Text(stringResource(R.string.backup_create_action))
-                }
-            }
-        }
-        SectionCard {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.FileDownload, contentDescription = null)
-                    Text(stringResource(R.string.import_nv_entry_title), style = MaterialTheme.typography.titleLarge)
-                }
-                Text(stringResource(R.string.import_nv_entry_description))
-                OutlinedButton(onClick = { showNeverless = true }, enabled = !state.busy) {
-                    Text(stringResource(R.string.import_nv_entry_title))
                 }
             }
         }
@@ -335,10 +317,6 @@ private fun BackupCounts(summary: BackupSummary) {
         "transfer" to R.string.backup_count_transfers,
         "budget" to R.string.backup_count_budgets,
         "budget_category" to R.string.backup_count_budget_rules,
-        "portfolio" to R.string.backup_count_portfolios,
-        "asset" to R.string.backup_count_assets,
-        "investment_operation" to R.string.backup_count_operations,
-        "asset_price" to R.string.backup_count_prices,
         "recurring_rule" to R.string.backup_count_recurring,
         "notification_authorization" to R.string.backup_count_authorizations,
         "pending_proposal" to R.string.backup_count_proposals,

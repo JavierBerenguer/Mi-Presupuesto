@@ -93,7 +93,6 @@ fun TradeRepublicImportScreen(
                         Text(when (item.decisionState) {
                             ImportReviewDecisionState.PENDING -> row.reason.orEmpty()
                             ImportReviewDecisionState.IGNORED -> stringResource(R.string.import_tr_status_ignored)
-                            ImportReviewDecisionState.IMPORT_OPERATION -> stringResource(R.string.import_tr_status_operation)
                             ImportReviewDecisionState.IMPORT_MOVEMENT -> stringResource(R.string.import_tr_status_movement)
                         })
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -101,9 +100,6 @@ fun TradeRepublicImportScreen(
                                 Text(stringResource(R.string.import_tr_ignore))
                             }
                             when (item.action) {
-                                ImportReviewAction.IMPORT_OPERATION -> Button(onClick = {
-                                    viewModel.setDecision(row.source.externalId, ImportRowDecision.AcceptDefault)
-                                }) { Text(stringResource(R.string.import_tr_as_operation)) }
                                 ImportReviewAction.IMPORT_MOVEMENT -> Button(onClick = {
                                     viewModel.setDecision(row.source.externalId, ImportRowDecision.AsTransaction())
                                 }) { Text(stringResource(R.string.import_tr_as_movement)) }
@@ -128,7 +124,7 @@ fun TradeRepublicImportScreen(
         }
         if (state.busy) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator() }
         state.report?.let { report ->
-            Text(stringResource(R.string.import_tr_report, report.totalCreated, report.transactions, report.transfers, report.operations, report.assets, report.omitted))
+            Text(stringResource(R.string.import_tr_report, report.totalCreated, report.transactions, report.omitted))
             if (report.omittedByReason.isNotEmpty()) {
                 Text(stringResource(R.string.import_tr_omitted_reasons, report.omittedByReason.entries.joinToString { "${it.key}: ${it.value}" }))
             }

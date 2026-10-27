@@ -19,7 +19,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mipatrimonio.app.R
 import com.mipatrimonio.app.domain.model.MoneyMath
-import com.mipatrimonio.app.domain.usecase.assetDistribution
 import com.mipatrimonio.app.ui.common.EmptyState
 import com.mipatrimonio.app.ui.common.LoadingBox
 import com.mipatrimonio.app.ui.common.MoneyColors
@@ -28,17 +27,14 @@ import com.mipatrimonio.app.ui.common.NetWorthNotices
 import com.mipatrimonio.app.ui.common.PeriodSelector
 import com.mipatrimonio.app.ui.common.SectionCard
 import com.mipatrimonio.app.ui.common.appViewModel
-import com.mipatrimonio.app.ui.common.assetColor
 import com.mipatrimonio.app.ui.common.charts.ChartPoint
-import com.mipatrimonio.app.ui.common.charts.DonutChart
-import com.mipatrimonio.app.ui.common.charts.DonutSlice
 import com.mipatrimonio.app.ui.common.charts.LineChart
 import com.mipatrimonio.app.ui.common.label
 import com.mipatrimonio.app.ui.common.pointLabel
 
 @Composable
 fun NetWorthScreen(
-    viewModel: NetWorthViewModel = appViewModel { c -> NetWorthViewModel(c.ledger, c.investments, c.settings) },
+    viewModel: NetWorthViewModel = appViewModel { c -> NetWorthViewModel(c.ledger, c.settings) },
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val s = state
@@ -49,7 +45,7 @@ fun NetWorthScreen(
     val snapshot = s.snapshot
     val netWorth = snapshot.netWorth
     val currency = snapshot.baseCurrency
-    if (snapshot.balances.none { !it.account.archived || it.balanceMinor != 0L } && snapshot.positions.isEmpty()) {
+    if (snapshot.balances.none { !it.account.archived || it.balanceMinor != 0L }) {
         EmptyState(Icons.Outlined.AccountBalance, stringResource(R.string.pat_empty))
         return
     }
@@ -65,13 +61,6 @@ fun NetWorthScreen(
         }
         SectionCard(title = stringResource(R.string.pat_breakdown)) {
             AmountRow(stringResource(R.string.pat_cash), format(netWorth.cashMinor))
-            AmountRow(stringResource(R.string.pat_investments), format(netWorth.investmentsMinor))
-            AmountRow(stringResource(R.string.pat_liabilities), stringResource(R.string.pat_liabilities_none))
-            Text(
-                stringResource(R.string.pat_liabilities_note),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
 
         PeriodSelector(s.period, viewModel::selectPeriod)
@@ -89,25 +78,8 @@ fun NetWorthScreen(
             )
         }
 
-        SectionCard(title = stringResource(R.string.pat_by_type)) {
-            val shares = assetDistribution(netWorth)
-            DonutChart(
-                slices = shares.map { share ->
-                    DonutSlice(
-                        share.type?.label() ?: stringResource(R.string.pat_investments_label),
-                        share.valueMinor,
-                        assetColor(share.type),
-                    )
-                },
-                centerLabel = format(shares.sumOf { it.valueMinor }),
-                formatValue = format,
-                description = stringResource(R.string.pat_by_type_desc),
-                emptyText = stringResource(R.string.pat_no_data),
-            )
-        }
-
         SectionCard(title = stringResource(R.string.pat_by_currency)) {
-            byCurrency(snapshot.balances, snapshot.positions, currency).forEach { total ->
+            byCurrency(snapshot.balances, currency).forEach { total ->
                 Column {
                     AmountRow(total.currency, MoneyMath.format(total.minor, total.currency))
                     if (total.currency != currency) {
@@ -144,30 +116,6 @@ fun NetWorthScreen(
             }
         }
 
-        SectionCard(title = stringResource(R.string.pat_by_portfolio)) {
-            val values = portfolioValues(snapshot.positions, currency)
-            if (values.isEmpty()) Text(stringResource(R.string.pat_no_portfolios))
-            values.forEach { value ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column(Modifier.weight(1f)) {
-                        Text(value.portfolio.name)
-                        if (value.unpricedCount > 0) {
-                            Text(
-                                stringResource(R.string.pat_unpriced_count, value.unpricedCount),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MoneyColors.warning,
-                            )
-                        }
-                    }
-                    Column(horizontalAlignment = androidx.compose.ui.Alignment.End) {
-                        Text(format(value.valueMinor))
-                        value.percent?.let {
-                            Text(stringResource(R.string.pat_percent, it), style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 

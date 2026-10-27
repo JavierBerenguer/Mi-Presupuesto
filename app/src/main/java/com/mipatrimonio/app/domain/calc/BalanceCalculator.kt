@@ -1,10 +1,7 @@
 package com.mipatrimonio.app.domain.calc
 
 import com.mipatrimonio.app.domain.model.Account
-import com.mipatrimonio.app.domain.model.InvestmentOperation
-import com.mipatrimonio.app.domain.model.MoneyMath
 import com.mipatrimonio.app.domain.model.MovementStatus
-import com.mipatrimonio.app.domain.model.OperationType
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.model.Transfer
@@ -12,57 +9,27 @@ import com.mipatrimonio.app.domain.model.movementStatus
 import java.time.LocalDate
 
 object BalanceCalculator {
-    /**
-     * Saldo derivado = saldo inicial + ingresos − gastos + transferencias recibidas − transferencias enviadas.
-     * Nunca se almacena: se recalcula siempre a partir de los movimientos.
-     */
     fun balance(
         account: Account,
         transactions: List<Transaction>,
         transfers: List<Transfer>,
-        operations: List<InvestmentOperation> = emptyList(),
         today: LocalDate,
     ): Long {
         var total = account.initialBalanceMinor
-        for (t in transactions) {
-            if (t.accountId != account.id || movementStatus(t.date, today) != MovementStatus.EJECUTADO) continue
-            total = when (t.type) {
-                TransactionType.INGRESO -> Math.addExact(total, t.amountMinor)
-                TransactionType.GASTO -> Math.subtractExact(total, t.amountMinor)
+        transactions.filter { it.accountId == account.id && movementStatus(it.date, today) == MovementStatus.EJECUTADO }
+            .forEach { transaction ->
+                total = when (transaction.type) {
+                    TransactionType.INGRESO -> Math.addExact(total, transaction.amountMinor)
+                    TransactionType.GASTO -> Math.subtractExact(total, transaction.amountMinor)
+                }
             }
-        }
-        for (tr in transfers) {
-            if (movementStatus(tr.date, today) != MovementStatus.EJECUTADO) continue
-            if (tr.toAccountId == account.id) total = Math.addExact(total, tr.toAmountMinor)
-            if (tr.fromAccountId == account.id) total = Math.subtractExact(total, tr.fromAmountMinor)
-        }
-        for (operation in operations) {
-            if (operation.accountId != account.id) continue
-            total = Math.addExact(total, investmentEffectMinor(operation))
+        transfers.filter { movementStatus(it.date, today) == MovementStatus.EJECUTADO }.forEach { transfer ->
+            if (transfer.toAccountId == account.id) total = Math.addExact(total, transfer.toAmountMinor)
+            if (transfer.fromAccountId == account.id) total = Math.subtractExact(total, transfer.fromAmountMinor)
         }
         return total
     }
 
-    /** Efecto de caja de una operación ya validada, en unidades menores de su propia divisa. */
-    fun investmentEffectMinor(operation: InvestmentOperation): Long {
-        val grossMinor = MoneyMath.toMinor(
-            operation.quantity.multiply(operation.unitPrice, MoneyMath.CONTEXT),
-            operation.currency,
-        )
-        return when (operation.type) {
-            OperationType.COMPRA -> Math.negateExact(Math.addExact(grossMinor, operation.feesMinor))
-            OperationType.VENTA -> Math.subtractExact(grossMinor, operation.feesMinor)
-            OperationType.DIVIDENDO -> Math.subtractExact(grossMinor, operation.feesMinor)
-            OperationType.COMISION -> Math.negateExact(grossMinor)
-            OperationType.TRASPASO_SALIDA, OperationType.TRASPASO_ENTRADA -> 0L
-        }
-    }
-
-    fun validateInvestmentAccount(operation: InvestmentOperation, account: Account): InvestmentAccountError? =
-        if (operation.currency == account.currency) null
-        else InvestmentAccountError.CurrencyMismatch(operation.currency, account.currency)
-
-    /** Devuelve un mensaje de error de validación o null si la transferencia es válida. */
     fun validateTransfer(from: Account, to: Account, fromAmountMinor: Long, toAmountMinor: Long): String? = when {
         from.id == to.id -> "Las cuentas de origen y destino deben ser distintas"
         fromAmountMinor <= 0 || toAmountMinor <= 0 -> "Los importes deben ser positivos"
@@ -71,22 +38,3 @@ object BalanceCalculator {
         else -> null
     }
 }
-
-sealed interface InvestmentAccountError {
-    val message: String
-
-    data object AccountNotFound : InvestmentAccountError {
-        override val message = "La cuenta seleccionada no existe"
-    }
-
-    data class CurrencyMismatch(
-        val operationCurrency: String,
-        val accountCurrency: String,
-    ) : InvestmentAccountError {
-        override val message = "La divisa de la operación debe coincidir con la de la cuenta"
-    }
-}
-
-class InvalidInvestmentAccountException(
-    val reason: InvestmentAccountError,
-) : IllegalArgumentException(reason.message)
