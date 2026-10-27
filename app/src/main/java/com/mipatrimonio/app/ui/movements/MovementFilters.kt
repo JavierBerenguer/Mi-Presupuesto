@@ -7,6 +7,7 @@ import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.Transfer
 import com.mipatrimonio.app.domain.calc.TransactionGroups
+import com.mipatrimonio.app.data.db.SyncMovimientoEntity
 import java.text.Normalizer
 import java.time.LocalDate
 import java.util.Locale
@@ -41,6 +42,17 @@ sealed interface MovementItem {
         override val amountMinor: Long = transfer.fromAmountMinor
     }
 
+    data class Liquidity(
+        val movement: SyncMovimientoEntity,
+        val productName: String,
+        val localAccountId: String,
+        val effectMinor: Long,
+    ) : MovementItem {
+        override val date: LocalDate = LocalDate.ofEpochDay(movement.fecha)
+        override val createdAt: Long = 0L
+        override val amountMinor: Long = kotlin.math.abs(effectMinor)
+    }
+
 }
 
 data class MovementFilters(
@@ -56,11 +68,11 @@ data class MovementFilters(
     val source: SourceFilter = SourceFilter.TODOS,
 )
 
-enum class KindFilter { TODOS, INGRESOS, GASTOS, TRANSFERENCIAS }
+enum class KindFilter { TODOS, INGRESOS, GASTOS, TRANSFERENCIAS, INVERSION }
 
 enum class MovementSort { FECHA_DESC, FECHA_ASC, IMPORTE_DESC, IMPORTE_ASC }
 
-enum class SourceFilter { TODOS, MANUAL, AUTOMATICOS, IMPORTADOS, RECURRENTES }
+enum class SourceFilter { TODOS, MANUAL, AUTOMATICOS, IMPORTADOS, RECURRENTES, INVERSION }
 
 data class MovementDayGroup(
     val date: LocalDate,
@@ -90,6 +102,7 @@ fun groupMovementsByDay(items: List<MovementItem>, baseCurrency: String): List<M
                         }
                     }
                     is MovementItem.Move -> Unit
+                    is MovementItem.Liquidity -> balance = Math.addExact(balance, item.effectMinor)
                 }
             }
             MovementDayGroup(date, dayItems, balance, excluded)
@@ -134,6 +147,7 @@ private fun matchesSource(item: MovementItem, source: SourceFilter): Boolean = w
     SourceFilter.AUTOMATICOS -> item is MovementItem.Tx && item.transaction.source == TransactionSource.NOTIFICACION
     SourceFilter.IMPORTADOS -> item is MovementItem.Tx && item.transaction.source == TransactionSource.IMPORTACION
     SourceFilter.RECURRENTES -> item is MovementItem.Tx && item.transaction.source == TransactionSource.RECURRENTE
+    SourceFilter.INVERSION -> item is MovementItem.Liquidity
 }
 
 private fun matchesKind(item: MovementItem, kind: KindFilter): Boolean = when (kind) {
@@ -141,6 +155,7 @@ private fun matchesKind(item: MovementItem, kind: KindFilter): Boolean = when (k
     KindFilter.INGRESOS -> item is MovementItem.Tx && item.displayedTransaction.type == TransactionType.INGRESO
     KindFilter.GASTOS -> item is MovementItem.Tx && item.displayedTransaction.type == TransactionType.GASTO
     KindFilter.TRANSFERENCIAS -> item is MovementItem.Move
+    KindFilter.INVERSION -> item is MovementItem.Liquidity
 }
 
 private fun matchesAccount(item: MovementItem, accountId: String?): Boolean {
@@ -148,6 +163,7 @@ private fun matchesAccount(item: MovementItem, accountId: String?): Boolean {
     return when (item) {
         is MovementItem.Tx -> item.transaction.accountId == accountId
         is MovementItem.Move -> item.transfer.fromAccountId == accountId || item.transfer.toAccountId == accountId
+        is MovementItem.Liquidity -> item.localAccountId == accountId
     }
 }
 
@@ -196,6 +212,12 @@ private fun searchableText(
         item.transfer.description,
         accountsById[item.transfer.fromAccountId]?.name.orEmpty(),
         accountsById[item.transfer.toAccountId]?.name.orEmpty(),
+    ).joinToString(" ")
+
+    is MovementItem.Liquidity -> listOf(
+        item.productName,
+        item.movement.tipo,
+        accountsById[item.localAccountId]?.name.orEmpty(),
     ).joinToString(" ")
 
 }

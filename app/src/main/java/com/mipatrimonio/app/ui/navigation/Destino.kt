@@ -55,11 +55,13 @@ object Rutas {
     const val RECURRENTE = "orden-permanente/{id}"
     const val APUNTE = "apunte/{id}"
     const val SINCRONIZACION = "sincronizacion-rumbo"
+    const val PRODUCTO_CARTERA = "cartera/producto/{id}"
 
     fun apunte(id: String?) = "apunte/${id ?: NUEVO}"
     fun recurrente(id: String?) = "orden-permanente/${id ?: NUEVO}"
     fun ensenarNotificacion(id: String) = "automatizacion-notificaciones/ensenar/$id"
     fun configurarRegla(id: String) = "automatizacion-notificaciones/regla/$id"
+    fun productoCartera(id: String) = "cartera/producto/$id"
     fun automatizacionNotificaciones(tab: String) = "$AUTOMATIZACION_NOTIFICACIONES?tab=$tab"
 }
 

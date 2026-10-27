@@ -53,7 +53,7 @@ import com.mipatrimonio.app.ui.components.SegmentedControl
 
 @Composable
 fun AccountsScreen(
-    viewModel: AccountsViewModel = appViewModel { c -> AccountsViewModel(c.ledger, c.settings) },
+    viewModel: AccountsViewModel = appViewModel { c -> AccountsViewModel(c.ledger, c.settings, sync = c.sync) },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var filter by remember { mutableStateOf(AccountFilter.ACTIVAS) }

@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
+import com.mipatrimonio.app.data.sync.SyncRepository
+import com.mipatrimonio.app.data.sync.mapLiquidityMovements
 import com.mipatrimonio.app.domain.calc.MovementsBalanceCalculator
 import com.mipatrimonio.app.domain.calc.MovementsCalculationMode
 import com.mipatrimonio.app.domain.model.Account
@@ -17,6 +19,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.YearMonth
@@ -49,6 +52,7 @@ data class MovementsUiState(
 class MovementsViewModel(
     private val ledger: LedgerRepository,
     private val settings: SettingsRepository,
+    private val sync: SyncRepository? = null,
     private val today: () -> LocalDate = LocalDate::now,
 ) : ViewModel() {
     private data class SourceData(
@@ -88,17 +92,26 @@ class MovementsViewModel(
         LedgerData(accounts, categories, transactions, transfers)
     }
 
+    private val syncMovements = sync?.movimientos ?: flowOf(emptyList())
+    private val syncProducts = sync?.productos ?: flowOf(emptyList())
+
     private val sourceData = combine(
-        ledgerData,
-        settings.settings,
-    ) { ledgerData, currentSettings ->
+        ledgerData, settings.settings, syncMovements, syncProducts,
+    ) { ledgerData, currentSettings, remoteMovements, remoteProducts ->
         val existingTransactionIds = ledgerData.transactions.mapTo(hashSetOf(), Transaction::id)
         val retainedSelection = selectedIds.value.intersect(existingTransactionIds)
         if (retainedSelection != selectedIds.value) selectedIds.value = retainedSelection
         SourceData(
             accounts = ledgerData.accounts,
             categories = ledgerData.categories,
-            items = attachTransactionGroups(ledgerData.transactions) + ledgerData.transfers.map(MovementItem::Move),
+            items = attachTransactionGroups(ledgerData.transactions) + ledgerData.transfers.map(MovementItem::Move) +
+                mapLiquidityMovements(remoteMovements, ledgerData.accounts).entries.mapNotNull { entry ->
+                    val movement = remoteMovements.firstOrNull { it.id == entry.id } ?: return@mapNotNull null
+                    MovementItem.Liquidity(
+                        movement, remoteProducts.firstOrNull { it.id == movement.productoId }?.nombre.orEmpty(),
+                        entry.accountId, entry.effectMinor,
+                    )
+                },
             baseCurrency = currentSettings.baseCurrency,
             hideAmounts = currentSettings.hideAmounts,
             transactions = ledgerData.transactions,
@@ -154,6 +167,9 @@ class MovementsViewModel(
                 hideFuture = data.hideFuture,
                 ignoreTransfers = data.ignoreTransfers,
                 today = currentDate,
+                liquidityMovements = data.items.filterIsInstance<MovementItem.Liquidity>().map {
+                    com.mipatrimonio.app.domain.calc.LiquidityMovement(it.movement.id, it.localAccountId, it.date, it.effectMinor)
+                },
             ),
             calculationMode = data.calculationMode,
             dailyBalance = data.dailyBalance,
@@ -281,6 +297,7 @@ class MovementsViewModel(
                 when (item) {
                     is MovementItem.Tx -> ledger.deleteTransaction(item.transaction.id)
                     is MovementItem.Move -> ledger.deleteTransfer(item.transfer.id)
+                    is MovementItem.Liquidity -> Unit
                 }
             }.onFailure { error.value = it.message }
         }

@@ -14,6 +14,7 @@ object BalanceCalculator {
         transactions: List<Transaction>,
         transfers: List<Transfer>,
         today: LocalDate,
+        liquidityMovements: List<LiquidityMovement> = emptyList(),
     ): Long {
         var total = account.initialBalanceMinor
         transactions.filter { it.accountId == account.id && movementStatus(it.date, today) == MovementStatus.EJECUTADO }
@@ -26,6 +27,9 @@ object BalanceCalculator {
         transfers.filter { movementStatus(it.date, today) == MovementStatus.EJECUTADO }.forEach { transfer ->
             if (transfer.toAccountId == account.id) total = Math.addExact(total, transfer.toAmountMinor)
             if (transfer.fromAccountId == account.id) total = Math.subtractExact(total, transfer.fromAmountMinor)
+        }
+        total = addLiquidityEffect(total, liquidityMovements, setOf(account.id)) {
+            movementStatus(it.date, today) == MovementStatus.EJECUTADO
         }
         return total
     }

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cartera_title">Cartera</string>
+    <string name="cartera_no_session">Conecta Mi Patrimonio con Rumbo para ver tu cartera.</string>
+    <string name="cartera_connect">Conectar con Rumbo</string>
+    <string name="cartera_no_summary">Abre Rumbo en el ordenador para generar el primer resumen.</string>
+    <string name="cartera_sync_now">Sincronizar ahora</string>
+    <string name="cartera_summary_error">No se ha podido leer el resumen de Rumbo.</string>
+    <string name="cartera_updated">Actualizado: %1$s</string>
+    <string name="cartera_value">Valor de la cartera</string>
+    <string name="cartera_gain">Ganancia</string>
+    <string name="cartera_irr">TIR</string>
+    <string name="cartera_realized">Realizado</string>
+    <string name="cartera_not_available">No disponible</string>
+    <string name="cartera_distribution">Reparto por clase</string>
+    <string name="cartera_distribution_description">Distribución del valor de la cartera por clase de producto.</string>
+    <string name="cartera_products">Productos</string>
+    <string name="cartera_no_products">Sin productos</string>
+    <string name="cartera_product_gain">Ganancia: %1$s · %2$s</string>
+    <string name="cartera_warnings">Avisos de Rumbo</string>
+    <string name="cartera_register_purchase">Registrar compra</string>
+    <string name="cartera_purchase_title">Nueva compra</string>
+    <string name="cartera_no_products_help">Crea primero un producto en Rumbo y sincroniza de nuevo.</string>
+    <string name="cartera_search_product">Buscar producto</string>
+    <string name="cartera_product">Producto</string>
+    <string name="cartera_date">Fecha</string>
+    <string name="cartera_amount">Importe (incluye la comisión)</string>
+    <string name="cartera_units_optional">Unidades (opcional)</string>
+    <string name="cartera_commission_optional">Comisión (opcional)</string>
+    <string name="cartera_liquidity_account">Cuenta de liquidez</string>
+    <string name="cartera_no_account">Sin cuenta</string>
+    <string name="cartera_note">Nota</string>
+    <string name="cartera_product_not_found">El producto ya no está disponible en el resumen.</string>
+    <string name="cartera_units">Unidades</string>
+    <string name="cartera_price">Precio</string>
+    <string name="cartera_contributed">Aportado</string>
+    <string name="cartera_movements">Movimientos</string>
+    <string name="cartera_no_movements">Este producto no tiene movimientos.</string>
+    <string name="cartera_movement_metadata">%1$s unidades · %2$s · %3$s</string>
+    <string name="cartera_foreign_account_warning">Este movimiento no afecta al saldo porque la cuenta no está en EUR.</string>
+    <string name="cartera_edit_in_rumbo">Se edita en Rumbo</string>
+    <string name="cartera_edit_movement_title">Editar movimiento</string>
+    <string name="cartera_delete_movement_title">Eliminar movimiento</string>
+    <string name="cartera_delete_movement_message">El movimiento desaparecerá de la cartera y del saldo de la cuenta.</string>
+    <string name="cartera_investments_rumbo">Inversiones (Rumbo)</string>
+    <string name="cartera_history_partial">El histórico no incluye la cartera de Rumbo porque no hay una serie de valoraciones.</string>
+</resources>

@@ -37,4 +37,6 @@
     <string name="ini_open_automatic">Abrir movimientos autom&#225;ticos</string>
     <string name="ini_saving">Ahorro</string>
     <string name="ini_spent_percent">%1$d %% de los ingresos gastado</string>
+    <string name="ini_rumbo_investments">Inversiones (Rumbo): %1$s</string>
+    <string name="ini_rumbo_updated">Actualizado: %1$s</string>
 </resources>

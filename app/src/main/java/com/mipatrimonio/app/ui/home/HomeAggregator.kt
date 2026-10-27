@@ -4,6 +4,11 @@ import com.mipatrimonio.app.domain.calc.BudgetCalculator
 import com.mipatrimonio.app.domain.calc.CategorySpend
 import com.mipatrimonio.app.domain.calc.MonthTotals
 import com.mipatrimonio.app.domain.calc.NetWorth
+import com.mipatrimonio.app.domain.calc.AccountBalance
+import com.mipatrimonio.app.domain.calc.BalanceCalculator
+import com.mipatrimonio.app.domain.calc.LiquidityMovement
+import com.mipatrimonio.app.domain.calc.LiquidityBalanceCalculator
+import com.mipatrimonio.app.domain.calc.NetWorthCalculator
 import com.mipatrimonio.app.domain.calc.PeriodTotals
 import com.mipatrimonio.app.domain.calc.StatsCalculator
 import com.mipatrimonio.app.domain.model.Account
@@ -41,6 +46,8 @@ data class HomeState(
     val spentIncomePercent: Int?,
     val displayedNetWorthMinor: Long,
     val displayedVariationMinor: Long,
+    val portfolioValueMinor: Long = 0L,
+    val portfolioGenerated: String? = null,
 )
 
 /**
@@ -73,17 +80,20 @@ fun buildHomeState(
     today: LocalDate,
     period: Period,
     hideAmounts: Boolean = false,
+    liquidityMovements: List<LiquidityMovement> = emptyList(),
+    portfolioValueMinor: Long = 0L,
+    portfolioGenerated: String? = null,
 ): HomeState {
-    val snapshot = SnapshotBuilder.build(
-        baseCurrency, accounts, transactions, transfers, today,
-    )
-    val firstActivity = (transactions.map { it.date } + transfers.map { it.date }).minOrNull()
+    val balances = accounts.map { AccountBalance(it, BalanceCalculator.balance(it, transactions, transfers, today, liquidityMovements)) }
+    val netWorth = NetWorthCalculator.compute(baseCurrency, balances)
+    val firstActivity = (transactions.map { it.date } + transfers.map { it.date } + liquidityMovements.map { it.date }).minOrNull()
     val thisMonth = YearMonth.from(today)
+    val includedAccountIds = accounts.filter { !it.archived && it.currency == baseCurrency }.mapTo(hashSetOf(), Account::id)
     val filteredSeries = HistoryCalculator.netWorthSeries(
         baseCurrency, accounts, transactions, transfers,
         HistoryCalculator.sampleDates(period, today, firstActivity), today,
-    )
-    val displayedNetWorth = snapshot.netWorth.cashMinor
+    ).map { point -> point.copy(totalMinor = Math.addExact(point.totalMinor, LiquidityBalanceCalculator.total(liquidityMovements, includedAccountIds, point.date))) }
+    val displayedNetWorth = Math.addExact(netWorth.cashMinor, portfolioValueMinor)
     val spentPercent = StatsCalculator.totals(
         transactions, baseCurrency, StatsCalculator.monthRange(thisMonth), today,
     ).let { totals ->
@@ -95,9 +105,9 @@ fun buildHomeState(
     }
     return HomeState(
         hasAccounts = accounts.any { !it.archived },
-        hasFinancialData = accounts.any { !it.archived },
+        hasFinancialData = accounts.any { !it.archived } || portfolioValueMinor != 0L,
         baseCurrency = baseCurrency,
-        netWorth = snapshot.netWorth,
+        netWorth = netWorth,
         monthTotals = StatsCalculator.totals(
             transactions, baseCurrency, StatsCalculator.monthRange(thisMonth), today,
         ),
@@ -120,5 +130,7 @@ fun buildHomeState(
         displayedNetWorthMinor = displayedNetWorth,
         displayedVariationMinor = if (filteredSeries.size < 2) 0L else
             Math.subtractExact(filteredSeries.last().totalMinor, filteredSeries.first().totalMinor),
+        portfolioValueMinor = portfolioValueMinor,
+        portfolioGenerated = portfolioGenerated,
     )
 }

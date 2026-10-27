@@ -64,7 +64,7 @@ private val NO_CATEGORY_COLOR = Color(0xFF8D99AE)
 fun HomeScreen(
     onOpenAccounts: () -> Unit,
     onOpenAutomaticMovements: () -> Unit = {},
-    viewModel: HomeViewModel = appViewModel { c -> HomeViewModel(c.ledger, c.settings) },
+    viewModel: HomeViewModel = appViewModel { c -> HomeViewModel(c.ledger, c.settings, c.sync) },
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
@@ -112,6 +112,11 @@ fun HomeScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (s.portfolioValueMinor != 0L) Text(
+                stringResource(R.string.cartera_history_partial),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         if (s.automaticTransactionsCount > 0) {
             AutomaticMovementsCard(s.automaticTransactionsCount, onOpenAutomaticMovements)
@@ -150,6 +155,16 @@ private fun NetWorthHeader(state: HomeState, format: (Long) -> String, onHideCha
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(stringResource(R.string.ini_networth), color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(format(state.displayedNetWorthMinor), style = LargeAmountStyle)
+            if (state.portfolioValueMinor != 0L) {
+                Text(
+                    stringResource(R.string.ini_rumbo_investments, format(state.portfolioValueMinor)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                state.portfolioGenerated?.let {
+                    Text(stringResource(R.string.ini_rumbo_updated, it), style = MaterialTheme.typography.labelSmall)
+                }
+            }
             Surface(
                 color = if (state.displayedVariationMinor >= 0) MaterialTheme.colorScheme.primaryContainer
                 else MaterialTheme.extras.expense.copy(alpha = 0.20f),
