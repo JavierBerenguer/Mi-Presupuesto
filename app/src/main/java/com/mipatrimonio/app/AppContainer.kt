@@ -31,6 +31,7 @@ import com.mipatrimonio.app.data.quotes.EodhdQuoteProvider
 import com.mipatrimonio.app.data.quotes.EodhdSearchService
 import com.mipatrimonio.app.domain.notifications.GenericSpanishParser
 import com.mipatrimonio.app.domain.notifications.NotificationEngine
+import com.mipatrimonio.app.notifications.PendingAutomationNotifier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -61,6 +62,7 @@ class AppContainer(context: Context) {
         ),
     )
     val settings = SettingsRepository(context.applicationContext)
+    val pendingAutomationNotifier = PendingAutomationNotifier(context.applicationContext, settings)
     val recurring = RecurringRepository(database)
     val recurringReminderScheduler = RecurringReminderScheduler(context.applicationContext, recurring)
     val backupFiles = BackupFileStore(context.applicationContext.contentResolver)
@@ -97,6 +99,7 @@ class AppContainer(context: Context) {
             ledger.updateDefaultCategoryCatalogIfNeeded(settings)
         }
         recurringReminderScheduler.createChannel()
+        pendingAutomationNotifier.createChannel()
         RecurringReminderScheduler.enqueuePeriodic(context.applicationContext)
         QuoteRefreshWorker.enqueuePeriodic(context.applicationContext)
         scope.launch {

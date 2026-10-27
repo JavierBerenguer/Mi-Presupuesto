@@ -208,6 +208,7 @@ class BackupTest {
             "movements_daily_balance" to true, "movements_hide_future" to false,
             "movements_ignore_transfers" to true,
             "category_catalog_version" to 2,
+            "pending_automation_alerts_enabled" to false,
         ),
         accounts = listOf(
             AccountEntity("a", "Cuenta á \"principal\"\nLínea", "CORRIENTE", "EUR", Long.MAX_VALUE, false, 1, 2),

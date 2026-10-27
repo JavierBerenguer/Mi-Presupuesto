@@ -1,5 +1,10 @@
 package com.mipatrimonio.app.ui.automation
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -33,6 +38,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,6 +46,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -53,6 +60,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.core.content.ContextCompat
+import com.mipatrimonio.app.MainActivity
 import com.mipatrimonio.app.R
 import com.mipatrimonio.app.data.repository.MerchantUsingStructureDefaults
 import com.mipatrimonio.app.domain.model.Category
@@ -83,15 +92,57 @@ private enum class AutomationTab { PENDING, NEW_MERCHANTS, STRUCTURES }
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AutomationScreen(
+    initialTab: String? = null,
+    permissionAlreadyRequested: Boolean = false,
+    onPermissionRequested: () -> Unit = {},
     onTeach: (String) -> Unit,
     onConfigureRule: (String) -> Unit,
     onOpenNotificationSettings: () -> Unit,
-    viewModel: PendingAutomationViewModel = appViewModel { PendingAutomationViewModel(it.notifications) },
+    viewModel: PendingAutomationViewModel = appViewModel {
+        PendingAutomationViewModel(it.notifications, it.settings, it.pendingAutomationNotifier::cancel)
+    },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var tab by rememberSaveable { mutableStateOf(AutomationTab.PENDING) }
+    val context = LocalContext.current
+    var permissionGranted by remember {
+        mutableStateOf(
+            Build.VERSION.SDK_INT < 33 ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED,
+        )
+    }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        permissionGranted = it
+    }
+    LaunchedEffect(state.alertsEnabled, permissionAlreadyRequested, permissionGranted) {
+        if (!state.isLoading && Build.VERSION.SDK_INT >= 33 && state.alertsEnabled &&
+            !permissionGranted && !permissionAlreadyRequested
+        ) {
+            onPermissionRequested()
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+    val startingTab = if (initialTab == MainActivity.TAB_NEW_MERCHANTS) AutomationTab.NEW_MERCHANTS else AutomationTab.PENDING
+    var tab by rememberSaveable(initialTab) { mutableStateOf(startingTab) }
     var discardId by rememberSaveable { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize()) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(stringResource(R.string.auto_alert_preference), Modifier.weight(1f))
+            Switch(
+                checked = state.alertsEnabled,
+                onCheckedChange = viewModel::setAlertsEnabled,
+                enabled = !state.isLoading,
+            )
+        }
+        if (Build.VERSION.SDK_INT >= 33 && state.alertsEnabled && permissionAlreadyRequested && !permissionGranted) {
+            Text(
+                stringResource(R.string.auto_alert_permission_denied),
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         FlowRow(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(
                 selected = tab == AutomationTab.PENDING,

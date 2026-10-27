@@ -107,14 +107,25 @@ class NotificationRepository(
     }
 
     suspend fun ingest(notification: BankNotification): NotificationOutcome = db.withTransaction {
+        ingestLocked(notification)
+    }
+
+    suspend fun ingestWithPendingAlert(
+        notification: BankNotification,
+    ): Pair<NotificationOutcome, PendingAutomationAlert?> = db.withTransaction {
+        val outcome = ingestLocked(notification)
+        outcome to if (outcome is NotificationOutcome.Registrada) pendingAlertForLocked(outcome.recordId) else null
+    }
+
+    private suspend fun ingestLocked(notification: BankNotification): NotificationOutcome {
         val authorization = dao.getAuthorizationRule(notification.packageName)
-        if (authorization?.authorized != true) return@withTransaction NotificationOutcome.AppNoAutorizada
+        if (authorization?.authorized != true) return NotificationOutcome.AppNoAutorizada
         val rawText = listOf(notification.title, notification.text).map(String::trim).filter(String::isNotEmpty)
             .distinctBy { normalizeNotificationText(it) }.joinToString("\n")
-        if (rawText.isBlank()) return@withTransaction rejectWithoutRecord(notification, NoInterpretableReason.SIN_TEXTO, false)
+        if (rawText.isBlank()) return rejectWithoutRecord(notification, NoInterpretableReason.SIN_TEXTO, false)
         val amounts = NotificationAmountRecognizer.findAll(rawText)
         if (containsAuthenticationContent(rawText)) {
-            return@withTransaction rejectWithoutRecord(notification, NoInterpretableReason.CONTENIDO_SENSIBLE, amounts.isNotEmpty())
+            return rejectWithoutRecord(notification, NoInterpretableReason.CONTENIDO_SENSIBLE, amounts.isNotEmpty())
         }
         val sanitized = sanitizeNotificationText(rawText, amounts.map { it.range })
         val amount = NotificationAmountRecognizer.first(sanitized)
@@ -127,14 +138,46 @@ class NotificationRepository(
             dao.upsertRecord(NotificationRecordEntity(idFactory(), notification.packageName, notification.postedAt, sanitized,
                 amount?.amountMinor, amount?.currency, null, null, null, NotificationRecordStatus.DUPLICADA.name, null, clock()))
             saveDiagnostic(notification, DiagnosticOutcome.DUPLICADA, null, amount != null)
-            return@withTransaction NotificationOutcome.Duplicada(duplicate.id)
+            return NotificationOutcome.Duplicada(duplicate.id)
         }
         val initial = NotificationRecordEntity(idFactory(), notification.packageName, notification.postedAt, sanitized,
             amount?.amountMinor, amount?.currency, null, null, null, NotificationRecordStatus.PENDIENTE_ESTRUCTURA.name, null, clock())
         val resolved = resolveRecord(initial, authorization)
         dao.upsertRecord(resolved)
         saveDiagnostic(notification, if (resolved.status == NotificationRecordStatus.AUTOMATIZADA.name) DiagnosticOutcome.AUTO_CONFIRMADA else DiagnosticOutcome.PENDIENTE, null, amount != null)
-        NotificationOutcome.Registrada(resolved.id, enumValueOf(resolved.status))
+        return NotificationOutcome.Registrada(resolved.id, enumValueOf(resolved.status))
+    }
+
+    suspend fun pendingAlertFor(recordId: String): PendingAutomationAlert? = db.withTransaction {
+        pendingAlertForLocked(recordId)
+    }
+
+    private suspend fun pendingAlertForLocked(recordId: String): PendingAutomationAlert? {
+        val record = dao.getRecord(recordId) ?: return null
+        val shouldAlert = when {
+            record.status == NotificationRecordStatus.PENDIENTE_ESTRUCTURA.name -> true
+            record.status == NotificationRecordStatus.AUTOMATIZADA.name &&
+                record.ruleId == null && record.transactionId != null &&
+                record.structureId != null && record.variableText != null -> {
+                val key = requireNotNull(record.structureId) to normalizeVariable(requireNotNull(record.variableText))
+                dao.getRecordsUsingStructureDefaults().count {
+                    (it.structureId to normalizeVariable(requireNotNull(it.variableText))) == key
+                } == 1
+            }
+            else -> false
+        }
+        if (!shouldAlert) return null
+
+        val generalRecords = dao.getRecordsUsingStructureDefaults()
+        val enabledKeys = dao.getEnabledRules().map { it.structureId to it.variableKey }.toSet()
+        val newMerchantCount = generalRecords
+            .map { requireNotNull(it.structureId) to normalizeVariable(requireNotNull(it.variableText)) }
+            .distinct()
+            .count { it !in enabledKeys }
+        return PendingAutomationAlert(
+            pendingStructureCount = dao.countPendingStructures(),
+            newMerchantCount = newMerchantCount,
+        )
     }
 
     suspend fun previewFromRecord(
@@ -261,6 +304,11 @@ data class MerchantUsingStructureDefaults(
     val latestPostedAt: Long,
     val latestAmountMinor: Long,
     val currency: String,
+)
+
+data class PendingAutomationAlert(
+    val pendingStructureCount: Int,
+    val newMerchantCount: Int,
 )
 
 private fun NotificationRecordEntity.toTransaction(id: String, accountId: String, structure: NotificationStructure, rule: NotificationRule?, amount: RecognizedAmount, now: Long, zoneId: ZoneId): Transaction {

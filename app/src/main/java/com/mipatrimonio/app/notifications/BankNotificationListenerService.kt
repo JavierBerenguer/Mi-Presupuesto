@@ -35,11 +35,13 @@ class BankNotificationListenerService : NotificationListenerService() {
             ticker = sbn.notification.tickerText,
             postTime = sbn.postTime,
         )
-        val repository = (application as MiPatrimonioApplication).container.notifications
+        val container = (application as MiPatrimonioApplication).container
+        val repository = container.notifications
         serviceScope.launch {
             runCatching {
                 repository.ensureKnown(packageName)
-                repository.ingest(notification)
+                val (_, alert) = repository.ingestWithPendingAlert(notification)
+                alert?.let { container.pendingAutomationNotifier.publish(it) }
             }
         }
     }

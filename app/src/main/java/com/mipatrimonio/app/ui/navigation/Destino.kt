@@ -45,6 +45,7 @@ object Rutas {
     const val NOTIFICACIONES = "notificaciones"
     const val PROPUESTAS = "propuestas"
     const val AUTOMATIZACION_NOTIFICACIONES = "automatizacion-notificaciones"
+    const val AUTOMATIZACION_NOTIFICACIONES_ROUTE = "$AUTOMATIZACION_NOTIFICACIONES?tab={tab}"
     const val ENSENAR_NOTIFICACION = "automatizacion-notificaciones/ensenar/{id}"
     const val CONFIGURAR_REGLA = "automatizacion-notificaciones/regla/{id}"
     const val PATRIMONIO = "patrimonio"
@@ -62,6 +63,7 @@ object Rutas {
     fun activo(portfolioId: String, assetId: String) = "activo/$portfolioId/$assetId"
     fun ensenarNotificacion(id: String) = "automatizacion-notificaciones/ensenar/$id"
     fun configurarRegla(id: String) = "automatizacion-notificaciones/regla/$id"
+    fun automatizacionNotificaciones(tab: String) = "$AUTOMATIZACION_NOTIFICACIONES?tab=$tab"
 }
 
 enum class MenuLocation { MAS, AJUSTES }

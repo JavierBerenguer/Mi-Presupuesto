@@ -7,7 +7,11 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.padding
@@ -19,6 +23,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.mipatrimonio.app.R
+import com.mipatrimonio.app.AutomationNavigationRequest
 import com.mipatrimonio.app.ui.budgets.BudgetsScreen
 import com.mipatrimonio.app.ui.components.BottomNavBar
 import com.mipatrimonio.app.ui.components.SecondaryTopBar
@@ -48,8 +53,21 @@ import com.mipatrimonio.app.ui.automation.TeachStructureScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MiPatrimonioApp() {
+fun MiPatrimonioApp(
+    navigationRequest: AutomationNavigationRequest? = null,
+    onNavigationRequestConsumed: () -> Unit = {},
+) {
     val navController = rememberNavController()
+    var automationPermissionRequested by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(navigationRequest) {
+        navigationRequest?.let { request ->
+            navController.navigate(Rutas.automatizacionNotificaciones(request.initialTab)) {
+                popUpTo(Destino.rutaInicial) { inclusive = false }
+                launchSingleTop = true
+            }
+            onNavigationRequestConsumed()
+        }
+    }
     val entry by navController.currentBackStackEntryAsState()
     val route = entry?.destination?.route
     val destino = Destino.entries.firstOrNull { it.ruta == route }
@@ -83,7 +101,12 @@ fun MiPatrimonioApp() {
             }
         },
     ) { padding ->
-        AppNavHost(navController, Modifier.padding(padding))
+        AppNavHost(
+            navController = navController,
+            modifier = Modifier.padding(padding),
+            automationPermissionRequested = automationPermissionRequested,
+            onAutomationPermissionRequested = { automationPermissionRequested = true },
+        )
     }
 }
 
@@ -95,7 +118,7 @@ private fun titleFor(route: String?, destino: Destino?): Int = when {
     route == Rutas.CATEGORIAS -> R.string.nav_categorias
     route == Rutas.NOTIFICACIONES -> R.string.notif_settings_title
     route == Rutas.PROPUESTAS -> R.string.notif_proposals_title
-    route == Rutas.AUTOMATIZACION_NOTIFICACIONES -> R.string.auto_title
+    route == Rutas.AUTOMATIZACION_NOTIFICACIONES || route == Rutas.AUTOMATIZACION_NOTIFICACIONES_ROUTE -> R.string.auto_title
     route == Rutas.ENSENAR_NOTIFICACION -> R.string.auto_teach
     route == Rutas.CONFIGURAR_REGLA -> R.string.auto_configure_merchant
     route == Rutas.DIAGNOSTICO_NOTIFICACIONES -> R.string.notif_diagnostics_title
@@ -110,7 +133,12 @@ private fun titleFor(route: String?, destino: Destino?): Int = when {
 }
 
 @Composable
-private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
+private fun AppNavHost(
+    navController: NavHostController,
+    modifier: Modifier,
+    automationPermissionRequested: Boolean,
+    onAutomationPermissionRequested: () -> Unit,
+) {
     val idArg = listOf(navArgument("id") { type = NavType.StringType })
     fun idOf(entry: androidx.navigation.NavBackStackEntry): String? =
         entry.arguments?.getString("id")?.takeIf { it != Rutas.NUEVO }
@@ -167,8 +195,17 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
         }
         composable(Rutas.DIAGNOSTICO_NOTIFICACIONES) { NotificationDiagnosticsScreen() }
         composable(Rutas.PROPUESTAS) { PendingProposalsScreen() }
-        composable(Rutas.AUTOMATIZACION_NOTIFICACIONES) {
+        composable(
+            Rutas.AUTOMATIZACION_NOTIFICACIONES_ROUTE,
+            arguments = listOf(navArgument("tab") {
+                type = NavType.StringType
+                defaultValue = com.mipatrimonio.app.MainActivity.TAB_PENDING
+            }),
+        ) { entry ->
             AutomationScreen(
+                initialTab = entry.arguments?.getString("tab"),
+                permissionAlreadyRequested = automationPermissionRequested,
+                onPermissionRequested = onAutomationPermissionRequested,
                 onTeach = { navController.navigate(Rutas.ensenarNotificacion(it)) },
                 onConfigureRule = { navController.navigate(Rutas.configurarRegla(it)) },
                 onOpenNotificationSettings = { navController.navigate(Rutas.NOTIFICACIONES) },

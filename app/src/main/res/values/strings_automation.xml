@@ -1,6 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="auto_title">Automatización de notificaciones</string>
+    <string name="auto_alert_preference">Avisarme de automatizaciones pendientes</string>
+    <string name="auto_alert_permission_denied">Las notificaciones están desactivadas. Puedes conceder el permiso desde los ajustes del sistema.</string>
+    <string name="auto_notification_channel">Automatizaciones pendientes</string>
+    <string name="auto_notification_channel_description">Avisos de estructuras y comercios nuevos pendientes de configurar.</string>
+    <string name="auto_notification_title">Automatización pendiente</string>
+    <string name="auto_notification_public_text">Tienes automatizaciones pendientes.</string>
+    <string name="auto_notification_structure_one">%1$d notificación sin estructura</string>
+    <string name="auto_notification_structure_other">%1$d notificaciones sin estructura</string>
+    <string name="auto_notification_merchant_one">%1$d comercio nuevo</string>
+    <string name="auto_notification_merchant_other">%1$d comercios nuevos</string>
+    <string name="auto_notification_separator"> · </string>
     <string name="auto_pending_tab">Pendientes (%1$d)</string>
     <string name="auto_new_merchants_tab">Comercios nuevos (%1$d)</string>
     <string name="auto_structures_tab">Estructuras</string>
