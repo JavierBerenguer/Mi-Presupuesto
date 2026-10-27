@@ -526,3 +526,6 @@ El usuario dejó `datos-privados/Documento de cambios/Documento.md` (+ 4 captura
   - canal `automation_pending`;
   - preferencia «Avisarme de automatizaciones pendientes», activada por defecto.
 - **Orden:** T-067 → T-069 → T-068.
+- **T-067 ACEPTADA e integrada (2026-10-27).** Comercio nuevo → apunte con la estructura general, pestaña «Comercios nuevos», «Configurar este comercio» desde el formulario. Ajuste de Claude: un test antiguo esperaba un cambio retroactivo, adaptado a la decisión «solo futuros». 527 tests × 3 en verde.
+- **T-069 ACEPTADA e integrada (2026-10-27).** Aviso push agregado de automatizaciones pendientes, que abre Automatización en la pestaña correcta. Ajustes de Claude: un import y la clave nueva en los datos de `BackupTest`. 536 tests × 3 en verde. **Lección:** el sandbox de Codex bloquea Gradle (sin red para descargar la distribución ni `android-all-instrumented`). Claude debe compilar siempre y esperar fallos de compilación triviales en los tests.
+- **T-068 lanzada (2026-10-27)** en `.local/worktrees/t-068`.
