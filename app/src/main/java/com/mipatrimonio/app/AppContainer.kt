@@ -2,7 +2,6 @@ package com.mipatrimonio.app
 
 import android.app.Application
 import android.content.Context
-import androidx.work.Configuration
 import com.mipatrimonio.app.data.db.AppDatabase
 import com.mipatrimonio.app.data.backup.BackupFileStore
 import com.mipatrimonio.app.data.backup.BackupRepository
@@ -112,8 +111,7 @@ class AppContainer(context: Context) {
     }
 }
 
-class MiPatrimonioApplication : Application(), Configuration.Provider {
-    override val workManagerConfiguration: Configuration = Configuration.Builder().build()
+class MiPatrimonioApplication : Application() {
 
     lateinit var container: AppContainer
         private set
