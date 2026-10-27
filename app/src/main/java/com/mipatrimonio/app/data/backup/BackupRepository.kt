@@ -37,6 +37,14 @@ class BackupRepository(
     suspend fun restore(data: BackupData) {
         BackupValidator.validate(data)
         db.withTransaction {
+            val sync = db.syncDao()
+            sync.clearOutbox()
+            sync.clearResumen()
+            sync.clearMovimientos()
+            sync.clearProductos()
+            sync.clearPerfiles()
+            sync.clearCursors()
+            sync.clearFingerprints()
             val notification = db.notificationDao()
             val budget = db.budgetDao()
             notification.deleteAllRecordsForRestore()

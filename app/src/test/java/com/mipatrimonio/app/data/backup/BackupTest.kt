@@ -5,11 +5,14 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.mipatrimonio.app.data.db.AccountEntity
 import com.mipatrimonio.app.data.db.AppDatabase
+import com.mipatrimonio.app.data.db.SyncPerfilEntity
 import com.mipatrimonio.app.testutil.SettingsStoreRule
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -44,6 +47,16 @@ class BackupTest {
         db.accountDao().deleteAllForRestore()
         repository.restore(BackupJson().decode(encoded))
         assertEquals(100L, db.accountDao().getAllForBackup().single().initialBalanceMinor)
+    }
+
+    @Test fun `copia v15 se restaura y no incluye tablas sync`() = runBlocking {
+        db.syncDao().upsertPerfil(SyncPerfilEntity("p", "Antiguo", 0, null, "2026-01-01T00:00:00Z"))
+        val source = legacyV14().replace("\"dbVersion\":14", "\"dbVersion\":15")
+        val decoded = BackupJson().decode(source.toByteArray())
+        BackupRepository(db, settingsRule.repository, "test").restore(decoded)
+        assertEquals(listOf("a"), db.accountDao().getAllForBackup().map { it.id })
+        assertFalse(BACKUP_TABLE_NAMES.any { it.startsWith("sync_") })
+        assertTrue(db.syncDao().observePerfiles().first().isEmpty())
     }
 
     private fun legacyV14() = """{
