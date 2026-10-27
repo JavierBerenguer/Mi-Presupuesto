@@ -1,8 +1,6 @@
 package com.mipatrimonio.app.domain.model
 
-import java.math.BigDecimal
 import java.time.LocalDate
-import java.time.LocalTime
 
 enum class AccountType { CORRIENTE, AHORRO, EFECTIVO, INVERSION, CRIPTO, OTRA }
 
@@ -135,65 +133,3 @@ data class Budget(
         archived = archived,
     )
 }
-
-data class Portfolio(
-    val id: String,
-    val name: String,
-    val createdAt: Long,
-    val defaultAccountId: String? = null,
-    val archived: Boolean = false,
-)
-
-enum class AssetType { ACCION, ETF, FONDO_INDEXADO, FONDO_INVERSION, CRIPTO, PRESTAMO_P2P }
-enum class QuoteProvider { TWELVE_DATA, COINGECKO, EODHD }
-
-/** El ticker no es identificador universal: la identidad es [id] (más ISIN/mercado cuando existan). */
-data class Asset(
-    val id: String,
-    val name: String,
-    val ticker: String,
-    val isin: String,
-    val type: AssetType,
-    val market: String,
-    val currency: String,
-    val archived: Boolean = false,
-    val quoteProvider: QuoteProvider? = null,
-    val quoteSymbol: String? = null,
-    val quoteMic: String? = null,
-)
-
-enum class OperationType { COMPRA, VENTA, DIVIDENDO, COMISION, TRASPASO_SALIDA, TRASPASO_ENTRADA }
-
-/**
- * Operación de inversión. Importe bruto = [quantity] × [unitPrice] (en divisa del activo).
- * [feesMinor]: comisiones en compra/venta y retención en dividendos. En una COMISION,
- * el importe es el bruto ([quantity] × [unitPrice]) y [feesMinor] no forma parte del importe.
- */
-data class InvestmentOperation(
-    val id: String,
-    val portfolioId: String,
-    val assetId: String,
-    val type: OperationType,
-    val date: LocalDate,
-    val quantity: BigDecimal,
-    val unitPrice: BigDecimal,
-    val feesMinor: Long,
-    val currency: String,
-    val note: String,
-    val createdAt: Long,
-    val accountId: String? = null,
-    val time: LocalTime = LocalTime.MIDNIGHT,
-    val transferGroupId: String? = null,
-)
-
-enum class PriceSource { MANUAL, PROVEEDOR }
-enum class PriceQuality { RETRASADO, CIERRE }
-
-data class AssetPrice(
-    val assetId: String,
-    val price: BigDecimal,
-    val currency: String,
-    val asOfEpochMillis: Long,
-    val source: PriceSource,
-    val quality: PriceQuality? = null,
-)

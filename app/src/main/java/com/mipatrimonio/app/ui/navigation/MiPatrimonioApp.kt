@@ -29,8 +29,6 @@ import com.mipatrimonio.app.ui.components.BottomNavBar
 import com.mipatrimonio.app.ui.components.SecondaryTopBar
 import com.mipatrimonio.app.ui.home.HomeScreen
 import com.mipatrimonio.app.ui.investments.InvestmentsScreen
-import com.mipatrimonio.app.ui.investments.AssetDetailScreen
-import com.mipatrimonio.app.ui.investments.AssetsScreen
 import com.mipatrimonio.app.ui.movements.EntryFormScreen
 import com.mipatrimonio.app.ui.movements.MovementsScreen
 import com.mipatrimonio.app.ui.movements.SourceFilter
@@ -46,7 +44,6 @@ import com.mipatrimonio.app.ui.recurring.RecurringFormScreen
 import com.mipatrimonio.app.ui.recurring.RecurringListScreen
 import com.mipatrimonio.app.ui.backup.BackupScreen
 import com.mipatrimonio.app.ui.importer.TradeRepublicImportScreen
-import com.mipatrimonio.app.ui.portfolios.PortfoliosScreen
 import com.mipatrimonio.app.ui.automation.AutomationScreen
 import com.mipatrimonio.app.ui.automation.ConfigureRuleScreen
 import com.mipatrimonio.app.ui.automation.TeachStructureScreen
@@ -113,8 +110,6 @@ fun MiPatrimonioApp(
 private fun titleFor(route: String?, destino: Destino?): Int = when {
     destino != null -> destino.titulo
     route == Rutas.CUENTAS -> R.string.nav_cuentas
-    route == Rutas.ACTIVOS -> R.string.inv_assets_title
-    route == Rutas.CARTERAS -> R.string.portfolios_title
     route == Rutas.CATEGORIAS -> R.string.nav_categorias
     route == Rutas.NOTIFICACIONES -> R.string.notif_settings_title
     route == Rutas.PROPUESTAS -> R.string.notif_proposals_title
@@ -124,7 +119,6 @@ private fun titleFor(route: String?, destino: Destino?): Int = when {
     route == Rutas.DIAGNOSTICO_NOTIFICACIONES -> R.string.notif_diagnostics_title
     route == Rutas.PATRIMONIO -> R.string.nav_patrimonio
     route == Rutas.AJUSTES -> R.string.nav_ajustes
-    route == Rutas.ACTIVO -> R.string.inv_asset_detail_title
     route == Rutas.RECURRENTES -> R.string.recurring_title
     route == Rutas.COPIAS -> R.string.backup_nav_title
     route == Rutas.IMPORTAR_TRADE_REPUBLIC -> R.string.import_tr_nav_title
@@ -161,21 +155,13 @@ private fun AppNavHost(
                 onNewEntry = { navController.navigate(Rutas.apunte(null)) },
                 onEditEntry = { navController.navigate(Rutas.apunte(it)) },
                 onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
-                onOpenAssetDetail = { portfolioId, assetId ->
-                    navController.navigate(Rutas.activo(portfolioId, assetId))
-                },
                 initialSource = entry.savedStateHandle.remove<String>(Rutas.MOVEMENT_SOURCE_KEY)
                     ?.let(SourceFilter::valueOf),
             )
         }
         composable(Destino.Presupuesto.ruta) { BudgetsScreen() }
         composable(Destino.Cartera.ruta) {
-            InvestmentsScreen(
-                onOpenAssetDetail = { portfolioId, assetId -> navController.navigate(Rutas.activo(portfolioId, assetId)) },
-                onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
-                onOpenAssets = { navController.navigate(Rutas.ACTIVOS) },
-                onOpenPortfolios = { navController.navigate(Rutas.CARTERAS) },
-            )
+            InvestmentsScreen()
         }
         composable(Destino.Mas.ruta) {
             MoreScreen(onNavigate = { navController.navigate(it) })
@@ -185,8 +171,6 @@ private fun AppNavHost(
             SettingsScreen(onNavigate = { navController.navigate(it) })
         }
         composable(Rutas.CUENTAS) { AccountsScreen() }
-        composable(Rutas.ACTIVOS) { AssetsScreen() }
-        composable(Rutas.CARTERAS) { PortfoliosScreen() }
         composable(Rutas.CATEGORIAS) { CategoriesScreen() }
         composable(Rutas.NOTIFICACIONES) {
             NotificationSettingsScreen(
@@ -237,18 +221,6 @@ private fun AppNavHost(
                 onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
                 onOpenCategories = { navController.navigate(Rutas.CATEGORIAS) },
                 onConfigureMerchant = { navController.navigate(Rutas.configurarRegla(it)) },
-            )
-        }
-        composable(
-            Rutas.ACTIVO,
-            arguments = listOf(
-                navArgument("portfolioId") { type = NavType.StringType },
-                navArgument("assetId") { type = NavType.StringType },
-            ),
-        ) { entry ->
-            AssetDetailScreen(
-                portfolioId = entry.arguments?.getString("portfolioId").orEmpty(),
-                assetId = entry.arguments?.getString("assetId").orEmpty(),
             )
         }
     }

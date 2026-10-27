@@ -39,7 +39,6 @@ import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -83,7 +82,6 @@ import com.mipatrimonio.app.domain.model.MoneyMath
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
-import com.mipatrimonio.app.domain.model.OperationType
 import com.mipatrimonio.app.ui.common.AmountField
 import com.mipatrimonio.app.ui.common.ConfirmDialog
 import com.mipatrimonio.app.ui.common.DateField
@@ -111,10 +109,9 @@ fun MovementsScreen(
     onNewEntry: () -> Unit,
     onEditEntry: (String) -> Unit,
     onOpenAccounts: () -> Unit,
-    onOpenAssetDetail: (String, String) -> Unit,
     initialSource: SourceFilter? = null,
     viewModel: MovementsViewModel = appViewModel { c ->
-        MovementsViewModel(c.ledger, c.investments, c.settings)
+        MovementsViewModel(c.ledger, c.settings)
     },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -229,7 +226,6 @@ fun MovementsScreen(
                         hideAmounts = state.hideAmounts,
                         grayFuture = state.dailyBalance,
                         onEditEntry = onEditEntry,
-                        onOpenAssetDetail = onOpenAssetDetail,
                         onDuplicate = viewModel::duplicate,
                         onDelete = { pendingDelete = it },
                         selectedIds = state.selectedIds,
@@ -523,7 +519,6 @@ private fun MovementList(
     hideAmounts: Boolean,
     grayFuture: Boolean,
     onEditEntry: (String) -> Unit,
-    onOpenAssetDetail: (String, String) -> Unit,
     onDuplicate: (Transaction) -> Unit,
     onDelete: (MovementItem) -> Unit,
     selectedIds: Set<String>,
@@ -542,7 +537,7 @@ private fun MovementList(
         items(groups, key = { it.date.toEpochDay() }) { group ->
             DayGroup(
                 group, accountsById, categoriesById, baseCurrency, hideAmounts, grayFuture,
-                onEditEntry, onOpenAssetDetail, onDuplicate, onDelete, selectedIds,
+                onEditEntry, onDuplicate, onDelete, selectedIds,
                 onStartSelection, onToggleSelection, onUngroup, onRemoveFromGroup,
             )
         }
@@ -558,7 +553,6 @@ private fun DayGroup(
     hideAmounts: Boolean,
     grayFuture: Boolean,
     onEditEntry: (String) -> Unit,
-    onOpenAssetDetail: (String, String) -> Unit,
     onDuplicate: (Transaction) -> Unit,
     onDelete: (MovementItem) -> Unit,
     selectedIds: Set<String>,
@@ -600,14 +594,7 @@ private fun DayGroup(
             group.items.forEach { item ->
                 MovementRow(
                     item, accountsById, categoriesById, hideAmounts, grayFuture,
-                    onOpen = {
-                        when (item) {
-                            is MovementItem.Investment -> onOpenAssetDetail(
-                                item.operation.portfolioId, item.operation.assetId,
-                            )
-                            else -> onEditEntry(item.id())
-                        }
-                    },
+                    onOpen = { onEditEntry(item.id()) },
                     onDuplicate = { (item as? MovementItem.Tx)?.transaction?.let(onDuplicate) },
                     onDelete = { onDelete(item) },
                     selectedIds = selectedIds,
@@ -649,7 +636,6 @@ private fun MovementRow(
     val rowCategory = when (item) {
         is MovementItem.Tx -> item.transaction.categoryId?.let(categoriesById::get)
         is MovementItem.Move -> item.transfer.categoryId?.let(categoriesById::get)
-        is MovementItem.Investment -> null
     }
     val isFuture = movementStatus(item.date, LocalDate.now()) == MovementStatus.PREVISTO
     val isRestrictedFuture = isFuture && grayFuture
@@ -668,21 +654,7 @@ private fun MovementRow(
             .padding(start = 12.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (item is MovementItem.Investment) {
-            Box(
-                Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.extras.chipBackground),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    Icons.Default.ShowChart,
-                    contentDescription = stringResource(R.string.mov_investment_icon),
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
-        } else {
-            CategoryIconBadge(rowCategory, categoriesById.values)
-        }
+        CategoryIconBadge(rowCategory, categoriesById.values)
         Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -751,7 +723,7 @@ private fun MovementRow(
                 Text(stringResource(R.string.mov_group_count, item.groupChildren.size))
             }
         }
-        if (!selectionActive && item !is MovementItem.Investment) Box {
+        if (!selectionActive) Box {
             IconButton(onClick = { showMenu = true }) { Icon(Icons.Outlined.MoreVert, stringResource(R.string.common_more_options)) }
             DropdownMenu(showMenu, { showMenu = false }) {
                 DropdownMenuItem(
@@ -971,26 +943,6 @@ private fun movementPresentation(
             if (from?.currency == to?.currency) fromAmount else stringResource(R.string.mov_transfer_amounts, fromAmount, toAmount),
         )
     }
-    is MovementItem.Investment -> {
-        val operation = item.operation
-        val assetName = item.assetName.ifBlank { stringResource(R.string.mov_unknown_asset) }
-        val portfolioName = item.portfolioName.ifBlank { stringResource(R.string.mov_unknown_portfolio) }
-        val accountName = accounts[item.accountId]?.name ?: stringResource(R.string.mov_unknown_account)
-        val titleResource = when (operation.type) {
-            OperationType.COMPRA -> R.string.mov_investment_buy
-            OperationType.VENTA -> R.string.mov_investment_sell
-            OperationType.DIVIDENDO -> R.string.mov_investment_dividend
-            OperationType.COMISION -> R.string.mov_investment_fee
-            OperationType.TRASPASO_SALIDA, OperationType.TRASPASO_ENTRADA -> R.string.mov_investment_transfer
-        }
-        MovementPresentation(
-            title = stringResource(titleResource, assetName),
-            subtitle = stringResource(R.string.mov_investment_metadata, accountName, portfolioName),
-            currency = operation.currency,
-            kind = AmountKind.NEUTRAL,
-            automatic = false,
-        )
-    }
 }
 
 @Composable
@@ -1090,7 +1042,6 @@ private fun KindFilter.label() = stringResource(when (this) {
     KindFilter.INGRESOS -> R.string.mov_kind_income
     KindFilter.GASTOS -> R.string.mov_kind_expenses
     KindFilter.TRANSFERENCIAS -> R.string.mov_kind_transfers
-    KindFilter.INVERSIONES -> R.string.mov_kind_investments
 })
 
 @Composable
@@ -1104,7 +1055,6 @@ private fun MovementSort.label() = stringResource(when (this) {
 private fun MovementItem.id() = when (this) {
     is MovementItem.Tx -> transaction.id
     is MovementItem.Move -> transfer.id
-    is MovementItem.Investment -> operation.id
 }
 
 private fun Long?.toInputAmount(currency: String) = this?.let {

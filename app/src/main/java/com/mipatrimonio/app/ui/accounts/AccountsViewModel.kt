@@ -3,14 +3,12 @@ package com.mipatrimonio.app.ui.accounts
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mipatrimonio.app.data.repository.AccountDependencies
-import com.mipatrimonio.app.data.repository.InvestmentRepository
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
 import com.mipatrimonio.app.domain.calc.BalanceCalculator
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountType
 import com.mipatrimonio.app.domain.model.MoneyMath
-import com.mipatrimonio.app.domain.model.Portfolio
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
@@ -57,7 +55,6 @@ data class AccountsUiState(
 
 class AccountsViewModel(
     private val ledger: LedgerRepository,
-    private val investments: InvestmentRepository,
     settings: SettingsRepository,
     private val today: () -> LocalDate = LocalDate::now,
 ) : ViewModel() {
@@ -68,13 +65,12 @@ class AccountsViewModel(
         ledger.accounts,
         ledger.transactions,
         ledger.transfers,
-        investments.operations,
-    ) { accounts, transactions, transfers, operations ->
+    ) { accounts, transactions, transfers ->
         val managedAccounts = accounts
             .map { account ->
                 ManagedAccount(
                     account,
-                    BalanceCalculator.balance(account, transactions, transfers, operations, today()),
+                    BalanceCalculator.balance(account, transactions, transfers, today()),
                 )
             }
             .sortedBy { it.account.name.lowercase() }
@@ -126,7 +122,6 @@ class AccountsViewModel(
         type: AccountType,
         currency: String,
         initialBalanceText: String,
-        createLinkedPortfolio: Boolean = false,
         onSaved: () -> Unit,
     ) {
         if (name.isBlank()) {
@@ -150,16 +145,6 @@ class AccountsViewModel(
         )
         launchAction(onSaved) {
             ledger.saveAccount(account)
-            if (existing == null && type == AccountType.INVERSION && createLinkedPortfolio) {
-                investments.savePortfolio(
-                    Portfolio(
-                        id = UUID.randomUUID().toString(),
-                        name = account.name,
-                        createdAt = System.currentTimeMillis(),
-                        defaultAccountId = account.id,
-                    ),
-                )
-            }
         }
     }
 

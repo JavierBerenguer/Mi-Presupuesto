@@ -22,13 +22,11 @@ import kotlinx.coroutines.flow.map
 data class AccountDependencies(
     val transactions: Int,
     val transfers: Int,
-    val investmentOperations: Int,
-    val portfolios: Int,
     val notificationApps: Int,
 ) {
-    val hasHistory: Boolean get() = transactions + transfers + investmentOperations > 0
+    val hasHistory: Boolean get() = transactions + transfers > 0
     val canDelete: Boolean
-        get() = transactions + transfers + investmentOperations + portfolios + notificationApps == 0
+        get() = transactions + transfers + notificationApps == 0
 }
 
 data class CategoryUsage(
@@ -81,12 +79,6 @@ class LedgerRepository(
     suspend fun setAccountArchived(id: String, archived: Boolean) = db.withTransaction {
         val existing = accountDao.getById(id) ?: return@withTransaction
         accountDao.upsert(existing.copy(archived = archived, updatedAt = clock()))
-        if (archived) {
-            db.openHelper.writableDatabase.execSQL(
-                "UPDATE portfolio SET defaultAccountId = NULL WHERE defaultAccountId = ?",
-                arrayOf(id),
-            )
-        }
     }
 
     suspend fun accountDependencies(id: String): AccountDependencies = db.withTransaction {
@@ -97,8 +89,6 @@ class LedgerRepository(
         AccountDependencies(
             transactions = transactionDao.countForAccount(id) + db.recurringRuleDao().countForAccount(id),
             transfers = transferDao.countForAccount(id),
-            investmentOperations = db.investmentDao().countOperationsForAccount(id),
-            portfolios = db.investmentDao().countPortfoliosForAccount(id),
             notificationApps = db.notificationDao().countAuthorizationsForAccount(id),
         )
 

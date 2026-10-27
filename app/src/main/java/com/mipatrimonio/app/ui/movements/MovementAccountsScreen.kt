@@ -31,7 +31,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.mipatrimonio.app.R
 import com.mipatrimonio.app.data.repository.LedgerRepository
-import com.mipatrimonio.app.data.repository.InvestmentRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
 import com.mipatrimonio.app.domain.calc.BalanceCalculator
 import com.mipatrimonio.app.domain.model.Account
@@ -64,7 +63,6 @@ data class MovementAccountsUiState(
 
 class MovementAccountsViewModel(
     private val ledger: LedgerRepository,
-    private val investments: InvestmentRepository,
     private val settings: SettingsRepository,
     private val today: () -> LocalDate = LocalDate::now,
 ) : ViewModel() {
@@ -84,13 +82,12 @@ class MovementAccountsViewModel(
 
     val uiState: StateFlow<MovementAccountsUiState> = combine(
         ledgerData,
-        investments.operations,
         settings.settings,
         errors,
-    ) { data, operations, currentSettings, error ->
+    ) { data, currentSettings, error ->
         val balances = data.accounts.associate { account ->
             account.id to BalanceCalculator.balance(
-                account, data.transactions, data.transfers, operations, today = today(),
+                account, data.transactions, data.transfers, today = today(),
             )
         }
         val stored = currentSettings.movementsIncludedAccountIds
@@ -156,7 +153,7 @@ class MovementAccountsViewModel(
 fun MovementAccountsScreen(
     onBack: () -> Unit,
     viewModel: MovementAccountsViewModel = appViewModel { c ->
-        MovementAccountsViewModel(c.ledger, c.investments, c.settings)
+        MovementAccountsViewModel(c.ledger, c.settings)
     },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()

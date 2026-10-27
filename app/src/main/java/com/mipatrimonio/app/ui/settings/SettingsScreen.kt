@@ -43,7 +43,7 @@ import com.mipatrimonio.app.ui.navigation.SecondaryMenuDestination
 @Composable
 fun SettingsScreen(
     onNavigate: (String) -> Unit,
-    viewModel: SettingsViewModel = appViewModel { c -> SettingsViewModel(c.settings, c.quoteSecrets, c.notifications) },
+    viewModel: SettingsViewModel = appViewModel { c -> SettingsViewModel(c.settings, c.notifications) },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     if (state.isLoading) {
@@ -57,10 +57,6 @@ fun SettingsScreen(
     }
     val versionName = remember(context) { readVersionName(context) }
     var pendingCurrency by remember { mutableStateOf<String?>(null) }
-    var twelveKey by remember { mutableStateOf("") }
-    var coinGeckoKey by remember { mutableStateOf("") }
-    var openFigiKey by remember { mutableStateOf("") }
-    var eodhdKey by remember { mutableStateOf("") }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -102,35 +98,6 @@ fun SettingsScreen(
                 state.errorMessage?.takeIf(String::isNotBlank)?.let { error ->
                     Text(error, color = MaterialTheme.colorScheme.error)
                 }
-            }
-        }
-        item {
-            SectionCard(title = stringResource(R.string.aj_quotes)) {
-                Text(stringResource(R.string.aj_quotes_notice))
-                SecretEditor(
-                    stringResource(R.string.aj_eodhd_key), state.eodhdConfigured, eodhdKey,
-                    { eodhdKey = it }, { viewModel.saveEodhdKey(eodhdKey); eodhdKey = "" },
-                    viewModel::deleteEodhdKey,
-                )
-                Text(stringResource(R.string.aj_eodhd_domain), style = MaterialTheme.typography.bodySmall)
-                SecretEditor(
-                    stringResource(R.string.aj_twelve_data_key), state.twelveDataConfigured, twelveKey,
-                    { twelveKey = it }, { viewModel.saveTwelveDataKey(twelveKey); twelveKey = "" },
-                    viewModel::deleteTwelveDataKey,
-                )
-                Text(stringResource(R.string.aj_twelve_data_domain), style = MaterialTheme.typography.bodySmall)
-                SecretEditor(
-                    stringResource(R.string.aj_coingecko_key), state.coinGeckoConfigured, coinGeckoKey,
-                    { coinGeckoKey = it }, { viewModel.saveCoinGeckoKey(coinGeckoKey); coinGeckoKey = "" },
-                    viewModel::deleteCoinGeckoKey,
-                )
-                Text(stringResource(R.string.aj_coingecko_domain), style = MaterialTheme.typography.bodySmall)
-                SecretEditor(
-                    stringResource(R.string.aj_openfigi_key), state.openFigiConfigured, openFigiKey,
-                    { openFigiKey = it }, { viewModel.saveOpenFigiKey(openFigiKey); openFigiKey = "" },
-                    viewModel::deleteOpenFigiKey,
-                )
-                Text(stringResource(R.string.aj_openfigi_domain), style = MaterialTheme.typography.bodySmall)
             }
         }
         item {

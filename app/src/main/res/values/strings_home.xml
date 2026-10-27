@@ -4,7 +4,6 @@
     <string name="ini_create_account">Crear cuenta</string>
     <string name="ini_networth">Patrimonio neto</string>
     <string name="ini_available">Dinero disponible</string>
-    <string name="ini_investments">Inversiones</string>
     <string name="ini_month">Este mes</string>
     <string name="ini_income">Ingresos</string>
     <string name="ini_expenses">Gastos</string>
@@ -19,14 +18,9 @@
     <string name="ini_chart_income_vs_expenses_desc">Gráfico de barras de ingresos y gastos por mes.</string>
     <string name="ini_chart_expense_distribution">Distribución de gastos</string>
     <string name="ini_chart_expense_distribution_desc">Gráfico circular con el reparto de gastos por categoría.</string>
-    <string name="ini_chart_asset_distribution">Distribución de activos</string>
-    <string name="ini_chart_asset_distribution_desc">Gráfico circular con el reparto del patrimonio entre efectivo por tipo de cuenta e inversiones.</string>
     <string name="ini_no_data_period">Sin datos en este periodo.</string>
     <string name="ini_no_category">Sin categoría</string>
-    <string name="ini_investments_label">Inversiones</string>
     <string name="ini_total">Total</string>
-    <string name="ini_add_to_networth">Sumar al patrimonio</string>
-    <string name="ini_accounts">Cuentas</string>
     <string name="ini_hide_amounts">Ocultar importes</string>
     <string name="ini_show_amounts">Mostrar importes</string>
     <string name="ini_period_max">M&#225;x</string>

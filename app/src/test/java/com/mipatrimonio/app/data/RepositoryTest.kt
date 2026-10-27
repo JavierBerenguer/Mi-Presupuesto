@@ -4,25 +4,14 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.mipatrimonio.app.data.db.AppDatabase
-import com.mipatrimonio.app.data.repository.InvestmentRepository
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.domain.calc.BalanceCalculator
-import com.mipatrimonio.app.domain.calc.InvalidOperationException
-import com.mipatrimonio.app.domain.calc.InvalidInvestmentAccountException
-import com.mipatrimonio.app.domain.calc.InvestmentAccountError
-import com.mipatrimonio.app.domain.calc.PositionCalculator
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountType
-import com.mipatrimonio.app.domain.model.Asset
-import com.mipatrimonio.app.domain.model.AssetType
-import com.mipatrimonio.app.domain.model.InvestmentOperation
-import com.mipatrimonio.app.domain.model.OperationType
-import com.mipatrimonio.app.domain.model.Portfolio
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.model.Transfer
-import java.math.BigDecimal
 import java.time.LocalDate
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -42,7 +31,6 @@ import org.robolectric.annotation.Config
 class RepositoryTest {
     private lateinit var db: AppDatabase
     private lateinit var ledger: LedgerRepository
-    private lateinit var investments: InvestmentRepository
     private var now = 1_000L
 
     @Before
@@ -50,7 +38,6 @@ class RepositoryTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
         ledger = LedgerRepository(db) { now++ }
-        investments = InvestmentRepository(db) { now++ }
     }
 
     @After
@@ -65,8 +52,7 @@ class RepositoryTest {
     private suspend fun balance(id: String): Long {
         val acc = ledger.accounts.first().first { it.id == id }
         return BalanceCalculator.balance(
-            acc, ledger.transactions.first(), ledger.transfers.first(), investments.operations.first(),
-            LocalDate.of(2100, 1, 1),
+            acc, ledger.transactions.first(), ledger.transfers.first(), LocalDate.of(2100, 1, 1),
         )
     }
 
@@ -139,141 +125,5 @@ class RepositoryTest {
             ledger.saveTransaction(tx("t1", TransactionType.GASTO, 10, "a1"))
         }
         assertThrows(Exception::class.java) { db.openHelper.writableDatabase.execSQL("DELETE FROM account WHERE id='a1'") }
-    }
-
-    @Test
-    fun `operaciones de inversion validan el historial y calculan la posicion`() = runBlocking<Unit> {
-        investments.savePortfolio(Portfolio("p1", "Principal", 1))
-        investments.saveAsset(Asset("as1", "ETF Mundo", "IWDA", "IE00B4L5Y983", AssetType.ETF, "XAMS", "EUR"))
-        fun op(id: String, type: OperationType, qty: String, price: String, day: Int) = InvestmentOperation(
-            id, "p1", "as1", type, LocalDate.of(2026, 1, day), BigDecimal(qty), BigDecimal(price), 0, "EUR", "", day.toLong(),
-        )
-        investments.addOperation(op("o1", OperationType.COMPRA, "10", "80.5", 1))
-        assertThrows(InvalidOperationException::class.java) { runBlocking { investments.addOperation(op("o2", OperationType.VENTA, "11", "90", 2)) } }
-        investments.addOperation(op("o3", OperationType.VENTA, "4", "90", 3))
-        val position = PositionCalculator.compute(investments.operations.first())
-        assertEquals(0, BigDecimal("6").compareTo(position.quantity))
-        // No se puede borrar la compra de la que depende la venta
-        assertThrows(InvalidOperationException::class.java) {
-            runBlocking { investments.deleteOperation(investments.operations.first().first { it.id == "o1" }) }
-        }
-    }
-
-    @Test
-    fun `prestamo p2p se persiste y admite todas las operaciones de inversion`() = runBlocking<Unit> {
-        investments.savePortfolio(Portfolio("p1", "Préstamos", 1))
-        val asset = Asset("p2p1", "Préstamo Mintos", "P2P", "", AssetType.PRESTAMO_P2P, "", "EUR")
-        investments.saveAsset(asset)
-
-        fun operation(id: String, type: OperationType, quantity: String, price: String, day: Int) =
-            InvestmentOperation(
-                id, "p1", asset.id, type, LocalDate.of(2026, 1, day), BigDecimal(quantity),
-                BigDecimal(price), 0, "EUR", "", day.toLong(),
-            )
-
-        investments.addOperation(operation("compra", OperationType.COMPRA, "10", "100", 1))
-        investments.addOperation(operation("dividendo", OperationType.DIVIDENDO, "1", "5", 2))
-        investments.addOperation(operation("comision", OperationType.COMISION, "1", "2", 3))
-        investments.addOperation(operation("venta", OperationType.VENTA, "2", "100", 4))
-
-        assertEquals(asset, investments.assets.first().single())
-        assertEquals(
-            setOf(OperationType.COMPRA, OperationType.DIVIDENDO, OperationType.COMISION, OperationType.VENTA),
-            investments.operations.first().mapTo(mutableSetOf()) { it.type },
-        )
-    }
-
-    @Test
-    fun `operacion vinculada valida divisa y se refleja al editar y eliminar`() = runBlocking<Unit> {
-        ledger.saveAccount(account("eur", initial = 1_000_00))
-        ledger.saveAccount(account("usd", currency = "USD"))
-        investments.savePortfolio(Portfolio("p1", "Principal", 1, defaultAccountId = "eur"))
-        investments.saveAsset(Asset("as1", "ETF Mundo", "IWDA", "", AssetType.ETF, "XAMS", "EUR"))
-        fun purchase(price: String, accountId: String?) = InvestmentOperation(
-            "o1", "p1", "as1", OperationType.COMPRA, LocalDate.of(2026, 1, 1), BigDecimal("2"),
-            BigDecimal(price), 1_00, "EUR", "", 1, accountId,
-        )
-
-        val mismatch = assertThrows(InvalidInvestmentAccountException::class.java) {
-            runBlocking { investments.addOperation(purchase("100", "usd")) }
-        }
-        assertTrue(mismatch.reason is InvestmentAccountError.CurrencyMismatch)
-
-        investments.addOperation(purchase("100", "eur"))
-        assertEquals(799_00L, balance("eur"))
-        investments.addOperation(purchase("120", "eur"))
-        assertEquals(759_00L, balance("eur"))
-        investments.deleteOperation(investments.operations.first().single())
-        assertEquals(1_000_00L, balance("eur"))
-    }
-
-    @Test
-    fun `operacion sin cuenta conserva el comportamiento anterior y cartera guarda sugerencia`() = runBlocking<Unit> {
-        ledger.saveAccount(account("a1", initial = 100_00))
-        val portfolio = Portfolio("p1", "Principal", 1, defaultAccountId = "a1")
-        investments.savePortfolio(portfolio)
-        investments.saveAsset(Asset("as1", "ETF", "X", "", AssetType.ETF, "", "EUR"))
-        investments.addOperation(
-            InvestmentOperation(
-                "o1", "p1", "as1", OperationType.COMPRA, LocalDate.of(2026, 1, 1), BigDecimal.ONE,
-                BigDecimal.TEN, 0, "EUR", "", 1, accountId = null,
-            ),
-        )
-
-        assertEquals("a1", investments.portfolios.first().single().defaultAccountId)
-        assertEquals(100_00L, balance("a1"))
-    }
-
-    @Test
-    fun `precio manual guarda historial y devuelve el ultimo`() = runBlocking<Unit> {
-        investments.saveAsset(Asset("as1", "ETF", "X", "", AssetType.ETF, "", "EUR"))
-        investments.setManualPrice("as1", BigDecimal("10.5"), "EUR")
-        investments.setManualPrice("as1", BigDecimal("11.25"), "EUR")
-        val latest = investments.latestPrices.first()["as1"]!!
-        assertEquals(0, BigDecimal("11.25").compareTo(latest.price))
-        assertThrows(IllegalArgumentException::class.java) { runBlocking { investments.setManualPrice("as1", BigDecimal.ZERO, "EUR") } }
-    }
-
-    @Test
-    fun `carteras validan nombre unico archivado cuenta y eliminacion`() = runBlocking<Unit> {
-        ledger.saveAccount(account("activa"))
-        ledger.saveAccount(account("archivada").copy(archived = true))
-        investments.savePortfolio(Portfolio("p1", " Principal ", 1, "activa"))
-        assertEquals("Principal", investments.portfolios.first().single().name)
-        assertThrows(IllegalArgumentException::class.java) {
-            runBlocking { investments.savePortfolio(Portfolio("p2", "principal", 2)) }
-        }
-        assertThrows(IllegalArgumentException::class.java) {
-            runBlocking { investments.savePortfolio(Portfolio("p2", "   ", 2)) }
-        }
-        assertThrows(IllegalArgumentException::class.java) {
-            runBlocking { investments.savePortfolio(Portfolio("p2", "Otra", 2, "archivada")) }
-        }
-
-        investments.savePortfolio(Portfolio("p1", "Renombrada", 1, null))
-        assertEquals("Renombrada", investments.portfolios.first().single().name)
-        investments.setPortfolioArchived("p1", true)
-        assertTrue(investments.portfolios.first().single().archived)
-        investments.savePortfolio(Portfolio("p2", "Renombrada", 2))
-        investments.deletePortfolio("p2")
-        assertEquals(listOf("p1"), investments.portfolios.first().map { it.id })
-    }
-
-    @Test
-    fun `cartera con operaciones no se elimina ni acepta operaciones al archivarse`() = runBlocking<Unit> {
-        investments.savePortfolio(Portfolio("p1", "Principal", 1))
-        investments.saveAsset(Asset("as1", "ETF", "X", "", AssetType.ETF, "", "EUR"))
-        val operation = InvestmentOperation(
-            "o1", "p1", "as1", OperationType.COMPRA, LocalDate.of(2026, 1, 1),
-            BigDecimal.ONE, BigDecimal.TEN, 0, "EUR", "", 1,
-        )
-        investments.addOperation(operation)
-        assertEquals(1, investments.portfolioDependencies("p1").operations)
-        assertThrows(IllegalArgumentException::class.java) { runBlocking { investments.deletePortfolio("p1") } }
-        assertThrows(Exception::class.java) { runBlocking { db.investmentDao().deletePortfolio("p1") } }
-        investments.setPortfolioArchived("p1", true)
-        assertThrows(IllegalArgumentException::class.java) {
-            runBlocking { investments.addOperation(operation.copy(id = "o2")) }
-        }
     }
 }

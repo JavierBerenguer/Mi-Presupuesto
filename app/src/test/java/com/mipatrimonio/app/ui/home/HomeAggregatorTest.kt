@@ -3,21 +3,13 @@ package com.mipatrimonio.app.ui.home
 import com.mipatrimonio.app.domain.TestData.account
 import com.mipatrimonio.app.domain.TestData.category
 import com.mipatrimonio.app.domain.TestData.tx
-import com.mipatrimonio.app.domain.TestData.op
-import com.mipatrimonio.app.domain.model.Asset
-import com.mipatrimonio.app.domain.model.AssetType
-import com.mipatrimonio.app.domain.model.AssetPrice
-import com.mipatrimonio.app.domain.model.PriceSource
 import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.BudgetPeriod
 import com.mipatrimonio.app.domain.model.TransactionType.GASTO
 import com.mipatrimonio.app.domain.model.TransactionType.INGRESO
 import com.mipatrimonio.app.domain.model.TransactionSource
-import com.mipatrimonio.app.domain.model.OperationType
-import com.mipatrimonio.app.domain.model.Portfolio
 import com.mipatrimonio.app.domain.usecase.Period
 import java.time.LocalDate
-import java.math.BigDecimal
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -33,7 +25,7 @@ class HomeAggregatorTest {
         budgets: List<Budget> = emptyList(),
         accounts: List<com.mipatrimonio.app.domain.model.Account> = listOf(account("a1", initial = 100_00)),
         period: Period = Period.MES,
-    ) = buildHomeState("EUR", accounts, txs, emptyList(), cats, budgets, emptyList(), emptyList(), emptyList(), emptyMap(), today, period)
+    ) = buildHomeState("EUR", accounts, txs, emptyList(), cats, budgets, today, period)
 
     private fun budget(id: String, category: String?, limit: Long, period: BudgetPeriod = BudgetPeriod.MENSUAL, currency: String = "EUR") =
         Budget(id, category, period, limit, currency, false)
@@ -112,30 +104,6 @@ class HomeAggregatorTest {
         assertEquals(0L, s.netWorth.totalMinor)
         assertEquals(setOf("USD"), s.netWorth.excludedCurrencies)
         assertTrue(s.hasAccounts)
-    }
-
-    @Test
-    fun `filtros de patrimonio seleccionan cuentas inversiones o ambos`() {
-        val asset = Asset("asset1", "Fondo", "F", "", AssetType.FONDO_INDEXADO, "", "EUR")
-        val operation = op(OperationType.COMPRA, "2", "50", date = today)
-        fun filtered(accounts: Boolean, investments: Boolean) = buildHomeState(
-            "EUR", listOf(account(initial = 40_00)), emptyList(), emptyList(), cats, emptyList(),
-            listOf(Portfolio("p1", "Principal", 0)), listOf(asset), listOf(operation),
-            mapOf("asset1" to AssetPrice("asset1", BigDecimal("50"), "EUR", 0, PriceSource.MANUAL)),
-            today, Period.MES, accounts, investments,
-        )
-
-        assertEquals(40_00L, filtered(true, false).displayedNetWorthMinor)
-        assertEquals(100_00L, filtered(false, true).displayedNetWorthMinor)
-        assertEquals(140_00L, filtered(true, true).displayedNetWorthMinor)
-        assertTrue(filtered(false, true).netWorthSeries.all { it.totalMinor >= 0L })
-        val investmentsOnly = buildHomeState(
-            "EUR", emptyList(), emptyList(), emptyList(), cats, emptyList(),
-            listOf(Portfolio("p1", "Principal", 0)), listOf(asset), listOf(operation), emptyMap(),
-            today, Period.MES,
-        )
-        assertFalse(investmentsOnly.hasAccounts)
-        assertTrue(investmentsOnly.hasFinancialData)
     }
 
     @Test

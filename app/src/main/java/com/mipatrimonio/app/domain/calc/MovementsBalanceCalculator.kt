@@ -4,7 +4,6 @@ import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.model.Transfer
-import com.mipatrimonio.app.domain.model.InvestmentOperation
 import com.mipatrimonio.app.domain.model.MovementStatus
 import com.mipatrimonio.app.domain.model.movementStatus
 import java.time.LocalDate
@@ -22,7 +21,6 @@ object MovementsBalanceCalculator {
         includedAccounts: List<Account>,
         transactions: List<Transaction>,
         transfers: List<Transfer>,
-        operations: List<InvestmentOperation>,
         selectedMonth: YearMonth,
         baseCurrency: String,
         mode: MovementsCalculationMode,
@@ -52,7 +50,7 @@ object MovementsBalanceCalculator {
                 total = addTransferEffect(total, transfers, includedById, baseCurrency) {
                     movementStatus(it.date, cutoff) == MovementStatus.EJECUTADO
                 }
-                addInvestmentEffect(total, operations, includedById, baseCurrency) { true }
+                total
             }
 
             MovementsCalculationMode.SALDO_MENSUAL -> {
@@ -63,9 +61,6 @@ object MovementsBalanceCalculator {
                 // En saldo actual se conservan siempre las transferencias: mueven dinero real.
                 if (!ignoreTransfers) {
                     total = addTransferEffect(total, transfers, includedById, baseCurrency) {
-                        it.date in firstDay..monthlyEndDay
-                    }
-                    total = addInvestmentEffect(total, operations, includedById, baseCurrency) {
                         it.date in firstDay..monthlyEndDay
                     }
                 }
@@ -115,18 +110,6 @@ object MovementsBalanceCalculator {
             result = Math.addExact(result, transfer.toAmountMinor)
         }
         result
-    }
-
-    private fun addInvestmentEffect(
-        initial: Long,
-        operations: List<InvestmentOperation>,
-        includedById: Map<String, Account>,
-        baseCurrency: String,
-        include: (InvestmentOperation) -> Boolean,
-    ): Long = operations.fold(initial) { total, operation ->
-        val account = operation.accountId?.let(includedById::get)
-        if (account?.currency != baseCurrency || operation.currency != baseCurrency || !include(operation)) total
-        else Math.addExact(total, BalanceCalculator.investmentEffectMinor(operation))
     }
 
     private fun sumTransactions(

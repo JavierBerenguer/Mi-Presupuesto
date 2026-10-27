@@ -11,23 +11,11 @@ import com.mipatrimonio.app.data.export.CsvExportRepository
 import com.mipatrimonio.app.data.export.CsvExportService
 import com.mipatrimonio.app.data.importer.ImportFileStore
 import com.mipatrimonio.app.data.importer.TradeRepublicImportRepository
-import com.mipatrimonio.app.data.repository.InvestmentRepository
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.NotificationRepository
 import com.mipatrimonio.app.data.repository.RecurringRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
 import com.mipatrimonio.app.data.work.RecurringReminderScheduler
-import com.mipatrimonio.app.data.work.QuoteRefreshWorker
-import com.mipatrimonio.app.data.quotes.CoinGeckoQuoteProvider
-import com.mipatrimonio.app.data.quotes.CoinGeckoSearchService
-import com.mipatrimonio.app.data.quotes.KeystoreSecretStore
-import com.mipatrimonio.app.data.quotes.QuoteRepository
-import com.mipatrimonio.app.data.quotes.TwelveDataQuoteProvider
-import com.mipatrimonio.app.data.quotes.TwelveDataAssetService
-import com.mipatrimonio.app.data.quotes.OpenFigiService
-import com.mipatrimonio.app.data.quotes.UrlConnectionHttpClient
-import com.mipatrimonio.app.data.quotes.EodhdQuoteProvider
-import com.mipatrimonio.app.data.quotes.EodhdSearchService
 import com.mipatrimonio.app.domain.notifications.GenericSpanishParser
 import com.mipatrimonio.app.domain.notifications.NotificationEngine
 import com.mipatrimonio.app.notifications.PendingAutomationNotifier
@@ -44,22 +32,6 @@ class AppContainer(context: Context) {
         Context.MODE_PRIVATE,
     )
     val ledger = LedgerRepository(database)
-    val investments = InvestmentRepository(database)
-    val quoteSecrets = KeystoreSecretStore(context.applicationContext)
-    private val quoteHttp = UrlConnectionHttpClient()
-    val openFigi = OpenFigiService(quoteHttp, quoteSecrets)
-    val coinGeckoSearch = CoinGeckoSearchService(quoteHttp, quoteSecrets)
-    val twelveDataAssets = TwelveDataAssetService(quoteHttp, quoteSecrets)
-    val eodhdSearch = EodhdSearchService(quoteHttp, quoteSecrets)
-    val quotes = QuoteRepository(
-        database,
-        investments,
-        listOf(
-            TwelveDataQuoteProvider(quoteHttp, quoteSecrets),
-            CoinGeckoQuoteProvider(quoteHttp, quoteSecrets),
-            EodhdQuoteProvider(quoteHttp, quoteSecrets),
-        ),
-    )
     val settings = SettingsRepository(context.applicationContext)
     val pendingAutomationNotifier = PendingAutomationNotifier(context.applicationContext, settings)
     val recurring = RecurringRepository(database)
@@ -100,7 +72,7 @@ class AppContainer(context: Context) {
         recurringReminderScheduler.createChannel()
         pendingAutomationNotifier.createChannel()
         RecurringReminderScheduler.enqueuePeriodic(context.applicationContext)
-        QuoteRefreshWorker.enqueuePeriodic(context.applicationContext)
+        clearLegacyMarketSecrets(context.applicationContext)
         scope.launch {
             recurring.generatePending(
                 RecurringRepository.generationLimit(java.time.LocalDate.now()),
@@ -111,6 +83,24 @@ class AppContainer(context: Context) {
 
     private companion object {
         const val DIAGNOSTIC_TEXT_KEY = "diagnostic_text_enabled"
+        const val LEGACY_MARKET_SECRETS_CLEANED_KEY = "legacy_market_secrets_cleaned"
+
+        fun clearLegacyMarketSecrets(context: Context) {
+            val cleanupPreferences = context.getSharedPreferences("app_cleanup", Context.MODE_PRIVATE)
+            if (cleanupPreferences.getBoolean(LEGACY_MARKET_SECRETS_CLEANED_KEY, false)) return
+            val preferences = context.getSharedPreferences("quote_secrets", Context.MODE_PRIVATE)
+            if (preferences.all.isNotEmpty()) preferences.edit().clear().apply()
+            runCatching {
+                java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+            }.getOrNull()?.let { keyStore ->
+                runCatching {
+                    if (keyStore.containsAlias("mi_patrimonio_quote_secrets")) {
+                        keyStore.deleteEntry("mi_patrimonio_quote_secrets")
+                    }
+                }
+            }
+            cleanupPreferences.edit().putBoolean(LEGACY_MARKET_SECRETS_CLEANED_KEY, true).apply()
+        }
     }
 }
 

@@ -7,24 +7,18 @@ import com.mipatrimonio.app.domain.calc.NetWorth
 import com.mipatrimonio.app.domain.calc.PeriodTotals
 import com.mipatrimonio.app.domain.calc.StatsCalculator
 import com.mipatrimonio.app.domain.model.Account
-import com.mipatrimonio.app.domain.model.Asset
-import com.mipatrimonio.app.domain.model.AssetPrice
 import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.BudgetPeriod
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.InvestmentOperation
-import com.mipatrimonio.app.domain.model.Portfolio
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.Transfer
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.MovementStatus
 import com.mipatrimonio.app.domain.model.movementStatus
-import com.mipatrimonio.app.domain.usecase.AssetShare
 import com.mipatrimonio.app.domain.usecase.HistoryCalculator
 import com.mipatrimonio.app.domain.usecase.NetWorthPoint
 import com.mipatrimonio.app.domain.usecase.Period
 import com.mipatrimonio.app.domain.usecase.SnapshotBuilder
-import com.mipatrimonio.app.domain.usecase.assetDistribution
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -42,9 +36,6 @@ data class HomeState(
     val netWorthSeries: List<NetWorthPoint>,
     val monthlySeries: List<MonthTotals>,
     val expenseByCategory: List<CategorySpend>,
-    val assetShares: List<AssetShare>,
-    val includeAccounts: Boolean,
-    val includeInvestments: Boolean,
     val hideAmounts: Boolean,
     val automaticTransactionsCount: Int,
     val spentIncomePercent: Int?,
@@ -79,38 +70,20 @@ fun buildHomeState(
     transfers: List<Transfer>,
     categories: List<Category>,
     budgets: List<Budget>,
-    portfolios: List<Portfolio>,
-    assets: List<Asset>,
-    operations: List<InvestmentOperation>,
-    prices: Map<String, AssetPrice>,
     today: LocalDate,
     period: Period,
-    includeAccounts: Boolean = true,
-    includeInvestments: Boolean = true,
     hideAmounts: Boolean = false,
 ): HomeState {
     val snapshot = SnapshotBuilder.build(
-        baseCurrency, accounts, transactions, transfers, portfolios, assets, operations, prices, today,
+        baseCurrency, accounts, transactions, transfers, today,
     )
-    val firstActivity = (transactions.map { it.date } + transfers.map { it.date } + operations.map { it.date }).minOrNull()
+    val firstActivity = (transactions.map { it.date } + transfers.map { it.date }).minOrNull()
     val thisMonth = YearMonth.from(today)
-    val componentSeries = HistoryCalculator.netWorthComponentsSeries(
-        baseCurrency, accounts, transactions, transfers, assets, operations,
+    val filteredSeries = HistoryCalculator.netWorthSeries(
+        baseCurrency, accounts, transactions, transfers,
         HistoryCalculator.sampleDates(period, today, firstActivity), today,
     )
-    val filteredSeries = componentSeries.map { point ->
-        NetWorthPoint(
-            point.date,
-            Math.addExact(
-                if (includeAccounts) point.accountsMinor else 0L,
-                if (includeInvestments) point.investmentsMinor else 0L,
-            ),
-        )
-    }
-    val displayedNetWorth = Math.addExact(
-        if (includeAccounts) snapshot.netWorth.cashMinor else 0L,
-        if (includeInvestments) snapshot.netWorth.investmentsMinor else 0L,
-    )
+    val displayedNetWorth = snapshot.netWorth.cashMinor
     val spentPercent = StatsCalculator.totals(
         transactions, baseCurrency, StatsCalculator.monthRange(thisMonth), today,
     ).let { totals ->
@@ -122,7 +95,7 @@ fun buildHomeState(
     }
     return HomeState(
         hasAccounts = accounts.any { !it.archived },
-        hasFinancialData = accounts.any { !it.archived } || operations.isNotEmpty(),
+        hasFinancialData = accounts.any { !it.archived },
         baseCurrency = baseCurrency,
         netWorth = snapshot.netWorth,
         monthTotals = StatsCalculator.totals(
@@ -137,9 +110,6 @@ fun buildHomeState(
         expenseByCategory = StatsCalculator.expenseByCategory(
             transactions, categories, baseCurrency, period.range(today, firstActivity), today,
         ),
-        assetShares = assetDistribution(snapshot.netWorth),
-        includeAccounts = includeAccounts,
-        includeInvestments = includeInvestments,
         hideAmounts = hideAmounts,
         automaticTransactionsCount = transactions.count {
             it.source == TransactionSource.NOTIFICACION &&

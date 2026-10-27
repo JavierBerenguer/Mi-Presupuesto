@@ -2,16 +2,11 @@ package com.mipatrimonio.app.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.mipatrimonio.app.data.repository.InvestmentRepository
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
 import com.mipatrimonio.app.domain.model.Account
-import com.mipatrimonio.app.domain.model.Asset
-import com.mipatrimonio.app.domain.model.AssetPrice
 import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.InvestmentOperation
-import com.mipatrimonio.app.domain.model.Portfolio
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.Transfer
 import com.mipatrimonio.app.domain.usecase.Period
@@ -25,7 +20,6 @@ import kotlinx.coroutines.launch
 
 class HomeViewModel(
     ledger: LedgerRepository,
-    investments: InvestmentRepository,
     private val settings: SettingsRepository,
 ) : ViewModel() {
     private data class LedgerData(
@@ -36,27 +30,16 @@ class HomeViewModel(
         val budgets: List<Budget>,
     )
 
-    private data class InvestmentData(
-        val portfolios: List<Portfolio>,
-        val assets: List<Asset>,
-        val operations: List<InvestmentOperation>,
-        val prices: Map<String, AssetPrice>,
-    )
-
     private val selectedPeriod = MutableStateFlow(Period.MES)
     val period: StateFlow<Period> = selectedPeriod
 
     private val ledgerData = combine(
         ledger.accounts, ledger.transactions, ledger.transfers, ledger.categories, ledger.budgets, ::LedgerData,
     )
-    private val investmentData = combine(
-        investments.portfolios, investments.assets, investments.operations, investments.latestPrices, ::InvestmentData,
-    )
-
     /** `null` mientras no llega el primer dato. */
     val state: StateFlow<HomeState?> = combine(
-        ledgerData, investmentData, settings.settings, selectedPeriod,
-    ) { l, inv, config, period ->
+        ledgerData, settings.settings, selectedPeriod,
+    ) { l, config, period ->
         buildHomeState(
             baseCurrency = config.baseCurrency,
             accounts = l.accounts,
@@ -64,14 +47,8 @@ class HomeViewModel(
             transfers = l.transfers,
             categories = l.categories,
             budgets = l.budgets,
-            portfolios = inv.portfolios,
-            assets = inv.assets,
-            operations = inv.operations,
-            prices = inv.prices,
             today = LocalDate.now(),
             period = period,
-            includeAccounts = config.netWorthIncludeAccounts,
-            includeInvestments = config.netWorthIncludeInvestments,
             hideAmounts = config.hideAmounts,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -88,8 +65,4 @@ class HomeViewModel(
         viewModelScope.launch { settings.setHideAmounts(hidden) }
     }
 
-    fun setNetWorthIncludes(accounts: Boolean, investments: Boolean) {
-        if (!accounts && !investments) return
-        viewModelScope.launch { settings.setNetWorthIncludes(accounts, investments) }
-    }
 }

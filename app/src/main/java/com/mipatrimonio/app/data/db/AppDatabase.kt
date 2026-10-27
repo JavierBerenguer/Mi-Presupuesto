@@ -17,6 +17,7 @@ import com.mipatrimonio.app.data.db.migrations.MIGRATION_10_11
 import com.mipatrimonio.app.data.db.migrations.MIGRATION_11_12
 import com.mipatrimonio.app.data.db.migrations.MIGRATION_12_13
 import com.mipatrimonio.app.data.db.migrations.MIGRATION_13_14
+import com.mipatrimonio.app.data.db.migrations.MIGRATION_14_15
 
 @Database(
     entities = [
@@ -26,10 +27,6 @@ import com.mipatrimonio.app.data.db.migrations.MIGRATION_13_14
         TransferEntity::class,
         BudgetEntity::class,
         BudgetCategoryEntity::class,
-        PortfolioEntity::class,
-        AssetEntity::class,
-        InvestmentOperationEntity::class,
-        AssetPriceEntity::class,
         NotificationAuthorizationEntity::class,
         PendingProposalEntity::class,
         NotificationDiagnosticEntity::class,
@@ -38,7 +35,7 @@ import com.mipatrimonio.app.data.db.migrations.MIGRATION_13_14
         NotificationRuleEntity::class,
         NotificationRecordEntity::class,
     ],
-    version = 14,
+    version = 15,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -47,7 +44,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun transactionDao(): TransactionDao
     abstract fun transferDao(): TransferDao
     abstract fun budgetDao(): BudgetDao
-    abstract fun investmentDao(): InvestmentDao
     abstract fun notificationDao(): NotificationDao
     abstract fun recurringRuleDao(): RecurringRuleDao
 
@@ -71,6 +67,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_11_12,
                     MIGRATION_12_13,
                     MIGRATION_13_14,
+                    MIGRATION_14_15,
                 )
                 .build()
     }

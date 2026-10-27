@@ -3,15 +3,11 @@ package com.mipatrimonio.app.ui.movements
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mipatrimonio.app.data.repository.LedgerRepository
-import com.mipatrimonio.app.data.repository.InvestmentRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
 import com.mipatrimonio.app.domain.calc.MovementsBalanceCalculator
 import com.mipatrimonio.app.domain.calc.MovementsCalculationMode
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.Asset
-import com.mipatrimonio.app.domain.model.InvestmentOperation
-import com.mipatrimonio.app.domain.model.Portfolio
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.MovementStatus
@@ -52,7 +48,6 @@ data class MovementsUiState(
 
 class MovementsViewModel(
     private val ledger: LedgerRepository,
-    private val investments: InvestmentRepository,
     private val settings: SettingsRepository,
     private val today: () -> LocalDate = LocalDate::now,
 ) : ViewModel() {
@@ -64,7 +59,6 @@ class MovementsViewModel(
         val hideAmounts: Boolean,
         val transactions: List<com.mipatrimonio.app.domain.model.Transaction>,
         val transfers: List<com.mipatrimonio.app.domain.model.Transfer>,
-        val operations: List<InvestmentOperation>,
         val includedAccountIds: Set<String>,
         val allAccounts: Boolean,
         val calculationMode: MovementsCalculationMode,
@@ -78,12 +72,6 @@ class MovementsViewModel(
         val categories: List<Category>,
         val transactions: List<com.mipatrimonio.app.domain.model.Transaction>,
         val transfers: List<com.mipatrimonio.app.domain.model.Transfer>,
-    )
-
-    private data class InvestmentData(
-        val operations: List<InvestmentOperation>,
-        val assets: List<Asset>,
-        val portfolios: List<Portfolio>,
     )
 
     private val filters = MutableStateFlow(MovementFilters())
@@ -100,33 +88,21 @@ class MovementsViewModel(
         LedgerData(accounts, categories, transactions, transfers)
     }
 
-    private val investmentData = combine(
-        investments.operations,
-        investments.assets,
-        investments.portfolios,
-    ) { operations, assets, portfolios -> InvestmentData(operations, assets, portfolios) }
-
     private val sourceData = combine(
         ledgerData,
-        investmentData,
         settings.settings,
-    ) { ledgerData, investmentData, currentSettings ->
+    ) { ledgerData, currentSettings ->
         val existingTransactionIds = ledgerData.transactions.mapTo(hashSetOf(), Transaction::id)
         val retainedSelection = selectedIds.value.intersect(existingTransactionIds)
         if (retainedSelection != selectedIds.value) selectedIds.value = retainedSelection
-        val investmentItems = buildInvestmentMovementItems(
-            investmentData.operations, investmentData.assets, investmentData.portfolios,
-        )
         SourceData(
             accounts = ledgerData.accounts,
             categories = ledgerData.categories,
-            items = attachTransactionGroups(ledgerData.transactions) +
-                ledgerData.transfers.map(MovementItem::Move) + investmentItems,
+            items = attachTransactionGroups(ledgerData.transactions) + ledgerData.transfers.map(MovementItem::Move),
             baseCurrency = currentSettings.baseCurrency,
             hideAmounts = currentSettings.hideAmounts,
             transactions = ledgerData.transactions,
             transfers = ledgerData.transfers,
-            operations = investmentData.operations,
             includedAccountIds = currentSettings.movementsIncludedAccountIds,
             allAccounts = currentSettings.movementsAllAccounts,
             calculationMode = currentSettings.movementsCalculationMode,
@@ -171,7 +147,6 @@ class MovementsViewModel(
                 includedAccounts = includedAccounts,
                 transactions = data.transactions,
                 transfers = data.transfers,
-                operations = data.operations,
                 selectedMonth = month,
                 baseCurrency = data.baseCurrency,
                 mode = data.calculationMode,
@@ -306,7 +281,6 @@ class MovementsViewModel(
                 when (item) {
                     is MovementItem.Tx -> ledger.deleteTransaction(item.transaction.id)
                     is MovementItem.Move -> ledger.deleteTransfer(item.transfer.id)
-                    is MovementItem.Investment -> Unit
                 }
             }.onFailure { error.value = it.message }
         }

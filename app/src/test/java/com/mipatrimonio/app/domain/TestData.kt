@@ -3,15 +3,11 @@ package com.mipatrimonio.app.domain
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountType
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.InvestmentOperation
-import com.mipatrimonio.app.domain.model.OperationType
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.model.Transfer
-import java.math.BigDecimal
 import java.time.LocalDate
-import java.time.LocalTime
 
 object TestData {
     fun account(
@@ -42,21 +38,6 @@ object TestData {
         toAmount: Long = fromAmount,
         date: LocalDate = LocalDate.of(2026, 3, 11),
     ) = Transfer("tr${counter++}", from, to, fromAmount, toAmount, date, "", 0)
-
-    fun op(
-        type: OperationType,
-        qty: String,
-        price: String,
-        fees: Long = 0,
-        date: LocalDate = LocalDate.of(2026, 1, 1),
-        createdAt: Long = counter++.toLong(),
-        currency: String = "EUR",
-        accountId: String? = null,
-        time: LocalTime = LocalTime.MIDNIGHT,
-    ) = InvestmentOperation(
-        "o${counter++}", "p1", "asset1", type, date, BigDecimal(qty), BigDecimal(price), fees, currency, "", createdAt,
-        accountId, time,
-    )
 
     private var counter = 0
 }

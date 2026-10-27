@@ -46,12 +46,10 @@ import com.mipatrimonio.app.ui.common.LoadingBox
 import com.mipatrimonio.app.ui.common.MoneyColors
 import com.mipatrimonio.app.ui.common.NetWorthNotices
 import com.mipatrimonio.app.ui.common.appViewModel
-import com.mipatrimonio.app.ui.common.assetColor
 import com.mipatrimonio.app.ui.common.charts.BarGroup
 import com.mipatrimonio.app.ui.common.charts.DonutChart
 import com.mipatrimonio.app.ui.common.charts.DonutSlice
 import com.mipatrimonio.app.ui.common.charts.GroupedBarChart
-import com.mipatrimonio.app.ui.common.label
 import com.mipatrimonio.app.ui.common.monthLabel
 import com.mipatrimonio.app.ui.common.resolvedIconKey
 import com.mipatrimonio.app.ui.components.PillTabs
@@ -66,7 +64,7 @@ private val NO_CATEGORY_COLOR = Color(0xFF8D99AE)
 fun HomeScreen(
     onOpenAccounts: () -> Unit,
     onOpenAutomaticMovements: () -> Unit = {},
-    viewModel: HomeViewModel = appViewModel { c -> HomeViewModel(c.ledger, c.investments, c.settings) },
+    viewModel: HomeViewModel = appViewModel { c -> HomeViewModel(c.ledger, c.settings) },
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
@@ -90,23 +88,6 @@ fun HomeScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         NetWorthHeader(s, format, viewModel::setHideAmounts)
-        Text(stringResource(R.string.ini_add_to_networth), style = MaterialTheme.typography.titleMedium)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            NetWorthFilterChip(
-                selected = s.includeAccounts,
-                label = stringResource(R.string.ini_accounts),
-                amount = format(s.netWorth.cashMinor),
-                modifier = Modifier.weight(1f),
-                onClick = { viewModel.setNetWorthIncludes(!s.includeAccounts, s.includeInvestments) },
-            )
-            NetWorthFilterChip(
-                selected = s.includeInvestments,
-                label = stringResource(R.string.ini_investments),
-                amount = format(s.netWorth.investmentsMinor),
-                modifier = Modifier.weight(1f),
-                onClick = { viewModel.setNetWorthIncludes(s.includeAccounts, !s.includeInvestments) },
-            )
-        }
         NetWorthNotices(s.netWorth)
         PillTabs(
             options = listOf(
@@ -146,21 +127,6 @@ fun HomeScreen(
                 centerLabel = format(s.expenseByCategory.sumOf { it.amountMinor }),
                 formatValue = format,
                 description = stringResource(R.string.ini_chart_expense_distribution_desc),
-                emptyText = stringResource(R.string.ini_no_data_period),
-            )
-        }
-        SectionCard(title = stringResource(R.string.ini_chart_asset_distribution)) {
-            DonutChart(
-                slices = s.assetShares.map { share ->
-                    DonutSlice(
-                        share.type?.label() ?: stringResource(R.string.ini_investments_label),
-                        share.valueMinor,
-                        assetColor(share.type),
-                    )
-                },
-                centerLabel = format(s.assetShares.sumOf { it.valueMinor }),
-                formatValue = format,
-                description = stringResource(R.string.ini_chart_asset_distribution_desc),
                 emptyText = stringResource(R.string.ini_no_data_period),
             )
         }

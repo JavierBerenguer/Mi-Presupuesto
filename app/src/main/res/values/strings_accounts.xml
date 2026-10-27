@@ -25,10 +25,7 @@
     <string name="accounts_delete_blocked">«%1$s» no se puede eliminar porque tiene datos asociados:</string>
     <string name="accounts_dependency_transactions">Movimientos: %1$d</string>
     <string name="accounts_dependency_transfers">Transferencias: %1$d</string>
-    <string name="accounts_dependency_operations">Operaciones de inversión: %1$d</string>
-    <string name="accounts_dependency_portfolios">Carteras asociadas: %1$d</string>
     <string name="accounts_dependency_apps">Apps de notificaciones: %1$d</string>
     <string name="accounts_loading_dependencies">Comprobando datos asociados…</string>
     <string name="accounts_active_totals">Total de cuentas activas por divisa</string>
-    <string name="accounts_create_linked_portfolio">¿Crear también una cartera vinculada?</string>
 </resources>

@@ -30,8 +30,6 @@ class DestinoTest {
         assertEquals(
             listOf(
                 Rutas.CUENTAS,
-                Rutas.CARTERAS,
-                Rutas.ACTIVOS,
                 Rutas.CATEGORIAS,
                 Rutas.RECURRENTES,
                 Rutas.PATRIMONIO,
@@ -40,14 +38,6 @@ class DestinoTest {
             ),
             SecondaryMenuDestination.at(MenuLocation.MAS).map { it.route },
         )
-    }
-
-    @Test
-    fun `la gestion de carteras y activos sigue accesible desde mas`() {
-        val moreRoutes = SecondaryMenuDestination.at(MenuLocation.MAS).map { it.route }
-
-        assertEquals(true, Rutas.CARTERAS in moreRoutes)
-        assertEquals(true, Rutas.ACTIVOS in moreRoutes)
     }
 
     @Test

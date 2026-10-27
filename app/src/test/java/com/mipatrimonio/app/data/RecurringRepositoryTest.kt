@@ -121,7 +121,7 @@ class RecurringRepositoryTest {
             budget, ledger.transactions.first(), emptyList(), LocalDate.of(2026, 1, 15),
             LocalDate.of(2026, 1, 15),
         ).spentMinor
-        val netWorth = NetWorthCalculator.compute("EUR", listOf(AccountBalance(account, balance)), emptyList())
+        val netWorth = NetWorthCalculator.compute("EUR", listOf(AccountBalance(account, balance)))
         assertEquals(900L, balance)
         assertEquals(100L, spent)
         assertEquals(900L, netWorth.totalMinor)

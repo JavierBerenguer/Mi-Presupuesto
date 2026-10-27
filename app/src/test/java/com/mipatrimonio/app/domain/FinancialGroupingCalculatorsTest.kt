@@ -45,7 +45,7 @@ class FinancialGroupingCalculatorsTest {
 
     @Test fun `modos mensuales netean pero saldos conservan caja`() {
         fun calculate(mode: MovementsCalculationMode) = MovementsBalanceCalculator.calculate(
-            accounts, transactions, emptyList(), emptyList(), YearMonth.from(parentDate), "EUR", mode,
+            accounts, transactions, emptyList(), YearMonth.from(parentDate), "EUR", mode,
             dailyBalance = false, hideFuture = false, ignoreTransfers = false, today = parentDate.plusMonths(2),
         )
         assertEquals(2000L, calculate(MovementsCalculationMode.GASTOS_MENSUALES))

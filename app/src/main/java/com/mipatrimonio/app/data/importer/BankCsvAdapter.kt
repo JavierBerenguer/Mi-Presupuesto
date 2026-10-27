@@ -10,6 +10,6 @@ interface BankCsvAdapter {
 
     companion object {
         fun detect(headers: List<String>): BankCsvAdapter? =
-            listOf(TradeRepublicCsvAdapter(), NeverlessCsvAdapter()).firstOrNull { it.matches(headers) }
+            listOf(TradeRepublicCsvAdapter()).firstOrNull { it.matches(headers) }
     }
 }
