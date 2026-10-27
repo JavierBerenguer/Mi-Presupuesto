@@ -34,7 +34,7 @@ class TransactionGroupingRepositoryTest {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
         repository = LedgerRepository(db) { 100 }
         repository.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
-        repository.saveAccount(Account("usd", "DÃ³lares", AccountType.CORRIENTE, "USD", 0, false, 1))
+        repository.saveAccount(Account("usd", "Dólares", AccountType.CORRIENTE, "USD", 0, false, 1))
         repository.saveTransaction(tx("p", TransactionType.GASTO, 6000))
         repository.saveTransaction(tx("c1", TransactionType.INGRESO, 2000))
         repository.saveTransaction(tx("c2", TransactionType.INGRESO, 2000))

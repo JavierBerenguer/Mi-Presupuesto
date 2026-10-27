@@ -49,3 +49,6 @@ Si una pantalla dibuja su propio título (Fraunces 28 sp) debe: (a) añadirse a 
 
 ## Expresiones regulares en Android (lección de T-065)
 Los tests JVM usan el motor de regex de Java, pero en el dispositivo se usa ICU, que es más estricto: una `}` o `{` literal **siempre** debe ir escapada (`\}`), igual que cualquier metacarácter usado como texto. Un patrón que pasa los tests puede cerrar la app en el móvil.
+
+## Codificación de los textos (lección de T-068)
+Escribe y guarda todos los archivos en UTF-8 sin volver a codificarlos. En T-068 varios textos en español llegaron dañados por una doble codificación («Â¿Sobre quÃ©…», «acciÃ³n»). Antes de entregar, busca `Ã` y `Â` en los archivos que hayas tocado (`rg "Ã|Â" app/src --glob '!*.ttf' --glob '!*.png'`); la búsqueda no debe devolver nada.

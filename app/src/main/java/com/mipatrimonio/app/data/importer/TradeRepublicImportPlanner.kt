@@ -190,7 +190,7 @@ object TradeRepublicImportPlanner {
                 time = row.time,
             )
         }.getOrElse {
-            return PlannedImportRow(row, ImportRowStatus.REVIEW, reason = "Los datos numÃ©ricos estÃ¡n fuera de rango")
+            return PlannedImportRow(row, ImportRowStatus.REVIEW, reason = "Los datos numéricos están fuera de rango")
         }
         operationValidationReason(operation, asset, context)?.let { reason ->
             return PlannedImportRow(row, ImportRowStatus.REVIEW, reason = reason)

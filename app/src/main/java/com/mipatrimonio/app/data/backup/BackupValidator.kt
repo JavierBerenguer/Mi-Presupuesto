@@ -40,7 +40,7 @@ object BackupValidator {
                     row.type != "INGRESO" || parent.type != "GASTO" ||
                     row.currency != parent.currency || parent.groupParentId != null || row.id in groupParentIds
                 ) {
-                    throw BackupException.InvalidData("La copia contiene un grupo de apuntes no vÃ¡lido")
+                    throw BackupException.InvalidData("La copia contiene un grupo de apuntes no válido")
                 }
             }
         }
