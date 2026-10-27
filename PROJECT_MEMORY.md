@@ -552,3 +552,12 @@ El usuario dejó `datos-privados/Documento de cambios/Documento.md` (+ 4 captura
   - **Decisión del usuario:** eliminar la inversión antigua **perdiendo los datos**, sin ajustar saldos.
   - **T-074** (eliminación, Room v15) lanzada.
   - Pendiente del usuario: proyecto Supabase (URL + clave anon) y autorizar el repositorio nuevo del fork de Rumbo.
+- **Estado al hibernar (2026-10-28):**
+  - **Hecho:**
+    - T-074 y T-075 aceptadas e integradas en `claude/cartera-supabase` (361 tests).
+    - Repositorio nuevo `JavierBerenguer/Rumbo-Patrimonio` (privado, en local en `rumbo-main/`, rama `claude/supabase`), con T-071, T-072 y T-073 aceptadas.
+    - Esquema aplicado en el Supabase real y prueba de humo superada por el usuario.
+    - Credenciales en `datos-privados/supabase/supabase.env` y en `rumbo-main/supabase.env` (ignorados).
+  - **Pendiente:**
+    - **T-076 entregada por Codex, SIN REVISAR.** Está commiteada como WIP en `codex/t-076` (13d19be, subida). Siguiente paso: `gradlew testDebugUnitTest assembleDebug` en `.local/worktrees/t-076`, revisar los puntos críticos (exclusión de `cuenta_app:*`, liquidez en los saldos y en `cuentas_app`, sin gasto/ingreso) e integrar.
+    - Después, T-077 (compras desde notificaciones) y la release v1.2.0 (versionCode 3) con una lista de pruebas para el usuario.
