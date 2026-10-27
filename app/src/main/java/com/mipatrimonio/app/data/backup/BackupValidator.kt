@@ -25,12 +25,24 @@ object BackupValidator {
         val portfolios = data.portfolios.mapTo(hashSetOf()) { it.id }
         val assets = data.assets.mapTo(hashSetOf()) { it.id }
         val transactions = data.transactions.mapTo(hashSetOf()) { it.id }
+        val transactionsById = data.transactions.associateBy { it.id }
+        val groupParentIds = data.transactions.mapNotNullTo(hashSetOf()) { it.groupParentId }
         val structures = data.notificationStructures.mapTo(hashSetOf()) { it.id }
         val rules = data.notificationRules.mapTo(hashSetOf()) { it.id }
         data.categories.forEach { row -> row.parentId?.let { reference("category.parentId", it, categories) } }
         data.transactions.forEach { row ->
             reference("txn.accountId", row.accountId, accounts)
             row.categoryId?.let { reference("txn.categoryId", it, categories) }
+            row.groupParentId?.let { parentId ->
+                reference("txn.groupParentId", parentId, transactions)
+                val parent = transactionsById.getValue(parentId)
+                if (
+                    row.type != "INGRESO" || parent.type != "GASTO" ||
+                    row.currency != parent.currency || parent.groupParentId != null || row.id in groupParentIds
+                ) {
+                    throw BackupException.InvalidData("La copia contiene un grupo de apuntes no vÃ¡lido")
+                }
+            }
         }
         data.transfers.forEach { row ->
             reference("transfer.fromAccountId", row.fromAccountId, accounts)

@@ -92,7 +92,7 @@ class CsvExportService(
             categories: Map<String, Category>,
             today: LocalDate,
         ): List<List<String>> = rows(
-            listOf("id", "fecha", "tipo", "importe", "divisa", "cuenta", "categoria", "subcategoria", "descripcion", "comercio", "notas", "origen", "estado"),
+            listOf("id", "fecha", "tipo", "importe", "divisa", "cuenta", "categoria", "subcategoria", "descripcion", "comercio", "notas", "origen", "estado", "grupo"),
         ) {
             data.transactions.map { transaction ->
                 val selected = transaction.categoryId?.let(categories::get)
@@ -103,6 +103,7 @@ class CsvExportService(
                     accounts[transaction.accountId]?.name.orEmpty(), parent?.name ?: selected?.name.orEmpty(),
                     if (parent == null) "" else selected?.name.orEmpty(), transaction.description, transaction.merchant,
                     transaction.notes, source(transaction.source), status(movementStatus(transaction.date, today)),
+                    transaction.groupParentId.orEmpty(),
                 )
             }
         }
@@ -259,6 +260,7 @@ class CsvExportService(
 
             Formato: UTF-8 con BOM, separador punto y coma, fin de línea CRLF, fechas AAAA-MM-DD,
             horas HH:MM:SS e importes con coma decimal y sin separador de miles.
+            En movimientos.csv, grupo contiene el id del apunte principal o queda vacio si no esta agrupado.
 
             cuentas.csv: id; nombre; tipo; divisa; saldo_inicial; saldo_actual (solo movimientos ejecutados a la fecha de exportación); archivada; fecha_creacion.
             categorias.csv: id; nombre; categoria_padre (nombre); icono (clave estable); archivada.

@@ -1,8 +1,11 @@
 package com.mipatrimonio.app.ui.movements
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,6 +31,7 @@ import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Calculate
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FilterList
@@ -56,12 +60,15 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -69,6 +76,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mipatrimonio.app.R
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.calc.MovementsCalculationMode
+import com.mipatrimonio.app.domain.calc.TransactionGroups
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.ui.common.CategoryIconBadge
 import com.mipatrimonio.app.domain.model.MoneyMath
@@ -83,6 +91,7 @@ import com.mipatrimonio.app.ui.common.DropdownField
 import com.mipatrimonio.app.ui.common.EmptyState
 import com.mipatrimonio.app.ui.common.LoadingBox
 import com.mipatrimonio.app.ui.common.MoneyColors
+import com.mipatrimonio.app.ui.common.formatDate
 import com.mipatrimonio.app.ui.common.appViewModel
 import com.mipatrimonio.app.ui.components.AddFab
 import com.mipatrimonio.app.ui.components.AmountKind
@@ -114,7 +123,10 @@ fun MovementsScreen(
     var showCalculation by remember { mutableStateOf(false) }
     var showAccountSelection by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<MovementItem?>(null) }
+    var pendingUngroup by remember { mutableStateOf<String?>(null) }
+    var showGroupDialog by remember { mutableStateOf(false) }
     LaunchedEffect(initialSource) { initialSource?.let(viewModel::setSource) }
+    BackHandler(enabled = state.selectedIds.isNotEmpty(), onBack = viewModel::clearSelection)
 
     if (state.isLoading) { LoadingBox(); return }
     if (showAccountSelection) {
@@ -133,11 +145,19 @@ fun MovementsScreen(
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
-            MovementHeader(
-                onSearch = { showSearch = !showSearch },
-                onCalculation = { showCalculation = true },
-                onFilters = { showFilters = true },
-            )
+            if (state.selectedIds.isNotEmpty()) {
+                SelectionHeader(
+                    count = state.selectedIds.size,
+                    onClose = viewModel::clearSelection,
+                    onGroup = { showGroupDialog = true },
+                )
+            } else {
+                MovementHeader(
+                    onSearch = { showSearch = !showSearch },
+                    onCalculation = { showCalculation = true },
+                    onFilters = { showFilters = true },
+                )
+            }
             if (showSearch) {
                 OutlinedTextField(
                     value = state.filters.query,
@@ -212,15 +232,18 @@ fun MovementsScreen(
                         onOpenAssetDetail = onOpenAssetDetail,
                         onDuplicate = viewModel::duplicate,
                         onDelete = { pendingDelete = it },
+                        selectedIds = state.selectedIds,
+                        onStartSelection = viewModel::startSelection,
+                        onToggleSelection = viewModel::toggleSelection,
+                        onUngroup = { pendingUngroup = it },
+                        onRemoveFromGroup = viewModel::removeFromGroup,
                     )
                 }
             }
         }
-        AddFab(
-            stringResource(R.string.mov_new),
-            onNewEntry,
-            bottomPadding = 16.dp,
-        )
+        if (state.selectedIds.isEmpty()) {
+            AddFab(stringResource(R.string.mov_new), onNewEntry, bottomPadding = 16.dp)
+        }
     }
 
     if (showFilters) {
@@ -249,10 +272,45 @@ fun MovementsScreen(
     pendingDelete?.let { item ->
         ConfirmDialog(
             title = stringResource(R.string.mov_delete_title),
-            text = stringResource(R.string.mov_delete_message),
+            text = stringResource(
+                if (item is MovementItem.Tx && item.groupChildren.isNotEmpty()) {
+                    R.string.mov_delete_group_message
+                } else R.string.mov_delete_message,
+            ),
             onConfirm = { viewModel.delete(item); pendingDelete = null },
             onDismiss = { pendingDelete = null },
         )
+    }
+    pendingUngroup?.let { parentId ->
+        ConfirmDialog(
+            title = stringResource(R.string.mov_ungroup_title),
+            text = stringResource(R.string.mov_ungroup_message),
+            onConfirm = { viewModel.ungroup(parentId); pendingUngroup = null },
+            onDismiss = { pendingUngroup = null },
+        )
+    }
+    if (showGroupDialog) {
+        val transactionItems = state.allItems.filterIsInstance<MovementItem.Tx>()
+        val selected = transactionItems.flatMap { listOf(it.transaction) + it.groupChildren }
+            .filter { it.id in state.selectedIds }
+        GroupTransactionsDialog(
+            transactions = selected,
+            existingChildrenByParent = transactionItems.associate { it.transaction.id to it.groupChildren },
+            onConfirm = { viewModel.groupSelected(it); showGroupDialog = false },
+            onDismiss = { showGroupDialog = false },
+        )
+    }
+}
+
+@Composable
+private fun SelectionHeader(count: Int, onClose: () -> Unit, onGroup: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onClose) { Icon(Icons.Outlined.Close, stringResource(R.string.mov_exit_selection)) }
+        Text(stringResource(R.string.mov_selected_count, count), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+        TextButton(onClick = onGroup, enabled = count >= 2) { Text(stringResource(R.string.mov_group)) }
     }
 }
 
@@ -468,6 +526,11 @@ private fun MovementList(
     onOpenAssetDetail: (String, String) -> Unit,
     onDuplicate: (Transaction) -> Unit,
     onDelete: (MovementItem) -> Unit,
+    selectedIds: Set<String>,
+    onStartSelection: (String) -> Unit,
+    onToggleSelection: (String) -> Unit,
+    onUngroup: (String) -> Unit,
+    onRemoveFromGroup: (String) -> Unit,
 ) {
     val accountsById = remember(accounts) { accounts.associateBy(Account::id) }
     val categoriesById = remember(categories) { categories.associateBy(Category::id) }
@@ -479,7 +542,8 @@ private fun MovementList(
         items(groups, key = { it.date.toEpochDay() }) { group ->
             DayGroup(
                 group, accountsById, categoriesById, baseCurrency, hideAmounts, grayFuture,
-                onEditEntry, onOpenAssetDetail, onDuplicate, onDelete,
+                onEditEntry, onOpenAssetDetail, onDuplicate, onDelete, selectedIds,
+                onStartSelection, onToggleSelection, onUngroup, onRemoveFromGroup,
             )
         }
     }
@@ -497,6 +561,11 @@ private fun DayGroup(
     onOpenAssetDetail: (String, String) -> Unit,
     onDuplicate: (Transaction) -> Unit,
     onDelete: (MovementItem) -> Unit,
+    selectedIds: Set<String>,
+    onStartSelection: (String) -> Unit,
+    onToggleSelection: (String) -> Unit,
+    onUngroup: (String) -> Unit,
+    onRemoveFromGroup: (String) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -541,12 +610,19 @@ private fun DayGroup(
                     },
                     onDuplicate = { (item as? MovementItem.Tx)?.transaction?.let(onDuplicate) },
                     onDelete = { onDelete(item) },
+                    selectedIds = selectedIds,
+                    onStartSelection = onStartSelection,
+                    onToggleSelection = onToggleSelection,
+                    onUngroup = onUngroup,
+                    onRemoveFromGroup = onRemoveFromGroup,
+                    onEditChild = onEditEntry,
                 )
             }
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MovementRow(
     item: MovementItem,
@@ -557,8 +633,18 @@ private fun MovementRow(
     onOpen: () -> Unit,
     onDuplicate: () -> Unit,
     onDelete: () -> Unit,
+    selectedIds: Set<String>,
+    onStartSelection: (String) -> Unit,
+    onToggleSelection: (String) -> Unit,
+    onUngroup: (String) -> Unit,
+    onRemoveFromGroup: (String) -> Unit,
+    onEditChild: (String) -> Unit,
 ) {
     var showMenu by remember { mutableStateOf(false) }
+    var expanded by rememberSaveable((item as? MovementItem.Tx)?.transaction?.id) { mutableStateOf(false) }
+    val transactionId = (item as? MovementItem.Tx)?.transaction?.id
+    val selected = transactionId in selectedIds
+    val selectionActive = selectedIds.isNotEmpty()
     val p = movementPresentation(item, accountsById, categoriesById)
     val rowCategory = when (item) {
         is MovementItem.Tx -> item.transaction.categoryId?.let(categoriesById::get)
@@ -568,8 +654,18 @@ private fun MovementRow(
     val isFuture = movementStatus(item.date, LocalDate.now()) == MovementStatus.PREVISTO
     val isRestrictedFuture = isFuture && grayFuture
     val primaryTextColor = if (isRestrictedFuture) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+    Column {
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 64.dp).clickable(onClick = onOpen).padding(start = 12.dp, top = 8.dp, bottom = 8.dp),
+        Modifier.fillMaxWidth().heightIn(min = 64.dp)
+            .then(if (selected) Modifier.background(MaterialTheme.colorScheme.primaryContainer) else Modifier)
+            .then(if (selected) Modifier.semantics { this.selected = true } else Modifier)
+            .combinedClickable(
+                onClick = {
+                    if (selectionActive) transactionId?.let(onToggleSelection) else onOpen()
+                },
+                onLongClick = { transactionId?.let(onStartSelection) },
+            )
+            .padding(start = 12.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (item is MovementItem.Investment) {
@@ -647,7 +743,15 @@ private fun MovementRow(
                 neutralColor = primaryTextColor,
             )
         }
-        if (item !is MovementItem.Investment) Box {
+        if (selected) {
+            Icon(Icons.Outlined.Check, stringResource(R.string.mov_selected_item), Modifier.padding(horizontal = 8.dp))
+        }
+        if (item is MovementItem.Tx && item.groupChildren.isNotEmpty()) {
+            TextButton(onClick = { expanded = !expanded }) {
+                Text(stringResource(R.string.mov_group_count, item.groupChildren.size))
+            }
+        }
+        if (!selectionActive && item !is MovementItem.Investment) Box {
             IconButton(onClick = { showMenu = true }) { Icon(Icons.Outlined.MoreVert, stringResource(R.string.common_more_options)) }
             DropdownMenu(showMenu, { showMenu = false }) {
                 DropdownMenuItem(
@@ -661,6 +765,12 @@ private fun MovementRow(
                         leadingIcon = { Icon(Icons.Outlined.Add, null) },
                         onClick = { showMenu = false; onDuplicate() },
                     )
+                    if (item.groupChildren.isNotEmpty()) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.mov_ungroup)) },
+                            onClick = { showMenu = false; onUngroup(item.transaction.id) },
+                        )
+                    }
                 }
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.common_delete)) },
@@ -670,6 +780,142 @@ private fun MovementRow(
             }
         }
     }
+    if (expanded && item is MovementItem.Tx) {
+        item.groupChildren.forEach { child ->
+            GroupChildRow(
+                child = child,
+                accountsById = accountsById,
+                hideAmounts = hideAmounts,
+                selectedIds = selectedIds,
+                onEdit = { onEditChild(child.id) },
+                onStartSelection = onStartSelection,
+                onToggleSelection = onToggleSelection,
+                onRemove = { onRemoveFromGroup(child.id) },
+            )
+        }
+    }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun GroupChildRow(
+    child: Transaction,
+    accountsById: Map<String, Account>,
+    hideAmounts: Boolean,
+    selectedIds: Set<String>,
+    onEdit: () -> Unit,
+    onStartSelection: (String) -> Unit,
+    onToggleSelection: (String) -> Unit,
+    onRemove: () -> Unit,
+) {
+    var showMenu by remember { mutableStateOf(false) }
+    val selected = child.id in selectedIds
+    val selectionActive = selectedIds.isNotEmpty()
+    val title = child.description.ifBlank { child.merchant.ifBlank { stringResource(R.string.mov_no_description) } }
+    Row(
+        Modifier.fillMaxWidth().padding(start = 36.dp)
+            .then(if (selected) Modifier.background(MaterialTheme.colorScheme.primaryContainer) else Modifier)
+            .then(if (selected) Modifier.semantics { this.selected = true } else Modifier)
+            .combinedClickable(
+                onClick = { if (selectionActive) onToggleSelection(child.id) else onEdit() },
+                onLongClick = { onStartSelection(child.id) },
+            )
+            .heightIn(min = 56.dp).padding(start = 12.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                stringResource(
+                    R.string.mov_group_child_metadata,
+                    formatDate(child.date),
+                    accountsById[child.accountId]?.name ?: stringResource(R.string.mov_unknown_account),
+                ),
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        if (hideAmounts) Text(stringResource(R.string.common_hidden_amount))
+        else AmountText(child.amountMinor, child.currency, AmountKind.INCOME, style = MaterialTheme.typography.titleSmall)
+        if (selected) Icon(Icons.Outlined.Check, stringResource(R.string.mov_selected_item), Modifier.padding(8.dp))
+        if (!selectionActive) Box {
+            IconButton(onClick = { showMenu = true }) {
+                Icon(Icons.Outlined.MoreVert, stringResource(R.string.common_more_options))
+            }
+            DropdownMenu(showMenu, { showMenu = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.common_edit)) },
+                    onClick = { showMenu = false; onEdit() },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.mov_remove_from_group)) },
+                    onClick = { showMenu = false; onRemove() },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GroupTransactionsDialog(
+    transactions: List<Transaction>,
+    existingChildrenByParent: Map<String, List<Transaction>>,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var parentId by rememberSaveable(transactions) {
+        mutableStateOf(transactions.firstOrNull { it.type == TransactionType.GASTO }?.id)
+    }
+    val parent = transactions.find { it.id == parentId }
+    val children = transactions.filter { it.id != parentId }
+    val resultingChildren = (parentId?.let(existingChildrenByParent::get).orEmpty() + children)
+        .distinctBy(Transaction::id)
+    val validationError = if (parent == null) {
+        stringResource(R.string.mov_choose_group_parent)
+    } else {
+        TransactionGroups.validationError(parent, children)
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.mov_choose_group_parent)) },
+        text = {
+            Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState())) {
+                transactions.forEach { transaction ->
+                    val enabled = transaction.type == TransactionType.GASTO
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                            .clickable(enabled = enabled) { parentId = transaction.id },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = parentId == transaction.id, onClick = { parentId = transaction.id }, enabled = enabled)
+                        Column(Modifier.weight(1f)) {
+                            Text(transaction.description.ifBlank { transaction.merchant.ifBlank { stringResource(R.string.mov_no_description) } })
+                            Text(formatDate(transaction.date), style = MaterialTheme.typography.bodySmall)
+                        }
+                        Text(MoneyMath.format(transaction.amountMinor, transaction.currency))
+                    }
+                }
+                if (parent != null && validationError == null) {
+                    Text(
+                        stringResource(
+                            R.string.mov_group_result,
+                            MoneyMath.format(TransactionGroups.netAmountMinor(parent, resultingChildren), parent.currency),
+                        ),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                } else if (validationError != null) {
+                    Text(validationError, color = MaterialTheme.colorScheme.error)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { parentId?.let(onConfirm) },
+                enabled = parentId != null && validationError == null,
+            ) { Text(stringResource(R.string.mov_group)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+    )
 }
 
 private data class MovementPresentation(
@@ -689,6 +935,7 @@ private fun movementPresentation(
 ): MovementPresentation = when (item) {
     is MovementItem.Tx -> {
         val tx = item.transaction
+        val displayed = item.displayedTransaction
         val category = tx.categoryId?.let(categories::get)
         val parent = category?.parentId?.let(categories::get)
         val categoryLabel = when {
@@ -700,8 +947,12 @@ private fun movementPresentation(
         val title = tx.description.ifBlank { tx.merchant.ifBlank { categoryLabel } }
         MovementPresentation(
             title, stringResource(R.string.mov_row_metadata, categoryLabel, account),
-            tx.currency,
-            if (tx.type == TransactionType.GASTO) AmountKind.EXPENSE else AmountKind.INCOME,
+            displayed.currency,
+            when {
+                displayed.amountMinor == 0L -> AmountKind.NEUTRAL
+                displayed.type == TransactionType.GASTO -> AmountKind.EXPENSE
+                else -> AmountKind.INCOME
+            },
             item.isAutomatic,
         )
     }

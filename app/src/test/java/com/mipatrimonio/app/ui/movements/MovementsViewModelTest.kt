@@ -33,6 +33,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -210,6 +211,49 @@ class MovementsViewModelTest {
         assertEquals(-100_00L, item.amountMinor)
         assertEquals(400_00L, state.balanceMinor)
         assertEquals(0L, state.dayGroups.single().balanceMinor)
+    }
+
+    @Test fun `grupo oculta hijos muestra neto y seleccion permite agrupar y desagrupar`() = runTest {
+        val today = LocalDate.now()
+        ledger.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
+        ledger.saveTransaction(tx("p", TransactionType.GASTO, 6_000, today, TransactionSource.MANUAL))
+        ledger.saveTransaction(tx("c", TransactionType.INGRESO, 2_000, today, TransactionSource.MANUAL))
+        val viewModel = MovementsViewModel(ledger, investments, settings)
+
+        viewModel.startSelection("p")
+        assertEquals(setOf("p"), viewModel.uiState.first { it.selectedIds.isNotEmpty() }.selectedIds)
+        viewModel.toggleSelection("c")
+        assertEquals(setOf("p", "c"), viewModel.uiState.first { it.selectedIds.size == 2 }.selectedIds)
+        viewModel.groupSelected("p")
+        val grouped = viewModel.uiState.first {
+            it.selectedIds.isEmpty() && (it.visibleItems.singleOrNull() as? MovementItem.Tx)?.groupChildren?.size == 1
+        }
+        val row = grouped.visibleItems.single() as MovementItem.Tx
+        assertEquals(4_000L, row.amountMinor)
+        assertEquals("c", row.groupChildren.single().id)
+
+        viewModel.duplicate(row.groupChildren.single())
+        val duplicate = ledger.transactions.first { it.size == 3 }.first { it.id !in setOf("p", "c") }
+        assertNull(duplicate.groupParentId)
+        viewModel.ungroup("p")
+        assertTrue(viewModel.uiState.first { it.visibleItems.size == 3 }.visibleItems.all { it is MovementItem.Tx })
+    }
+
+    @Test fun `seleccion sale al vaciar y conserva error al agrupar mal`() = runTest {
+        val today = LocalDate.now()
+        ledger.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
+        ledger.saveTransaction(tx("i1", TransactionType.INGRESO, 100, today, TransactionSource.MANUAL))
+        ledger.saveTransaction(tx("i2", TransactionType.INGRESO, 100, today, TransactionSource.MANUAL))
+        val viewModel = MovementsViewModel(ledger, investments, settings)
+        viewModel.startSelection("i1")
+        viewModel.toggleSelection("i1")
+        assertTrue(viewModel.uiState.first { !it.isLoading && it.selectedIds.isEmpty() }.selectedIds.isEmpty())
+        viewModel.startSelection("i1")
+        viewModel.toggleSelection("i2")
+        viewModel.groupSelected("i1")
+        val failed = viewModel.uiState.first { it.error != null }
+        assertEquals(2, failed.selectedIds.size)
+        assertEquals(2, failed.visibleItems.size)
     }
 
     private fun tx(id: String, type: TransactionType, amount: Long, date: LocalDate, source: TransactionSource) =

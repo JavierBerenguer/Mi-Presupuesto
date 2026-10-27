@@ -72,6 +72,7 @@ data class Transaction(
     val source: TransactionSource,
     val createdAt: Long,
     val updatedAt: Long,
+    val groupParentId: String? = null,
 )
 
 /**

@@ -95,6 +95,7 @@ class CsvExportTest {
         assertFalse(categories.lineSequence().first().split(';').contains("tipo"))
 
         val movements = csvText(entries.getValue("movimientos.csv"))
+        assertTrue(movements.lineSequence().first().endsWith(";grupo"))
         assertTrue(movements.contains("Casa;Niñez;\"Descripción; con \"\"comillas\"\"\";Señor Ñ;\"línea 1\nlinea 2\";Notificación;Ejecutado"))
         assertTrue(movements.contains("2024-02-01;Ingreso;200;JPY;Yenes;;;;;;Recurrente;Previsto"))
 
@@ -151,7 +152,7 @@ class CsvExportTest {
         )
         val future = Transaction(
             "t2", TransactionType.INGRESO, 200, "JPY", TODAY.plusDays(1), yen.id, null,
-            "", "", "", TransactionSource.RECURRENTE, 1, 1,
+            "", "", "", TransactionSource.RECURRENTE, 1, 1, "t1",
         )
         val transfer = Transfer("tr1", euros.id, yen.id, 1_000, 1_200, TODAY, "Cambio de divisa", 1, root.id)
         val budget = Budget(

@@ -82,6 +82,18 @@ interface TransactionDao {
     @Query("SELECT * FROM txn WHERE id = :id")
     suspend fun getById(id: String): TransactionEntity?
 
+    @Query("SELECT * FROM txn WHERE groupParentId = :parentId ORDER BY epochDay DESC, createdAt DESC")
+    suspend fun getChildren(parentId: String): List<TransactionEntity>
+
+    @Query("SELECT COUNT(*) FROM txn WHERE groupParentId = :parentId")
+    suspend fun countChildren(parentId: String): Int
+
+    @Query("UPDATE txn SET groupParentId = :parentId WHERE id IN (:ids)")
+    suspend fun setGroupParent(ids: List<String>, parentId: String?)
+
+    @Query("UPDATE txn SET groupParentId = NULL WHERE groupParentId = :parentId")
+    suspend fun clearGroup(parentId: String)
+
     @Upsert
     suspend fun upsert(entity: TransactionEntity)
 

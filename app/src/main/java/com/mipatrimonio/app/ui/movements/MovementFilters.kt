@@ -10,6 +10,7 @@ import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.Transfer
+import com.mipatrimonio.app.domain.calc.TransactionGroups
 import java.text.Normalizer
 import java.time.LocalDate
 import java.util.Locale
@@ -19,10 +20,23 @@ sealed interface MovementItem {
     val createdAt: Long
     val amountMinor: Long
 
-    data class Tx(val transaction: Transaction) : MovementItem {
+    data class Tx(
+        val transaction: Transaction,
+        val groupChildren: List<Transaction> = emptyList(),
+    ) : MovementItem {
+        val displayedTransaction: Transaction = if (groupChildren.isEmpty()) {
+            transaction
+        } else {
+            val net = TransactionGroups.netAmountMinor(transaction, groupChildren)
+            when {
+                net > 0L -> transaction.copy(type = TransactionType.GASTO, amountMinor = net)
+                net < 0L -> transaction.copy(type = TransactionType.INGRESO, amountMinor = Math.negateExact(net))
+                else -> transaction.copy(amountMinor = 0L)
+            }
+        }
         override val date: LocalDate = transaction.date
         override val createdAt: Long = transaction.createdAt
-        override val amountMinor: Long = transaction.amountMinor
+        override val amountMinor: Long = displayedTransaction.amountMinor
     }
 
     data class Move(val transfer: Transfer) : MovementItem {
@@ -100,7 +114,7 @@ fun groupMovementsByDay(items: List<MovementItem>, baseCurrency: String): List<M
             dayItems.forEach { item ->
                 when (item) {
                     is MovementItem.Tx -> {
-                        val tx = item.transaction
+                        val tx = item.displayedTransaction
                         if (tx.currency != baseCurrency) {
                             excluded++
                         } else {
@@ -161,8 +175,8 @@ private fun matchesSource(item: MovementItem, source: SourceFilter): Boolean = w
 
 private fun matchesKind(item: MovementItem, kind: KindFilter): Boolean = when (kind) {
     KindFilter.TODOS -> true
-    KindFilter.INGRESOS -> item is MovementItem.Tx && item.transaction.type == TransactionType.INGRESO
-    KindFilter.GASTOS -> item is MovementItem.Tx && item.transaction.type == TransactionType.GASTO
+    KindFilter.INGRESOS -> item is MovementItem.Tx && item.displayedTransaction.type == TransactionType.INGRESO
+    KindFilter.GASTOS -> item is MovementItem.Tx && item.displayedTransaction.type == TransactionType.GASTO
     KindFilter.TRANSFERENCIAS -> item is MovementItem.Move
     KindFilter.INVERSIONES -> item is MovementItem.Investment
 }
@@ -201,13 +215,21 @@ private fun searchableText(
     accountsById: Map<String, Account>,
     categoriesById: Map<String, Category>,
 ): String = when (item) {
-    is MovementItem.Tx -> listOf(
+    is MovementItem.Tx -> (listOf(
         item.transaction.description,
         item.transaction.merchant,
         item.transaction.notes,
         item.transaction.categoryId?.let(categoriesById::get)?.name.orEmpty(),
         accountsById[item.transaction.accountId]?.name.orEmpty(),
-    ).joinToString(" ")
+    ) + item.groupChildren.flatMap { child ->
+        listOf(
+            child.description,
+            child.merchant,
+            child.notes,
+            child.categoryId?.let(categoriesById::get)?.name.orEmpty(),
+            accountsById[child.accountId]?.name.orEmpty(),
+        )
+    }).joinToString(" ")
 
     is MovementItem.Move -> listOf(
         item.transfer.description,

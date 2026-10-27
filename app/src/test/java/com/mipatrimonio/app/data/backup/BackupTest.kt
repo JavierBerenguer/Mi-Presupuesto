@@ -36,7 +36,12 @@ class BackupTest {
 
     @Test
     fun `ida y vuelta conserva todas las tablas ajustes decimales y textos`() = runTest {
-        val original = fullBackupData()
+        val base = fullBackupData()
+        val original = base.copy(
+            transactions = listOf(
+                TransactionEntity("child", "INGRESO", 10, "EUR", 21, "b", "sc", "Bizum", "", "", "MANUAL", 1, 2, "t"),
+            ) + base.transactions,
+        )
         insert(original)
         settingsRule.repository.applyBackup(original.settings)
         val repository = BackupRepository(db, settingsRule.repository, "0.1-test", { 999 })
@@ -95,6 +100,10 @@ class BackupTest {
         val category = root.getJSONObject("tables").getJSONArray("category").getJSONObject(0)
         category.remove("icon")
         assertEquals(null, codec.decode(root.toString().toByteArray()).categories.first().icon)
+        val transactions = root.getJSONObject("tables").getJSONArray("txn")
+        for (index in 0 until transactions.length()) transactions.getJSONObject(index).remove("groupParentId")
+        root.put("dbVersion", 13)
+        assertTrue(codec.decode(root.toString().toByteArray()).transactions.all { it.groupParentId == null })
         root.put("formatVersion", BACKUP_FORMAT_VERSION + 1)
         assertTrue(runCatching { codec.decode(root.toString().toByteArray()) }.exceptionOrNull() is BackupException.NewerVersion)
         root.put("formatVersion", BACKUP_FORMAT_VERSION).put("dbVersion", BACKUP_DB_VERSION + 1)
@@ -148,6 +157,15 @@ class BackupTest {
         assertTrue(runCatching { failing.restore(original.copy(accounts = original.accounts.map { it.copy(name = "Cambiada") })) }.isFailure)
         assertEquals(original.accounts, db.accountDao().getAllForBackup())
         assertEquals(original.proposals, db.notificationDao().getAllProposalsForBackup())
+    }
+
+    @Test fun `validador rechaza grupo roto`() {
+        val broken = fullBackupData().copy(
+            transactions = fullBackupData().transactions.map {
+                if (it.id == "t") it.copy(groupParentId = "missing") else it
+            },
+        )
+        assertTrue(runCatching { BackupValidator.validate(broken) }.exceptionOrNull() is BackupException.InvalidData)
     }
 
     @Test

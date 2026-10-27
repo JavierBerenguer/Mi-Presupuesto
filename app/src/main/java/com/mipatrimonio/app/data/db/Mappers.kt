@@ -33,12 +33,12 @@ fun Category.toEntity(sortOrder: Int = 0) = CategoryEntity(id, name, "GASTO", pa
 
 fun TransactionEntity.toDomain() = Transaction(
     id, TransactionType.valueOf(type), amountMinor, currency, LocalDate.ofEpochDay(epochDay), accountId, categoryId,
-    description, merchant, notes, TransactionSource.valueOf(source), createdAt, updatedAt,
+    description, merchant, notes, TransactionSource.valueOf(source), createdAt, updatedAt, groupParentId,
 )
 
 fun Transaction.toEntity() = TransactionEntity(
     id, type.name, amountMinor, currency, date.toEpochDay(), accountId, categoryId,
-    description, merchant, notes, source.name, createdAt, updatedAt,
+    description, merchant, notes, source.name, createdAt, updatedAt, groupParentId,
 )
 
 fun TransferEntity.toDomain() = Transfer(
