@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sync_title">Sincronización con Rumbo</string>
+    <string name="sync_project_url">URL del proyecto</string>
+    <string name="sync_publishable_key">Clave publicable</string>
+    <string name="sync_email">Correo electrónico</string>
+    <string name="sync_password">Contraseña</string>
+    <string name="sync_sign_in">Iniciar sesión</string>
+    <string name="sync_connected_as">Conectado como %1$s</string>
+    <string name="sync_last_sync">Última sincronización: %1$s</string>
+    <string name="sync_never_synced">Todavía no se ha sincronizado</string>
+    <string name="sync_profile">Perfil de Rumbo</string>
+    <string name="sync_now">Sincronizar ahora</string>
+    <string name="sync_sign_out">Cerrar sesión</string>
+    <string name="sync_sign_out_confirm_title">¿Cerrar la sesión?</string>
+    <string name="sync_sign_out_confirm_body">Se borrarán los datos sincronizados de este dispositivo. Tus datos de Rumbo no se eliminarán.</string>
+    <string name="sync_pending_count">Elementos pendientes de enviar: %1$d</string>
+</resources>

@@ -16,6 +16,11 @@ import com.mipatrimonio.app.data.repository.NotificationRepository
 import com.mipatrimonio.app.data.repository.RecurringRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
 import com.mipatrimonio.app.data.work.RecurringReminderScheduler
+import com.mipatrimonio.app.data.sync.AndroidKeystoreSessionStore
+import com.mipatrimonio.app.data.sync.SupabaseHttpTransport
+import com.mipatrimonio.app.data.sync.SyncAuthClient
+import com.mipatrimonio.app.data.sync.SyncRepository
+import com.mipatrimonio.app.data.sync.SyncScheduler
 import com.mipatrimonio.app.domain.notifications.GenericSpanishParser
 import com.mipatrimonio.app.domain.notifications.NotificationEngine
 import com.mipatrimonio.app.notifications.PendingAutomationNotifier
@@ -23,8 +28,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.collect
 
 /** Inyección de dependencias manual: suficiente para el tamaño actual y sin magia de generación de código. */
+@OptIn(FlowPreview::class)
 class AppContainer(context: Context) {
     private val database = AppDatabase.create(context)
     private val notificationPreferences = context.applicationContext.getSharedPreferences(
@@ -33,6 +44,12 @@ class AppContainer(context: Context) {
     )
     val ledger = LedgerRepository(database)
     val settings = SettingsRepository(context.applicationContext)
+    private val syncSessionStore = AndroidKeystoreSessionStore(context.applicationContext)
+    val sync = SyncRepository(
+        database, settings, ledger,
+        authFactory = { url, key -> SyncAuthClient(SupabaseHttpTransport(url, key), syncSessionStore) },
+        onOutboxEnqueued = { SyncScheduler.enqueueOutbox(context.applicationContext) },
+    )
     val pendingAutomationNotifier = PendingAutomationNotifier(context.applicationContext, settings)
     val recurring = RecurringRepository(database)
     val recurringReminderScheduler = RecurringReminderScheduler(context.applicationContext, recurring)
@@ -72,12 +89,17 @@ class AppContainer(context: Context) {
         recurringReminderScheduler.createChannel()
         pendingAutomationNotifier.createChannel()
         RecurringReminderScheduler.enqueuePeriodic(context.applicationContext)
+        SyncScheduler.schedule(context.applicationContext)
         clearLegacyMarketSecrets(context.applicationContext)
         scope.launch {
             recurring.generatePending(
                 RecurringRepository.generationLimit(java.time.LocalDate.now()),
             )
             recurringReminderScheduler.scheduleAll()
+        }
+        scope.launch {
+            combine(ledger.accounts, ledger.transactions, ledger.transfers) { _, _, _ -> Unit }
+                .drop(1).debounce(30_000).collect { SyncScheduler.enqueueAccountPublish(context.applicationContext) }
         }
     }
 

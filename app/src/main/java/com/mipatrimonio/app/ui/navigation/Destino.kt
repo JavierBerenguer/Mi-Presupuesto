@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.mipatrimonio.app.R
 
@@ -53,6 +54,7 @@ object Rutas {
     const val IMPORTAR_TRADE_REPUBLIC = "importar-trade-republic"
     const val RECURRENTE = "orden-permanente/{id}"
     const val APUNTE = "apunte/{id}"
+    const val SINCRONIZACION = "sincronizacion-rumbo"
 
     fun apunte(id: String?) = "apunte/${id ?: NUEVO}"
     fun recurrente(id: String?) = "orden-permanente/${id ?: NUEVO}"
@@ -78,6 +80,7 @@ enum class SecondaryMenuDestination(
     NOTIFICACIONES(Rutas.NOTIFICACIONES, R.string.aj_bank_notifications, Icons.Filled.Notifications, MenuLocation.AJUSTES),
     AUTOMATIZACION(Rutas.AUTOMATIZACION_NOTIFICACIONES, R.string.aj_notification_automation, Icons.Filled.Tune, MenuLocation.AJUSTES),
     PROPUESTAS(Rutas.PROPUESTAS, R.string.aj_pending_proposals, Icons.Filled.Schedule, MenuLocation.AJUSTES),
+    SINCRONIZACION(Rutas.SINCRONIZACION, R.string.sync_title, Icons.Filled.Sync, MenuLocation.AJUSTES),
     ;
 
     companion object {

@@ -18,6 +18,7 @@ import com.mipatrimonio.app.data.db.migrations.MIGRATION_11_12
 import com.mipatrimonio.app.data.db.migrations.MIGRATION_12_13
 import com.mipatrimonio.app.data.db.migrations.MIGRATION_13_14
 import com.mipatrimonio.app.data.db.migrations.MIGRATION_14_15
+import com.mipatrimonio.app.data.db.migrations.MIGRATION_15_16
 
 @Database(
     entities = [
@@ -34,8 +35,11 @@ import com.mipatrimonio.app.data.db.migrations.MIGRATION_14_15
         NotificationStructureEntity::class,
         NotificationRuleEntity::class,
         NotificationRecordEntity::class,
+        SyncPerfilEntity::class, SyncProductoEntity::class, SyncMovimientoEntity::class,
+        SyncResumenEntity::class, SyncOutboxEntity::class, SyncCursorEntity::class,
+        SyncAccountFingerprintEntity::class,
     ],
-    version = 15,
+    version = 16,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -46,6 +50,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun budgetDao(): BudgetDao
     abstract fun notificationDao(): NotificationDao
     abstract fun recurringRuleDao(): RecurringRuleDao
+    abstract fun syncDao(): SyncDao
 
     companion object {
         const val NAME = "mi_patrimonio.db"
@@ -68,6 +73,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_12_13,
                     MIGRATION_13_14,
                     MIGRATION_14_15,
+                    MIGRATION_15_16,
                 )
                 .build()
     }

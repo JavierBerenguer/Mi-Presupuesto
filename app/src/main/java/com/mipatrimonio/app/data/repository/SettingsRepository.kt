@@ -31,6 +31,11 @@ data class Settings(
     val tradeRepublicAccountId: String? = null,
     val categoryCatalogVersion: Int = 0,
     val pendingAutomationAlertsEnabled: Boolean = true,
+    val syncProjectUrl: String = "",
+    val syncPublishableKey: String = "",
+    val syncProfileId: String? = null,
+    val syncLastSuccessAt: Long? = null,
+    val syncEmail: String? = null,
 )
 
 class SettingsRepository(private val store: DataStore<Preferences>) {
@@ -49,6 +54,11 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
     private val tradeRepublicAccountIdKey = stringPreferencesKey("trade_republic_account_id")
     private val categoryCatalogVersionKey = intPreferencesKey("category_catalog_version")
     private val pendingAutomationAlertsEnabledKey = booleanPreferencesKey("pending_automation_alerts_enabled")
+    private val syncProjectUrlKey = stringPreferencesKey("sync_project_url")
+    private val syncPublishableKey = stringPreferencesKey("sync_publishable_key")
+    private val syncProfileIdKey = stringPreferencesKey("sync_profile_id")
+    private val syncLastSuccessAtKey = androidx.datastore.preferences.core.longPreferencesKey("sync_last_success_at")
+    private val syncEmailKey = stringPreferencesKey("sync_email")
 
     /** Modo oscuro activado por defecto; divisa base EUR por defecto. */
     val settings: Flow<Settings> = store.data.map { p ->
@@ -68,6 +78,11 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
             tradeRepublicAccountId = p[tradeRepublicAccountIdKey]?.takeIf(String::isNotBlank),
             categoryCatalogVersion = p[categoryCatalogVersionKey] ?: 0,
             pendingAutomationAlertsEnabled = p[pendingAutomationAlertsEnabledKey] ?: true,
+            syncProjectUrl = p[syncProjectUrlKey].orEmpty(),
+            syncPublishableKey = p[syncPublishableKey].orEmpty(),
+            syncProfileId = p[syncProfileIdKey]?.takeIf(String::isNotBlank),
+            syncLastSuccessAt = p[syncLastSuccessAtKey],
+            syncEmail = p[syncEmailKey]?.takeIf(String::isNotBlank),
         )
     }
 
@@ -122,6 +137,18 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
     suspend fun setPendingAutomationAlertsEnabled(enabled: Boolean) {
         store.edit { it[pendingAutomationAlertsEnabledKey] = enabled }
     }
+
+    suspend fun setSyncConfiguration(projectUrl: String, publishableKey: String) {
+        store.edit { it[syncProjectUrlKey] = projectUrl.trim(); it[syncPublishableKey] = publishableKey.trim() }
+    }
+
+    suspend fun setSyncProfile(profileId: String?) {
+        store.edit { it[syncProfileIdKey] = profileId.orEmpty() }
+    }
+
+    suspend fun setSyncLastSuccessAt(value: Long) { store.edit { it[syncLastSuccessAtKey] = value } }
+
+    suspend fun setSyncEmail(value: String?) { store.edit { it[syncEmailKey] = value.orEmpty() } }
 
     suspend fun exportForBackup(): Map<String, Any?> {
         val value = settings.first()

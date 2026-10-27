@@ -47,6 +47,7 @@ import com.mipatrimonio.app.ui.importer.TradeRepublicImportScreen
 import com.mipatrimonio.app.ui.automation.AutomationScreen
 import com.mipatrimonio.app.ui.automation.ConfigureRuleScreen
 import com.mipatrimonio.app.ui.automation.TeachStructureScreen
+import com.mipatrimonio.app.ui.sync.SyncScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -123,6 +124,7 @@ private fun titleFor(route: String?, destino: Destino?): Int = when {
     route == Rutas.COPIAS -> R.string.backup_nav_title
     route == Rutas.IMPORTAR_TRADE_REPUBLIC -> R.string.import_tr_nav_title
     route == Rutas.RECURRENTE -> R.string.recurring_edit
+    route == Rutas.SINCRONIZACION -> R.string.sync_title
     else -> R.string.app_name
 }
 
@@ -223,5 +225,6 @@ private fun AppNavHost(
                 onConfigureMerchant = { navController.navigate(Rutas.configurarRegla(it)) },
             )
         }
+        composable(Rutas.SINCRONIZACION) { SyncScreen() }
     }
 }
