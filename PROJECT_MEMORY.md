@@ -529,3 +529,20 @@ El usuario dejó `datos-privados/Documento de cambios/Documento.md` (+ 4 captura
 - **T-067 ACEPTADA e integrada (2026-10-27).** Comercio nuevo → apunte con la estructura general, pestaña «Comercios nuevos», «Configurar este comercio» desde el formulario. Ajuste de Claude: un test antiguo esperaba un cambio retroactivo, adaptado a la decisión «solo futuros». 527 tests × 3 en verde.
 - **T-069 ACEPTADA e integrada (2026-10-27).** Aviso push agregado de automatizaciones pendientes, que abre Automatización en la pestaña correcta. Ajustes de Claude: un import y la clave nueva en los datos de `BackupTest`. 536 tests × 3 en verde. **Lección:** el sandbox de Codex bloquea Gradle (sin red para descargar la distribución ni `android-all-instrumented`). Claude debe compilar siempre y esperar fallos de compilación triviales en los tests.
 - **T-068 lanzada (2026-10-27)** en `.local/worktrees/t-068`.
+- **Firma y releases (2026-10-27, petición del usuario):** clave de distribución creada por Claude.
+  - Keystore PKCS12 RSA 4096, alias `mipatrimonio`, en `C:\Users\Usuario\.mipatrimonio-firma\mipatrimonio-release.jks`, con copia en `datos-privados/firma/`.
+  - Contraseña en `keystore.properties` (raíz, ignorado).
+  - SHA-256 del certificado: `D3:9A:3B:E2:15:E4:EB:85:35:E2:78:0A:2A:C2:E9:97:FD:B3:48:F1:35:F9:C6:98:51:8E:1A:04:0C:05:CD:8E`.
+  - **Perder la clave impide actualizar la app instalada.**
+  - El usuario instalará y actualizará con **ObtainX** (fork de Obtainium) desde GitHub Releases, así que cada release debe subir `versionCode`.
+- **Corrección para poder compilar la release:** `lintVitalRelease` fallaba porque `MiPatrimonioApplication` implementaba `Configuration.Provider` sin quitar el inicializador de WorkManager. Se quitó el Provider (la configuración era la de por defecto y el inicializador automático ya actuaba).
+- **v1.0.0 publicada:** `main` + firma (rama `release/v1.0.0`), versionCode 1, APK de 3,5 MB minificado con R8. Prueba de humo en el emulador `mp_test`: arranque, pestañas y alta de cuenta.
+- **T-068 ACEPTADA e integrada (2026-10-27).** Agrupación con neto, Room v14. Ajustes de Claude:
+  - orden de los datos de `BackupTest`;
+  - **textos con doble codificación UTF-8** («Â¿Sobre quÃ©…»), detectados en el emulador; se corrigieron también un mensaje antiguo del importador de TR y otro de `BackupValidator`. Lección añadida a `COMMON.md`.
+  - 550 tests × 3 en verde.
+- **v1.1.0** (T-067 + T-068 + T-069), versionCode 2. Verificado en el emulador:
+  - actualización sobre v1.0.0 con datos (migración 13→14 y misma firma);
+  - el enlace del aviso abre la pestaña «Comercios nuevos» con la app abierta;
+  - agrupar 60 € con 2 × 20 € da una fila con −20 € y «+2», Inicio muestra 20 € de gasto y 0 € de ingresos, y el saldo de la cuenta no cambia (80 €).
+  - **Pendiente:** probarlo en el Pixel 9a. Para pasar de debug a release hace falta copia → desinstalar → instalar → restaurar.
