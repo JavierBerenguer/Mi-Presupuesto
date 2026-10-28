@@ -1,6 +1,7 @@
 package com.mipatrimonio.app.data.sync
 
 import com.mipatrimonio.app.domain.model.MoneyMath
+import org.json.JSONArray
 import org.json.JSONObject
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -54,7 +55,7 @@ object PortfolioSummaryParser {
         }
         val excludedByClass = excludedProducts.groupBy { it.getString("tipo") }
             .mapValues { (_, values) -> values.fold(0L) { sum, item -> Math.addExact(sum, item.moneyMinor("valor")) } }
-        val classesJson = root.getJSONArray("porClase")
+        val classesJson = root.optJSONArray("porClase") ?: JSONArray()
         val classes = buildList {
             repeat(classesJson.length()) { index ->
                 val value = classesJson.getJSONObject(index)
