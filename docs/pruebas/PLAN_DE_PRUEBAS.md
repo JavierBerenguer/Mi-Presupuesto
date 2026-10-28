@@ -9,11 +9,11 @@ Este documento lo mantiene Claude. Cada bloque indica en qué versión se prueba
 ---
 
 ## 0. Preparación (una sola vez)
-- [ ] **Copia de seguridad** de la app actual: Más › Importar/Exportar › Crear copia. Guárdala fuera del móvil.
-- [ ] Si tienes la versión **de depuración** instalada: desinstálala, instala la v1.2.0 (o añade el repositorio en **ObtainX**) y **restaura la copia**.
+- [X] **Copia de seguridad** de la app actual: Más › Importar/Exportar › Crear copia. Guárdala fuera del móvil.
+- [X] Si tienes la versión **de depuración** instalada: desinstálala, instala la v1.2.0 (o añade el repositorio en **ObtainX**) y **restaura la copia**.
   - Comprueba que siguen tus cuentas, apuntes, categorías, presupuestos y automatizaciones.
   - Las carteras y activos antiguos ya no existen, y es lo esperado.
-- [ ] **Rumbo:** ejecuta `Iniciar.bat` en `rumbo-main`. Se abre en el navegador.
+- [X] **Rumbo:** ejecuta `Iniciar.bat` en `rumbo-main`. Se abre en el navegador.
 
 ## A. Rumbo en modo nube (escritorio) — ✅ disponible ya
 - [ ] A1. Pulsa **☁ Nube**, pega la URL y la clave *publishable* (las tienes en `rumbo-main\supabase.env`) e inicia sesión con tu email y contraseña. Debe quedar conectado.
@@ -80,3 +80,5 @@ Este documento lo mantiene Claude. Cada bloque indica en qué versión se prueba
 
 ## Resultados y problemas encontrados
 *(Escribe aquí lo que falle; Claude lo convierte en fichas de corrección.)*
+
+- **2026-10-28 · A1 (Rumbo › Nube › «Guardar y continuar»):** daba una pantalla negra con «Petición bloqueada: no viene de Rumbo». **Corregido** (`Referrer-Policy: same-origin`, commit en `claude/supabase`). Cierra Rumbo y vuelve a abrirlo con `Iniciar.bat` para que se aplique.
