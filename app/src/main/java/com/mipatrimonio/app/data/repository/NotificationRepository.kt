@@ -24,6 +24,9 @@ class NotificationRepository(
     private val persistDiagnosticTextEnabled: (Boolean) -> Unit = {},
     private val zoneId: ZoneId = ZoneId.systemDefault(),
     private val saveAutoTransaction: suspend (Transaction) -> Unit = LedgerRepository(db, clock)::saveTransaction,
+    private val hasSyncSession: suspend () -> Boolean = { false },
+    private val createInvestmentPurchase: suspend (String, java.time.LocalDate, Long, String?, String?) -> String =
+        { _, _, _, _, _ -> throw IllegalStateException("No hay una sesión de sincronización activa") },
 ) {
     private val dao = db.notificationDao()
     private val diagnosticTextState = MutableStateFlow(initialDiagnosticTextEnabled)
@@ -156,8 +159,10 @@ class NotificationRepository(
         val record = dao.getRecord(recordId) ?: return null
         val shouldAlert = when {
             record.status == NotificationRecordStatus.PENDIENTE_ESTRUCTURA.name -> true
+            record.status == NotificationRecordStatus.PENDIENTE_REGLA.name &&
+                record.structureId?.let { dao.getStructure(it) }?.target == NotificationTarget.COMPRA.name -> true
             record.status == NotificationRecordStatus.AUTOMATIZADA.name &&
-                record.ruleId == null && record.transactionId != null &&
+                record.ruleId == null && (record.transactionId != null || record.syncMovementId != null) &&
                 record.structureId != null && record.variableText != null -> {
                 val key = requireNotNull(record.structureId) to normalizeVariable(requireNotNull(record.variableText))
                 dao.getRecordsUsingStructureDefaults().count {
@@ -173,7 +178,13 @@ class NotificationRepository(
         val newMerchantCount = generalRecords
             .map { requireNotNull(it.structureId) to normalizeVariable(requireNotNull(it.variableText)) }
             .distinct()
-            .count { it !in enabledKeys }
+            .count { it !in enabledKeys } + dao.getPendingRecords().mapNotNull { pending ->
+                val isMissingPurchase = pending.status == NotificationRecordStatus.PENDIENTE_REGLA.name &&
+                    pending.structureId?.let { dao.getStructure(it) }?.target == NotificationTarget.COMPRA.name
+                if (isMissingPurchase && pending.structureId != null && pending.variableText != null) {
+                    pending.structureId to normalizeVariable(pending.variableText)
+                } else null
+            }.distinct().count()
         return PendingAutomationAlert(
             pendingStructureCount = dao.countPendingStructures(),
             newMerchantCount = newMerchantCount,
@@ -183,23 +194,27 @@ class NotificationRepository(
     suspend fun previewFromRecord(
         recordId: String, keyRange: IntRange, variableRange: IntRange, direction: NotificationDirection,
         defaults: NotificationDefaults = NotificationDefaults(), ruleValues: NotificationRuleValues = NotificationRuleValues(),
+        target: NotificationTarget = NotificationTarget.APUNTE,
     ): NotificationPreview = db.withTransaction {
         val record = requireNotNull(dao.getRecord(recordId)) { "El registro no existe" }
-        preview(record, NotificationTemplateBuilder.build(record.text, keyRange, variableRange), direction, defaults, ruleValues)
+        preview(record, NotificationTemplateBuilder.build(record.text, keyRange, variableRange), direction, defaults, ruleValues, target)
     }
 
     suspend fun createStructureFromRecord(
         recordId: String, name: String, keyRange: IntRange, variableRange: IntRange, direction: NotificationDirection,
         defaults: NotificationDefaults = NotificationDefaults(), ruleValues: NotificationRuleValues = NotificationRuleValues(),
+        target: NotificationTarget = NotificationTarget.APUNTE,
     ): NotificationStructure = db.withTransaction {
         val record = requireNotNull(dao.getRecord(recordId)) { "El registro no existe" }
-        val result = preview(record, NotificationTemplateBuilder.build(record.text, keyRange, variableRange), direction, defaults, ruleValues)
+        val result = preview(record, NotificationTemplateBuilder.build(record.text, keyRange, variableRange), direction, defaults, ruleValues, target)
         val now = clock()
         val structure = NotificationStructure(idFactory(), record.packageName, name.trim().also { require(it.isNotEmpty()) { "El nombre es obligatorio" } },
-            result.template, direction, defaults.title.clean(), defaults.detail.clean(), defaults.categoryId.clean(), true, now, now)
+            result.template, direction, defaults.title.clean(), defaults.detail.clean(), defaults.categoryId.clean(), true, now, now,
+            target, defaults.defaultProductId.clean())
         dao.upsertStructure(structure.toEntity())
         val rule = NotificationRule(idFactory(), structure.id, normalizeVariable(result.variableText), result.variableText,
-            ruleValues.title.clean(), ruleValues.detail.clean(), ruleValues.categoryId.clean(), true, now, now)
+            ruleValues.title.clean(), ruleValues.detail.clean(), ruleValues.categoryId.clean(), true, now, now,
+            ruleValues.productId.clean())
         dao.upsertRule(rule.toEntity())
         dao.upsertRecord(resolveRecord(record, requireNotNull(dao.getAuthorizationRule(record.packageName))))
         reprocessPendingLocked()
@@ -214,7 +229,8 @@ class NotificationRepository(
         val key = normalizeVariable(display)
         val existing = dao.getRuleForKey(structureId, key)
         val rule = NotificationRule(existing?.id ?: idFactory(), structureId, key, display,
-            values.title.clean(), values.detail.clean(), values.categoryId.clean(), true, existing?.createdAt ?: now, now)
+            values.title.clean(), values.detail.clean(), values.categoryId.clean(), true, existing?.createdAt ?: now, now,
+            values.productId.clean())
         dao.upsertRule(rule.toEntity()); reprocessPendingLocked(); rule
     }
 
@@ -244,7 +260,7 @@ class NotificationRepository(
     }
 
     private suspend fun resolveRecord(row: NotificationRecordEntity, authorization: NotificationAuthorizationEntity): NotificationRecordEntity {
-        if (row.transactionId != null) return row
+        if (row.transactionId != null || row.syncMovementId != null) return row
         val structures = dao.getEnabledStructures(row.packageName).mapNotNull { runCatching { it.toDomain() }.getOrNull() }
         val selected = NotificationTemplateMatcher.select(structures, row.text)
         val structure = selected?.first
@@ -254,6 +270,9 @@ class NotificationRepository(
         } else null
         val base = row.copy(amountMinor = match?.amount?.amountMinor ?: row.amountMinor, currency = match?.amount?.currency ?: row.currency,
             structureId = structure?.id, ruleId = rule?.id, variableText = match?.variableText)
+        if (structure?.target == NotificationTarget.COMPRA && match != null) {
+            return resolvePurchase(base, authorization, structure, rule, match)
+        }
         val account = authorization.accountId?.let { db.accountDao().getById(it) }
         if (account == null || account.archived || account.currency != base.currency) return base.copy(status = NotificationRecordStatus.PENDIENTE_CUENTA.name)
         if (structure == null || match == null) return base.copy(status = NotificationRecordStatus.PENDIENTE_ESTRUCTURA.name)
@@ -265,13 +284,50 @@ class NotificationRepository(
         return base.copy(status = NotificationRecordStatus.AUTOMATIZADA.name, transactionId = transactionId)
     }
 
+    private suspend fun resolvePurchase(
+        row: NotificationRecordEntity,
+        authorization: NotificationAuthorizationEntity,
+        structure: NotificationStructure,
+        rule: NotificationRule?,
+        match: TemplateMatch,
+    ): NotificationRecordEntity {
+        if (match.amount.hasExplicitPlus) {
+            return row.copy(status = NotificationRecordStatus.PENDIENTE_REGLA.name)
+        }
+        val productId = rule?.productId.clean() ?: structure.defaultProductId.clean()
+        val product = productId?.let { db.syncDao().producto(it) }
+        if (product == null || product.deletedAt != null) {
+            return row.copy(status = NotificationRecordStatus.PENDIENTE_REGLA.name)
+        }
+        if (!hasSyncSession()) {
+            return row.copy(status = NotificationRecordStatus.PENDIENTE_SINCRONIZACION.name)
+        }
+        val accountId = authorization.accountId?.let { db.accountDao().getById(it) }
+            ?.takeIf { !it.archived && it.currency == "EUR" }
+            ?.id
+        val movementId = createInvestmentPurchase(
+            product.id,
+            Instant.ofEpochMilli(row.postedAt).atZone(zoneId).toLocalDate(),
+            match.amount.amountMinor,
+            accountId,
+            match.variableText,
+        )
+        return row.copy(
+            status = NotificationRecordStatus.AUTOMATIZADA.name,
+            transactionId = null,
+            syncMovementId = movementId,
+        )
+    }
+
     private fun preview(record: NotificationRecordEntity, template: NotificationTemplate, direction: NotificationDirection,
-                        defaults: NotificationDefaults, values: NotificationRuleValues): NotificationPreview {
+                        defaults: NotificationDefaults, values: NotificationRuleValues,
+                        target: NotificationTarget): NotificationPreview {
         val match = requireNotNull(NotificationTemplateMatcher.match(template, record.text)) { "La plantilla no coincide con el registro" }
         val kind = direction.kindFor(match.amount)
         return NotificationPreview(template, match.variableText, match.amount.amountMinor, match.amount.currency, kind,
             values.title.clean() ?: defaults.title.clean() ?: match.variableText,
-            values.detail.clean() ?: defaults.detail.clean().orEmpty(), values.categoryId.clean() ?: defaults.categoryId.clean())
+            values.detail.clean() ?: defaults.detail.clean().orEmpty(), values.categoryId.clean() ?: defaults.categoryId.clean(),
+            target, values.productId.clean() ?: defaults.defaultProductId.clean())
     }
 
     private suspend fun rejectWithoutRecord(notification: BankNotification, reason: NoInterpretableReason, amountFound: Boolean): NotificationOutcome {
@@ -320,11 +376,11 @@ private fun NotificationRecordEntity.toTransaction(id: String, accountId: String
 private fun NotificationAuthorizationEntity.toDomain() = AuthorizationRule(packageName, authorized, accountId, createdAt, runCatching { enumValueOf<AutoConfirmMode>(autoConfirmMode) }.getOrDefault(AutoConfirmMode.OFF))
 private fun PendingProposalEntity.toDomain() = PendingProposal(id, packageName, accountId, enumValueOf(kind), amountMinor, currency, merchant, enumValueOf(confidence), parserId, postedAt, enumValueOf(status), resultingTransactionId, createdAt)
 private fun NotificationDiagnosticEntity.toDomain() = NotificationDiagnostic(id, packageName, postedAt, enumValueOf(outcome), reason?.let { enumValueOf(it) }, NotificationFields(hadTitle, hadText, hadBigText, hadSubText, hadTextLines, hadMessages, hadTicker), amountFound, sampleText, createdAt)
-private fun NotificationStructureEntity.toDomain() = NotificationStructure(id, packageName, name, NotificationTemplateJson.decode(template), enumValueOf(direction), defaultTitle, defaultDetail, defaultCategoryId, enabled, createdAt, updatedAt)
-private fun NotificationStructure.toEntity() = NotificationStructureEntity(id, packageName, name, NotificationTemplateJson.encode(template), direction.name, defaultTitle, defaultDetail, defaultCategoryId, enabled, createdAt, updatedAt)
-private fun NotificationRuleEntity.toDomain() = NotificationRule(id, structureId, variableKey, variableDisplay, title, detail, categoryId, enabled, createdAt, updatedAt)
-private fun NotificationRule.toEntity() = NotificationRuleEntity(id, structureId, variableKey, variableDisplay, title, detail, categoryId, enabled, createdAt, updatedAt)
-private fun NotificationRecordEntity.toDomain() = NotificationRecord(id, packageName, postedAt, text, amountMinor, currency, structureId, ruleId, variableText, enumValueOf(status), transactionId, createdAt)
+private fun NotificationStructureEntity.toDomain() = NotificationStructure(id, packageName, name, NotificationTemplateJson.decode(template), enumValueOf(direction), defaultTitle, defaultDetail, defaultCategoryId, enabled, createdAt, updatedAt, enumValueOf(target), defaultProductId)
+private fun NotificationStructure.toEntity() = NotificationStructureEntity(id, packageName, name, NotificationTemplateJson.encode(template), direction.name, defaultTitle, defaultDetail, defaultCategoryId, enabled, createdAt, updatedAt, target.name, defaultProductId)
+private fun NotificationRuleEntity.toDomain() = NotificationRule(id, structureId, variableKey, variableDisplay, title, detail, categoryId, enabled, createdAt, updatedAt, productId)
+private fun NotificationRule.toEntity() = NotificationRuleEntity(id, structureId, variableKey, variableDisplay, title, detail, categoryId, enabled, createdAt, updatedAt, productId)
+private fun NotificationRecordEntity.toDomain() = NotificationRecord(id, packageName, postedAt, text, amountMinor, currency, structureId, ruleId, variableText, enumValueOf(status), transactionId, createdAt, syncMovementId)
 private fun String?.clean() = this?.trim()?.takeIf(String::isNotEmpty)
 private fun Long.saturatedMinus(amount: Long) = runCatching { Math.subtractExact(this, amount) }.getOrDefault(Long.MIN_VALUE)
 private fun Long.saturatedPlus(amount: Long) = runCatching { Math.addExact(this, amount) }.getOrDefault(Long.MAX_VALUE)

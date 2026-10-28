@@ -33,6 +33,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 
 /** Inyección de dependencias manual: suficiente para el tamaño actual y sin magia de generación de código. */
 @OptIn(FlowPreview::class)
@@ -78,6 +80,19 @@ class AppContainer(context: Context) {
         persistDiagnosticTextEnabled = { enabled ->
             notificationPreferences.edit().putBoolean(DIAGNOSTIC_TEXT_KEY, enabled).apply()
         },
+        hasSyncSession = sync::hasSession,
+        createInvestmentPurchase = { productId, date, amountMinor, accountId, note ->
+            sync.crearCompra(
+                productoId = productId,
+                fecha = date,
+                importeMinor = amountMinor,
+                unidades = null,
+                comisionMinor = null,
+                cuentaId = accountId,
+                origen = "notificacion",
+                nota = note,
+            )
+        },
     )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -85,6 +100,11 @@ class AppContainer(context: Context) {
     init {
         scope.launch {
             ledger.updateDefaultCategoryCatalogIfNeeded(settings)
+        }
+        scope.launch {
+            settings.settings.map { it.syncLastSuccessAt }.distinctUntilChanged().drop(1).collect { lastSuccess ->
+                if (lastSuccess != null) notifications.reprocessPending()
+            }
         }
         recurringReminderScheduler.createChannel()
         pendingAutomationNotifier.createChannel()

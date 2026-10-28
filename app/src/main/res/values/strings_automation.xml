@@ -19,13 +19,15 @@
     <string name="auto_no_new_merchants">No hay comercios nuevos usando la configuración general de una estructura.</string>
     <string name="auto_no_structures">Todavía no has enseñado ninguna estructura.</string>
     <string name="auto_account_needed">Esta aplicación necesita una cuenta activa asociada y con la misma divisa que la notificación.</string>
+    <string name="auto_sync_needed">Inicia sesión en Ajustes → Sincronización para registrar esta compra.</string>
+    <string name="auto_choose_product">Elegir producto</string>
     <string name="auto_teach">Enseñar</string>
     <string name="auto_configure_merchant">Configurar comercio</string>
     <string name="auto_always_use_general">Usar siempre la general</string>
     <string name="auto_merchant_structure">%1$s · %2$s</string>
     <plurals name="auto_general_transaction_count">
-        <item quantity="one">%1$d apunte registrado con la general</item>
-        <item quantity="other">%1$d apuntes registrados con la general</item>
+        <item quantity="one">%1$d movimiento registrado con la general</item>
+        <item quantity="other">%1$d movimientos registrados con la general</item>
     </plurals>
     <string name="auto_latest_transaction">Más reciente: %1$s · %2$s</string>
     <string name="auto_discard_title">Descartar notificación</string>
@@ -51,6 +53,18 @@
     <string name="auto_direction_sign">Según el signo: con + ingreso, sin signo gasto</string>
     <string name="auto_direction_income">Siempre ingreso</string>
     <string name="auto_direction_expense">Siempre gasto</string>
+    <string name="auto_target">Destino</string>
+    <string name="auto_target_entry">Apunte</string>
+    <string name="auto_target_purchase">Compra de inversión</string>
+    <string name="auto_default_product">Producto por defecto</string>
+    <string name="auto_rule_product">Producto para este comercio o activo</string>
+    <string name="auto_use_default_product">Usar el producto por defecto</string>
+    <string name="auto_purchase_no_session">No hay una sesión de sincronización activa. Ve a Ajustes → Sincronización.</string>
+    <string name="auto_purchase_no_products">No hay productos de inversión disponibles. Sincroniza la cartera desde Ajustes → Sincronización.</string>
+    <string name="auto_purchase_choose_product">Elige un producto para registrar la compra.</string>
+    <string name="auto_purchase_positive">Una compra no puede tener importe positivo.</string>
+    <string name="auto_purchase_preview">Se registrará una compra de %1$s en %2$s</string>
+    <string name="auto_product_not_selected">producto sin seleccionar</string>
     <string name="auto_structure_values">Valores de la estructura</string>
     <string name="auto_structure_explanation">Se aplican a todos los apuntes de %1$s.</string>
     <string name="auto_rule_values">Valores de este comercio, persona o activo</string>

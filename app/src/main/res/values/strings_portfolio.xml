@@ -40,6 +40,7 @@
     <string name="cartera_foreign_account_warning">Este movimiento no afecta al saldo porque la cuenta no está en EUR.</string>
     <string name="cartera_edit_in_rumbo">Se edita en Rumbo</string>
     <string name="cartera_edit_movement_title">Editar movimiento</string>
+    <string name="cartera_original_notification">Notificación original</string>
     <string name="cartera_delete_movement_title">Eliminar movimiento</string>
     <string name="cartera_delete_movement_message">El movimiento desaparecerá de la cartera y del saldo de la cuenta.</string>
     <string name="cartera_investments_rumbo">Inversiones (Rumbo)</string>

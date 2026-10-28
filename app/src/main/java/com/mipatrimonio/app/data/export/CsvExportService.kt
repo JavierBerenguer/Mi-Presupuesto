@@ -35,6 +35,9 @@ class CsvExportService(
                 "movimientos.csv" to transactionRows(data, accounts, categories, today),
                 "transferencias.csv" to transferRows(data, accounts, categories, today),
                 "presupuestos.csv" to budgetRows(data, categories),
+                "estructuras_notificacion.csv" to notificationStructureRows(data),
+                "reglas_notificacion.csv" to notificationRuleRows(data),
+                "registros_notificacion.csv" to notificationRecordRows(data, zoneId),
             )
             val output = ByteArrayOutputStream()
             ZipOutputStream(output, StandardCharsets.UTF_8).use { zip ->
@@ -128,6 +131,34 @@ class CsvExportService(
             }
         }
 
+        private fun notificationStructureRows(data: CsvExportData): List<List<String>> = rows(
+            listOf("id", "aplicacion", "nombre", "plantilla", "sentido", "titulo", "detalle", "categoria_id", "activa", "destino", "producto_por_defecto_id"),
+        ) {
+            data.notificationStructures.map { value ->
+                listOf(value.id, value.packageName, value.name, value.template, value.direction, value.defaultTitle.orEmpty(),
+                    value.defaultDetail.orEmpty(), value.defaultCategoryId.orEmpty(), yesNo(value.enabled), value.target, value.defaultProductId.orEmpty())
+            }
+        }
+
+        private fun notificationRuleRows(data: CsvExportData): List<List<String>> = rows(
+            listOf("id", "estructura_id", "clave_variable", "texto_variable", "titulo", "detalle", "categoria_id", "activa", "producto_id"),
+        ) {
+            data.notificationRules.map { value ->
+                listOf(value.id, value.structureId, value.variableKey, value.variableDisplay, value.title.orEmpty(),
+                    value.detail.orEmpty(), value.categoryId.orEmpty(), yesNo(value.enabled), value.productId.orEmpty())
+            }
+        }
+
+        private fun notificationRecordRows(data: CsvExportData, zoneId: ZoneId): List<List<String>> = rows(
+            listOf("id", "aplicacion", "fecha", "texto", "importe_minor", "divisa", "estructura_id", "regla_id", "texto_variable", "estado", "apunte_id", "movimiento_sync_id"),
+        ) {
+            data.notificationRecords.map { value ->
+                listOf(value.id, value.packageName, Instant.ofEpochMilli(value.postedAt).atZone(zoneId).toString(), value.text,
+                    value.amountMinor?.toString().orEmpty(), value.currency.orEmpty(), value.structureId.orEmpty(), value.ruleId.orEmpty(),
+                    value.variableText.orEmpty(), value.status, value.transactionId.orEmpty(), value.syncMovementId.orEmpty())
+            }
+        }
+
         private fun rows(header: List<String>, body: () -> List<List<String>>) = listOf(header) + body()
         private fun money(minor: Long, currency: String): String = MoneyMath.toDecimal(minor, currency).toPlainString().replace('.', ',')
         private fun decimal(value: BigDecimal): String = value.toPlainString().replace('.', ',')
@@ -164,8 +195,9 @@ class CsvExportService(
             movimientos.csv: id; fecha; tipo; importe positivo; divisa; cuenta; categoria raíz; subcategoria; descripcion; comercio; notas; origen; estado.
             transferencias.csv: id; fecha; cuenta_origen; importe_origen; divisa_origen; cuenta_destino; importe_destino; divisa_destino; categoria; descripcion; estado. Las divisas proceden de las cuentas relacionadas porque la transferencia solo guarda sus identificadores e importes.
             presupuestos.csv: id; nombre; periodo; importe_limite; divisa; fecha_inicio; fecha_fin; umbral_aviso (porcentaje entero); categorias (nombres separados por |); incluye_subcategorias (Sí/No alineados con categorias); archivado.
+            estructuras_notificacion.csv, reglas_notificacion.csv y registros_notificacion.csv: configuración y trazabilidad de automatizaciones, incluidos el destino, los productos de inversión y el movimiento sincronizado.
 
-            No se incluyen ajustes, secretos, claves, autorizaciones, diagnósticos ni propuestas de notificaciones.
+            No se incluyen ajustes, secretos, claves, autorizaciones, diagnósticos ni propuestas pendientes del motor antiguo de notificaciones.
         """.trimIndent() + "\r\n"
     }
 }

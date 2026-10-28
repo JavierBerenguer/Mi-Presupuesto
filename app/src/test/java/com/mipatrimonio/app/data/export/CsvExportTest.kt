@@ -23,7 +23,7 @@ class CsvExportTest {
                 while (true) add(zip.nextEntry?.name ?: break)
             }
         }
-        assertEquals(setOf("cuentas.csv", "categorias.csv", "movimientos.csv", "transferencias.csv", "presupuestos.csv", "LEEME.txt"), names.toSet())
+        assertEquals(setOf("cuentas.csv", "categorias.csv", "movimientos.csv", "transferencias.csv", "presupuestos.csv", "estructuras_notificacion.csv", "reglas_notificacion.csv", "registros_notificacion.csv", "LEEME.txt"), names.toSet())
         assertTrue("cuentas.csv" in names)
         assertFalse(names.any { it.contains("carteras") || it.contains("activos") || it.contains("precios") })
     }
