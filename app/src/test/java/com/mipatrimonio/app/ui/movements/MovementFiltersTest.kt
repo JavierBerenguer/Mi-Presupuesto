@@ -55,6 +55,7 @@ class MovementFiltersTest {
         when (it) {
             is MovementItem.Tx -> it.transaction.id
             is MovementItem.Move -> it.transfer.id
+            is MovementItem.Liquidity -> it.movement.id
         }
     }
 
@@ -120,6 +121,7 @@ class MovementFiltersTest {
             when (it) {
                 is MovementItem.Tx -> it.transaction.id
                 is MovementItem.Move -> it.transfer.id
+                is MovementItem.Liquidity -> it.movement.id
             }
         }
 

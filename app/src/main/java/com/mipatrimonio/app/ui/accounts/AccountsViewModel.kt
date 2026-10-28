@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.mipatrimonio.app.data.repository.AccountDependencies
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
+import com.mipatrimonio.app.data.sync.SyncRepository
+import com.mipatrimonio.app.data.sync.mapLiquidityMovements
 import com.mipatrimonio.app.domain.calc.BalanceCalculator
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountType
@@ -17,6 +19,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
 enum class AccountFilter { ACTIVAS, ARCHIVADAS, TODAS }
@@ -56,6 +59,7 @@ data class AccountsUiState(
 class AccountsViewModel(
     private val ledger: LedgerRepository,
     settings: SettingsRepository,
+    sync: SyncRepository? = null,
     private val today: () -> LocalDate = LocalDate::now,
 ) : ViewModel() {
     private val dependencies = MutableStateFlow<Map<String, AccountDependencies>>(emptyMap())
@@ -65,12 +69,14 @@ class AccountsViewModel(
         ledger.accounts,
         ledger.transactions,
         ledger.transfers,
-    ) { accounts, transactions, transfers ->
+        sync?.movimientos ?: flowOf(emptyList()),
+    ) { accounts, transactions, transfers, remoteMovements ->
+        val liquidity = mapLiquidityMovements(remoteMovements, accounts).entries
         val managedAccounts = accounts
             .map { account ->
                 ManagedAccount(
                     account,
-                    BalanceCalculator.balance(account, transactions, transfers, today()),
+                    BalanceCalculator.balance(account, transactions, transfers, today(), liquidity),
                 )
             }
             .sortedBy { it.account.name.lowercase() }

@@ -32,6 +32,8 @@ import androidx.lifecycle.viewModelScope
 import com.mipatrimonio.app.R
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
+import com.mipatrimonio.app.data.sync.SyncRepository
+import com.mipatrimonio.app.data.sync.mapLiquidityMovements
 import com.mipatrimonio.app.domain.calc.BalanceCalculator
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.MoneyMath
@@ -43,6 +45,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
 data class MovementAccountChoice(
@@ -64,6 +67,7 @@ data class MovementAccountsUiState(
 class MovementAccountsViewModel(
     private val ledger: LedgerRepository,
     private val settings: SettingsRepository,
+    sync: SyncRepository? = null,
     private val today: () -> LocalDate = LocalDate::now,
 ) : ViewModel() {
     private val errors = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
@@ -79,15 +83,18 @@ class MovementAccountsViewModel(
         ledger.transactions,
         ledger.transfers,
     ) { accounts, transactions, transfers -> LedgerData(accounts, transactions, transfers) }
+    private val remoteMovements = sync?.movimientos ?: flowOf(emptyList())
 
     val uiState: StateFlow<MovementAccountsUiState> = combine(
         ledgerData,
         settings.settings,
         errors,
-    ) { data, currentSettings, error ->
+        remoteMovements,
+    ) { data, currentSettings, error, remote ->
+        val liquidity = mapLiquidityMovements(remote, data.accounts).entries
         val balances = data.accounts.associate { account ->
             account.id to BalanceCalculator.balance(
-                account, data.transactions, data.transfers, today = today(),
+                account, data.transactions, data.transfers, today = today(), liquidityMovements = liquidity,
             )
         }
         val stored = currentSettings.movementsIncludedAccountIds
@@ -153,7 +160,7 @@ class MovementAccountsViewModel(
 fun MovementAccountsScreen(
     onBack: () -> Unit,
     viewModel: MovementAccountsViewModel = appViewModel { c ->
-        MovementAccountsViewModel(c.ledger, c.settings)
+        MovementAccountsViewModel(c.ledger, c.settings, sync = c.sync)
     },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()

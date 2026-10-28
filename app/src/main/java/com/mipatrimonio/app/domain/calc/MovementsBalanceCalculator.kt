@@ -28,6 +28,7 @@ object MovementsBalanceCalculator {
         hideFuture: Boolean,
         ignoreTransfers: Boolean,
         today: LocalDate,
+        liquidityMovements: List<LiquidityMovement> = emptyList(),
     ): Long {
         if (includedAccounts.isEmpty()) return 0L
         val includedById = includedAccounts.associateBy(Account::id)
@@ -50,6 +51,9 @@ object MovementsBalanceCalculator {
                 total = addTransferEffect(total, transfers, includedById, baseCurrency) {
                     movementStatus(it.date, cutoff) == MovementStatus.EJECUTADO
                 }
+                total = addLiquidityEffect(total, liquidityMovements, includedById.keys) {
+                    movementStatus(it.date, cutoff) == MovementStatus.EJECUTADO
+                }
                 total
             }
 
@@ -63,6 +67,9 @@ object MovementsBalanceCalculator {
                     total = addTransferEffect(total, transfers, includedById, baseCurrency) {
                         it.date in firstDay..monthlyEndDay
                     }
+                }
+                total = addLiquidityEffect(total, liquidityMovements, includedById.keys) {
+                    it.date in firstDay..monthlyEndDay
                 }
                 total
             }

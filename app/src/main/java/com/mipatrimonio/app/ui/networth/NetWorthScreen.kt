@@ -34,7 +34,7 @@ import com.mipatrimonio.app.ui.common.pointLabel
 
 @Composable
 fun NetWorthScreen(
-    viewModel: NetWorthViewModel = appViewModel { c -> NetWorthViewModel(c.ledger, c.settings) },
+    viewModel: NetWorthViewModel = appViewModel { c -> NetWorthViewModel(c.ledger, c.settings, c.sync) },
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val s = state
@@ -45,7 +45,7 @@ fun NetWorthScreen(
     val snapshot = s.snapshot
     val netWorth = snapshot.netWorth
     val currency = snapshot.baseCurrency
-    if (snapshot.balances.none { !it.account.archived || it.balanceMinor != 0L }) {
+    if (snapshot.balances.none { !it.account.archived || it.balanceMinor != 0L } && s.portfolioValueMinor == 0L) {
         EmptyState(Icons.Outlined.AccountBalance, stringResource(R.string.pat_empty))
         return
     }
@@ -56,11 +56,15 @@ fun NetWorthScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         SectionCard(title = stringResource(R.string.pat_current)) {
-            Text(format(netWorth.totalMinor), style = MaterialTheme.typography.headlineLarge)
+            Text(format(s.totalMinor), style = MaterialTheme.typography.headlineLarge)
             NetWorthNotices(netWorth)
         }
         SectionCard(title = stringResource(R.string.pat_breakdown)) {
             AmountRow(stringResource(R.string.pat_cash), format(netWorth.cashMinor))
+            if (s.portfolioValueMinor != 0L) {
+                AmountRow(stringResource(R.string.cartera_investments_rumbo), format(s.portfolioValueMinor))
+                s.portfolioGenerated?.let { Text(stringResource(R.string.cartera_updated, it), style = MaterialTheme.typography.bodySmall) }
+            }
         }
 
         PeriodSelector(s.period, viewModel::selectPeriod)
@@ -73,6 +77,11 @@ fun NetWorthScreen(
             )
             Text(
                 stringResource(R.string.pat_evolution_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (s.portfolioValueMinor != 0L) Text(
+                stringResource(R.string.cartera_history_partial),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

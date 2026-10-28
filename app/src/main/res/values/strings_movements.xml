@@ -129,6 +129,10 @@
     <string name="mov_source_automatic">Autom&#225;ticos (notificaciones)</string>
     <string name="mov_source_imported">Importados</string>
     <string name="mov_source_recurring">Recurrentes</string>
+    <string name="mov_source_investment">Inversión</string>
+    <string name="mov_kind_investment">Inversión</string>
+    <string name="mov_investment_title">%1$s · %2$s</string>
+    <string name="mov_investment_icon">Movimiento de inversión</string>
     <string name="mov_calculation_options">Opciones de cálculo del saldo</string>
     <string name="mov_calculation_title">Cálculo del saldo</string>
     <string name="mov_mode_current_balance">Saldo actual</string>

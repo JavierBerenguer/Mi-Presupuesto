@@ -27,6 +27,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.material.icons.automirrored.outlined.TrendingUp
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
@@ -109,9 +110,10 @@ fun MovementsScreen(
     onNewEntry: () -> Unit,
     onEditEntry: (String) -> Unit,
     onOpenAccounts: () -> Unit,
+    onOpenInvestment: (String) -> Unit,
     initialSource: SourceFilter? = null,
     viewModel: MovementsViewModel = appViewModel { c ->
-        MovementsViewModel(c.ledger, c.settings)
+        MovementsViewModel(c.ledger, c.settings, sync = c.sync)
     },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -225,7 +227,8 @@ fun MovementsScreen(
                         baseCurrency = state.baseCurrency,
                         hideAmounts = state.hideAmounts,
                         grayFuture = state.dailyBalance,
-                        onEditEntry = onEditEntry,
+                    onEditEntry = onEditEntry,
+                    onOpenInvestment = onOpenInvestment,
                         onDuplicate = viewModel::duplicate,
                         onDelete = { pendingDelete = it },
                         selectedIds = state.selectedIds,
@@ -519,6 +522,7 @@ private fun MovementList(
     hideAmounts: Boolean,
     grayFuture: Boolean,
     onEditEntry: (String) -> Unit,
+    onOpenInvestment: (String) -> Unit,
     onDuplicate: (Transaction) -> Unit,
     onDelete: (MovementItem) -> Unit,
     selectedIds: Set<String>,
@@ -537,7 +541,7 @@ private fun MovementList(
         items(groups, key = { it.date.toEpochDay() }) { group ->
             DayGroup(
                 group, accountsById, categoriesById, baseCurrency, hideAmounts, grayFuture,
-                onEditEntry, onDuplicate, onDelete, selectedIds,
+                onEditEntry, onOpenInvestment, onDuplicate, onDelete, selectedIds,
                 onStartSelection, onToggleSelection, onUngroup, onRemoveFromGroup,
             )
         }
@@ -553,6 +557,7 @@ private fun DayGroup(
     hideAmounts: Boolean,
     grayFuture: Boolean,
     onEditEntry: (String) -> Unit,
+    onOpenInvestment: (String) -> Unit,
     onDuplicate: (Transaction) -> Unit,
     onDelete: (MovementItem) -> Unit,
     selectedIds: Set<String>,
@@ -594,7 +599,10 @@ private fun DayGroup(
             group.items.forEach { item ->
                 MovementRow(
                     item, accountsById, categoriesById, hideAmounts, grayFuture,
-                    onOpen = { onEditEntry(item.id()) },
+                    onOpen = {
+                        if (item is MovementItem.Liquidity) onOpenInvestment(item.movement.productoId)
+                        else onEditEntry(item.id())
+                    },
                     onDuplicate = { (item as? MovementItem.Tx)?.transaction?.let(onDuplicate) },
                     onDelete = { onDelete(item) },
                     selectedIds = selectedIds,
@@ -636,6 +644,7 @@ private fun MovementRow(
     val rowCategory = when (item) {
         is MovementItem.Tx -> item.transaction.categoryId?.let(categoriesById::get)
         is MovementItem.Move -> item.transfer.categoryId?.let(categoriesById::get)
+        is MovementItem.Liquidity -> null
     }
     val isFuture = movementStatus(item.date, LocalDate.now()) == MovementStatus.PREVISTO
     val isRestrictedFuture = isFuture && grayFuture
@@ -654,7 +663,19 @@ private fun MovementRow(
             .padding(start = 12.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CategoryIconBadge(rowCategory, categoriesById.values)
+        if (item is MovementItem.Liquidity) {
+            Surface(
+                modifier = Modifier.size(40.dp),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer,
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Outlined.TrendingUp,
+                    stringResource(R.string.mov_investment_icon),
+                    modifier = Modifier.padding(8.dp),
+                )
+            }
+        } else CategoryIconBadge(rowCategory, categoriesById.values)
         Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -695,7 +716,7 @@ private fun MovementRow(
                 modifier = Modifier.padding(horizontal = 4.dp),
             )
         }
-        else if (item is MovementItem.Move) {
+        else if (item is MovementItem.Move || item is MovementItem.Liquidity) {
             Text(
                 p.neutralAmount.orEmpty(),
                 modifier = Modifier.widthIn(max = 120.dp).horizontalScroll(rememberScrollState()),
@@ -723,7 +744,7 @@ private fun MovementRow(
                 Text(stringResource(R.string.mov_group_count, item.groupChildren.size))
             }
         }
-        if (!selectionActive) Box {
+        if (!selectionActive && item !is MovementItem.Liquidity) Box {
             IconButton(onClick = { showMenu = true }) { Icon(Icons.Outlined.MoreVert, stringResource(R.string.common_more_options)) }
             DropdownMenu(showMenu, { showMenu = false }) {
                 DropdownMenuItem(
@@ -943,6 +964,16 @@ private fun movementPresentation(
             if (from?.currency == to?.currency) fromAmount else stringResource(R.string.mov_transfer_amounts, fromAmount, toAmount),
         )
     }
+    is MovementItem.Liquidity -> {
+        val account = accounts[item.localAccountId]?.name ?: stringResource(R.string.mov_unknown_account)
+        val amount = MoneyMath.format(kotlin.math.abs(item.effectMinor), "EUR")
+        MovementPresentation(
+            stringResource(R.string.mov_investment_title, item.movement.tipo.replaceFirstChar(Char::uppercase), item.productName),
+            account,
+            "EUR", AmountKind.NEUTRAL, false,
+            stringResource(if (item.effectMinor >= 0L) R.string.mov_positive_amount else R.string.mov_negative_amount, amount),
+        )
+    }
 }
 
 @Composable
@@ -1034,6 +1065,7 @@ private fun SourceFilter.label() = stringResource(when (this) {
     SourceFilter.AUTOMATICOS -> R.string.mov_source_automatic
     SourceFilter.IMPORTADOS -> R.string.mov_source_imported
     SourceFilter.RECURRENTES -> R.string.mov_source_recurring
+    SourceFilter.INVERSION -> R.string.mov_source_investment
 })
 
 @Composable
@@ -1042,6 +1074,7 @@ private fun KindFilter.label() = stringResource(when (this) {
     KindFilter.INGRESOS -> R.string.mov_kind_income
     KindFilter.GASTOS -> R.string.mov_kind_expenses
     KindFilter.TRANSFERENCIAS -> R.string.mov_kind_transfers
+    KindFilter.INVERSION -> R.string.mov_kind_investment
 })
 
 @Composable
@@ -1055,6 +1088,7 @@ private fun MovementSort.label() = stringResource(when (this) {
 private fun MovementItem.id() = when (this) {
     is MovementItem.Tx -> transaction.id
     is MovementItem.Move -> transfer.id
+    is MovementItem.Liquidity -> movement.id
 }
 
 private fun Long?.toInputAmount(currency: String) = this?.let {

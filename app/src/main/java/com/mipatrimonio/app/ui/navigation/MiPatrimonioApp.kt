@@ -28,7 +28,8 @@ import com.mipatrimonio.app.ui.budgets.BudgetsScreen
 import com.mipatrimonio.app.ui.components.BottomNavBar
 import com.mipatrimonio.app.ui.components.SecondaryTopBar
 import com.mipatrimonio.app.ui.home.HomeScreen
-import com.mipatrimonio.app.ui.investments.InvestmentsScreen
+import com.mipatrimonio.app.ui.portfolio.PortfolioScreen
+import com.mipatrimonio.app.ui.portfolio.ProductDetailScreen
 import com.mipatrimonio.app.ui.movements.EntryFormScreen
 import com.mipatrimonio.app.ui.movements.MovementsScreen
 import com.mipatrimonio.app.ui.movements.SourceFilter
@@ -125,6 +126,7 @@ private fun titleFor(route: String?, destino: Destino?): Int = when {
     route == Rutas.IMPORTAR_TRADE_REPUBLIC -> R.string.import_tr_nav_title
     route == Rutas.RECURRENTE -> R.string.recurring_edit
     route == Rutas.SINCRONIZACION -> R.string.sync_title
+    route == Rutas.PRODUCTO_CARTERA -> R.string.cartera_products
     else -> R.string.app_name
 }
 
@@ -157,13 +159,17 @@ private fun AppNavHost(
                 onNewEntry = { navController.navigate(Rutas.apunte(null)) },
                 onEditEntry = { navController.navigate(Rutas.apunte(it)) },
                 onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
+                onOpenInvestment = { navController.navigate(Rutas.productoCartera(it)) },
                 initialSource = entry.savedStateHandle.remove<String>(Rutas.MOVEMENT_SOURCE_KEY)
                     ?.let(SourceFilter::valueOf),
             )
         }
         composable(Destino.Presupuesto.ruta) { BudgetsScreen() }
         composable(Destino.Cartera.ruta) {
-            InvestmentsScreen()
+            PortfolioScreen(
+                onConnect = { navController.navigate(Rutas.SINCRONIZACION) },
+                onOpenProduct = { navController.navigate(Rutas.productoCartera(it)) },
+            )
         }
         composable(Destino.Mas.ruta) {
             MoreScreen(onNavigate = { navController.navigate(it) })
@@ -226,5 +232,8 @@ private fun AppNavHost(
             )
         }
         composable(Rutas.SINCRONIZACION) { SyncScreen() }
+        composable(Rutas.PRODUCTO_CARTERA, idArg) { entry ->
+            ProductDetailScreen(entry.arguments?.getString("id").orEmpty())
+        }
     }
 }

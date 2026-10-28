@@ -114,8 +114,9 @@ class SyncRepository(
         productoId: String, fecha: LocalDate, importeMinor: Long, unidades: BigDecimal?,
         comisionMinor: Long? = null, cuentaId: String? = null, origen: String = "movil", nota: String? = null,
     ): String {
-        require(importeMinor >= 0) { "El importe no puede ser negativo" }
+        require(importeMinor > 0) { "El importe debe ser mayor que cero" }
         require(comisionMinor == null || comisionMinor >= 0) { "La comisión no puede ser negativa" }
+        require(comisionMinor == null || comisionMinor < importeMinor) { "La comisión debe ser menor que el importe" }
         require(origen == "movil" || origen == "notificacion") { "El origen del movimiento no es válido" }
         require(!fecha.isAfter(today())) { "La fecha no puede ser futura" }
         val product = dao.producto(productoId) ?: throw IllegalArgumentException("El producto no existe")
@@ -124,10 +125,12 @@ class SyncRepository(
         val id = UUID.randomUUID().toString()
         val updated = OffsetDateTime.ofInstant(java.time.Instant.ofEpochMilli(clock()), ZoneOffset.UTC).toString()
         val entity = SyncMovimientoEntity(id, product.perfilId, productoId, fecha.toEpochDay(), "compra",
-            unidades?.stripTrailingZeros()?.toPlainString() ?: "0", importeMinor, comisionMinor, cuentaId, origen,
+            unidades?.stripTrailingZeros()?.toPlainString() ?: "0", importeMinor, comisionMinor,
+            cuentaId?.let(::accountIdToRemoteId), origen,
             nota?.trim()?.takeIf(String::isNotEmpty), null, updated)
         db.withTransaction { dao.upsertMovimiento(entity); enqueueMovement(entity) }
         onOutboxEnqueued()
+        if (entity.cuentaId != null) publishAccounts()
         return id
     }
 
@@ -135,14 +138,16 @@ class SyncRepository(
         id: String, fecha: LocalDate, importeMinor: Long, unidades: BigDecimal?, comisionMinor: Long?, cuentaId: String?, nota: String?,
     ) {
         val old = ownMovement(id)
-        require(importeMinor >= 0 && (comisionMinor == null || comisionMinor >= 0)) { "Los importes no pueden ser negativos" }
+        require(importeMinor > 0 && (comisionMinor == null || comisionMinor >= 0)) { "Los importes deben ser válidos" }
+        require(comisionMinor == null || comisionMinor < importeMinor) { "La comisión debe ser menor que el importe" }
         require(!fecha.isAfter(today())) { "La fecha no puede ser futura" }
         validateLiquidityAccount(cuentaId)
         val value = old.copy(fecha = fecha.toEpochDay(), importeMinor = importeMinor,
             unidades = unidades?.stripTrailingZeros()?.toPlainString() ?: "0", comisionMinor = comisionMinor,
-            cuentaId = cuentaId, nota = nota, updatedAt = nowIso())
+            cuentaId = cuentaId?.let(::accountIdToRemoteId), nota = nota?.trim()?.takeIf(String::isNotEmpty), updatedAt = nowIso())
         db.withTransaction { dao.upsertMovimiento(value); enqueueMovement(value) }
         onOutboxEnqueued()
+        if (old.cuentaId != null || value.cuentaId != null) publishAccounts()
     }
 
     suspend fun borrarMovimientoPropio(id: String) {
@@ -150,6 +155,7 @@ class SyncRepository(
         val value = old.copy(deletedAt = nowIso(), updatedAt = nowIso())
         db.withTransaction { dao.upsertMovimiento(value); enqueueMovement(value) }
         onOutboxEnqueued()
+        if (old.cuentaId != null) publishAccounts()
     }
 
     suspend fun publishAccounts() {
@@ -162,7 +168,7 @@ class SyncRepository(
             val remoteId = accountIdToRemoteId(account.id)
             val json = JSONObject().put("id", remoteId).put("perfil_id", profileId).put("nombre", account.name)
                 .put("tipo", account.type.name.lowercase()).put("moneda", account.currency)
-                .put("saldo", MoneyMath.toDecimal(BalanceCalculator.balance(account, transactions, transfers, today()), account.currency).toPlainString())
+                .put("saldo", MoneyMath.toDecimal(publishedAccountBalance(account, transactions, transfers, movimientos.first(), accounts, today()), account.currency).toPlainString())
                 .put("saldo_fecha", nowIso()).put("archivada", account.archived)
             val fingerprint = sha256(json.toString().replace(Regex("\"saldo_fecha\":\"[^\"]+\""), "\"saldo_fecha\":null"))
             if (dao.fingerprint(account.id)?.fingerprint != fingerprint) {
@@ -211,6 +217,7 @@ class SyncRepository(
         val account = ledger.accounts.first().firstOrNull { it.id == id }
             ?: throw IllegalArgumentException("La cuenta no existe")
         require(account.currency == "EUR") { "La cuenta de liquidez debe estar en EUR" }
+        require(!account.archived) { "La cuenta de liquidez está archivada" }
     }
 
     private suspend fun enqueueMovement(value: SyncMovimientoEntity) {

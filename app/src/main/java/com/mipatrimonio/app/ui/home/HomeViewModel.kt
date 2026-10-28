@@ -4,6 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
+import com.mipatrimonio.app.data.sync.SyncRepository
+import com.mipatrimonio.app.data.sync.mapLiquidityMovements
+import com.mipatrimonio.app.data.sync.PortfolioSummaryParser
+import com.mipatrimonio.app.data.sync.PortfolioSummaryResult
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.Category
@@ -21,6 +25,7 @@ import kotlinx.coroutines.launch
 class HomeViewModel(
     ledger: LedgerRepository,
     private val settings: SettingsRepository,
+    sync: SyncRepository? = null,
 ) : ViewModel() {
     private data class LedgerData(
         val accounts: List<Account>,
@@ -36,10 +41,14 @@ class HomeViewModel(
     private val ledgerData = combine(
         ledger.accounts, ledger.transactions, ledger.transfers, ledger.categories, ledger.budgets, ::LedgerData,
     )
+    private val remoteMovements = sync?.movimientos ?: kotlinx.coroutines.flow.flowOf(emptyList())
+    private val remoteSummary = sync?.resumen ?: kotlinx.coroutines.flow.flowOf(null)
     /** `null` mientras no llega el primer dato. */
     val state: StateFlow<HomeState?> = combine(
-        ledgerData, settings.settings, selectedPeriod,
-    ) { l, config, period ->
+        ledgerData, settings.settings, selectedPeriod, remoteMovements, remoteSummary,
+    ) { l, config, period, movements, rawSummary ->
+        val liquidity = mapLiquidityMovements(movements, l.accounts).entries
+        val summary = rawSummary?.let { PortfolioSummaryParser.parse(it.datosJson) as? PortfolioSummaryResult.Success }?.summary
         buildHomeState(
             baseCurrency = config.baseCurrency,
             accounts = l.accounts,
@@ -50,6 +59,9 @@ class HomeViewModel(
             today = LocalDate.now(),
             period = period,
             hideAmounts = config.hideAmounts,
+            liquidityMovements = liquidity,
+            portfolioValueMinor = summary?.total?.valueMinor ?: 0L,
+            portfolioGenerated = summary?.generated,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
