@@ -3,7 +3,7 @@
 Este documento lo mantiene Claude. Cada bloque indica en qué versión se prueba. Marca `[x]` lo que funcione. Si algo falla, escribe debajo **qué hiciste, qué esperabas y qué pasó** (con una captura si puedes).
 
 **Versiones actuales:**
-- **App:** v1.2.0 (https://github.com/JavierBerenguer/Mi-Presupuesto/releases/tag/v1.2.0).
+- **App:** v1.3.0 (https://github.com/JavierBerenguer/Mi-Presupuesto/releases/tag/v1.3.0). Se actualiza encima de la v1.2.0 sin perder datos.
 - **Rumbo:** rama `claude/supabase` de `JavierBerenguer/Rumbo-Patrimonio`, en la carpeta `D:\XX_Claude\App - Rea - Rumbo\rumbo-main`.
 
 ---
@@ -42,8 +42,18 @@ Este documento lo mantiene Claude. Cada bloque indica en qué versión se prueba
 - [ ] C5. Edita y borra esa compra desde el móvil. El saldo vuelve a su valor y en Rumbo desaparece tras actualizar.
 - [ ] C6. **Inicio › Patrimonio** suma cuentas + «Inversiones (Rumbo)».
 
-## D. Compras desde notificaciones — ⏳ pendiente (llegará en v1.3.0, ficha T-077)
-*(Se detallará cuando esté lista.)*
+## D. Compras desde notificaciones — ✅ disponible (v1.3.0)
+*Requisito:* sesión iniciada en Sincronización y al menos un producto creado en Rumbo.
+- [ ] D1. Cuando llegue una notificación de compra (por ejemplo de Trade Republic o de un plan de ahorro), ve a Automatización › Pendientes › **Enseñar**.
+  - Marca el texto clave y el variable.
+  - En **Destino** elige **Compra de inversión** y selecciona el **producto**.
+  - La vista previa dice «Se registrará una compra de X € en <producto>».
+- [ ] D2. Al guardar se crea la compra:
+  - aparece en el detalle del producto, en la Cartera;
+  - si la app de la notificación tiene una cuenta EUR asociada, aparece como apunte de liquidez en esa cuenta.
+- [ ] D3. La siguiente notificación igual crea la compra sola, sin preguntar.
+- [ ] D4. En Rumbo, tras Actualizar, aparece con **unidades estimadas**.
+- [ ] D5. *(caso límite)* Con la sesión cerrada en Sincronización, la notificación queda pendiente. Al volver a iniciar sesión y sincronizar, se crea la compra.
 
 ## E. Lo de la v1.1.0 que aún no has probado en el móvil
 - [ ] E1. Una notificación de un **comercio nuevo** de una estructura conocida crea el apunte solo. Aparece en Ajustes › Automatización › **Comercios nuevos**.
