@@ -25,8 +25,8 @@ Este documento lo mantiene Claude. Cada bloque indica en qué versión se prueba
 ## B. Sincronización en el móvil — ✅ disponible ya (v1.2.0)
 - [ ] B1. En **Ajustes › Sincronización con Rumbo** pon la URL, la clave publishable, tu email y tu contraseña, y pulsa **Iniciar sesión**. Se debe ver «Conectado como…».
 - [ ] B2. Elige el **perfil** (Principal) y pulsa **Sincronizar ahora**. Debe aparecer la fecha de la última sincronización.
-- [ ] B3. En Rumbo, pulsa Actualizar: tus **cuentas de la app** aparecen como efectivo con su saldo actual.
-- [ ] B4. Crea un apunte en el móvil. En 1 minuto o al pulsar Sincronizar ahora, el saldo de esa cuenta se actualiza en Rumbo tras recargar.
+- [ ] B3. En Rumbo, pulsa **«↻ Actualizar precios»** (arriba del panel) o **☁ › «Sincronizar ahora»**: tus **cuentas de la app** aparecen como efectivo con su saldo actual.
+- [ ] B4. Crea un apunte en el móvil. En 1 minuto o al pulsar Sincronizar ahora, el saldo de esa cuenta se actualiza en Rumbo tras pulsar «↻ Actualizar precios».
 
 ## C. Cartera y liquidez — ✅ disponible ya (v1.2.0)
 - [ ] C1. Pestaña **Cartera** del móvil: muestra el valor, la ganancia, la TIR, el reparto y el producto creado en A2, con «Actualizado: <fecha>».
@@ -39,7 +39,7 @@ Este documento lo mantiene Claude. Cada bloque indica en qué versión se prueba
 - [ ] C4. **Compra desde el móvil:** Cartera › botón **+**. Elige producto, importe, sin unidades y la cuenta de liquidez.
   - Aparece en el detalle y como apunte de la cuenta, que baja.
   - En Rumbo, tras pulsar Actualizar, aparece con **unidades estimadas** (marcadas así).
-- [ ] C5. Edita y borra esa compra desde el móvil. El saldo vuelve a su valor y en Rumbo desaparece tras actualizar.
+- [ ] C5. Edita y borra esa compra desde el móvil. El saldo vuelve a su valor y en Rumbo desaparece tras pulsar «↻ Actualizar precios».
 - [ ] C6. **Inicio › Patrimonio** suma cuentas + «Inversiones (Rumbo)».
 
 ## D. Compras desde notificaciones — ✅ disponible (v1.3.0)
@@ -52,7 +52,7 @@ Este documento lo mantiene Claude. Cada bloque indica en qué versión se prueba
   - aparece en el detalle del producto, en la Cartera;
   - si la app de la notificación tiene una cuenta EUR asociada, aparece como apunte de liquidez en esa cuenta.
 - [ ] D3. La siguiente notificación igual crea la compra sola, sin preguntar.
-- [ ] D4. En Rumbo, tras Actualizar, aparece con **unidades estimadas**.
+- [ ] D4. En Rumbo, tras pulsar «↻ Actualizar precios», aparece con **unidades estimadas**.
 - [ ] D5. *(caso límite)* Con la sesión cerrada en Sincronización, la notificación queda pendiente. Al volver a iniciar sesión y sincronizar, se crea la compra.
 
 ## E. Lo de la v1.1.0 que aún no has probado en el móvil
