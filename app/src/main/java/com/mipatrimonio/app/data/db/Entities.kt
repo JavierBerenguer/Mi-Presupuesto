@@ -185,6 +185,8 @@ data class NotificationStructureEntity(
     val enabled: Boolean,
     val createdAt: Long,
     val updatedAt: Long,
+    val target: String = "APUNTE",
+    val defaultProductId: String? = null,
 )
 
 @Entity(
@@ -206,6 +208,7 @@ data class NotificationRuleEntity(
     val enabled: Boolean,
     val createdAt: Long,
     val updatedAt: Long,
+    val productId: String? = null,
 )
 
 @Entity(
@@ -230,6 +233,7 @@ data class NotificationRecordEntity(
     val status: String,
     val transactionId: String?,
     val createdAt: Long,
+    val syncMovementId: String? = null,
 )
 
 @Entity(

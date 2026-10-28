@@ -1,8 +1,10 @@
 package com.mipatrimonio.app.domain.notifications
 
 enum class NotificationDirection { SEGUN_SIGNO, INGRESO, GASTO }
+enum class NotificationTarget { APUNTE, COMPRA }
 enum class NotificationRecordStatus {
-    PENDIENTE_ESTRUCTURA, PENDIENTE_REGLA, PENDIENTE_CUENTA, AUTOMATIZADA, CREADA_MANUAL, DESCARTADA, DUPLICADA,
+    PENDIENTE_ESTRUCTURA, PENDIENTE_REGLA, PENDIENTE_CUENTA, PENDIENTE_SINCRONIZACION,
+    AUTOMATIZADA, CREADA_MANUAL, DESCARTADA, DUPLICADA,
 }
 
 fun NotificationDirection.kindFor(amount: RecognizedAmount): ProposalKind = when (this) {
@@ -28,26 +30,35 @@ data class NotificationStructure(
     val direction: NotificationDirection = NotificationDirection.SEGUN_SIGNO,
     val defaultTitle: String? = null, val defaultDetail: String? = null, val defaultCategoryId: String? = null,
     val enabled: Boolean = true, val createdAt: Long, val updatedAt: Long,
+    val target: NotificationTarget = NotificationTarget.APUNTE, val defaultProductId: String? = null,
 )
 
 data class NotificationRule(
     val id: String, val structureId: String, val variableKey: String, val variableDisplay: String,
     val title: String? = null, val detail: String? = null, val categoryId: String? = null,
-    val enabled: Boolean = true, val createdAt: Long, val updatedAt: Long,
+    val enabled: Boolean = true, val createdAt: Long, val updatedAt: Long, val productId: String? = null,
 )
 
 data class NotificationRecord(
     val id: String, val packageName: String, val postedAt: Long, val text: String,
     val amountMinor: Long?, val currency: String?, val structureId: String?, val ruleId: String?,
     val variableText: String?, val status: NotificationRecordStatus, val transactionId: String?, val createdAt: Long,
+    val syncMovementId: String? = null,
 )
 
-data class NotificationDefaults(val title: String? = null, val detail: String? = null, val categoryId: String? = null)
-data class NotificationRuleValues(val title: String? = null, val detail: String? = null, val categoryId: String? = null)
+data class NotificationDefaults(
+    val title: String? = null, val detail: String? = null, val categoryId: String? = null,
+    val defaultProductId: String? = null,
+)
+data class NotificationRuleValues(
+    val title: String? = null, val detail: String? = null, val categoryId: String? = null,
+    val productId: String? = null,
+)
 data class TemplateMatch(val variableText: String, val amount: RecognizedAmount)
 data class NotificationPreview(
     val template: NotificationTemplate, val variableText: String, val amountMinor: Long, val currency: String,
     val kind: ProposalKind, val description: String, val notes: String, val categoryId: String?,
+    val target: NotificationTarget = NotificationTarget.APUNTE, val productId: String? = null,
 )
 
 // La puntuación final se ignora para que «S.L» y «S.L.» sean la misma regla (reglas guardadas antes de T-065).

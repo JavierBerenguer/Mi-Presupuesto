@@ -14,6 +14,8 @@ import com.mipatrimonio.app.domain.notifications.NotificationDirection
 import com.mipatrimonio.app.domain.notifications.NotificationEngine
 import com.mipatrimonio.app.domain.notifications.NotificationRecordStatus
 import com.mipatrimonio.app.domain.notifications.NotificationRuleValues
+import com.mipatrimonio.app.domain.notifications.NotificationTarget
+import com.mipatrimonio.app.data.db.SyncProductoEntity
 import com.mipatrimonio.app.domain.notifications.TemplateSegment
 import com.mipatrimonio.app.testutil.awaitValue
 import com.mipatrimonio.app.testutil.SettingsStoreRule
@@ -159,6 +161,21 @@ class AutomationViewModelsTest {
             explanation,
         )
         assertFalse(explanation.contains("solo a  y"))
+    }
+
+    @Test fun `destino alterna campos de apunte y producto`() {
+        assertEquals(AutomationVisibleFields(entryFields = true, productField = false), automationVisibleFields(NotificationTarget.APUNTE))
+        assertEquals(AutomationVisibleFields(entryFields = false, productField = true), automationVisibleFields(NotificationTarget.COMPRA))
+    }
+
+    @Test fun `compra exige sesion producto valido y filtra tipos no invertibles`() {
+        val fund = SyncProductoEntity("fund", "profile", "Fondo", null, "fondo", "EUR", null, null, "now")
+        val cash = SyncProductoEntity("cash", "profile", "Efectivo", null, "efectivo", "EUR", null, null, "now")
+        val products = selectableInvestmentProducts(listOf(cash, fund))
+        assertEquals(listOf(fund), products)
+        assertEquals(PurchaseAvailability.NO_SESSION, purchaseAvailability(NotificationTarget.COMPRA, false, products, "fund"))
+        assertEquals(PurchaseAvailability.PRODUCT_REQUIRED, purchaseAvailability(NotificationTarget.COMPRA, true, products, null))
+        assertEquals(PurchaseAvailability.AVAILABLE, purchaseAvailability(NotificationTarget.COMPRA, true, products, "fund"))
     }
 
     @Test fun `ensenanza impide solapamiento y no permite seleccionar importe`() = runTest {

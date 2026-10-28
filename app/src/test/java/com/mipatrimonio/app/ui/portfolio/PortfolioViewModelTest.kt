@@ -55,7 +55,7 @@ class PortfolioViewModelTest {
     @Test fun `guardar compra llama al gateway con los datos validados`() = runTest {
         val gateway = FakeGateway(true)
         gateway.products.value = listOf(PRODUCT)
-        val viewModel = PortfolioViewModel(gateway, ledger) { LocalDate.of(2026, 10, 27) }
+        val viewModel = PortfolioViewModel(gateway, ledger, today = { LocalDate.of(2026, 10, 27) })
         viewModel.uiState.first { !it.loading && it.products.isNotEmpty() }
         viewModel.savePurchase("p1", LocalDate.of(2026, 10, 27), "100", "2", "1", null, "nota") {}
         assertEquals(10_000L, gateway.created?.amountMinor)

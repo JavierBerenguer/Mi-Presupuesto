@@ -14,6 +14,9 @@ class CsvExportRepository(private val db: AppDatabase) {
             transactions = db.transactionDao().getAllForBackup().map { it.toDomain() },
             transfers = db.transferDao().getAllForBackup().map { it.toDomain() },
             budgets = budgetDao.getAllForBackup().map { it.toDomain(rules[it.id].orEmpty()) },
+            notificationStructures = db.notificationDao().getAllStructuresForBackup(),
+            notificationRules = db.notificationDao().getAllRulesForBackup(),
+            notificationRecords = db.notificationDao().getAllRecordsForBackup(),
         )
     }
 }

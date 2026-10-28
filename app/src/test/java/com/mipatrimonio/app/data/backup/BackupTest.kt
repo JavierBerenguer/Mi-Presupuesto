@@ -5,6 +5,9 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.mipatrimonio.app.data.db.AccountEntity
 import com.mipatrimonio.app.data.db.AppDatabase
+import com.mipatrimonio.app.data.db.NotificationRecordEntity
+import com.mipatrimonio.app.data.db.NotificationRuleEntity
+import com.mipatrimonio.app.data.db.NotificationStructureEntity
 import com.mipatrimonio.app.data.db.SyncPerfilEntity
 import com.mipatrimonio.app.testutil.SettingsStoreRule
 import kotlinx.coroutines.runBlocking
@@ -12,11 +15,13 @@ import kotlinx.coroutines.flow.first
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.json.JSONObject
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
@@ -57,6 +62,42 @@ class BackupTest {
         assertEquals(listOf("a"), db.accountDao().getAllForBackup().map { it.id })
         assertFalse(BACKUP_TABLE_NAMES.any { it.startsWith("sync_") })
         assertTrue(db.syncDao().observePerfiles().first().isEmpty())
+    }
+
+    @Test fun `copia v16 restaura campos de inversion con valores por defecto`() = runBlocking {
+        val current = BackupData(
+            1, "test", emptyMap(),
+            notificationStructures = listOf(NotificationStructureEntity("s", "pkg", "Pago", "{}", "GASTO", null, null, null, true, 1, 1)),
+            notificationRules = listOf(NotificationRuleEntity("r", "s", "fondo", "Fondo", null, null, null, true, 1, 1)),
+            notificationRecords = listOf(NotificationRecordEntity("n", "pkg", 1, "Pago 1 EUR", 100, "EUR", "s", "r", "Fondo", "AUTOMATIZADA", null, 1)),
+        )
+        val root = JSONObject(BackupJson().encode(current).toString(Charsets.UTF_8)).put("dbVersion", 16)
+        val tables = root.getJSONObject("tables")
+        tables.getJSONArray("notification_structure").getJSONObject(0).apply { remove("target"); remove("defaultProductId") }
+        tables.getJSONArray("notification_rule").getJSONObject(0).remove("productId")
+        tables.getJSONArray("notification_record").getJSONObject(0).remove("syncMovementId")
+
+        val decoded = BackupJson().decode(root.toString().toByteArray(Charsets.UTF_8))
+        BackupRepository(db, settingsRule.repository, "test").restore(decoded)
+
+        assertEquals("APUNTE", db.notificationDao().getStructure("s")?.target)
+        assertNull(db.notificationDao().getStructure("s")?.defaultProductId)
+        assertNull(db.notificationDao().getRule("r")?.productId)
+        assertNull(db.notificationDao().getRecord("n")?.syncMovementId)
+    }
+
+    @Test fun `ida y vuelta v17 conserva destino productos y movimiento sincronizado`() = runBlocking {
+        db.notificationDao().upsertStructure(NotificationStructureEntity("s", "pkg", "Compra", "{}", "GASTO", null, null, null, true, 1, 1, "COMPRA", "p-default"))
+        db.notificationDao().upsertRule(NotificationRuleEntity("r", "s", "fondo", "Fondo", null, null, null, true, 1, 1, "p-rule"))
+        db.notificationDao().upsertRecord(NotificationRecordEntity("n", "pkg", 1, "Compra 1 EUR", 100, "EUR", "s", "r", "Fondo", "AUTOMATIZADA", null, 1, "m"))
+        val repository = BackupRepository(db, settingsRule.repository, "test")
+        val decoded = BackupJson().decode(BackupJson().encode(repository.export()))
+        repository.restore(decoded)
+
+        assertEquals("COMPRA", db.notificationDao().getStructure("s")?.target)
+        assertEquals("p-default", db.notificationDao().getStructure("s")?.defaultProductId)
+        assertEquals("p-rule", db.notificationDao().getRule("r")?.productId)
+        assertEquals("m", db.notificationDao().getRecord("n")?.syncMovementId)
     }
 
     private fun legacyV14() = """{

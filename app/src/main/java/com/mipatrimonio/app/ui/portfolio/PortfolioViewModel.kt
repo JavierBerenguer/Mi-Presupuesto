@@ -6,12 +6,15 @@ import com.mipatrimonio.app.data.db.SyncMovimientoEntity
 import com.mipatrimonio.app.data.db.SyncProductoEntity
 import com.mipatrimonio.app.data.db.SyncResumenEntity
 import com.mipatrimonio.app.data.repository.LedgerRepository
+import com.mipatrimonio.app.data.repository.NotificationRepository
 import com.mipatrimonio.app.data.sync.PortfolioSummary
 import com.mipatrimonio.app.data.sync.PortfolioSummaryParser
 import com.mipatrimonio.app.data.sync.PortfolioSummaryResult
 import com.mipatrimonio.app.data.sync.SyncRepository
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.MoneyMath
+import com.mipatrimonio.app.domain.notifications.NotificationRecord
+import com.mipatrimonio.app.domain.notifications.NotificationRecordStatus
 import java.math.BigDecimal
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
@@ -58,6 +61,7 @@ data class PortfolioUiState(
     val accounts: List<Account> = emptyList(),
     val syncing: Boolean = false,
     val error: String? = null,
+    val originalNotifications: Map<String, String> = emptyMap(),
 )
 
 data class PurchaseValues(
@@ -102,6 +106,7 @@ class PortfolioViewModel(
     private val gateway: PortfolioGateway,
     ledger: LedgerRepository,
     private val today: () -> LocalDate = LocalDate::now,
+    notifications: NotificationRepository? = null,
 ) : ViewModel() {
     private val session = MutableStateFlow<Boolean?>(null)
     private val syncing = MutableStateFlow(false)
@@ -110,6 +115,7 @@ class PortfolioViewModel(
     val uiState: StateFlow<PortfolioUiState> = combine(
         session, gateway.products, gateway.movements, gateway.summary, ledger.accounts,
         combine(syncing, actionError, ::Pair),
+        notifications?.records(NotificationRecordStatus.AUTOMATIZADA) ?: kotlinx.coroutines.flow.flowOf(emptyList<com.mipatrimonio.app.domain.notifications.NotificationRecord>()),
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val products = values[1] as List<SyncProductoEntity>
@@ -120,6 +126,8 @@ class PortfolioViewModel(
         val accounts = values[4] as List<Account>
         @Suppress("UNCHECKED_CAST")
         val local = values[5] as Pair<Boolean, String?>
+        @Suppress("UNCHECKED_CAST")
+        val notificationRecords = values[6] as List<NotificationRecord>
         val parsed = rawSummary?.let { PortfolioSummaryParser.parse(it.datosJson) }
         val status = when {
             values[0] == null -> PortfolioStatus.NO_SESSION
@@ -134,6 +142,9 @@ class PortfolioViewModel(
             products = products.filter { it.tipo !in setOf("efectivo", "deuda", "inmueble") },
             movements = movements, accounts = accounts, syncing = local.first,
             error = local.second ?: (parsed as? PortfolioSummaryResult.Error)?.message,
+            originalNotifications = notificationRecords.mapNotNull { record ->
+                record.syncMovementId?.let { it to record.text }
+            }.toMap(),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PortfolioUiState())
 

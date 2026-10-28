@@ -52,7 +52,7 @@ import java.time.LocalDate
 @Composable
 fun ProductDetailScreen(
     productId: String,
-    viewModel: PortfolioViewModel = appViewModel { c -> PortfolioViewModel(SyncPortfolioGateway(c.sync), c.ledger) },
+    viewModel: PortfolioViewModel = appViewModel { c -> PortfolioViewModel(SyncPortfolioGateway(c.sync), c.ledger, notifications = c.notifications) },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var buying by remember { mutableStateOf(false) }
@@ -102,7 +102,7 @@ fun ProductDetailScreen(
         viewModel.savePurchase(productId, date, amount, units, commission, account, note) { buying = false }
     }
     editing?.let { movement ->
-        MovementEditDialog(movement, state.accounts, state.error, onDismiss = { editing = null; viewModel.clearError() }) {
+        MovementEditDialog(movement, state.accounts, state.error, state.originalNotifications[movement.id], onDismiss = { editing = null; viewModel.clearError() }) {
                 date, amount, units, commission, account, note ->
             viewModel.editMovement(movement.id, date, amount, units, commission, account, note) { editing = null }
         }
@@ -144,7 +144,7 @@ fun isMovementEditable(movement: SyncMovimientoEntity): Boolean =
 
 @Composable
 private fun MovementEditDialog(
-    movement: SyncMovimientoEntity, accounts: List<Account>, error: String?, onDismiss: () -> Unit,
+    movement: SyncMovimientoEntity, accounts: List<Account>, error: String?, originalNotification: String?, onDismiss: () -> Unit,
     onSave: (LocalDate, String, String, String, String?, String) -> Unit,
 ) {
     var date by remember { mutableStateOf(LocalDate.ofEpochDay(movement.fecha)) }
@@ -163,6 +163,10 @@ private fun MovementEditDialog(
             AmountField(stringResource(R.string.cartera_commission_optional), commission, { commission = it }, suffix = "EUR")
             DropdownField(stringResource(R.string.cartera_liquidity_account), accounts.filter { it.currency == "EUR" && !it.archived }, account, { it.name }, { account = it }, noneLabel = stringResource(R.string.cartera_no_account))
             OutlinedTextField(note, { note = it }, label = { Text(stringResource(R.string.cartera_note)) })
+            originalNotification?.let {
+                Text(stringResource(R.string.cartera_original_notification), style = MaterialTheme.typography.labelLarge)
+                Text(it, style = MaterialTheme.typography.bodySmall)
+            }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         } },
         confirmButton = { Button(onClick = { onSave(date, amount, units, commission, account?.id, note) }) { Text(stringResource(R.string.common_save)) } },
