@@ -561,3 +561,10 @@ El usuario dejó `datos-privados/Documento de cambios/Documento.md` (+ 4 captura
   - **Pendiente:**
     - **T-076 entregada por Codex, SIN REVISAR.** Está commiteada como WIP en `codex/t-076` (13d19be, subida). Siguiente paso: `gradlew testDebugUnitTest assembleDebug` en `.local/worktrees/t-076`, revisar los puntos críticos (exclusión de `cuenta_app:*`, liquidez en los saldos y en `cuentas_app`, sin gasto/ingreso) e integrar.
     - Después, T-077 (compras desde notificaciones) y la release v1.2.0 (versionCode 3) con una lista de pruebas para el usuario.
+- **Plan Rumbo + app COMPLETADO (2026-10-28):**
+  - Fichas aceptadas: T-070, T-071, T-072, T-073, T-074, T-075, T-076, T-077 y T-078.
+  - Releases publicadas: v1.2.0 (Cartera, sincronización y liquidez) y **v1.3.0** (compras desde notificaciones; Room v17; 382 tests).
+  - Rumbo: rama `claude/supabase` con 23 tests.
+  - **Próximo paso: el usuario pasa `docs/pruebas/PLAN_DE_PRUEBAS.md` (bloques 0, A, B, C, D y E).** Lo que falle se convierte en fichas de corrección.
+  - Pendiente menor: dar un motivo visible cuando una compra trae importe con «+».
+  - Ninguna rama está fusionada en `main` (necesita autorización del usuario): app `claude/cartera-supabase` (incluye `claude/notificaciones-y-agrupacion`), Rumbo `claude/supabase`.
