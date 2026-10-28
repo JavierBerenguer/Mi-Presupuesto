@@ -64,5 +64,19 @@ Este documento lo mantiene Claude. Cada bloque indica en qué versión se prueba
 
 ---
 
+## F. Primera carga de inversiones (Trade Republic + Neverless) — ✅ disponible
+*Archivos generados:* `D:\XX_Claude\App - Rea - Rumbo\Primera Carga\primera_carga.xlsx` y `informe_primera_carga.txt` (léelo antes).
+*Requisitos:* bloques A y B hechos. El móvil tiene que haber sincronizado, para que Rumbo vea la cuenta «Trade Republic».
+- [ ] F1. En Rumbo (modo nube, con sesión iniciada): **Importar** › elige `primera_carga.xlsx` › **Previsualizar**.
+  - Buscará cada ISIN en internet: tarda un poco.
+  - Revisa que no haya errores. Si alguno sale, cópiamelo.
+- [ ] F2. **Confirmar.** Aparecen unos 18 productos, cada uno con su número de unidades. Compáralo con lo que ves en Trade Republic y en Neverless; la lista de posiciones esperadas está en el informe.
+- [ ] F3. **Fondos privados** («Private Equity (LU…)»): no tienen precio público. Añade su **valor actual** en «Saldos y valores», con el dato que te dé TR.
+- [ ] F4. Sincroniza el móvil:
+  - la cuenta «Trade Republic» muestra los apuntes de compras y ventas;
+  - su saldo debe parecerse al saldo real de efectivo de TR (el efecto en caja total está en el informe).
+  - Si no cuadra, dime la diferencia.
+- [ ] F5. La Cartera del móvil muestra todos los productos y el total que calcula Rumbo.
+
 ## Resultados y problemas encontrados
 *(Escribe aquí lo que falle; Claude lo convierte en fichas de corrección.)*
