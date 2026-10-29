@@ -12,6 +12,7 @@ import com.mipatrimonio.app.domain.calc.NetWorthCalculator
 import com.mipatrimonio.app.domain.calc.PeriodTotals
 import com.mipatrimonio.app.domain.calc.StatsCalculator
 import com.mipatrimonio.app.domain.model.Account
+import com.mipatrimonio.app.domain.model.AccountBalanceRecord
 import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.BudgetPeriod
 import com.mipatrimonio.app.domain.model.Category
@@ -83,15 +84,16 @@ fun buildHomeState(
     liquidityMovements: List<LiquidityMovement> = emptyList(),
     portfolioValueMinor: Long = 0L,
     portfolioGenerated: String? = null,
+    accountBalanceRecords: List<AccountBalanceRecord> = emptyList(),
 ): HomeState {
-    val balances = accounts.map { AccountBalance(it, BalanceCalculator.balance(it, transactions, transfers, today, liquidityMovements)) }
+    val balances = accounts.map { AccountBalance(it, BalanceCalculator.balance(it, transactions, transfers, today, liquidityMovements, accountBalanceRecords)) }
     val netWorth = NetWorthCalculator.compute(baseCurrency, balances)
-    val firstActivity = (transactions.map { it.date } + transfers.map { it.date } + liquidityMovements.map { it.date }).minOrNull()
+    val firstActivity = (transactions.map { it.date } + transfers.map { it.date } + liquidityMovements.map { it.date } + accountBalanceRecords.map { it.date }).minOrNull()
     val thisMonth = YearMonth.from(today)
-    val includedAccountIds = accounts.filter { !it.archived && it.currency == baseCurrency }.mapTo(hashSetOf(), Account::id)
+    val includedAccountIds = accounts.filter { !it.archived && it.useInApp && it.currency == baseCurrency }.mapTo(hashSetOf(), Account::id)
     val filteredSeries = HistoryCalculator.netWorthSeries(
         baseCurrency, accounts, transactions, transfers,
-        HistoryCalculator.sampleDates(period, today, firstActivity), today,
+        HistoryCalculator.sampleDates(period, today, firstActivity), today, accountBalanceRecords,
     ).map { point -> point.copy(totalMinor = Math.addExact(point.totalMinor, LiquidityBalanceCalculator.total(liquidityMovements, includedAccountIds, point.date))) }
     val displayedNetWorth = Math.addExact(netWorth.cashMinor, portfolioValueMinor)
     val spentPercent = StatsCalculator.totals(

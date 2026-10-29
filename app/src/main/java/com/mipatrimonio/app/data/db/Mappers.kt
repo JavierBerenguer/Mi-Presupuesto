@@ -1,6 +1,7 @@
 package com.mipatrimonio.app.data.db
 
 import com.mipatrimonio.app.domain.model.Account
+import com.mipatrimonio.app.domain.model.AccountBalanceRecord
 import com.mipatrimonio.app.domain.model.AccountType
 import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.BudgetCategoryRule
@@ -16,8 +17,21 @@ import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.model.Transfer
 import java.time.LocalDate
 
-fun AccountEntity.toDomain() = Account(id, name, AccountType.valueOf(type), currency, initialBalanceMinor, archived, createdAt)
-fun Account.toEntity(updatedAt: Long) = AccountEntity(id, name, type.name, currency, initialBalanceMinor, archived, createdAt, updatedAt)
+fun AccountEntity.toDomain() = Account(
+    id, name, AccountType.valueOf(type), currency, initialBalanceMinor, archived, createdAt,
+    shortName, institution, color, liquidity, useInApp,
+)
+fun Account.toEntity(updatedAt: Long, remoteUpdatedAt: String? = null, deletedAt: Long? = null) = AccountEntity(
+    id, name, type.name, currency, initialBalanceMinor, archived, createdAt, updatedAt,
+    shortName, institution, color, liquidity, useInApp, remoteUpdatedAt, deletedAt,
+)
+
+fun AccountBalanceEntity.toDomain() = AccountBalanceRecord(
+    id, accountId, LocalDate.ofEpochDay(epochDay), balanceMinor, updatedAt, deletedAt,
+)
+fun AccountBalanceRecord.toEntity(remoteUpdatedAt: String? = null) = AccountBalanceEntity(
+    id, accountId, date.toEpochDay(), balanceMinor, updatedAt, deletedAt, remoteUpdatedAt,
+)
 
 fun CategoryEntity.toDomain() = Category(id, name, parentId, colorArgb, archived, icon)
 fun Category.toEntity(sortOrder: Int = 0) = CategoryEntity(id, name, "GASTO", parentId, colorArgb, archived, sortOrder, icon)

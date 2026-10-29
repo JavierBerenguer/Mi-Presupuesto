@@ -99,7 +99,7 @@ class MovementAccountsViewModel(
         }
         val stored = currentSettings.movementsIncludedAccountIds
         val selectable = data.accounts.filter { account ->
-            !account.archived || (account.id in stored && balances.getValue(account.id) != 0L)
+            account.useInApp && (!account.archived || (account.id in stored && balances.getValue(account.id) != 0L))
         }
         val effectiveIds = if (currentSettings.movementsAllAccounts) {
             selectable.filterNot { it.archived }.mapTo(mutableSetOf(), Account::id)

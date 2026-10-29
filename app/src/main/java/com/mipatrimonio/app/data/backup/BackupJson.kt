@@ -9,6 +9,7 @@ class BackupJson {
     fun encode(data: BackupData): ByteArray {
         val tables = JSONObject()
             .putRows("account", data.accounts) { account(it) }
+            .putRows("account_balance", data.accountBalances) { accountBalance(it) }
             .putRows("category", data.categories) { category(it) }
             .putRows("txn", data.transactions) { transaction(it) }
             .putRows("transfer", data.transfers) { transfer(it) }
@@ -44,6 +45,7 @@ class BackupJson {
             appVersion = root.requiredString("appVersion"),
             settings = settings(root.requiredObject("settings")),
             accounts = tables.rows("account", ::readAccount),
+            accountBalances = tables.rows("account_balance", ::readAccountBalance),
             categories = tables.rows("category", ::readCategory),
             transactions = tables.rows("txn", ::readTransaction),
             transfers = tables.rows("transfer", ::readTransfer),
@@ -58,7 +60,7 @@ class BackupJson {
         )
         val declared = root.requiredObject("counts")
         data.counts().forEach { (table, count) ->
-            val declaredCount = if (table.startsWith("notification_") && !declared.has(table)) 0 else declared.requiredInt(table)
+            val declaredCount = if (!declared.has(table)) 0 else declared.requiredInt(table)
             if (declaredCount != count) throw BackupException.InvalidData("El recuento de $table no coincide")
         }
         data
@@ -85,6 +87,14 @@ class BackupJson {
         "id" to v.id, "name" to v.name, "type" to v.type, "currency" to v.currency,
         "initialBalanceMinor" to v.initialBalanceMinor, "archived" to v.archived,
         "createdAt" to v.createdAt, "updatedAt" to v.updatedAt,
+        "shortName" to v.shortName, "institution" to v.institution, "color" to v.color,
+        "liquidity" to v.liquidity, "useInApp" to v.useInApp,
+        "remoteUpdatedAt" to v.remoteUpdatedAt, "deletedAt" to v.deletedAt,
+    )
+    private fun accountBalance(v: AccountBalanceEntity) = row(
+        "id" to v.id, "accountId" to v.accountId, "epochDay" to v.epochDay,
+        "balanceMinor" to v.balanceMinor, "updatedAt" to v.updatedAt,
+        "deletedAt" to v.deletedAt, "remoteUpdatedAt" to v.remoteUpdatedAt,
     )
     private fun category(v: CategoryEntity) = row(
         "id" to v.id, "name" to v.name, "kind" to v.kind, "parentId" to v.parentId,
@@ -150,7 +160,16 @@ class BackupJson {
         "syncMovementId" to v.syncMovementId,
     )
 
-    private fun readAccount(j: JSONObject) = AccountEntity(j.s("id"), j.s("name"), j.s("type"), j.s("currency"), j.l("initialBalanceMinor"), j.b("archived"), j.l("createdAt"), j.l("updatedAt"))
+    private fun readAccount(j: JSONObject) = AccountEntity(
+        j.s("id"), j.s("name"), j.s("type"), j.s("currency"), j.l("initialBalanceMinor"),
+        j.b("archived"), j.l("createdAt"), j.l("updatedAt"), j.ns("shortName"),
+        j.ns("institution"), j.ni("color"), j.ob("liquidity", true), j.ob("useInApp", true),
+        j.ns("remoteUpdatedAt"), j.nl("deletedAt"),
+    )
+    private fun readAccountBalance(j: JSONObject) = AccountBalanceEntity(
+        j.s("id"), j.s("accountId"), j.l("epochDay"), j.l("balanceMinor"),
+        j.l("updatedAt"), j.nl("deletedAt"), j.ns("remoteUpdatedAt"),
+    )
     private fun readCategory(j: JSONObject) = CategoryEntity(j.s("id"), j.s("name"), j.s("kind"), j.ns("parentId"), j.l("colorArgb"), j.b("archived"), j.i("sortOrder"), j.ns("icon"))
     private fun readTransaction(j: JSONObject) = TransactionEntity(j.s("id"), j.s("type"), j.l("amountMinor"), j.s("currency"), j.l("epochDay"), j.s("accountId"), j.ns("categoryId"), j.s("description"), j.s("merchant"), j.s("notes"), j.s("source"), j.l("createdAt"), j.l("updatedAt"), j.ns("groupParentId"))
     private fun readTransfer(j: JSONObject) = TransferEntity(j.s("id"), j.s("fromAccountId"), j.s("toAccountId"), j.l("fromAmountMinor"), j.l("toAmountMinor"), j.l("epochDay"), j.s("description"), j.l("createdAt"), j.l("updatedAt"), j.ns("categoryId"))

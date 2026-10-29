@@ -78,10 +78,13 @@ class SyncRepository(
         pullTable("productos", client)
         pullTable("movimientos", client)
         pullTable("resumen_cartera", client)
+        pullTable("cuentas_app", client)
+        pullTable("saldos_cuenta", client)
         val profiles = perfiles.first()
         val config = settings.settings.first()
         if (config.syncProfileId == null) profiles.firstOrNull()?.let { settings.setSyncProfile(it.id) }
         publishAccounts()
+        publishAccountBalances()
         while (processNextOutbox() == OutboxResult.SENT) Unit
         settings.setSyncLastSuccessAt(clock())
     }
@@ -163,13 +166,20 @@ class SyncRepository(
         val accounts = ledger.accounts.first()
         val transactions = ledger.transactions.first()
         val transfers = ledger.transfers.first()
+        val balanceRecords = ledger.accountBalances.first()
         var enqueued = false
         accounts.forEach { account ->
             val remoteId = accountIdToRemoteId(account.id)
             val json = JSONObject().put("id", remoteId).put("perfil_id", profileId).put("nombre", account.name)
                 .put("tipo", account.type.name.lowercase()).put("moneda", account.currency)
-                .put("saldo", MoneyMath.toDecimal(publishedAccountBalance(account, transactions, transfers, movimientos.first(), accounts, today()), account.currency).toPlainString())
+                .put("corto", account.shortName ?: JSONObject.NULL).put("entidad", account.institution ?: JSONObject.NULL)
+                .put("color", account.color ?: JSONObject.NULL).put("liquidez", account.liquidity).put("uso_app", account.useInApp)
+                .put("saldo_inicial", MoneyMath.toDecimal(account.initialBalanceMinor, account.currency).toPlainString())
+                .put("saldo", MoneyMath.toDecimal(BalanceCalculator.balance(
+                    account, transactions, transfers, today(), mapLiquidityMovements(movimientos.first(), accounts).entries, balanceRecords,
+                ), account.currency).toPlainString())
                 .put("saldo_fecha", nowIso()).put("archivada", account.archived)
+                .put("deleted_at", JSONObject.NULL)
             val fingerprint = sha256(json.toString().replace(Regex("\"saldo_fecha\":\"[^\"]+\""), "\"saldo_fecha\":null"))
             if (dao.fingerprint(account.id)?.fingerprint != fingerprint) {
                 dao.upsertOutbox(SyncOutboxEntity(tabla = "cuentas_app", filaId = remoteId, json = json.toString(), creadoAt = clock()))
@@ -184,6 +194,25 @@ class SyncRepository(
             dao.upsertOutbox(SyncOutboxEntity(tabla = "cuentas_app", filaId = remoteId, json = json.toString(), creadoAt = clock()))
             dao.upsertFingerprint(missing.copy(fingerprint = DELETED_FINGERPRINT))
             enqueued = true
+        }
+        if (enqueued) onOutboxEnqueued()
+    }
+
+    suspend fun publishAccountBalances() {
+        var enqueued = false
+        ledger.accountBalances.first().forEach { balance ->
+            val json = JSONObject().put("id", balance.id)
+                .put("cuenta_id", accountIdToRemoteId(balance.accountId))
+                .put("fecha", balance.date.toString())
+                .put("saldo", MoneyMath.toDecimal(balance.balanceMinor, ledger.accounts.first().firstOrNull { it.id == balance.accountId }?.currency ?: "EUR").toPlainString())
+                .put("deleted_at", balance.deletedAt?.let { instantIso(it) } ?: JSONObject.NULL)
+            val key = "balance:${balance.id}"
+            val fingerprint = sha256(json.toString())
+            if (dao.fingerprint(key)?.fingerprint != fingerprint) {
+                dao.upsertOutbox(SyncOutboxEntity(tabla = "saldos_cuenta", filaId = balance.id, json = json.toString(), creadoAt = clock()))
+                dao.upsertFingerprint(SyncAccountFingerprintEntity(key, fingerprint))
+                enqueued = true
+            }
         }
         if (enqueued) onOutboxEnqueued()
     }
@@ -216,6 +245,7 @@ class SyncRepository(
         if (id == null) return
         val account = ledger.accounts.first().firstOrNull { it.id == id }
             ?: throw IllegalArgumentException("La cuenta no existe")
+        require(account.useInApp) { "La cuenta de liquidez no tiene uso en app" }
         require(account.currency == "EUR") { "La cuenta de liquidez debe estar en EUR" }
         require(!account.archived) { "La cuenta de liquidez está archivada" }
     }
@@ -238,7 +268,57 @@ class SyncRepository(
             "productos" -> dao.upsertProducto(SyncProductoEntity(row.getString("id"), row.getString("perfil_id"), row.getString("nombre"), row.nullableString("corto"), row.getString("tipo"), row.optString("moneda", "EUR"), row.nullableString("identificador"), deleted, updated))
             "movimientos" -> dao.upsertMovimiento(SyncMovimientoEntity(row.getString("id"), row.getString("perfil_id"), row.getString("producto_id"), LocalDate.parse(row.getString("fecha")).toEpochDay(), row.getString("tipo"), BigDecimal(row.get("unidades").toString()).toPlainString(), MoneyMath.toMinor(BigDecimal(row.get("importe").toString()), "EUR"), row.nullableDecimal("comision")?.let { MoneyMath.toMinor(it, "EUR") }, row.nullableString("cuenta_id"), row.getString("origen"), row.nullableString("nota"), deleted, updated))
             "resumen_cartera" -> dao.upsertResumen(SyncResumenEntity(row.getString("perfil_id"), row.optJSONObject("datos")?.toString() ?: "{}", row.nullableString("generado_at").orEmpty(), updated))
+            "cuentas_app" -> applyRemoteAccount(row, deleted, updated)
+            "saldos_cuenta" -> applyRemoteBalance(row, deleted, updated)
         }
+    }
+
+    private suspend fun applyRemoteAccount(row: JSONObject, deleted: String?, updated: String) {
+        val id = row.getString("id")
+        if (dao.pendingCount("cuentas_app", id) > 0) return
+        val localId = remoteIdToAccountId(id, db.accountDao().getAllForBackup().map { it.id }) ?: id
+        val local = db.accountDao().getById(localId)
+        if (local?.remoteUpdatedAt != null && local.remoteUpdatedAt >= updated) return
+        val hasHistory = local != null && (
+            db.transactionDao().countForAccount(localId) + db.transferDao().countForAccount(localId) +
+                dao.countMovementsForAccount(id) > 0
+            )
+        val deletedAt = deleted?.let(::isoToMillis)
+        db.accountDao().upsert(
+            AccountEntity(
+                id = localId,
+                name = row.optString("nombre", local?.name.orEmpty()),
+                type = row.optString("tipo", local?.type ?: "otra").uppercase(),
+                currency = row.optString("moneda", local?.currency ?: "EUR"),
+                initialBalanceMinor = row.nullableDecimal("saldo_inicial")?.let { MoneyMath.toMinor(it, row.optString("moneda", "EUR")) }
+                    ?: local?.initialBalanceMinor ?: 0L,
+                archived = row.optBoolean("archivada", false) || (deletedAt != null && hasHistory),
+                createdAt = local?.createdAt ?: clock(),
+                updatedAt = isoToMillis(updated),
+                shortName = row.nullableString("corto"), institution = row.nullableString("entidad"),
+                color = if (!row.has("color") || row.isNull("color")) null else row.getInt("color"),
+                liquidity = row.optBoolean("liquidez", true),
+                useInApp = if (hasHistory) true else row.optBoolean("uso_app", true),
+                remoteUpdatedAt = updated, deletedAt = if (hasHistory) null else deletedAt,
+            ),
+        )
+    }
+
+    private suspend fun applyRemoteBalance(row: JSONObject, deleted: String?, updated: String) {
+        val id = row.getString("id")
+        if (dao.pendingCount("saldos_cuenta", id) > 0) return
+        val local = db.accountBalanceDao().getById(id)
+        if (local?.remoteUpdatedAt != null && local.remoteUpdatedAt >= updated) return
+        val accountId = row.getString("cuenta_id")
+        val localAccountId = remoteIdToAccountId(accountId, db.accountDao().getAllForBackup().map { it.id }) ?: accountId
+        val account = db.accountDao().getById(localAccountId) ?: return
+        db.accountBalanceDao().upsert(
+            AccountBalanceEntity(
+                id, localAccountId, LocalDate.parse(row.getString("fecha")).toEpochDay(),
+                MoneyMath.toMinor(BigDecimal(row.get("saldo").toString()), account.currency),
+                isoToMillis(updated), deleted?.let(::isoToMillis), updated,
+            ),
+        )
     }
 
     private suspend fun configuredAuth(): SyncAuthClient? {
@@ -254,9 +334,11 @@ class SyncRepository(
         else -> IllegalStateException("No se pudo sincronizar (${response.status})")
     }
     private fun nowIso() = OffsetDateTime.ofInstant(java.time.Instant.ofEpochMilli(clock()), ZoneOffset.UTC).toString()
+    private fun instantIso(value: Long) = OffsetDateTime.ofInstant(java.time.Instant.ofEpochMilli(value), ZoneOffset.UTC).toString()
+    private fun isoToMillis(value: String) = OffsetDateTime.parse(value).toInstant().toEpochMilli()
 
     companion object {
-        private val PULL_TABLES = setOf("perfiles", "productos", "movimientos", "resumen_cartera")
+        private val PULL_TABLES = setOf("perfiles", "productos", "movimientos", "resumen_cartera", "cuentas_app", "saldos_cuenta")
         private const val PAGE_SIZE = 1000
         private const val MAX_ATTEMPTS = 10
         private const val EPOCH_CURSOR = "1970-01-01T00:00:00Z"

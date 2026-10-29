@@ -12,8 +12,14 @@ interface SyncDao {
     @Query("SELECT * FROM sync_movimiento WHERE perfilId = :perfilId AND deletedAt IS NULL ORDER BY fecha DESC") fun observeMovimientos(perfilId: String): Flow<List<SyncMovimientoEntity>>
     @Query("SELECT * FROM sync_resumen WHERE perfilId = :perfilId") fun observeResumen(perfilId: String): Flow<SyncResumenEntity?>
     @Query("SELECT * FROM sync_movimiento WHERE id = :id") suspend fun movimiento(id: String): SyncMovimientoEntity?
+    @Query("SELECT * FROM sync_movimiento WHERE cuentaId = :remoteAccountId AND deletedAt IS NULL")
+    suspend fun movementsForAccount(remoteAccountId: String): List<SyncMovimientoEntity>
+    @Query("SELECT COUNT(*) FROM sync_movimiento WHERE cuentaId = :remoteAccountId AND deletedAt IS NULL")
+    suspend fun countMovementsForAccount(remoteAccountId: String): Int
     @Query("SELECT * FROM sync_producto WHERE id = :id") suspend fun producto(id: String): SyncProductoEntity?
     @Query("SELECT * FROM sync_outbox ORDER BY id LIMIT 1") suspend fun firstOutbox(): SyncOutboxEntity?
+    @Query("SELECT COUNT(*) FROM sync_outbox WHERE tabla = :table AND filaId = :rowId")
+    suspend fun pendingCount(table: String, rowId: String): Int
     @Query("SELECT * FROM sync_outbox ORDER BY id") fun observeOutbox(): Flow<List<SyncOutboxEntity>>
     @Query("SELECT * FROM sync_cursor WHERE tabla = :tabla") suspend fun cursor(tabla: String): SyncCursorEntity?
     @Query("SELECT * FROM sync_account_fingerprint WHERE accountId = :id") suspend fun fingerprint(id: String): SyncAccountFingerprintEntity?

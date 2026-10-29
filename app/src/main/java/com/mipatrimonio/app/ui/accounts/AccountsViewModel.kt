@@ -9,6 +9,7 @@ import com.mipatrimonio.app.data.sync.SyncRepository
 import com.mipatrimonio.app.data.sync.mapLiquidityMovements
 import com.mipatrimonio.app.domain.calc.BalanceCalculator
 import com.mipatrimonio.app.domain.model.Account
+import com.mipatrimonio.app.domain.model.AccountBalanceRecord
 import com.mipatrimonio.app.domain.model.AccountType
 import com.mipatrimonio.app.domain.model.MoneyMath
 import java.math.BigDecimal
@@ -35,6 +36,7 @@ fun filterAccounts(accounts: List<ManagedAccount>, filter: AccountFilter): List<
 data class ManagedAccount(
     val account: Account,
     val balanceMinor: Long,
+    val balanceDate: LocalDate? = null,
 )
 
 data class CurrencyTotal(
@@ -45,6 +47,7 @@ data class CurrencyTotal(
 private data class AccountSnapshot(
     val accounts: List<ManagedAccount>,
     val totals: List<CurrencyTotal>,
+    val balanceRecords: List<AccountBalanceRecord>,
 )
 
 data class AccountsUiState(
@@ -52,6 +55,7 @@ data class AccountsUiState(
     val accounts: List<ManagedAccount> = emptyList(),
     val totals: List<CurrencyTotal> = emptyList(),
     val dependencies: Map<String, AccountDependencies> = emptyMap(),
+    val balanceRecords: List<AccountBalanceRecord> = emptyList(),
     val hideAmounts: Boolean = false,
     val error: String? = null,
 )
@@ -70,18 +74,22 @@ class AccountsViewModel(
         ledger.transactions,
         ledger.transfers,
         sync?.movimientos ?: flowOf(emptyList()),
-    ) { accounts, transactions, transfers, remoteMovements ->
+        ledger.accountBalances,
+    ) { accounts, transactions, transfers, remoteMovements, balanceRecords ->
         val liquidity = mapLiquidityMovements(remoteMovements, accounts).entries
         val managedAccounts = accounts
             .map { account ->
                 ManagedAccount(
                     account,
-                    BalanceCalculator.balance(account, transactions, transfers, today(), liquidity),
+                    BalanceCalculator.balance(account, transactions, transfers, today(), liquidity, balanceRecords),
+                    balanceRecords.filter { it.accountId == account.id && it.deletedAt == null && !it.date.isAfter(today()) }
+                        .maxByOrNull { it.date }?.date,
                 )
             }
             .sortedBy { it.account.name.lowercase() }
         AccountSnapshot(
             accounts = managedAccounts,
+            balanceRecords = balanceRecords,
             totals = managedAccounts
                 .filterNot { it.account.archived }
                 .groupBy { it.account.currency }
@@ -107,6 +115,7 @@ class AccountsViewModel(
             dependencies = local.first,
             hideAmounts = currentSettings.hideAmounts,
             error = local.second,
+            balanceRecords = snapshot.balanceRecords,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AccountsUiState())
 
@@ -128,6 +137,11 @@ class AccountsViewModel(
         type: AccountType,
         currency: String,
         initialBalanceText: String,
+        shortName: String,
+        institution: String,
+        color: Int?,
+        liquidity: Boolean,
+        useInApp: Boolean,
         onSaved: () -> Unit,
     ) {
         if (name.isBlank()) {
@@ -148,6 +162,11 @@ class AccountsViewModel(
             initialBalanceMinor = minor,
             archived = existing?.archived ?: false,
             createdAt = existing?.createdAt ?: System.currentTimeMillis(),
+            shortName = shortName.trim().takeIf { it.isNotEmpty() },
+            institution = institution.trim().takeIf { it.isNotEmpty() },
+            color = color,
+            liquidity = liquidity,
+            useInApp = useInApp,
         )
         launchAction(onSaved) {
             ledger.saveAccount(account)
@@ -160,6 +179,23 @@ class AccountsViewModel(
 
     fun delete(account: Account, onDeleted: () -> Unit) {
         launchAction(onDeleted) { ledger.deleteAccount(account.id) }
+    }
+
+    fun saveBalance(account: Account, existing: AccountBalanceRecord?, date: LocalDate, amount: String, onSaved: () -> Unit) {
+        val parsed = MoneyMath.parse(amount)?.let { runCatching { MoneyMath.toMinor(it, account.currency) }.getOrNull() }
+        if (parsed == null) {
+            error.value = "El saldo no es válido"
+            return
+        }
+        launchAction(onSaved) {
+            ledger.saveAccountBalance(
+                AccountBalanceRecord(existing?.id ?: UUID.randomUUID().toString(), account.id, date, parsed, System.currentTimeMillis()),
+            )
+        }
+    }
+
+    fun deleteBalance(record: AccountBalanceRecord) {
+        launchAction({}) { ledger.deleteAccountBalance(record.id) }
     }
 
     private fun launchAction(onSuccess: () -> Unit, action: suspend () -> Unit) {

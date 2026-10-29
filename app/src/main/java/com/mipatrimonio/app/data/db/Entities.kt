@@ -21,6 +21,28 @@ data class AccountEntity(
     val archived: Boolean,
     val createdAt: Long,
     val updatedAt: Long,
+    val shortName: String? = null,
+    val institution: String? = null,
+    val color: Int? = null,
+    @ColumnInfo(defaultValue = "1") val liquidity: Boolean = true,
+    @ColumnInfo(defaultValue = "1") val useInApp: Boolean = true,
+    val remoteUpdatedAt: String? = null,
+    val deletedAt: Long? = null,
+)
+
+@Entity(
+    tableName = "account_balance",
+    foreignKeys = [ForeignKey(AccountEntity::class, ["id"], ["accountId"], onDelete = ForeignKey.RESTRICT)],
+    indices = [Index("accountId"), Index(value = ["accountId", "epochDay"])],
+)
+data class AccountBalanceEntity(
+    @PrimaryKey val id: String,
+    val accountId: String,
+    val epochDay: Long,
+    val balanceMinor: Long,
+    val updatedAt: Long,
+    val deletedAt: Long? = null,
+    val remoteUpdatedAt: String? = null,
 )
 
 @Entity(tableName = "category", indices = [Index("parentId")])

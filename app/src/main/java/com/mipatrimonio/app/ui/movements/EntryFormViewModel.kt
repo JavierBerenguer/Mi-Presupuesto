@@ -79,9 +79,9 @@ data class EntryFormUiState(
     val groupCurrency: String? = null,
     val groupParentTitle: String? = null,
 ) {
-    val activeAccounts: List<Account> get() = accounts.filterNot(Account::archived)
-    val selectedAccount: Account? get() = accounts.find { it.id == values.accountId }
-    val selectedDestinationAccount: Account? get() = accounts.find { it.id == values.destinationAccountId }
+    val activeAccounts: List<Account> get() = accounts.filter { !it.archived && it.useInApp }
+    val selectedAccount: Account? get() = activeAccounts.find { it.id == values.accountId }
+    val selectedDestinationAccount: Account? get() = activeAccounts.find { it.id == values.destinationAccountId }
     val selectedCategory: Category? get() = categories.find { it.id == values.categoryId }
     val selectedCategoryIsArchived: Boolean get() = selectedCategory?.archived == true
     val hasData: Boolean
@@ -237,8 +237,8 @@ class EntryFormViewModel(
         updateValues { current ->
             val sourceId = current.accountId
             val destinationId = current.destinationAccountId
-                ?.takeIf { it != sourceId && accounts.any { account -> account.id == it && !account.archived } }
-                ?: accounts.firstOrNull { !it.archived && it.id != sourceId }?.id
+                ?.takeIf { it != sourceId && accounts.any { account -> account.id == it && !account.archived && account.useInApp } }
+                ?: accounts.firstOrNull { !it.archived && it.useInApp && it.id != sourceId }?.id
             current.copy(
                 kind = kind,
                 destinationAccountId = if (kind == EntryKind.TRANSFER) destinationId else current.destinationAccountId,
@@ -270,7 +270,7 @@ class EntryFormViewModel(
         updateValues { current ->
             val destinationId = current.destinationAccountId
                 ?.takeIf { it != accountId }
-                ?: accounts.firstOrNull { !it.archived && it.id != accountId }?.id
+                ?: accounts.firstOrNull { !it.archived && it.useInApp && it.id != accountId }?.id
             current.copy(
                 accountId = accountId,
                 destinationAccountId = destinationId,
@@ -333,7 +333,7 @@ class EntryFormViewModel(
     }
 
     private fun saveTransaction(current: EntryFormValues, data: SourceData, addAnother: Boolean) {
-        val account = current.accountId?.let { id -> data.accounts.find { it.id == id && !it.archived } }
+        val account = current.accountId?.let { id -> data.accounts.find { it.id == id && !it.archived && it.useInApp } }
         if (account == null) return fail(EntryFormError.ACCOUNT_REQUIRED)
         val amountMinor = current.amount.toPositiveMinorOrNull(account.currency)
             ?: return fail(EntryFormError.INVALID_AMOUNT)
@@ -361,8 +361,8 @@ class EntryFormViewModel(
     }
 
     private fun saveTransfer(current: EntryFormValues, data: SourceData, addAnother: Boolean) {
-        val from = current.accountId?.let { id -> data.accounts.find { it.id == id && !it.archived } }
-        val to = current.destinationAccountId?.let { id -> data.accounts.find { it.id == id && !it.archived } }
+        val from = current.accountId?.let { id -> data.accounts.find { it.id == id && !it.archived && it.useInApp } }
+        val to = current.destinationAccountId?.let { id -> data.accounts.find { it.id == id && !it.archived && it.useInApp } }
         if (from == null || to == null) return fail(EntryFormError.ACCOUNT_REQUIRED)
         if (from.id == to.id) return fail(EntryFormError.ACCOUNTS_MUST_DIFFER)
         val fromMinor = current.amount.toPositiveMinorOrNull(from.currency)
@@ -419,7 +419,7 @@ class EntryFormViewModel(
     }
 
     private fun newEntryValues(data: SourceData, kind: EntryKind = EntryKind.EXPENSE): EntryFormValues {
-        val activeAccounts = data.accounts.filterNot(Account::archived)
+        val activeAccounts = data.accounts.filter { !it.archived && it.useInApp }
         val lastAccountId = (
             data.transactions.map { it.createdAt to it.accountId } +
                 data.transfers.map { it.createdAt to it.fromAccountId }

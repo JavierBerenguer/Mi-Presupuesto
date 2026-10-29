@@ -1,6 +1,7 @@
 package com.mipatrimonio.app.data.backup
 
 import com.mipatrimonio.app.data.db.AccountEntity
+import com.mipatrimonio.app.data.db.AccountBalanceEntity
 import com.mipatrimonio.app.data.db.BudgetCategoryEntity
 import com.mipatrimonio.app.data.db.BudgetEntity
 import com.mipatrimonio.app.data.db.CategoryEntity
@@ -15,10 +16,10 @@ import com.mipatrimonio.app.data.db.TransferEntity
 
 const val BACKUP_FORMAT = "mipatrimonio-backup"
 const val BACKUP_FORMAT_VERSION = 1
-const val BACKUP_DB_VERSION = 17
+const val BACKUP_DB_VERSION = 18
 
 val BACKUP_TABLE_NAMES = listOf(
-    "account", "category", "txn", "transfer", "budget", "budget_category",
+    "account", "account_balance", "category", "txn", "transfer", "budget", "budget_category",
     "recurring_rule", "notification_authorization", "pending_proposal",
     "notification_structure", "notification_rule", "notification_record",
 )
@@ -28,6 +29,7 @@ data class BackupData(
     val appVersion: String,
     val settings: Map<String, Any?>,
     val accounts: List<AccountEntity> = emptyList(),
+    val accountBalances: List<AccountBalanceEntity> = emptyList(),
     val categories: List<CategoryEntity> = emptyList(),
     val transactions: List<TransactionEntity> = emptyList(),
     val transfers: List<TransferEntity> = emptyList(),
@@ -42,6 +44,7 @@ data class BackupData(
 ) {
     fun counts(): Map<String, Int> = linkedMapOf(
         "account" to accounts.size,
+        "account_balance" to accountBalances.size,
         "category" to categories.size,
         "txn" to transactions.size,
         "transfer" to transfers.size,

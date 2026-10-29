@@ -1,6 +1,7 @@
 package com.mipatrimonio.app.domain.calc
 
 import com.mipatrimonio.app.domain.model.Account
+import com.mipatrimonio.app.domain.model.AccountBalanceRecord
 import com.mipatrimonio.app.domain.model.MovementStatus
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionType
@@ -15,7 +16,14 @@ object BalanceCalculator {
         transfers: List<Transfer>,
         today: LocalDate,
         liquidityMovements: List<LiquidityMovement> = emptyList(),
+        balanceRecords: List<AccountBalanceRecord> = emptyList(),
     ): Long {
+        if (!account.useInApp) {
+            return balanceRecords.asSequence()
+                .filter { it.accountId == account.id && it.deletedAt == null && !it.date.isAfter(today) }
+                .maxWithOrNull(compareBy<AccountBalanceRecord> { it.date }.thenBy { it.updatedAt })
+                ?.balanceMinor ?: 0L
+        }
         var total = account.initialBalanceMinor
         transactions.filter { it.accountId == account.id && movementStatus(it.date, today) == MovementStatus.EJECUTADO }
             .forEach { transaction ->

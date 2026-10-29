@@ -7,6 +7,21 @@
     <string name="accounts_new">Nueva cuenta</string>
     <string name="accounts_edit">Editar cuenta</string>
     <string name="accounts_name">Nombre</string>
+    <string name="accounts_short_name">Nombre corto</string>
+    <string name="accounts_institution">Entidad</string>
+    <string name="accounts_color">Color</string>
+    <string name="accounts_no_color">Sin color</string>
+    <string name="accounts_liquidity">Cuenta como liquidez</string>
+    <string name="accounts_use_in_app">Uso en app</string>
+    <string name="accounts_use_in_app_help">Si está marcada, la cuenta aparece al crear apuntes y se calcula con ellos. Si no, se registra su saldo cuando quieras</string>
+    <string name="accounts_registered_balance">Sin apuntes · saldo registrado · %1$s</string>
+    <string name="accounts_update_balance">Actualizar saldo</string>
+    <string name="accounts_balance_history">Historial de saldos</string>
+    <string name="accounts_balance_date">Fecha</string>
+    <string name="accounts_balance_amount">Importe</string>
+    <string name="accounts_balance_row">%1$s · %2$s</string>
+    <string name="accounts_delete_balance_title">Eliminar saldo registrado</string>
+    <string name="accounts_delete_balance_message">¿Quieres eliminar el saldo del %1$s?</string>
     <string name="accounts_type">Tipo de cuenta</string>
     <string name="accounts_currency">Divisa</string>
     <string name="accounts_initial_balance">Saldo inicial</string>
@@ -26,6 +41,7 @@
     <string name="accounts_dependency_transactions">Movimientos: %1$d</string>
     <string name="accounts_dependency_transfers">Transferencias: %1$d</string>
     <string name="accounts_dependency_apps">Apps de notificaciones: %1$d</string>
+    <string name="accounts_dependency_liquidity">Movimientos de liquidez: %1$d</string>
     <string name="accounts_loading_dependencies">Comprobando datos asociados…</string>
     <string name="accounts_active_totals">Total de cuentas activas por divisa</string>
 </resources>

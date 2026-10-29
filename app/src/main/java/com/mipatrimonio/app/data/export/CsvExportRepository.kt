@@ -10,6 +10,7 @@ class CsvExportRepository(private val db: AppDatabase) {
         val rules = budgetDao.getAllRulesForBackup().groupBy { it.budgetId }
         CsvExportData(
             accounts = db.accountDao().getAllForBackup().map { it.toDomain() },
+            accountBalances = db.accountBalanceDao().getAllForBackup().map { it.toDomain() },
             categories = db.categoryDao().getAllForBackup().map { it.toDomain() },
             transactions = db.transactionDao().getAllForBackup().map { it.toDomain() },
             transfers = db.transferDao().getAllForBackup().map { it.toDomain() },

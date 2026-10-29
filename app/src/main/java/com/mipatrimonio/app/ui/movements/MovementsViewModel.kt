@@ -45,7 +45,7 @@ data class MovementsUiState(
     val includedAccountIds: Set<String> = emptySet(),
     val selectedIds: Set<String> = emptySet(),
 ) {
-    val activeAccounts: List<Account> get() = accounts.filterNot(Account::archived)
+    val activeAccounts: List<Account> get() = accounts.filter { !it.archived && it.useInApp }
     val hasActiveFilters: Boolean get() = filters != MovementFilters()
 }
 
@@ -140,7 +140,7 @@ class MovementsViewModel(
         }
         val visible = applyFilters(itemsAllowedByFutureSetting, monthFilters, data.accounts, data.categories)
         val includedAccounts = if (data.allAccounts) {
-            data.accounts.filterNot(Account::archived)
+            data.accounts.filter { !it.archived && it.useInApp }
         } else {
             data.accounts.filter { it.id in data.includedAccountIds }
         }

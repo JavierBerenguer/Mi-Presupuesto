@@ -151,7 +151,11 @@ private fun MovementEditDialog(
     var amount by remember { mutableStateOf(MoneyMath.toDecimal(movement.importeMinor, "EUR").toPlainString()) }
     var units by remember { mutableStateOf(movement.unidades) }
     var commission by remember { mutableStateOf(movement.comisionMinor?.let { MoneyMath.toDecimal(it, "EUR").toPlainString() }.orEmpty()) }
-    var account by remember { mutableStateOf(accounts.firstOrNull { movement.cuentaId?.let { remote -> SyncRepository.remoteIdMatchesAccount(remote, it.id) } == true }) }
+    var account by remember {
+        mutableStateOf(accounts.firstOrNull {
+            it.useInApp && !it.archived && movement.cuentaId?.let { remote -> SyncRepository.remoteIdMatchesAccount(remote, it.id) } == true
+        })
+    }
     var note by remember { mutableStateOf(movement.nota.orEmpty()) }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -161,7 +165,7 @@ private fun MovementEditDialog(
             AmountField(stringResource(R.string.cartera_amount), amount, { amount = it }, suffix = "EUR")
             AmountField(stringResource(R.string.cartera_units_optional), units, { units = it })
             AmountField(stringResource(R.string.cartera_commission_optional), commission, { commission = it }, suffix = "EUR")
-            DropdownField(stringResource(R.string.cartera_liquidity_account), accounts.filter { it.currency == "EUR" && !it.archived }, account, { it.name }, { account = it }, noneLabel = stringResource(R.string.cartera_no_account))
+            DropdownField(stringResource(R.string.cartera_liquidity_account), accounts.filter { it.currency == "EUR" && !it.archived && it.useInApp }, account, { it.name }, { account = it }, noneLabel = stringResource(R.string.cartera_no_account))
             OutlinedTextField(note, { note = it }, label = { Text(stringResource(R.string.cartera_note)) })
             originalNotification?.let {
                 Text(stringResource(R.string.cartera_original_notification), style = MaterialTheme.typography.labelLarge)

@@ -33,6 +33,7 @@ class TradeRepublicImportRepository(
     ): TradeRepublicImportPlan {
         val account = db.accountDao().getById(accountId)?.toDomain()
             ?: throw IllegalArgumentException("Selecciona una cuenta existente")
+        require(account.useInApp) { "La cuenta seleccionada no tiene uso en app" }
         require(!account.archived) { "La cuenta seleccionada está archivada" }
         val ids = preview.movements.mapNotNullTo(mutableSetOf()) { row ->
             TradeRepublicImportPlanner.recordId(row.externalId).takeIf { db.transactionDao().getById(it) != null }
