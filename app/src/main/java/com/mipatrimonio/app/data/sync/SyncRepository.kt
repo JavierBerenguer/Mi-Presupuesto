@@ -35,6 +35,10 @@ class SyncRepository(
     @Volatile private var auth: SyncAuthClient? = null
 
     val perfiles: Flow<List<SyncPerfilEntity>> = dao.observePerfiles()
+
+    /** El móvil sincroniza solo con el perfil principal de Rumbo: el llamado «Principal» o, si no existe, el primero por orden. */
+    fun principalProfile(profiles: List<SyncPerfilEntity>): SyncPerfilEntity? =
+        profiles.firstOrNull { it.nombre.trim().equals("Principal", ignoreCase = true) } ?: profiles.firstOrNull()
     val productos: Flow<List<SyncProductoEntity>> = settings.settings.flatMapLatest { value ->
         value.syncProfileId?.let(dao::observeProductos) ?: flowOf(emptyList())
     }
@@ -82,9 +86,7 @@ class SyncRepository(
         pullTable("saldos_cuenta", client)
         val profiles = perfiles.first()
         val config = settings.settings.first()
-        if (config.syncProfileId == null || profiles.none { it.id == config.syncProfileId }) {
-            profiles.firstOrNull()?.let { settings.setSyncProfile(it.id) }
-        }
+        principalProfile(profiles)?.let { if (it.id != config.syncProfileId) settings.setSyncProfile(it.id) }
         publishAccounts()
         publishAccountBalances()
         while (processNextOutbox() == OutboxResult.SENT) Unit

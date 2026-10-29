@@ -34,12 +34,8 @@ fun SyncScreen(viewModel: SyncViewModel = appViewModel { c -> SyncViewModel(c.sy
         } else {
             Text(stringResource(R.string.sync_connected_as, state.email ?: email), style = MaterialTheme.typography.titleMedium)
             Text(state.lastSyncAt?.let { stringResource(R.string.sync_last_sync, DateFormat.getDateTimeInstance().format(Date(it))) } ?: stringResource(R.string.sync_never_synced))
-            Text(stringResource(R.string.sync_profile), style = MaterialTheme.typography.titleSmall)
-            state.profiles.forEach { profile ->
-                Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    RadioButton(selected = profile.id == state.selectedProfileId, onClick = { viewModel.selectProfile(profile.id) })
-                    Text(profile.nombre)
-                }
+            state.profiles.firstOrNull { it.id == state.selectedProfileId }?.let { profile ->
+                Text(stringResource(R.string.sync_profile_principal, profile.nombre), style = MaterialTheme.typography.bodyMedium)
             }
             Button(onClick = viewModel::synchronize, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.sync_now)) }
             OutlinedButton(onClick = { confirmSignOut = true }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.sync_sign_out)) }

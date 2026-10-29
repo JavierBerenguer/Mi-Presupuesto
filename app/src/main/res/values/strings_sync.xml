@@ -10,6 +10,7 @@
     <string name="sync_last_sync">Última sincronización: %1$s</string>
     <string name="sync_never_synced">Todavía no se ha sincronizado</string>
     <string name="sync_profile">Perfil de Rumbo</string>
+    <string name="sync_profile_principal">Sincroniza con tu perfil principal de Rumbo: %1$s</string>
     <string name="sync_now">Sincronizar ahora</string>
     <string name="sync_sign_out">Cerrar sesión</string>
     <string name="sync_sign_out_confirm_title">¿Cerrar la sesión?</string>
