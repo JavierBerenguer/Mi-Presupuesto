@@ -89,6 +89,8 @@ class SyncRepository(
         val profiles = perfiles.first()
         val config = settings.settings.first()
         principalProfile(profiles)?.let { if (it.id != config.syncProfileId) settings.setSyncProfile(it.id) }
+        settings.settings.first().syncProfileId?.let { dropStaleAccountRows(it) }
+        dao.dropSupersededOutbox()
         publishAccounts()
         publishAccountBalances()
         while (processNextOutbox() == OutboxResult.SENT) Unit
@@ -111,6 +113,18 @@ class SyncRepository(
             dao.clearCursors(); dao.clearFingerprints()
         }
         if (settings.settings.first().syncProfileId in vanished) settings.setSyncProfile(null)
+    }
+
+    /** Una cuenta pendiente con otro perfil nunca entrará (clave foránea): se descarta y se vuelve a publicar con el actual. */
+    private suspend fun dropStaleAccountRows(profileId: String) {
+        val localIds = db.accountDao().getAllForBackup().map { it.id }
+        dao.outboxFor("cuentas_app").forEach { row ->
+            val perfil = JSONObject(row.json).optString("perfil_id", "")
+            if (perfil.isNotEmpty() && perfil != "null" && perfil != profileId) {
+                dao.deleteOutbox(row.id)
+                remoteIdToAccountId(row.filaId, localIds)?.let { dao.deleteFingerprint(it) }
+            }
+        }
     }
 
     suspend fun pullTable(table: String, authClient: SyncAuthClient? = null) {
@@ -252,10 +266,10 @@ class SyncRepository(
         return when {
             response.status in 200..299 -> { dao.deleteOutbox(row.id); OutboxResult.SENT }
             response.status in 400..499 -> {
-                dao.upsertOutbox(row.copy(intentos = row.intentos + 1, ultimoError = "El servidor rechazó los datos (${response.status}): " + response.body.take(300)))
+                dao.markOutboxFailed(row.id, "El servidor rechazó los datos (${response.status}): " + response.body.take(300))
                 OutboxResult.BLOCKED
             }
-            else -> { dao.upsertOutbox(row.copy(intentos = row.intentos + 1)); OutboxResult.RETRY }
+            else -> { dao.markOutboxFailed(row.id, row.ultimoError); OutboxResult.RETRY }
         }
     }
 

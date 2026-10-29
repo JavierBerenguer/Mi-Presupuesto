@@ -38,6 +38,11 @@ interface SyncDao {
     @Query("SELECT id FROM sync_perfil") suspend fun perfilIds(): List<String>
     @Query("SELECT * FROM sync_outbox WHERE tabla = :table") suspend fun outboxFor(table: String): List<SyncOutboxEntity>
     @Query("UPDATE sync_outbox SET intentos = 0") suspend fun resetOutboxAttempts()
+    /** UPDATE y no upsert: si la fila se sustituyó mientras se enviaba, no debe resucitar. */
+    @Query("UPDATE sync_outbox SET intentos = intentos + 1, ultimoError = :error WHERE id = :id") suspend fun markOutboxFailed(id: Long, error: String?)
+    /** Cada envío es el estado completo de la fila: solo vale el último encolado de cada una. */
+    @Query("DELETE FROM sync_outbox WHERE id NOT IN (SELECT MAX(id) FROM sync_outbox GROUP BY tabla, filaId)") suspend fun dropSupersededOutbox()
+    @Query("DELETE FROM sync_account_fingerprint WHERE accountId = :id") suspend fun deleteFingerprint(id: String)
     @Query("DELETE FROM sync_perfil WHERE id IN (:ids)") suspend fun deletePerfiles(ids: List<String>)
     @Query("DELETE FROM sync_producto WHERE perfilId IN (:ids)") suspend fun deleteProductosOf(ids: List<String>)
     @Query("DELETE FROM sync_movimiento WHERE perfilId IN (:ids)") suspend fun deleteMovimientosOf(ids: List<String>)

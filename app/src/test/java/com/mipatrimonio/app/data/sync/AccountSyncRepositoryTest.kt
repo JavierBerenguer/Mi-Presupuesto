@@ -132,6 +132,66 @@ class AccountSyncRepositoryTest {
         assertEquals(0, db.syncDao().observeOutbox().first().size)
     }
 
+    @Test fun `fila resucitada con perfil antiguo delante de la buena no bloquea la cola`() = runBlocking {
+        val old = "44444444-4444-4444-4444-444444444444"
+        val fresh = "55555555-5555-5555-5555-555555555555"
+        val accountId = "11111111-1111-1111-1111-111111111111"
+        ledger.saveAccount(Account(accountId, "Cuenta", AccountType.OTRA, "EUR", 0, false, 1))
+        // Estado real del móvil: copia antigua (perfil viejo, id de cola menor) y la buena detrás, con su huella al día.
+        settingsRule.repository.setSyncProfile(old)
+        sync.publishAccounts()
+        val stale = db.syncDao().observeOutbox().first().single()
+        settingsRule.repository.setSyncProfile(fresh)
+        sync.publishAccounts()
+        db.syncDao().upsertOutbox(stale.copy(intentos = 3, ultimoError = "409"))
+        db.syncDao().upsertPerfil(com.mipatrimonio.app.data.db.SyncPerfilEntity(fresh, "Principal", 0, null, "2026-01-01T00:00:00Z"))
+        val sent = mutableListOf<String>()
+        val transport = SyncTransport { request ->
+            when {
+                request.pathAndQuery.startsWith("/auth/v1/token") -> SyncHttpResponse(
+                    200, """{"access_token":"a","refresh_token":"r","expires_in":3600}""",
+                )
+                request.method == "POST" -> if (JSONObject(request.body!!).optString("perfil_id") == fresh) {
+                    sent += request.body; SyncHttpResponse(201, "")
+                } else SyncHttpResponse(409, """{"code":"23503"}""")
+                request.pathAndQuery.startsWith("/rest/v1/perfiles") -> SyncHttpResponse(
+                    200, """[{"id":"$fresh","nombre":"Principal","orden":0,"deleted_at":null,"updated_at":"2026-01-01T00:00:00Z"}]""",
+                )
+                else -> SyncHttpResponse(200, "[]")
+            }
+        }
+        val remoteSync = SyncRepository(db, settingsRule.repository, ledger, { _, _ ->
+            SyncAuthClient(transport, MemorySessionStore(), now = { 0L })
+        }, clock = { 1_000L })
+
+        remoteSync.signIn("https://example.supabase.co", "sb_publishable_test", "a@b.es", "secret")
+
+        assertEquals(1, sent.size)
+        assertEquals(0, db.syncDao().observeOutbox().first().size)
+    }
+
+    @Test fun `una fila sustituida mientras se enviaba no resucita al fallar`() = runBlocking {
+        settingsRule.repository.setSyncProfile("55555555-5555-5555-5555-555555555555")
+        ledger.saveAccount(Account("11111111-1111-1111-1111-111111111111", "Cuenta", AccountType.OTRA, "EUR", 0, false, 1))
+        sync.publishAccounts()
+        val inFlight = db.syncDao().observeOutbox().first().single()
+        val transport = SyncTransport { request ->
+            when {
+                request.pathAndQuery.startsWith("/auth/v1/token") -> SyncHttpResponse(
+                    200, """{"access_token":"a","refresh_token":"r","expires_in":3600}""",
+                )
+                else -> { db.syncDao().deleteOutbox(inFlight.id); SyncHttpResponse(409, "{}") }
+            }
+        }
+        val auth = SyncAuthClient(transport, MemorySessionStore(), now = { 0L })
+        auth.signIn("a@b.es", "secret")
+        settingsRule.repository.setSyncConfiguration("https://example.supabase.co", "sb_publishable_test")
+        val remoteSync = SyncRepository(db, settingsRule.repository, ledger, { _, _ -> auth }, clock = { 1_000L })
+
+        assertEquals(OutboxResult.BLOCKED, remoteSync.processNextOutbox())
+        assertEquals(0, db.syncDao().observeOutbox().first().size)
+    }
+
     private class MemorySessionStore : SessionStore {
         override suspend fun readRefreshToken(): String? = null
         override suspend fun writeRefreshToken(token: String) = Unit
