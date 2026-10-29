@@ -1,5 +1,6 @@
 package com.mipatrimonio.app.ui.home
 
+import com.mipatrimonio.app.domain.calc.LiquidityMovement
 import com.mipatrimonio.app.data.sync.PortfolioClass
 import com.mipatrimonio.app.data.sync.PortfolioProduct
 import com.mipatrimonio.app.data.sync.PortfolioSummary
@@ -221,6 +222,25 @@ class HomeAggregatorTest {
 
         assertEquals(150_00L, result?.averageLivingExpenseMinor)
         assertEquals(BigDecimal("2.0"), result?.coveredMonthsWithoutInvesting)
+    }
+
+    @Test
+    fun `colchon si sigues invirtiendo suma lo que sale hacia Rumbo`() {
+        val account = account("a", initial = 1_200_00)
+        val transactions = (9..12).map { tx(GASTO, 100_00, date = LocalDate.of(2025, it, 10)) } +
+            (1..2).map { tx(GASTO, 100_00, date = LocalDate.of(2026, it, 10)) }
+        // 600 € de compras en Rumbo en la ventana (100 €/mes) y una venta de 0 fuera de ella.
+        val liquidity = (1..6).map { LiquidityMovement("m$it", account.id, LocalDate.of(2026, 2, it), -100_00) } +
+            LiquidityMovement("vieja", account.id, LocalDate.of(2025, 1, 5), -900_00)
+
+        val result = liquidityCushion(
+            "EUR", listOf(account), listOf(AccountBalance(account, 1_200_00)), transactions, cats, today, liquidity,
+        )
+
+        assertEquals(100_00L, result?.averageLivingExpenseMinor)
+        assertEquals(200_00L, result?.averageTotalExpenseMinor)
+        assertEquals(BigDecimal("12.0"), result?.coveredMonthsWithoutInvesting)
+        assertEquals(BigDecimal("6.0"), result?.coveredMonthsContinuingInvesting)
     }
 
     @Test

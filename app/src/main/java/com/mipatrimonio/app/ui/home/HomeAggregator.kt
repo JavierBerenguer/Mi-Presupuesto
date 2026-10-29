@@ -84,6 +84,8 @@ data class HomeState(
     val investments: InvestmentSummary?,
     val allocation: AssetAllocation?,
     val liquidityCushion: LiquidityCushion?,
+    /** Lo que pasó de las cuentas a inversiones en el periodo (compras de Rumbo menos ventas y dividendos). No es gasto. */
+    val investedInPeriodMinor: Long = 0L,
 )
 
 fun budgetRemaining(
@@ -195,7 +197,11 @@ fun buildHomeState(
             Math.subtractExact(displayedSeries.last().totalMinor, displayedSeries.first().totalMinor),
         investments = investments,
         allocation = assetAllocation(netWorth.cashMinor, investments?.valueMinor),
-        liquidityCushion = liquidityCushion(baseCurrency, accounts, balances, transactions, categories, today),
+        liquidityCushion = liquidityCushion(baseCurrency, accounts, balances, transactions, categories, today, liquidityMovements),
+        investedInPeriodMinor = period.range(today, firstActivity).let { range ->
+            -liquidityMovements.filter { it.accountId in includedAccountIds && it.date in range }
+                .fold(0L) { sum, movement -> Math.addExact(sum, movement.effectMinor) }
+        },
     )
 }
 
@@ -257,6 +263,7 @@ internal fun liquidityCushion(
     transactions: List<Transaction>,
     categories: List<Category>,
     today: LocalDate,
+    liquidityMovements: List<LiquidityMovement> = emptyList(),
 ): LiquidityCushion? {
     val previousMonth = YearMonth.from(today).minusMonths(1)
     val firstActivityMonth = transactions.asSequence()
@@ -274,8 +281,16 @@ internal fun liquidityCushion(
         transactions, baseCurrency, previousMonth, months, today, categories,
         StatsCalculator.investmentRootIds(categories),
     )
-    val averageTotalExpense = averageExpense(totalSeries, months)
     val averageLivingExpense = averageExpense(livingSeries, months)
+    // «Si sigues invirtiendo»: el gasto de vida, la categoría Inversiones y lo que de verdad sale de las
+    // cuentas de liquidez hacia Rumbo (compras menos ventas y dividendos), de media en los mismos meses.
+    val liquidityIds = accounts.filter { !it.archived && it.liquidity && it.currency == baseCurrency }.mapTo(hashSetOf(), Account::id)
+    val window = previousMonth.minusMonths(months.toLong() - 1).atDay(1)..previousMonth.atEndOfMonth()
+    val netInvested = -liquidityMovements.filter { it.accountId in liquidityIds && it.date in window }
+        .fold(0L) { sum, movement -> Math.addExact(sum, movement.effectMinor) }
+    val averageInvested = BigDecimal.valueOf(maxOf(0L, netInvested))
+        .divide(BigDecimal.valueOf(months.toLong()), 0, RoundingMode.HALF_UP).longValueExact()
+    val averageTotalExpense = Math.addExact(averageExpense(totalSeries, months), averageInvested)
     if (averageLivingExpense <= 0L) return null
     val balancesByAccount = balances.associateBy { it.account.id }
     val liquidCash = accounts.asSequence()
@@ -285,8 +300,9 @@ internal fun liquidityCushion(
         }
     val coveredWithoutInvesting = BigDecimal.valueOf(liquidCash)
         .divide(BigDecimal.valueOf(averageLivingExpense), 1, RoundingMode.HALF_UP)
-    val coveredContinuing = if (averageTotalExpense == averageLivingExpense || averageTotalExpense <= 0L) null else
+    val coveredContinuing = if (averageTotalExpense <= 0L) null else
         BigDecimal.valueOf(liquidCash).divide(BigDecimal.valueOf(averageTotalExpense), 1, RoundingMode.HALF_UP)
+            .takeIf { it.compareTo(coveredWithoutInvesting) != 0 }
     return LiquidityCushion(
         liquidCash, averageLivingExpense, averageTotalExpense, coveredWithoutInvesting, coveredContinuing,
     )

@@ -66,4 +66,5 @@
     <string name="ini_rumbo_updated">Datos de Rumbo: %1$s</string>
     <string name="ini_open_portfolio">Ver cartera ›</string>
     <string name="ini_analysis">Análisis</string>
+    <string name="ini_invested_in_period">Además, en este periodo pasaste %1$s de tus cuentas a inversiones (compras en Rumbo menos ventas y dividendos). No es un gasto: sigue siendo tu patrimonio.</string>
 </resources>

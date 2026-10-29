@@ -48,6 +48,9 @@ import com.mipatrimonio.app.ui.common.MoneyColors
 import com.mipatrimonio.app.ui.common.NetWorthNotices
 import com.mipatrimonio.app.ui.common.appViewModel
 import com.mipatrimonio.app.ui.common.charts.BarGroup
+import com.mipatrimonio.app.ui.common.charts.ChartPoint
+import com.mipatrimonio.app.ui.common.charts.LineChart
+import com.mipatrimonio.app.ui.common.pointLabel
 import com.mipatrimonio.app.ui.common.charts.DonutChart
 import com.mipatrimonio.app.ui.common.charts.DonutSlice
 import com.mipatrimonio.app.ui.common.charts.GroupedBarChart
@@ -56,7 +59,6 @@ import com.mipatrimonio.app.ui.common.resolvedIconKey
 import com.mipatrimonio.app.ui.components.PillTabs
 import com.mipatrimonio.app.ui.components.ProgressBar
 import com.mipatrimonio.app.ui.components.SectionCard
-import com.mipatrimonio.app.ui.components.Sparkline
 import com.mipatrimonio.app.ui.theme.LargeAmountStyle
 import com.mipatrimonio.app.ui.theme.extras
 import java.math.BigDecimal
@@ -97,7 +99,7 @@ fun HomeScreen(
         s.allocation?.let { AllocationBar(it) }
         SummaryCards(s, format, onOpenAccounts, onOpenPortfolio, onOpenSync)
         PeriodTabs(s.period, viewModel::selectPeriod)
-        EvolutionCard(s, viewModel::selectEvolutionSeries)
+        EvolutionCard(s, format, viewModel::selectEvolutionSeries)
         if (s.netWorth.excludedCurrencies.isNotEmpty()) NetWorthNotices(s.netWorth)
         if (s.automaticTransactionsCount > 0) {
             AutomaticMovementsCard(s.automaticTransactionsCount, onOpenAutomaticMovements)
@@ -238,12 +240,13 @@ private fun PeriodTabs(period: Period, onSelect: (Period) -> Unit) {
 }
 
 @Composable
-private fun EvolutionCard(state: HomeState, onSelectSeries: (EvolutionSeries) -> Unit) {
+private fun EvolutionCard(state: HomeState, format: (Long) -> String, onSelectSeries: (EvolutionSeries) -> Unit) {
     SectionCard {
         val seriesOptions = if (state.hasInvestmentHistory) EvolutionSeries.entries else
             listOf(EvolutionSeries.LIQUIDITY, EvolutionSeries.TOTAL)
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.ini_chart_networth), style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.ini_chart_networth), style = MaterialTheme.typography.titleMedium)
+        // Selector en su propia fila: junto al título no cabían las tres opciones.
+        Row(Modifier.fillMaxWidth()) {
             PillTabs(
                 options = seriesOptions.map { series ->
                     stringResource(
@@ -256,15 +259,16 @@ private fun EvolutionCard(state: HomeState, onSelectSeries: (EvolutionSeries) ->
                 },
                 selectedIndex = seriesOptions.indexOf(state.selectedEvolutionSeries).coerceAtLeast(0),
                 onSelected = { onSelectSeries(seriesOptions[it]) },
-                modifier = Modifier.weight(1f).padding(start = 8.dp),
+                modifier = Modifier.fillMaxWidth(),
             )
         }
-        Sparkline(
-            values = state.netWorthSeries.map { it.totalMinor.toFloat() },
+        // Con ejes, cuadrícula e importes (el mismo gráfico que tenía la antigua pantalla Patrimonio).
+        LineChart(
+            points = state.netWorthSeries.map { ChartPoint(pointLabel(it.date, state.period), it.totalMinor) },
+            formatValue = format,
             description = stringResource(R.string.ini_chart_networth_desc),
-            modifier = Modifier.fillMaxWidth().height(120.dp),
+            emptyText = stringResource(R.string.ini_no_data_period),
         )
-        if (state.netWorthSeries.isEmpty()) Text(stringResource(R.string.ini_no_data_period))
         if (state.hasInvestmentHistory) {
             Text(
                 stringResource(R.string.ini_chart_networth_note, state.investmentHistoryUpdated.orEmpty()),
@@ -433,6 +437,11 @@ private fun ExpenseDistributionCard(state: HomeState, categories: List<Category>
             formatValue = format,
             description = stringResource(R.string.ini_chart_expense_distribution_desc),
             emptyText = stringResource(R.string.ini_no_data_period),
+        )
+        if (state.investedInPeriodMinor > 0L) Text(
+            stringResource(R.string.ini_invested_in_period, format(state.investedInPeriodMinor)),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
