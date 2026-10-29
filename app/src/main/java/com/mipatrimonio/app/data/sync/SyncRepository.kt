@@ -82,7 +82,9 @@ class SyncRepository(
         pullTable("saldos_cuenta", client)
         val profiles = perfiles.first()
         val config = settings.settings.first()
-        if (config.syncProfileId == null) profiles.firstOrNull()?.let { settings.setSyncProfile(it.id) }
+        if (config.syncProfileId == null || profiles.none { it.id == config.syncProfileId }) {
+            profiles.firstOrNull()?.let { settings.setSyncProfile(it.id) }
+        }
         publishAccounts()
         publishAccountBalances()
         while (processNextOutbox() == OutboxResult.SENT) Unit
@@ -182,7 +184,7 @@ class SyncRepository(
                 .put("deleted_at", JSONObject.NULL)
             val fingerprint = sha256(json.toString().replace(Regex("\"saldo_fecha\":\"[^\"]+\""), "\"saldo_fecha\":null"))
             if (dao.fingerprint(account.id)?.fingerprint != fingerprint) {
-                dao.upsertOutbox(SyncOutboxEntity(tabla = "cuentas_app", filaId = remoteId, json = json.toString(), creadoAt = clock()))
+                dao.deletePendingFor("cuentas_app", remoteId); dao.upsertOutbox(SyncOutboxEntity(tabla = "cuentas_app", filaId = remoteId, json = json.toString(), creadoAt = clock()))
                 dao.upsertFingerprint(SyncAccountFingerprintEntity(account.id, fingerprint))
                 enqueued = true
             }
@@ -191,7 +193,7 @@ class SyncRepository(
         dao.allFingerprints().filter { it.accountId !in currentIds && it.fingerprint != DELETED_FINGERPRINT }.forEach { missing ->
             val remoteId = accountIdToRemoteId(missing.accountId)
             val json = JSONObject().put("id", remoteId).put("deleted_at", nowIso())
-            dao.upsertOutbox(SyncOutboxEntity(tabla = "cuentas_app", filaId = remoteId, json = json.toString(), creadoAt = clock()))
+            dao.deletePendingFor("cuentas_app", remoteId); dao.upsertOutbox(SyncOutboxEntity(tabla = "cuentas_app", filaId = remoteId, json = json.toString(), creadoAt = clock()))
             dao.upsertFingerprint(missing.copy(fingerprint = DELETED_FINGERPRINT))
             enqueued = true
         }
@@ -209,7 +211,7 @@ class SyncRepository(
             val key = "balance:${balance.id}"
             val fingerprint = sha256(json.toString())
             if (dao.fingerprint(key)?.fingerprint != fingerprint) {
-                dao.upsertOutbox(SyncOutboxEntity(tabla = "saldos_cuenta", filaId = balance.id, json = json.toString(), creadoAt = clock()))
+                dao.deletePendingFor("saldos_cuenta", balance.id); dao.upsertOutbox(SyncOutboxEntity(tabla = "saldos_cuenta", filaId = balance.id, json = json.toString(), creadoAt = clock()))
                 dao.upsertFingerprint(SyncAccountFingerprintEntity(key, fingerprint))
                 enqueued = true
             }

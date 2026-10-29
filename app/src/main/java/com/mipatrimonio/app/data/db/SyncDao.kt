@@ -32,6 +32,7 @@ interface SyncDao {
     @Upsert suspend fun upsertFingerprint(value: SyncAccountFingerprintEntity)
     @Upsert suspend fun upsertOutbox(value: SyncOutboxEntity)
     @Query("DELETE FROM sync_outbox WHERE id = :id") suspend fun deleteOutbox(id: Long)
+    @Query("DELETE FROM sync_outbox WHERE tabla = :table AND filaId = :rowId") suspend fun deletePendingFor(table: String, rowId: String)
     @Query("DELETE FROM sync_perfil") suspend fun clearPerfiles()
     @Query("DELETE FROM sync_producto") suspend fun clearProductos()
     @Query("DELETE FROM sync_movimiento") suspend fun clearMovimientos()
