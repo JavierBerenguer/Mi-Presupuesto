@@ -8,6 +8,10 @@ import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountBalanceRecord
 import com.mipatrimonio.app.domain.model.AccountType
+import com.mipatrimonio.app.domain.model.Transaction
+import com.mipatrimonio.app.domain.model.TransactionSource
+import com.mipatrimonio.app.domain.model.TransactionType
+import com.mipatrimonio.app.domain.model.Transfer
 import com.mipatrimonio.app.testutil.SettingsStoreRule
 import java.time.LocalDate
 import kotlinx.coroutines.runBlocking
@@ -56,15 +60,100 @@ class AccountSyncRepositoryTest {
         sync.publishAccountBalances()
 
         val rows = db.syncDao().observeOutbox().first()
-        val accountJson = JSONObject(rows.first { it.tabla == "cuentas_app" }.json)
+        val rawAccount = rows.first { it.tabla == "cuentas_app" }.json
+        val accountJson = JSONObject(rawAccount)
         assertEquals("C", accountJson.getString("corto"))
         assertEquals("Banco", accountJson.getString("entidad"))
         assertEquals(7, accountJson.getInt("color"))
         assertFalse(accountJson.getBoolean("liquidez"))
         assertFalse(accountJson.getBoolean("uso_app"))
-        assertEquals("5.00", accountJson.getString("saldo_inicial"))
-        assertEquals("9.00", accountJson.getString("saldo"))
+        // Los importes viajan como números JSON, no como texto.
+        assertFalse(rawAccount, rawAccount.contains("\"saldo_inicial\":\"") || rawAccount.contains("\"saldo\":\""))
+        assertEquals(5.0, accountJson.getDouble("saldo_inicial"), 0.0)
+        assertEquals(9.0, accountJson.getDouble("saldo"), 0.0)
         assertEquals("saldos_cuenta", rows.first { it.filaId == "balance" }.tabla)
+        assertFalse(accountJson.has("historial"))
+    }
+
+    @Test fun `detectar historial al bajar cuentas reinicia huellas y republica`() = runBlocking {
+        settingsRule.repository.setSyncProfile("profile")
+        val account = Account(
+            "11111111-1111-1111-1111-111111111111", "Cuenta", AccountType.OTRA, "EUR", 0, false, 1,
+        )
+        ledger.saveAccount(account)
+        ledger.saveTransaction(transaction("t", account.id, LocalDate.of(2025, 12, 10), 10_00))
+        sync.publishAccounts()
+        assertFalse(JSONObject(db.syncDao().observeOutbox().first().single().json).has("historial"))
+
+        val row = """[{"id":"${account.id}","nombre":"Cuenta","tipo":"otra","moneda":"EUR","historial":[],"deleted_at":null,"updated_at":"2026-01-01T00:00:00Z"}]"""
+        val client = SyncAuthClient(SyncTransport { request ->
+            if (request.pathAndQuery.startsWith("/auth/v1/token")) {
+                SyncHttpResponse(200, """{"access_token":"a","refresh_token":"r","expires_in":3600}""")
+            } else SyncHttpResponse(200, row)
+        }, MemorySessionStore(), now = { 0L })
+        client.signIn("a@b.es", "secret")
+        sync.pullTable("cuentas_app", client)
+        sync.publishAccounts()
+
+        assertTrue(settingsRule.repository.settings.first().syncAccountHistorySupported)
+        val queued = db.syncDao().observeOutbox().first().single { it.tabla == "cuentas_app" }
+        assertTrue(JSONObject(queued.json).has("historial"))
+        assertEquals("2025-12-31", JSONObject(queued.json).getJSONArray("historial").getJSONObject(0).getString("fecha"))
+    }
+
+    @Test fun `historial usa meses cerrados apuntes transferencias y liquidez y excluye cuenta sin uso`() = runBlocking {
+        settingsRule.repository.setSyncProfile("profile")
+        settingsRule.repository.setSyncAccountHistorySupported(true)
+        val account = Account("a", "Principal", AccountType.OTRA, "EUR", 100_00, false, 1)
+        val other = Account("b", "Origen", AccountType.OTRA, "EUR", 50_00, false, 1)
+        val external = Account("c", "Externa", AccountType.OTRA, "EUR", 0, false, 1, useInApp = false)
+        ledger.saveAccount(account)
+        ledger.saveAccount(other)
+        ledger.saveAccount(external)
+        ledger.saveTransaction(transaction("t", account.id, LocalDate.of(2025, 10, 5), 20_00))
+        ledger.saveTransaction(transaction("current", account.id, LocalDate.of(2026, 1, 1), 99_00))
+        ledger.saveTransfer(Transfer("tr", other.id, account.id, 30_00, 30_00, LocalDate.of(2025, 11, 7), "", 2))
+        db.syncDao().upsertMovimiento(
+            com.mipatrimonio.app.data.db.SyncMovimientoEntity(
+                "m", "profile", "product", LocalDate.of(2025, 12, 8).toEpochDay(), "compra", "1",
+                40_00, null, SyncRepository.accountIdToRemoteId(account.id), "movil", null, null,
+                "2025-12-08T00:00:00Z",
+            ),
+        )
+
+        sync.publishAccounts()
+
+        val rows = db.syncDao().observeOutbox().first().filter { it.tabla == "cuentas_app" }
+        val rawHistory = rows.single { it.filaId == SyncRepository.accountIdToRemoteId(account.id) }.json
+        val history = JSONObject(rawHistory).getJSONArray("historial")
+        assertEquals(3, history.length())
+        assertEquals("2025-10-31", history.getJSONObject(0).getString("fecha"))
+        assertFalse(rawHistory, rawHistory.contains("\"saldo\":\""))
+        assertEquals(120.0, history.getJSONObject(0).getDouble("saldo"), 0.0)
+        assertEquals(150.0, history.getJSONObject(1).getDouble("saldo"), 0.0)
+        assertEquals(110.0, history.getJSONObject(2).getDouble("saldo"), 0.0)
+        val externalHistory = JSONObject(rows.single { it.filaId == SyncRepository.accountIdToRemoteId(external.id) }.json)
+            .getJSONArray("historial")
+        assertEquals(0, externalHistory.length())
+    }
+
+    @Test fun `cambiar un apunte pasado cambia huella y vuelve a encolar`() = runBlocking {
+        settingsRule.repository.setSyncProfile("profile")
+        settingsRule.repository.setSyncAccountHistorySupported(true)
+        val account = Account("a", "Cuenta", AccountType.OTRA, "EUR", 0, false, 1)
+        ledger.saveAccount(account)
+        ledger.saveTransaction(transaction("t", account.id, LocalDate.of(2025, 12, 1), 10_00))
+        sync.publishAccounts()
+        val first = db.syncDao().observeOutbox().first().single().json
+
+        ledger.saveTransaction(transaction("t", account.id, LocalDate.of(2025, 11, 1), 10_00))
+        sync.publishAccounts()
+
+        val second = db.syncDao().observeOutbox().first().single().json
+        assertTrue(first != second)
+        assertEquals(JSONObject(first).getString("saldo"), JSONObject(second).getString("saldo"))
+        assertEquals(1, JSONObject(first).getJSONArray("historial").length())
+        assertEquals(2, JSONObject(second).getJSONArray("historial").length())
     }
 
     @Test fun `cuenta y saldo creados en servidor aparecen con el mismo id`() = runBlocking {
@@ -210,4 +299,9 @@ class AccountSyncRepositoryTest {
         override suspend fun writeRefreshToken(token: String) = Unit
         override suspend fun clear() = Unit
     }
+
+    private fun transaction(id: String, accountId: String, date: LocalDate, amount: Long) = Transaction(
+        id, TransactionType.INGRESO, amount, "EUR", date, accountId, null, "", "", "",
+        TransactionSource.MANUAL, 1, 1,
+    )
 }
