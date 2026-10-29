@@ -92,6 +92,14 @@ Este documento lo mantiene Claude. Cada bloque indica en qué versión se prueba
 - [ ] G5. **Resumen de inversiones:** rentabilidad, TIR y reparto por tipo (sin «Efectivo»), con el enlace «Ver cartera».
 - [ ] G6. El **ojo** oculta todos los importes nuevos.
 - [ ] G7. En el menú **Más** ya no aparece «Patrimonio».
+- [ ] G8. *(v1.7.0)* El **gráfico circular** ya no muestra «Ingresos». Una devolución, como un Bizum en Ocio, resta del gasto de su categoría.
+- [ ] G9. *(v1.7.0)* **Operativa del mes neta:** las transferencias propias de salida restan de los ingresos y no suman a los gastos.
+- [ ] G10. *(v1.7.0)* **Colchón doble:** «X meses sin invertir · Y meses si sigues invirtiendo», si hay gasto en Inversiones en los últimos 6 meses.
+- [ ] G11. *(v1.7.0)* **Evolución:** chips **Liquidez · Inversión · Total**.
+  - Inversión sigue la curva del escritorio.
+  - Total es la suma de las dos.
+  - La variación de la cabecera cambia con el chip elegido.
+  - Hay que haber reiniciado Rumbo para que publique la serie.
 
 ---
 
