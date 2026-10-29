@@ -123,11 +123,11 @@ class RumboPanelRepository(
         if (response.status == 400 || response.status == 404) return RumboPanelDownload.NotPublished
         if (response.status == 401) throw SyncSessionExpiredException()
         if (response.status !in 200..299) throw SyncConnectionException("No se pudo descargar el panel de Rumbo")
-        val contentType = response.header("content-type")?.substringBefore(';')?.trim()?.lowercase()
-        require(contentType == "text/html") { "El panel descargado no es HTML" }
         require(response.body.toByteArray(Charsets.UTF_8).size <= MAX_BYTES) {
             "El panel supera el límite de 20 MB"
         }
+        // Storage no siempre devuelve «text/html» (puede servirlo como texto plano): manda el contenido.
+        require(looksLikeHtml(response.body)) { "El panel descargado no es HTML" }
         val panel = cache.write(profileId, response.body, response.header("last-modified"), clock())
         return RumboPanelDownload.Available(panel, previous?.html != panel.html)
     }
@@ -137,6 +137,11 @@ class RumboPanelRepository(
         ?.value?.firstOrNull()
 
     private companion object { const val MAX_BYTES = 20 * 1024 * 1024 }
+}
+
+internal fun looksLikeHtml(body: String): Boolean {
+    val start = body.trimStart('\uFEFF', ' ', '\t', '\r', '\n').take(15).lowercase()
+    return start.startsWith("<!doctype html") || start.startsWith("<html")
 }
 
 private fun encodePathSegment(value: String): String =

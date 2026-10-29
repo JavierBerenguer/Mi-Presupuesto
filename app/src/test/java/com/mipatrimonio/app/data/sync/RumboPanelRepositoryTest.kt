@@ -42,6 +42,16 @@ class RumboPanelRepositoryTest {
         assertTrue(File(root, "panel_rumbo/profile-2.metadata.json").readText().contains("1234"))
     }
 
+    @Test fun `html servido como texto plano se acepta por su contenido`() = runTest {
+        val root = temporaryFolder.newFolder("plain")
+        val html = "﻿\n<!DOCTYPE html><html><body>panel</body></html>"
+        val result = repository(root) {
+            SyncHttpResponse(200, html, mapOf("content-type" to listOf("text/plain; charset=utf-8")))
+        }.download() as RumboPanelDownload.Available
+
+        assertEquals(html, result.panel.html)
+    }
+
     @Test fun `400 y 404 se consideran no publicado`() = runTest {
         for (status in listOf(400, 404)) {
             assertEquals(RumboPanelDownload.NotPublished, repository(temporaryFolder.newFolder()) {
