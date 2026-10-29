@@ -54,6 +54,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -142,7 +143,8 @@ fun MovementsScreen(
         return
     }
 
-    Box(Modifier.fillMaxSize()) {
+    val refreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+    PullToRefreshBox(isRefreshing = refreshing, onRefresh = viewModel::refresh, modifier = Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             if (state.selectedIds.isNotEmpty()) {
                 SelectionHeader(

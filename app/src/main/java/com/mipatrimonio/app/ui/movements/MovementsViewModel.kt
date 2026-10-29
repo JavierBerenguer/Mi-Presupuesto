@@ -220,6 +220,19 @@ class MovementsViewModel(
         error.value = null
     }
 
+    private val refreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = refreshing
+
+    /** Deslizar hacia abajo: sincroniza con Supabase (los movimientos de Rumbo llegan así). */
+    fun refresh() {
+        val repository = sync ?: return
+        viewModelScope.launch {
+            refreshing.value = true
+            runCatching { repository.synchronize() }.onFailure { error.value = it.message }
+            refreshing.value = false
+        }
+    }
+
     fun startSelection(id: String) {
         selectedIds.value = setOf(id)
     }

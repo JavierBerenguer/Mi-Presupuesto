@@ -27,6 +27,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -91,7 +92,8 @@ fun HomeScreen(
         if (s.hideAmounts) hiddenAmount else MoneyMath.format(amount, s.baseCurrency)
     }
 
-    Column(
+    val refreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+    PullToRefreshBox(isRefreshing = refreshing, onRefresh = viewModel::refresh) { Column(
         Modifier.statusBarsPadding().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
@@ -111,7 +113,7 @@ fun HomeScreen(
         ExpenseDistributionCard(s, categories, format)
         IncomeExpensesCard(s, format)
         Spacer(Modifier.height(8.dp))
-    }
+    } }
 }
 
 @Composable

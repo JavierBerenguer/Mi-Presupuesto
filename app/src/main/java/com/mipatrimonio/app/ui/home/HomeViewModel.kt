@@ -26,7 +26,7 @@ import kotlinx.coroutines.launch
 class HomeViewModel(
     ledger: LedgerRepository,
     private val settings: SettingsRepository,
-    sync: SyncRepository? = null,
+    private val sync: SyncRepository? = null,
 ) : ViewModel() {
     private data class LedgerData(
         val accounts: List<Account>,
@@ -95,4 +95,16 @@ class HomeViewModel(
         viewModelScope.launch { settings.setHideAmounts(hidden) }
     }
 
+    private val refreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = refreshing
+
+    /** Deslizar hacia abajo: sincroniza con Supabase (los errores se ven en Ajustes › Sincronización). */
+    fun refresh() {
+        val repository = sync ?: return
+        viewModelScope.launch {
+            refreshing.value = true
+            runCatching { repository.synchronize() }
+            refreshing.value = false
+        }
+    }
 }
