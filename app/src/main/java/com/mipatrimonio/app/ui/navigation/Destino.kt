@@ -4,7 +4,6 @@ import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.ImportExport
@@ -46,7 +45,6 @@ object Rutas {
     const val AUTOMATIZACION_NOTIFICACIONES_ROUTE = "$AUTOMATIZACION_NOTIFICACIONES?tab={tab}"
     const val ENSENAR_NOTIFICACION = "automatizacion-notificaciones/ensenar/{id}"
     const val CONFIGURAR_REGLA = "automatizacion-notificaciones/regla/{id}"
-    const val PATRIMONIO = "patrimonio"
     const val AJUSTES = "ajustes"
     const val DIAGNOSTICO_NOTIFICACIONES = "diagnostico-notificaciones"
     const val RECURRENTES = "ordenes-permanentes"
@@ -76,7 +74,6 @@ enum class SecondaryMenuDestination(
     CUENTAS(Rutas.CUENTAS, R.string.nav_cuentas, Icons.Filled.AccountBalanceWallet, MenuLocation.MAS),
     CATEGORIAS(Rutas.CATEGORIAS, R.string.nav_categorias, Icons.Filled.Category, MenuLocation.MAS),
     RECURRENTES(Rutas.RECURRENTES, R.string.recurring_title, Icons.Filled.Schedule, MenuLocation.MAS),
-    PATRIMONIO(Rutas.PATRIMONIO, R.string.nav_patrimonio, Icons.Filled.AccountBalance, MenuLocation.MAS),
     COPIAS(Rutas.COPIAS, R.string.more_import_export, Icons.Filled.ImportExport, MenuLocation.MAS),
     AJUSTES(Rutas.AJUSTES, R.string.nav_ajustes, Icons.Filled.Settings, MenuLocation.MAS),
     NOTIFICACIONES(Rutas.NOTIFICACIONES, R.string.aj_bank_notifications, Icons.Filled.Notifications, MenuLocation.AJUSTES),

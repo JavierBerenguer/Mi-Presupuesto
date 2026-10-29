@@ -34,7 +34,6 @@ import com.mipatrimonio.app.ui.movements.EntryFormScreen
 import com.mipatrimonio.app.ui.movements.MovementsScreen
 import com.mipatrimonio.app.ui.movements.SourceFilter
 import com.mipatrimonio.app.ui.more.MoreScreen
-import com.mipatrimonio.app.ui.networth.NetWorthScreen
 import com.mipatrimonio.app.ui.accounts.AccountsScreen
 import com.mipatrimonio.app.ui.settings.CategoriesScreen
 import com.mipatrimonio.app.ui.settings.NotificationSettingsScreen
@@ -119,7 +118,6 @@ private fun titleFor(route: String?, destino: Destino?): Int = when {
     route == Rutas.ENSENAR_NOTIFICACION -> R.string.auto_teach
     route == Rutas.CONFIGURAR_REGLA -> R.string.auto_configure_merchant
     route == Rutas.DIAGNOSTICO_NOTIFICACIONES -> R.string.notif_diagnostics_title
-    route == Rutas.PATRIMONIO -> R.string.nav_patrimonio
     route == Rutas.AJUSTES -> R.string.nav_ajustes
     route == Rutas.RECURRENTES -> R.string.recurring_title
     route == Rutas.COPIAS -> R.string.backup_nav_title
@@ -145,6 +143,14 @@ private fun AppNavHost(
         composable(Destino.Inicio.ruta) {
             HomeScreen(
                 onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
+                onOpenPortfolio = {
+                    navController.navigate(Destino.Cartera.ruta) {
+                        popUpTo(Destino.rutaInicial) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
+                onOpenSync = { navController.navigate(Rutas.SINCRONIZACION) },
                 onOpenAutomaticMovements = {
                     navController.navigate(Destino.Movimientos.ruta) { launchSingleTop = true }
                     navController.currentBackStackEntry?.savedStateHandle?.set(
@@ -174,7 +180,6 @@ private fun AppNavHost(
         composable(Destino.Mas.ruta) {
             MoreScreen(onNavigate = { navController.navigate(it) })
         }
-        composable(Rutas.PATRIMONIO) { NetWorthScreen() }
         composable(Rutas.AJUSTES) {
             SettingsScreen(onNavigate = { navController.navigate(it) })
         }

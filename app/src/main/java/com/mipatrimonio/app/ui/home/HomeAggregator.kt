@@ -1,13 +1,14 @@
 package com.mipatrimonio.app.ui.home
 
-import com.mipatrimonio.app.domain.calc.BudgetCalculator
-import com.mipatrimonio.app.domain.calc.CategorySpend
-import com.mipatrimonio.app.domain.calc.MonthTotals
-import com.mipatrimonio.app.domain.calc.NetWorth
+import com.mipatrimonio.app.data.sync.PortfolioSummary
 import com.mipatrimonio.app.domain.calc.AccountBalance
 import com.mipatrimonio.app.domain.calc.BalanceCalculator
-import com.mipatrimonio.app.domain.calc.LiquidityMovement
+import com.mipatrimonio.app.domain.calc.BudgetCalculator
+import com.mipatrimonio.app.domain.calc.CategorySpend
 import com.mipatrimonio.app.domain.calc.LiquidityBalanceCalculator
+import com.mipatrimonio.app.domain.calc.LiquidityMovement
+import com.mipatrimonio.app.domain.calc.MonthTotals
+import com.mipatrimonio.app.domain.calc.NetWorth
 import com.mipatrimonio.app.domain.calc.NetWorthCalculator
 import com.mipatrimonio.app.domain.calc.PeriodTotals
 import com.mipatrimonio.app.domain.calc.StatsCalculator
@@ -16,27 +17,52 @@ import com.mipatrimonio.app.domain.model.AccountBalanceRecord
 import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.BudgetPeriod
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.Transaction
-import com.mipatrimonio.app.domain.model.Transfer
-import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.MovementStatus
+import com.mipatrimonio.app.domain.model.Transaction
+import com.mipatrimonio.app.domain.model.TransactionSource
+import com.mipatrimonio.app.domain.model.Transfer
 import com.mipatrimonio.app.domain.model.movementStatus
 import com.mipatrimonio.app.domain.usecase.HistoryCalculator
 import com.mipatrimonio.app.domain.usecase.NetWorthPoint
 import com.mipatrimonio.app.domain.usecase.Period
-import com.mipatrimonio.app.domain.usecase.SnapshotBuilder
+import java.math.BigDecimal
+import java.math.RoundingMode
+import java.text.Normalizer
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.temporal.ChronoUnit
+import java.util.Locale
 
 data class BudgetRemaining(val remainingMinor: Long, val currency: String)
+
+data class InvestmentClassSummary(val name: String, val valueMinor: Long, val weightPercent: Int)
+
+data class InvestmentSummary(
+    val valueMinor: Long,
+    val gainMinor: Long,
+    val returnRate: BigDecimal?,
+    val irr: BigDecimal?,
+    val classes: List<InvestmentClassSummary>,
+    val generated: String,
+)
+
+data class AssetAllocation(val cashPercent: Int, val investmentsPercent: Int)
+
+data class LiquidityCushion(
+    val liquidCashMinor: Long,
+    val averageExpenseMinor: Long,
+    val coveredMonths: BigDecimal,
+)
 
 data class HomeState(
     val hasAccounts: Boolean,
     val hasFinancialData: Boolean,
+    val accountCount: Int,
     val baseCurrency: String,
     val netWorth: NetWorth,
+    val month: YearMonth,
     val monthTotals: PeriodTotals,
-    /** Null si no hay presupuestos mensuales en divisa base. */
+    val savingRatePercent: BigDecimal?,
     val budgetRemaining: BudgetRemaining?,
     val period: Period,
     val netWorthSeries: List<NetWorthPoint>,
@@ -47,14 +73,11 @@ data class HomeState(
     val spentIncomePercent: Int?,
     val displayedNetWorthMinor: Long,
     val displayedVariationMinor: Long,
-    val portfolioValueMinor: Long = 0L,
-    val portfolioGenerated: String? = null,
+    val investments: InvestmentSummary?,
+    val allocation: AssetAllocation?,
+    val liquidityCushion: LiquidityCushion?,
 )
 
-/**
- * Presupuesto restante del mes actual: si existe un presupuesto global mensual, su restante;
- * si no, la suma de los restantes de los presupuestos mensuales por categoría. Nunca se suman ambos.
- */
 fun budgetRemaining(
     budgets: List<Budget>,
     transactions: List<Transaction>,
@@ -66,7 +89,9 @@ fun budgetRemaining(
     if (monthly.isEmpty()) return null
     val statuses = monthly.map { BudgetCalculator.status(it, transactions, categories, today, today) }
     val global = statuses.firstOrNull { it.budget.categoryId == null }
-    val remaining = global?.remainingMinor ?: statuses.sumOf { it.remainingMinor }
+    val remaining = global?.remainingMinor ?: statuses.fold(0L) { sum, status ->
+        Math.addExact(sum, status.remainingMinor)
+    }
     return BudgetRemaining(remaining, baseCurrency)
 }
 
@@ -82,37 +107,54 @@ fun buildHomeState(
     period: Period,
     hideAmounts: Boolean = false,
     liquidityMovements: List<LiquidityMovement> = emptyList(),
-    portfolioValueMinor: Long = 0L,
-    portfolioGenerated: String? = null,
+    portfolioSummary: PortfolioSummary? = null,
     accountBalanceRecords: List<AccountBalanceRecord> = emptyList(),
 ): HomeState {
-    val balances = accounts.map { AccountBalance(it, BalanceCalculator.balance(it, transactions, transfers, today, liquidityMovements, accountBalanceRecords)) }
-    val netWorth = NetWorthCalculator.compute(baseCurrency, balances)
-    val firstActivity = (transactions.map { it.date } + transfers.map { it.date } + liquidityMovements.map { it.date } + accountBalanceRecords.map { it.date }).minOrNull()
-    val thisMonth = YearMonth.from(today)
-    val includedAccountIds = accounts.filter { !it.archived && it.useInApp && it.currency == baseCurrency }.mapTo(hashSetOf(), Account::id)
-    val filteredSeries = HistoryCalculator.netWorthSeries(
-        baseCurrency, accounts, transactions, transfers,
-        HistoryCalculator.sampleDates(period, today, firstActivity), today, accountBalanceRecords,
-    ).map { point -> point.copy(totalMinor = Math.addExact(point.totalMinor, LiquidityBalanceCalculator.total(liquidityMovements, includedAccountIds, point.date))) }
-    val displayedNetWorth = Math.addExact(netWorth.cashMinor, portfolioValueMinor)
-    val spentPercent = StatsCalculator.totals(
-        transactions, baseCurrency, StatsCalculator.monthRange(thisMonth), today,
-    ).let { totals ->
-        if (totals.incomeMinor <= 0L) null else
-            java.math.BigDecimal(totals.expenseMinor)
-                .multiply(java.math.BigDecimal(100))
-                .divide(java.math.BigDecimal(totals.incomeMinor), 0, java.math.RoundingMode.HALF_UP)
-                .toInt()
+    val balances = accounts.map { account ->
+        AccountBalance(
+            account,
+            BalanceCalculator.balance(
+                account, transactions, transfers, today, liquidityMovements, accountBalanceRecords,
+            ),
+        )
     }
+    val netWorth = NetWorthCalculator.compute(baseCurrency, balances)
+    val firstActivity = (
+        transactions.map { it.date } + transfers.map { it.date } + liquidityMovements.map { it.date } +
+            accountBalanceRecords.map { it.date }
+        ).minOrNull()
+    val thisMonth = YearMonth.from(today)
+    val includedAccountIds = accounts.filter { !it.archived && it.useInApp && it.currency == baseCurrency }
+        .mapTo(hashSetOf(), Account::id)
+    val filteredSeries = HistoryCalculator.netWorthSeries(
+        baseCurrency,
+        accounts,
+        transactions,
+        transfers,
+        HistoryCalculator.sampleDates(period, today, firstActivity),
+        today,
+        accountBalanceRecords,
+    ).map { point ->
+        point.copy(
+            totalMinor = Math.addExact(
+                point.totalMinor,
+                LiquidityBalanceCalculator.total(liquidityMovements, includedAccountIds, point.date),
+            ),
+        )
+    }
+    val monthTotals = StatsCalculator.totals(
+        transactions, baseCurrency, StatsCalculator.monthRange(thisMonth), today,
+    )
+    val investments = portfolioSummary?.toInvestmentSummary()
     return HomeState(
         hasAccounts = accounts.any { !it.archived },
-        hasFinancialData = accounts.any { !it.archived } || portfolioValueMinor != 0L,
+        hasFinancialData = accounts.any { !it.archived } || investments != null,
+        accountCount = accounts.count { !it.archived },
         baseCurrency = baseCurrency,
         netWorth = netWorth,
-        monthTotals = StatsCalculator.totals(
-            transactions, baseCurrency, StatsCalculator.monthRange(thisMonth), today,
-        ),
+        month = thisMonth,
+        monthTotals = monthTotals,
+        savingRatePercent = savingRate(monthTotals),
         budgetRemaining = budgetRemaining(budgets, transactions, categories, baseCurrency, today),
         period = period,
         netWorthSeries = filteredSeries,
@@ -128,11 +170,87 @@ fun buildHomeState(
                 !it.date.isBefore(today.minusDays(6)) &&
                 movementStatus(it.date, today) == MovementStatus.EJECUTADO
         },
-        spentIncomePercent = spentPercent,
-        displayedNetWorthMinor = displayedNetWorth,
+        spentIncomePercent = percentage(monthTotals.expenseMinor, monthTotals.incomeMinor),
+        displayedNetWorthMinor = Math.addExact(netWorth.cashMinor, investments?.valueMinor ?: 0L),
         displayedVariationMinor = if (filteredSeries.size < 2) 0L else
             Math.subtractExact(filteredSeries.last().totalMinor, filteredSeries.first().totalMinor),
-        portfolioValueMinor = portfolioValueMinor,
-        portfolioGenerated = portfolioGenerated,
+        investments = investments,
+        allocation = assetAllocation(netWorth.cashMinor, investments?.valueMinor),
+        liquidityCushion = liquidityCushion(baseCurrency, accounts, balances, transactions, today),
     )
 }
+
+internal fun PortfolioSummary.toInvestmentSummary(): InvestmentSummary {
+    val gain = products.fold(0L) { sum, product -> Math.addExact(sum, product.gainMinor) }
+    val contributed = products.fold(0L) { sum, product -> Math.addExact(sum, product.contributedMinor) }
+    val includedClasses = classes.filterNot { it.name.normalized() == "efectivo" }
+        .sortedByDescending { it.valueMinor }
+    val includedValue = includedClasses.fold(0L) { sum, item -> Math.addExact(sum, item.valueMinor) }
+    return InvestmentSummary(
+        valueMinor = total.valueMinor,
+        gainMinor = gain,
+        returnRate = if (contributed <= 0L) null else BigDecimal.valueOf(gain)
+            .divide(BigDecimal.valueOf(contributed), 10, RoundingMode.HALF_UP),
+        irr = total.irr,
+        classes = includedClasses.take(4).map { item ->
+            InvestmentClassSummary(item.name, item.valueMinor, percentage(item.valueMinor, includedValue) ?: 0)
+        },
+        generated = generated,
+    )
+}
+
+internal fun savingRate(totals: PeriodTotals): BigDecimal? = if (totals.incomeMinor <= 0L) null else
+    BigDecimal.valueOf(Math.subtractExact(totals.incomeMinor, totals.expenseMinor))
+        .multiply(HUNDRED)
+        .divide(BigDecimal.valueOf(totals.incomeMinor), 1, RoundingMode.HALF_UP)
+
+internal fun assetAllocation(cashMinor: Long, investmentsMinor: Long?): AssetAllocation? {
+    if (investmentsMinor == null || cashMinor <= 0L || investmentsMinor <= 0L) return null
+    val total = Math.addExact(cashMinor, investmentsMinor)
+    val cashPercent = percentage(cashMinor, total) ?: return null
+    return AssetAllocation(cashPercent, 100 - cashPercent)
+}
+
+internal fun liquidityCushion(
+    baseCurrency: String,
+    accounts: List<Account>,
+    balances: List<AccountBalance>,
+    transactions: List<Transaction>,
+    today: LocalDate,
+): LiquidityCushion? {
+    val previousMonth = YearMonth.from(today).minusMonths(1)
+    val firstActivityMonth = transactions.asSequence()
+        .filter { !it.date.isAfter(today) }
+        .map { YearMonth.from(it.date) }
+        .minOrNull()
+        ?: return null
+    if (firstActivityMonth.isAfter(previousMonth)) return null
+    val availableMonths = ChronoUnit.MONTHS.between(firstActivityMonth, previousMonth) + 1L
+    val months = minOf(6L, availableMonths).toInt()
+    val series = StatsCalculator.monthlySeries(transactions, baseCurrency, previousMonth, months, today)
+    val totalExpense = series.fold(0L) { sum, month -> Math.addExact(sum, month.expenseMinor) }
+    val averageExpense = BigDecimal.valueOf(totalExpense)
+        .divide(BigDecimal.valueOf(months.toLong()), 0, RoundingMode.HALF_UP)
+        .longValueExact()
+    if (averageExpense <= 0L) return null
+    val balancesByAccount = balances.associateBy { it.account.id }
+    val liquidCash = accounts.asSequence()
+        .filter { !it.archived && it.liquidity && it.currency == baseCurrency }
+        .fold(0L) { sum, account ->
+            Math.addExact(sum, balancesByAccount.getValue(account.id).balanceMinor)
+        }
+    val coveredMonths = BigDecimal.valueOf(liquidCash)
+        .divide(BigDecimal.valueOf(averageExpense), 1, RoundingMode.HALF_UP)
+    return LiquidityCushion(liquidCash, averageExpense, coveredMonths)
+}
+
+private fun percentage(part: Long, total: Long): Int? = if (total <= 0L) null else
+    BigDecimal.valueOf(part).multiply(HUNDRED)
+        .divide(BigDecimal.valueOf(total), 0, RoundingMode.HALF_UP)
+        .intValueExact()
+
+private fun String.normalized(): String = Normalizer.normalize(this, Normalizer.Form.NFD)
+    .replace("\\p{M}+".toRegex(), "")
+    .lowercase(Locale.ROOT)
+
+private val HUNDRED = BigDecimal.valueOf(100L)

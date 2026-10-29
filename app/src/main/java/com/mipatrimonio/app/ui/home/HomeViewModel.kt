@@ -68,8 +68,7 @@ class HomeViewModel(
             period = period,
             hideAmounts = config.hideAmounts,
             liquidityMovements = liquidity,
-            portfolioValueMinor = summary?.total?.valueMinor ?: 0L,
-            portfolioGenerated = summary?.generated,
+            portfolioSummary = summary,
             accountBalanceRecords = l.accountBalances,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
