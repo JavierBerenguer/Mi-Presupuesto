@@ -16,6 +16,7 @@ import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -190,6 +191,18 @@ class AccountSyncRepositoryTest {
 
         assertEquals(OutboxResult.BLOCKED, remoteSync.processNextOutbox())
         assertEquals(0, db.syncDao().observeOutbox().first().size)
+    }
+
+    @Test fun `cerrar sesion borra la cache del panel`() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val cache = RumboPanelCache(context.noBackupFilesDir)
+        cache.write("profile", "<html>privado</html>", "date", 1L)
+        val directory = context.noBackupFilesDir.resolve("panel_rumbo")
+        assertTrue(directory.exists())
+
+        sync.signOut()
+
+        assertFalse(directory.exists())
     }
 
     private class MemorySessionStore : SessionStore {

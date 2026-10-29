@@ -3,6 +3,7 @@ package com.mipatrimonio.app.data.sync
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
+import java.util.Base64
 
 data class SyncSession(val accessToken: String, val expiresAtMillis: Long, val email: String?) {
     override fun toString() = "SyncSession(email=$email, activa=true)"
@@ -28,6 +29,18 @@ class SyncAuthClient(private val transport: SyncTransport, private val store: Se
             response = transport.execute(request.copy(accessToken = current))
         }
         return response
+    }
+
+    suspend fun userId(): String {
+        val token = accessToken()
+        return runCatching {
+            val payload = token.split('.').getOrNull(1) ?: error("JWT incompleto")
+            val padded = payload.padEnd((payload.length + 3) / 4 * 4, '=')
+            JSONObject(String(Base64.getUrlDecoder().decode(padded), Charsets.UTF_8))
+                .getString("sub")
+                .takeIf(String::isNotBlank)
+                ?: error("sub vacío")
+        }.getOrElse { throw SyncSessionExpiredException() }
     }
 
     suspend fun hasSession(): Boolean = session != null || store.readRefreshToken() != null

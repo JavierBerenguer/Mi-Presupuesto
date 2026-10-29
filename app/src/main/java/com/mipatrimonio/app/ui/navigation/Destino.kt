@@ -54,6 +54,7 @@ object Rutas {
     const val APUNTE = "apunte/{id}"
     const val SINCRONIZACION = "sincronizacion-rumbo"
     const val PRODUCTO_CARTERA = "cartera/producto/{id}"
+    const val PANEL_RUMBO = "cartera/panel-rumbo"
 
     fun apunte(id: String?) = "apunte/${id ?: NUEVO}"
     fun recurrente(id: String?) = "orden-permanente/${id ?: NUEVO}"

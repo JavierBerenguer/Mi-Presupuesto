@@ -62,6 +62,7 @@ import java.time.LocalDate
 fun PortfolioScreen(
     onConnect: () -> Unit,
     onOpenProduct: (String) -> Unit,
+    onOpenRumboPanel: () -> Unit,
     viewModel: PortfolioViewModel = appViewModel { c -> PortfolioViewModel(SyncPortfolioGateway(c.sync), c.ledger) },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -76,11 +77,11 @@ fun PortfolioScreen(
             )
             PortfolioStatus.NO_SUMMARY -> EmptyState(
                 Icons.Filled.ShowChart, stringResource(R.string.cartera_no_summary),
-                actionLabel = stringResource(R.string.cartera_sync_now), onAction = viewModel::refresh,
+                actionLabel = stringResource(R.string.rumbo_panel_open), onAction = onOpenRumboPanel,
             )
             PortfolioStatus.ERROR -> EmptyState(
                 Icons.Filled.ShowChart, state.error ?: stringResource(R.string.cartera_summary_error),
-                actionLabel = stringResource(R.string.cartera_sync_now), onAction = viewModel::refresh,
+                actionLabel = stringResource(R.string.rumbo_panel_open), onAction = onOpenRumboPanel,
             )
             PortfolioStatus.READY -> state.summary?.let { summary ->
                 Box(Modifier.fillMaxSize().statusBarsPadding()) {
@@ -96,6 +97,11 @@ fun PortfolioScreen(
                             Text(stringResource(R.string.cartera_updated, summary.generated), style = MaterialTheme.typography.bodySmall)
                         }
                         item { PortfolioHeader(summary) }
+                        item {
+                            Button(onClick = onOpenRumboPanel, modifier = Modifier.fillMaxWidth()) {
+                                Text(stringResource(R.string.rumbo_panel_open))
+                            }
+                        }
                         item {
                             SectionCard(title = stringResource(R.string.cartera_distribution)) {
                                 DonutChart(

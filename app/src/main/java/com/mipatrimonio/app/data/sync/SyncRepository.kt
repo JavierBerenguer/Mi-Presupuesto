@@ -66,6 +66,7 @@ class SyncRepository(
     suspend fun signOut() {
         configuredAuth()?.signOut()
         auth = null
+        RumboPanelCacheRegistry.clearAll(persistedRumboPanelDirectory())
         db.withTransaction {
             dao.clearOutbox(); dao.clearResumen(); dao.clearMovimientos(); dao.clearProductos(); dao.clearPerfiles()
             dao.clearCursors(); dao.clearFingerprints()
@@ -75,6 +76,11 @@ class SyncRepository(
     }
 
     suspend fun selectProfile(id: String) = settings.setSyncProfile(id)
+
+    internal suspend fun downloadRumboPanel(profileId: String): SyncHttpResponse? {
+        val client = configuredAuth() ?: return null
+        return client.authorized(SyncHttpRequest("GET", rumboPanelPath(client.userId(), profileId)))
+    }
 
     suspend fun synchronize() {
         val client = configuredAuth() ?: return
@@ -365,6 +371,11 @@ class SyncRepository(
         if (value.syncProjectUrl.isBlank() || value.syncPublishableKey.isBlank()) return null
         return authFactory(value.syncProjectUrl, value.syncPublishableKey).also { auth = it }
     }
+
+    private fun persistedRumboPanelDirectory(): java.io.File? = runCatching {
+        val databaseFile = java.io.File(db.openHelper.writableDatabase.path)
+        databaseFile.parentFile?.parentFile?.resolve("no_backup")?.resolve("panel_rumbo")
+    }.getOrNull()
 
     private fun remoteError(response: SyncHttpResponse): Exception = when {
         response.status == 401 -> SyncSessionExpiredException()
