@@ -36,6 +36,7 @@ data class Settings(
     val syncProfileId: String? = null,
     val syncLastSuccessAt: Long? = null,
     val syncEmail: String? = null,
+    val syncAccountHistorySupported: Boolean = false,
 )
 
 class SettingsRepository(private val store: DataStore<Preferences>) {
@@ -59,6 +60,7 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
     private val syncProfileIdKey = stringPreferencesKey("sync_profile_id")
     private val syncLastSuccessAtKey = androidx.datastore.preferences.core.longPreferencesKey("sync_last_success_at")
     private val syncEmailKey = stringPreferencesKey("sync_email")
+    private val syncAccountHistorySupportedKey = booleanPreferencesKey("sync_account_history_supported")
 
     /** Modo oscuro activado por defecto; divisa base EUR por defecto. */
     val settings: Flow<Settings> = store.data.map { p ->
@@ -83,6 +85,7 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
             syncProfileId = p[syncProfileIdKey]?.takeIf(String::isNotBlank),
             syncLastSuccessAt = p[syncLastSuccessAtKey],
             syncEmail = p[syncEmailKey]?.takeIf(String::isNotBlank),
+            syncAccountHistorySupported = p[syncAccountHistorySupportedKey] ?: false,
         )
     }
 
@@ -139,7 +142,12 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
     }
 
     suspend fun setSyncConfiguration(projectUrl: String, publishableKey: String) {
-        store.edit { it[syncProjectUrlKey] = projectUrl.trim(); it[syncPublishableKey] = publishableKey.trim() }
+        store.edit {
+            val normalizedUrl = projectUrl.trim()
+            if (it[syncProjectUrlKey].orEmpty() != normalizedUrl) it[syncAccountHistorySupportedKey] = false
+            it[syncProjectUrlKey] = normalizedUrl
+            it[syncPublishableKey] = publishableKey.trim()
+        }
     }
 
     suspend fun setSyncProfile(profileId: String?) {
@@ -149,6 +157,10 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
     suspend fun setSyncLastSuccessAt(value: Long) { store.edit { it[syncLastSuccessAtKey] = value } }
 
     suspend fun setSyncEmail(value: String?) { store.edit { it[syncEmailKey] = value.orEmpty() } }
+
+    suspend fun setSyncAccountHistorySupported(supported: Boolean) {
+        store.edit { it[syncAccountHistorySupportedKey] = supported }
+    }
 
     suspend fun exportForBackup(): Map<String, Any?> {
         val value = settings.first()

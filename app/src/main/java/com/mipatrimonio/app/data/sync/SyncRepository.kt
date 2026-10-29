@@ -5,7 +5,12 @@ import com.mipatrimonio.app.data.db.*
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
 import com.mipatrimonio.app.domain.calc.BalanceCalculator
+import com.mipatrimonio.app.domain.calc.LiquidityMovement
+import com.mipatrimonio.app.domain.model.Account
+import com.mipatrimonio.app.domain.model.AccountBalanceRecord
 import com.mipatrimonio.app.domain.model.MoneyMath
+import com.mipatrimonio.app.domain.model.Transaction
+import com.mipatrimonio.app.domain.model.Transfer
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
@@ -17,6 +22,7 @@ import java.net.URLEncoder
 import java.security.MessageDigest
 import java.time.LocalDate
 import java.time.OffsetDateTime
+import java.time.YearMonth
 import java.time.ZoneOffset
 import java.util.UUID
 
@@ -73,6 +79,7 @@ class SyncRepository(
         }
         settings.setSyncProfile(null)
         settings.setSyncEmail(null)
+        settings.setSyncAccountHistorySupported(false)
     }
 
     suspend fun selectProfile(id: String) = settings.setSyncProfile(id)
@@ -145,6 +152,7 @@ class SyncRepository(
             val response = client.authorized(SyncHttpRequest("GET", path))
             if (response.status !in 200..299) throw remoteError(response)
             val rows = JSONArray(response.body)
+            detectAccountHistorySupport(table, rows)
             db.withTransaction {
                 repeat(rows.length()) { index ->
                     val row = rows.getJSONObject(index)
@@ -206,11 +214,13 @@ class SyncRepository(
     }
 
     suspend fun publishAccounts() {
-        val profileId = settings.settings.first().syncProfileId ?: return
+        val config = settings.settings.first()
+        val profileId = config.syncProfileId ?: return
         val accounts = ledger.accounts.first()
         val transactions = ledger.transactions.first()
         val transfers = ledger.transfers.first()
         val balanceRecords = ledger.accountBalances.first()
+        val liquidityMovements = mapLiquidityMovements(movimientos.first(), accounts).entries
         var enqueued = false
         accounts.forEach { account ->
             val remoteId = accountIdToRemoteId(account.id)
@@ -218,12 +228,15 @@ class SyncRepository(
                 .put("tipo", account.type.name.lowercase()).put("moneda", account.currency)
                 .put("corto", account.shortName ?: JSONObject.NULL).put("entidad", account.institution ?: JSONObject.NULL)
                 .put("color", account.color ?: JSONObject.NULL).put("liquidez", account.liquidity).put("uso_app", account.useInApp)
-                .put("saldo_inicial", MoneyMath.toDecimal(account.initialBalanceMinor, account.currency).toPlainString())
+                .put("saldo_inicial", MoneyMath.toDecimal(account.initialBalanceMinor, account.currency))
                 .put("saldo", MoneyMath.toDecimal(BalanceCalculator.balance(
-                    account, transactions, transfers, today(), mapLiquidityMovements(movimientos.first(), accounts).entries, balanceRecords,
-                ), account.currency).toPlainString())
+                    account, transactions, transfers, today(), liquidityMovements, balanceRecords,
+                ), account.currency))
                 .put("saldo_fecha", nowIso()).put("archivada", account.archived)
                 .put("deleted_at", JSONObject.NULL)
+            if (config.syncAccountHistorySupported) {
+                json.put("historial", accountHistory(account, transactions, transfers, liquidityMovements, balanceRecords))
+            }
             val fingerprint = sha256(json.toString().replace(Regex("\"saldo_fecha\":\"[^\"]+\""), "\"saldo_fecha\":null"))
             if (dao.fingerprint(account.id)?.fingerprint != fingerprint) {
                 dao.deletePendingFor("cuentas_app", remoteId); dao.upsertOutbox(SyncOutboxEntity(tabla = "cuentas_app", filaId = remoteId, json = json.toString(), creadoAt = clock()))
@@ -242,13 +255,59 @@ class SyncRepository(
         if (enqueued) onOutboxEnqueued()
     }
 
+    private suspend fun detectAccountHistorySupport(table: String, rows: JSONArray) {
+        if (table != "cuentas_app") return
+        val supported = (0 until rows.length()).any { rows.getJSONObject(it).has("historial") }
+        if (!supported || settings.settings.first().syncAccountHistorySupported) return
+        settings.setSyncAccountHistorySupported(true)
+        dao.clearFingerprints()
+    }
+
+    private fun accountHistory(
+        account: Account,
+        transactions: List<Transaction>,
+        transfers: List<Transfer>,
+        liquidityMovements: List<LiquidityMovement>,
+        balanceRecords: List<AccountBalanceRecord>,
+    ): JSONArray {
+        if (!account.useInApp) return JSONArray()
+        val activityDates = mutableListOf<LocalDate>()
+        transactions.forEach {
+            if (it.accountId == account.id) activityDates.add(it.date)
+        }
+        transfers.forEach {
+            if (it.fromAccountId == account.id || it.toAccountId == account.id) activityDates.add(it.date)
+        }
+        liquidityMovements.forEach {
+            if (it.accountId == account.id) activityDates.add(it.date)
+        }
+        val firstMonth = activityDates.minOrNull()?.let { YearMonth.from(it) } ?: return JSONArray()
+        val lastClosedMonth = YearMonth.from(today()).minusMonths(1)
+        if (firstMonth.isAfter(lastClosedMonth)) return JSONArray()
+        val history = JSONArray()
+        var month = firstMonth
+        while (!month.isAfter(lastClosedMonth)) {
+            val date = month.atEndOfMonth()
+            val balance = BalanceCalculator.balance(
+                account, transactions, transfers, date, liquidityMovements, balanceRecords,
+            )
+            history.put(
+                JSONObject()
+                    .put("fecha", date.toString())
+                    .put("saldo", MoneyMath.toDecimal(balance, account.currency)),
+            )
+            month = month.plusMonths(1)
+        }
+        return history
+    }
+
     suspend fun publishAccountBalances() {
         var enqueued = false
         ledger.accountBalances.first().forEach { balance ->
             val json = JSONObject().put("id", balance.id)
                 .put("cuenta_id", accountIdToRemoteId(balance.accountId))
                 .put("fecha", balance.date.toString())
-                .put("saldo", MoneyMath.toDecimal(balance.balanceMinor, ledger.accounts.first().firstOrNull { it.id == balance.accountId }?.currency ?: "EUR").toPlainString())
+                .put("saldo", MoneyMath.toDecimal(balance.balanceMinor, ledger.accounts.first().firstOrNull { it.id == balance.accountId }?.currency ?: "EUR"))
                 .put("deleted_at", balance.deletedAt?.let { instantIso(it) } ?: JSONObject.NULL)
             val key = "balance:${balance.id}"
             val fingerprint = sha256(json.toString())
@@ -296,9 +355,9 @@ class SyncRepository(
 
     private suspend fun enqueueMovement(value: SyncMovimientoEntity) {
         val json = JSONObject().put("id", value.id).put("perfil_id", value.perfilId).put("producto_id", value.productoId)
-            .put("fecha", LocalDate.ofEpochDay(value.fecha).toString()).put("tipo", value.tipo).put("unidades", value.unidades)
-            .put("importe", MoneyMath.toDecimal(value.importeMinor, "EUR").toPlainString())
-            .put("comision", value.comisionMinor?.let { MoneyMath.toDecimal(it, "EUR").toPlainString() } ?: JSONObject.NULL)
+            .put("fecha", LocalDate.ofEpochDay(value.fecha).toString()).put("tipo", value.tipo).put("unidades", BigDecimal(value.unidades))
+            .put("importe", MoneyMath.toDecimal(value.importeMinor, "EUR"))
+            .put("comision", value.comisionMinor?.let { MoneyMath.toDecimal(it, "EUR") } ?: JSONObject.NULL)
             .put("cuenta_id", value.cuentaId ?: JSONObject.NULL).put("origen", value.origen)
             .put("nota", value.nota ?: JSONObject.NULL).put("deleted_at", value.deletedAt ?: JSONObject.NULL)
         dao.upsertOutbox(SyncOutboxEntity(tabla = "movimientos", filaId = value.id, json = json.toString(), creadoAt = clock()))
