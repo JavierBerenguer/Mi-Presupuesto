@@ -30,6 +30,7 @@ import com.mipatrimonio.app.ui.components.SecondaryTopBar
 import com.mipatrimonio.app.ui.home.HomeScreen
 import com.mipatrimonio.app.ui.portfolio.PortfolioScreen
 import com.mipatrimonio.app.ui.portfolio.ProductDetailScreen
+import com.mipatrimonio.app.ui.portfolio.RumboPanelScreen
 import com.mipatrimonio.app.ui.movements.EntryFormScreen
 import com.mipatrimonio.app.ui.movements.MovementsScreen
 import com.mipatrimonio.app.ui.movements.SourceFilter
@@ -125,6 +126,7 @@ private fun titleFor(route: String?, destino: Destino?): Int = when {
     route == Rutas.RECURRENTE -> R.string.recurring_edit
     route == Rutas.SINCRONIZACION -> R.string.sync_title
     route == Rutas.PRODUCTO_CARTERA -> R.string.cartera_products
+    route == Rutas.PANEL_RUMBO -> R.string.rumbo_panel_title
     else -> R.string.app_name
 }
 
@@ -175,6 +177,7 @@ private fun AppNavHost(
             PortfolioScreen(
                 onConnect = { navController.navigate(Rutas.SINCRONIZACION) },
                 onOpenProduct = { navController.navigate(Rutas.productoCartera(it)) },
+                onOpenRumboPanel = { navController.navigate(Rutas.PANEL_RUMBO) },
             )
         }
         composable(Destino.Mas.ruta) {
@@ -239,6 +242,9 @@ private fun AppNavHost(
         composable(Rutas.SINCRONIZACION) { SyncScreen() }
         composable(Rutas.PRODUCTO_CARTERA, idArg) { entry ->
             ProductDetailScreen(entry.arguments?.getString("id").orEmpty())
+        }
+        composable(Rutas.PANEL_RUMBO) {
+            RumboPanelScreen(onOpenSync = { navController.navigate(Rutas.SINCRONIZACION) })
         }
     }
 }

@@ -55,6 +55,20 @@ class SyncTransportTest {
         assertFalse(response.toString().contains("secret"))
     }
 
+    @Test fun `obtiene user id del jwt sin filtrar el token en errores`() = runTest {
+        val payload = java.util.Base64.getUrlEncoder().withoutPadding()
+            .encodeToString("{\"sub\":\"user-123\"}".toByteArray())
+        val jwt = "header.$payload.signature-secret"
+        val auth = SyncAuthClient(SyncTransport { token(jwt, "refresh-secret") }, MemorySessionStore(), now = { 0L })
+        auth.signIn("a@b.es", "password")
+
+        assertEquals("user-123", auth.userId())
+        val broken = SyncAuthClient(SyncTransport { token("token-secret", "refresh-secret") }, MemorySessionStore(), now = { 0L })
+        broken.signIn("a@b.es", "password")
+        val error = runCatching { broken.userId() }.exceptionOrNull().toString()
+        assertFalse(error.contains("token-secret") || error.contains("refresh-secret"))
+    }
+
     private fun token(access: String, refresh: String) = SyncHttpResponse(200, JSONObject().put("access_token", access).put("refresh_token", refresh).put("expires_in", 3600).toString())
     private fun assertFails(block: () -> Unit) { assertNotNull(runCatching(block).exceptionOrNull()) }
     private class MemorySessionStore(var token: String? = null) : SessionStore {
