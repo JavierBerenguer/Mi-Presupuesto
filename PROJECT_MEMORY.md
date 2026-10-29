@@ -568,3 +568,16 @@ El usuario dejó `datos-privados/Documento de cambios/Documento.md` (+ 4 captura
   - **Próximo paso: el usuario pasa `docs/pruebas/PLAN_DE_PRUEBAS.md` (bloques 0, A, B, C, D y E).** Lo que falle se convierte en fichas de corrección.
   - Pendiente menor: dar un motivo visible cuando una compra trae importe con «+».
   - Ninguna rama está fusionada en `main` (necesita autorización del usuario): app `claude/cartera-supabase` (incluye `claude/notificaciones-y-agrupacion`), Rumbo `claude/supabase`.
+- **Cuentas compartidas (2026-10-29):**
+  - Diseño en ADR-002. T-084 (Rumbo + SQL, aplicado y verificado: 43/43 `true`) y T-085 (app, Room v18; 392 tests), aceptadas.
+  - **v1.4.0 publicada.**
+  - Rumbo (T-081, T-082 y T-083): estado de la nube, modo oscuro, sin promoción ni demo, marca «Mi Patrimonio», cabecera nueva. Corregido el bloqueo `Origin: null` (`Referrer-Policy: same-origin`).
+- **INICIO LIMPIO en curso** (decisiones del usuario, 2026-10-29):
+  - borrar los datos de inversión en Supabase y en Rumbo;
+  - la app se carga con una **copia de seguridad generada** que conserva las estructuras y reglas de notificaciones (y sus categorías);
+  - **los dividendos de TR van por Rumbo con cuenta TR** (liquidez), no como ingreso en la app;
+  - las inversiones solo en Rumbo con cuenta TR, que llegan a la app por la sincronización;
+  - Neverless es una cuenta sin uso en app, con saldo 0,08 €.
+  - `Primera Carga/primera_carga.xlsx`: 307 filas, dividendos con cuenta; se quitó la fila de saldo de Neverless.
+  - **T-086** (propuesta de categorías de Codex) en curso.
+  - **Pendiente del usuario:** copia de seguridad actual + contraseña temporal en `Primera Carga`, para generar la copia limpia (T-087).
