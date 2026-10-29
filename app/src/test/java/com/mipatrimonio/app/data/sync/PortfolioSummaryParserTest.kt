@@ -24,6 +24,23 @@ class PortfolioSummaryParserTest {
         assertTrue(PortfolioSummaryParser.parse("{\"version\":1}") is PortfolioSummaryResult.Error)
     }
 
+    @Test fun `parsea serie presente`() {
+        val json = JSON.dropLast(1) + ",\"serie\":{\"fechas\":[\"2026-01-01\",\"2026-01-02\"],\"inversion\":[12.5,\"13.75\"]}}"
+        val result = PortfolioSummaryParser.parse(json) as PortfolioSummaryResult.Success
+
+        assertEquals(listOf(1_250L, 1_375L), result.summary.history?.map { it.investmentMinor })
+    }
+
+    @Test fun `serie ausente vacia o con longitudes distintas se trata como ausente`() {
+        val absent = (PortfolioSummaryParser.parse(JSON) as PortfolioSummaryResult.Success).summary
+        val empty = (PortfolioSummaryParser.parse(JSON.dropLast(1) + ",\"serie\":{\"fechas\":[],\"inversion\":[]}}") as PortfolioSummaryResult.Success).summary
+        val unequal = (PortfolioSummaryParser.parse(JSON.dropLast(1) + ",\"serie\":{\"fechas\":[\"2026-01-01\"],\"inversion\":[]}}") as PortfolioSummaryResult.Success).summary
+
+        assertEquals(null, absent.history)
+        assertEquals(null, empty.history)
+        assertEquals(null, unequal.history)
+    }
+
     private companion object {
         val JSON = """
             {"version":1,"generado":"2026-10-27T10:00:00Z","moneda":"EUR",

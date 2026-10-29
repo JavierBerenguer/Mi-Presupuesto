@@ -7,9 +7,11 @@ import com.mipatrimonio.app.domain.model.MovementStatus
 import com.mipatrimonio.app.domain.model.movementStatus
 import java.time.LocalDate
 import java.time.YearMonth
+import java.text.Normalizer
+import java.util.Locale
 
 data class PeriodTotals(val incomeMinor: Long, val expenseMinor: Long, val excludedCount: Int) {
-    val balanceMinor: Long get() = incomeMinor - expenseMinor
+    val balanceMinor: Long get() = Math.subtractExact(incomeMinor, expenseMinor)
 }
 
 data class MonthTotals(val month: YearMonth, val incomeMinor: Long, val expenseMinor: Long)
@@ -28,6 +30,8 @@ object StatsCalculator {
         baseCurrency: String,
         range: ClosedRange<LocalDate>,
         today: LocalDate,
+        categories: List<Category> = emptyList(),
+        excludedExpenseRootIds: Set<String> = emptySet(),
     ): PeriodTotals {
         var income = 0L
         var expense = 0L
@@ -38,9 +42,30 @@ object StatsCalculator {
                 excluded++
                 continue
             }
-            when (t.type) {
-                TransactionType.INGRESO -> income = Math.addExact(income, t.amountMinor)
-                TransactionType.GASTO -> expense = Math.addExact(expense, t.amountMinor)
+            val root = rootCategory(t.categoryId, categories)
+            when {
+                root?.isIncomeRoot() == true -> {
+                    val signed = if (t.type == TransactionType.INGRESO) t.amountMinor else Math.negateExact(t.amountMinor)
+                    income = Math.addExact(income, signed)
+                }
+                root != null -> {
+                    if (root.id in excludedExpenseRootIds) continue
+                    val signed = if (t.type == TransactionType.GASTO) t.amountMinor else Math.negateExact(t.amountMinor)
+                    expense = Math.addExact(expense, signed)
+                }
+                t.categoryId != null -> {
+                    val isIncomeRoot = t.categoryId == INCOME_ROOT_ID
+                    if (isIncomeRoot) {
+                        val signed = if (t.type == TransactionType.INGRESO) t.amountMinor else Math.negateExact(t.amountMinor)
+                        income = Math.addExact(income, signed)
+                    } else {
+                        if (t.categoryId in excludedExpenseRootIds) continue
+                        val signed = if (t.type == TransactionType.GASTO) t.amountMinor else Math.negateExact(t.amountMinor)
+                        expense = Math.addExact(expense, signed)
+                    }
+                }
+                t.type == TransactionType.INGRESO -> income = Math.addExact(income, t.amountMinor)
+                else -> expense = Math.addExact(expense, t.amountMinor)
             }
         }
         return PeriodTotals(income, expense, excluded)
@@ -55,11 +80,13 @@ object StatsCalculator {
         endMonth: YearMonth,
         months: Int,
         today: LocalDate,
+        categories: List<Category> = emptyList(),
+        excludedExpenseRootIds: Set<String> = emptySet(),
     ): List<MonthTotals> {
         require(months > 0) { "months debe ser positivo" }
         return (months - 1 downTo 0).map { back ->
             val m = endMonth.minusMonths(back.toLong())
-            val totals = totals(transactions, baseCurrency, monthRange(m), today)
+            val totals = totals(transactions, baseCurrency, monthRange(m), today, categories, excludedExpenseRootIds)
             MonthTotals(m, totals.incomeMinor, totals.expenseMinor)
         }
     }
@@ -72,17 +99,41 @@ object StatsCalculator {
         range: ClosedRange<LocalDate>,
         today: LocalDate,
     ): List<CategorySpend> {
-        val byId = categories.associateBy { it.id }
         val sums = LinkedHashMap<String?, Long>()
         for (t in TransactionGroups.netForStatistics(transactions)) {
-            if (
-                t.type != TransactionType.GASTO || t.currency != baseCurrency || t.date !in range ||
-                movementStatus(t.date, today) != MovementStatus.EJECUTADO
-            ) continue
-            val cat = t.categoryId?.let { byId[it] }
-            val root = cat?.parentId ?: cat?.id
-            sums[root] = Math.addExact(sums[root] ?: 0L, t.amountMinor)
+            if (t.currency != baseCurrency || t.date !in range || movementStatus(t.date, today) != MovementStatus.EJECUTADO) continue
+            val rootCategory = rootCategory(t.categoryId, categories)
+            val root = rootCategory?.id ?: t.categoryId
+            if (rootCategory?.isIncomeRoot() == true || root == INCOME_ROOT_ID) continue
+            if (root == null && t.type == TransactionType.INGRESO) continue
+            val signed = if (t.type == TransactionType.GASTO) t.amountMinor else Math.negateExact(t.amountMinor)
+            sums[root] = Math.addExact(sums[root] ?: 0L, signed)
         }
-        return sums.map { CategorySpend(it.key, it.value) }.sortedByDescending { it.amountMinor }
+        return sums.filterValues { it > 0L }
+            .map { CategorySpend(it.key, it.value) }
+            .sortedByDescending { it.amountMinor }
     }
+
+    internal fun rootCategory(categoryId: String?, categories: List<Category>): Category? {
+        val byId = categories.associateBy(Category::id)
+        var current = categoryId?.let { byId[it] } ?: return null
+        val visited = mutableSetOf<String>()
+        while (current.parentId != null && visited.add(current.id)) {
+            current = byId[current.parentId] ?: break
+        }
+        return current
+    }
+
+    internal fun investmentRootIds(categories: List<Category>): Set<String> = categories.asSequence()
+        .filter { it.parentId == null && (it.id == INVESTMENT_ROOT_ID || it.name.normalized() == "inversiones") }
+        .mapTo(mutableSetOf(INVESTMENT_ROOT_ID), Category::id)
+
+    private fun Category.isIncomeRoot(): Boolean = id == INCOME_ROOT_ID || name.normalized() == "ingresos"
+
+    private fun String.normalized(): String = Normalizer.normalize(this, Normalizer.Form.NFD)
+        .replace("\\p{M}+".toRegex(), "")
+        .lowercase(Locale.ROOT)
+
+    private const val INCOME_ROOT_ID = "mp-ingresos"
+    private const val INVESTMENT_ROOT_ID = "mp-inversiones"
 }

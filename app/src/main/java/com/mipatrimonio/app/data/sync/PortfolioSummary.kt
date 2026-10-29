@@ -5,6 +5,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.math.BigDecimal
 import java.math.RoundingMode
+import java.time.LocalDate
 
 data class PortfolioTotal(val valueMinor: Long, val contributedMinor: Long, val gainMinor: Long, val returnRate: BigDecimal, val irr: BigDecimal?, val realizedMinor: Long)
 data class PortfolioClass(val name: String, val valueMinor: Long, val weight: BigDecimal)
@@ -13,9 +14,11 @@ data class PortfolioProduct(
     val contributedMinor: Long, val gainMinor: Long, val returnRate: BigDecimal,
     val irr: BigDecimal?, val units: BigDecimal, val priceMinor: Long?, val weight: BigDecimal,
 )
+data class PortfolioHistoryPoint(val date: LocalDate, val investmentMinor: Long)
 data class PortfolioSummary(
     val generated: String, val currency: String, val total: PortfolioTotal,
     val classes: List<PortfolioClass>, val products: List<PortfolioProduct>, val warnings: List<String>,
+    val history: List<PortfolioHistoryPoint>? = null,
 )
 
 sealed interface PortfolioSummaryResult {
@@ -65,6 +68,7 @@ object PortfolioSummaryParser {
             }
         }.sortedByDescending(PortfolioClass::valueMinor)
         val warnings = root.optJSONArray("avisos")
+        val history = root.optJSONObject("serie")?.validHistory()
         PortfolioSummary(
             root.getString("generado"), root.optString("moneda", "EUR"),
             PortfolioTotal(
@@ -73,6 +77,7 @@ object PortfolioSummaryParser {
             ),
             classes, products,
             buildList { if (warnings != null) repeat(warnings.length()) { add(warnings.getString(it)) } },
+            history,
         )
     }.fold(
         onSuccess = { PortfolioSummaryResult.Success(it) },
@@ -84,4 +89,22 @@ object PortfolioSummaryParser {
     private fun JSONObject.moneyMinor(name: String) = MoneyMath.toMinor(decimal(name), "EUR")
     private fun JSONObject.decimal(name: String) = BigDecimal(get(name).toString())
     private fun JSONObject.nullableDecimal(name: String): BigDecimal? = if (!has(name) || isNull(name)) null else decimal(name)
+
+    private fun JSONObject.validHistory(): List<PortfolioHistoryPoint>? {
+        val dates = optJSONArray("fechas") ?: return null
+        val investments = optJSONArray("inversion") ?: return null
+        if (dates.length() == 0 || dates.length() != investments.length()) return null
+        return runCatching {
+            buildList {
+                repeat(dates.length()) { index ->
+                    add(
+                        PortfolioHistoryPoint(
+                            date = LocalDate.parse(dates.getString(index)),
+                            investmentMinor = MoneyMath.toMinor(BigDecimal(investments.get(index).toString()), "EUR"),
+                        ),
+                    )
+                }
+            }.sortedBy(PortfolioHistoryPoint::date)
+        }.getOrNull()
+    }
 }

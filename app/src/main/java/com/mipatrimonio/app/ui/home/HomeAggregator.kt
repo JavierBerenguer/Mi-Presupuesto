@@ -1,6 +1,7 @@
 package com.mipatrimonio.app.ui.home
 
 import com.mipatrimonio.app.data.sync.PortfolioSummary
+import com.mipatrimonio.app.data.sync.PortfolioHistoryPoint
 import com.mipatrimonio.app.domain.calc.AccountBalance
 import com.mipatrimonio.app.domain.calc.BalanceCalculator
 import com.mipatrimonio.app.domain.calc.BudgetCalculator
@@ -48,10 +49,14 @@ data class InvestmentSummary(
 
 data class AssetAllocation(val cashPercent: Int, val investmentsPercent: Int)
 
+enum class EvolutionSeries { LIQUIDITY, INVESTMENT, TOTAL }
+
 data class LiquidityCushion(
     val liquidCashMinor: Long,
-    val averageExpenseMinor: Long,
-    val coveredMonths: BigDecimal,
+    val averageLivingExpenseMinor: Long,
+    val averageTotalExpenseMinor: Long,
+    val coveredMonthsWithoutInvesting: BigDecimal,
+    val coveredMonthsContinuingInvesting: BigDecimal?,
 )
 
 data class HomeState(
@@ -66,6 +71,9 @@ data class HomeState(
     val budgetRemaining: BudgetRemaining?,
     val period: Period,
     val netWorthSeries: List<NetWorthPoint>,
+    val selectedEvolutionSeries: EvolutionSeries,
+    val hasInvestmentHistory: Boolean,
+    val investmentHistoryUpdated: String?,
     val monthlySeries: List<MonthTotals>,
     val expenseByCategory: List<CategorySpend>,
     val hideAmounts: Boolean,
@@ -109,6 +117,7 @@ fun buildHomeState(
     liquidityMovements: List<LiquidityMovement> = emptyList(),
     portfolioSummary: PortfolioSummary? = null,
     accountBalanceRecords: List<AccountBalanceRecord> = emptyList(),
+    evolutionSeries: EvolutionSeries = EvolutionSeries.TOTAL,
 ): HomeState {
     val balances = accounts.map { account ->
         AccountBalance(
@@ -143,9 +152,16 @@ fun buildHomeState(
         )
     }
     val monthTotals = StatsCalculator.totals(
-        transactions, baseCurrency, StatsCalculator.monthRange(thisMonth), today,
+        transactions, baseCurrency, StatsCalculator.monthRange(thisMonth), today, categories,
     )
     val investments = portfolioSummary?.toInvestmentSummary()
+    val investmentHistory = portfolioSummary?.history
+    val selectedSeries = if (investmentHistory == null && evolutionSeries == EvolutionSeries.INVESTMENT) {
+        EvolutionSeries.TOTAL
+    } else {
+        evolutionSeries
+    }
+    val displayedSeries = buildEvolutionSeries(filteredSeries, investmentHistory, selectedSeries)
     return HomeState(
         hasAccounts = accounts.any { !it.archived },
         hasFinancialData = accounts.any { !it.archived } || investments != null,
@@ -157,9 +173,12 @@ fun buildHomeState(
         savingRatePercent = savingRate(monthTotals),
         budgetRemaining = budgetRemaining(budgets, transactions, categories, baseCurrency, today),
         period = period,
-        netWorthSeries = filteredSeries,
+        netWorthSeries = displayedSeries,
+        selectedEvolutionSeries = selectedSeries,
+        hasInvestmentHistory = investmentHistory != null,
+        investmentHistoryUpdated = portfolioSummary?.generated?.substringBefore('T'),
         monthlySeries = StatsCalculator.monthlySeries(
-            transactions, baseCurrency, thisMonth, period.barMonths(today, firstActivity), today,
+            transactions, baseCurrency, thisMonth, period.barMonths(today, firstActivity), today, categories,
         ),
         expenseByCategory = StatsCalculator.expenseByCategory(
             transactions, categories, baseCurrency, period.range(today, firstActivity), today,
@@ -172,12 +191,32 @@ fun buildHomeState(
         },
         spentIncomePercent = percentage(monthTotals.expenseMinor, monthTotals.incomeMinor),
         displayedNetWorthMinor = Math.addExact(netWorth.cashMinor, investments?.valueMinor ?: 0L),
-        displayedVariationMinor = if (filteredSeries.size < 2) 0L else
-            Math.subtractExact(filteredSeries.last().totalMinor, filteredSeries.first().totalMinor),
+        displayedVariationMinor = if (displayedSeries.size < 2) 0L else
+            Math.subtractExact(displayedSeries.last().totalMinor, displayedSeries.first().totalMinor),
         investments = investments,
         allocation = assetAllocation(netWorth.cashMinor, investments?.valueMinor),
-        liquidityCushion = liquidityCushion(baseCurrency, accounts, balances, transactions, today),
+        liquidityCushion = liquidityCushion(baseCurrency, accounts, balances, transactions, categories, today),
     )
+}
+
+internal fun buildEvolutionSeries(
+    liquidity: List<NetWorthPoint>,
+    investmentHistory: List<PortfolioHistoryPoint>?,
+    selected: EvolutionSeries,
+): List<NetWorthPoint> {
+    if (selected == EvolutionSeries.LIQUIDITY || investmentHistory == null) return liquidity
+    var historyIndex = 0
+    var lastInvestment = 0L
+    return liquidity.map { point ->
+        while (historyIndex < investmentHistory.size && !investmentHistory[historyIndex].date.isAfter(point.date)) {
+            lastInvestment = investmentHistory[historyIndex].investmentMinor
+            historyIndex++
+        }
+        NetWorthPoint(
+            point.date,
+            if (selected == EvolutionSeries.INVESTMENT) lastInvestment else Math.addExact(point.totalMinor, lastInvestment),
+        )
+    }
 }
 
 internal fun PortfolioSummary.toInvestmentSummary(): InvestmentSummary {
@@ -216,6 +255,7 @@ internal fun liquidityCushion(
     accounts: List<Account>,
     balances: List<AccountBalance>,
     transactions: List<Transaction>,
+    categories: List<Category>,
     today: LocalDate,
 ): LiquidityCushion? {
     val previousMonth = YearMonth.from(today).minusMonths(1)
@@ -227,21 +267,36 @@ internal fun liquidityCushion(
     if (firstActivityMonth.isAfter(previousMonth)) return null
     val availableMonths = ChronoUnit.MONTHS.between(firstActivityMonth, previousMonth) + 1L
     val months = minOf(6L, availableMonths).toInt()
-    val series = StatsCalculator.monthlySeries(transactions, baseCurrency, previousMonth, months, today)
-    val totalExpense = series.fold(0L) { sum, month -> Math.addExact(sum, month.expenseMinor) }
-    val averageExpense = BigDecimal.valueOf(totalExpense)
-        .divide(BigDecimal.valueOf(months.toLong()), 0, RoundingMode.HALF_UP)
-        .longValueExact()
-    if (averageExpense <= 0L) return null
+    val totalSeries = StatsCalculator.monthlySeries(
+        transactions, baseCurrency, previousMonth, months, today, categories,
+    )
+    val livingSeries = StatsCalculator.monthlySeries(
+        transactions, baseCurrency, previousMonth, months, today, categories,
+        StatsCalculator.investmentRootIds(categories),
+    )
+    val averageTotalExpense = averageExpense(totalSeries, months)
+    val averageLivingExpense = averageExpense(livingSeries, months)
+    if (averageLivingExpense <= 0L) return null
     val balancesByAccount = balances.associateBy { it.account.id }
     val liquidCash = accounts.asSequence()
         .filter { !it.archived && it.liquidity && it.currency == baseCurrency }
         .fold(0L) { sum, account ->
             Math.addExact(sum, balancesByAccount.getValue(account.id).balanceMinor)
         }
-    val coveredMonths = BigDecimal.valueOf(liquidCash)
-        .divide(BigDecimal.valueOf(averageExpense), 1, RoundingMode.HALF_UP)
-    return LiquidityCushion(liquidCash, averageExpense, coveredMonths)
+    val coveredWithoutInvesting = BigDecimal.valueOf(liquidCash)
+        .divide(BigDecimal.valueOf(averageLivingExpense), 1, RoundingMode.HALF_UP)
+    val coveredContinuing = if (averageTotalExpense == averageLivingExpense || averageTotalExpense <= 0L) null else
+        BigDecimal.valueOf(liquidCash).divide(BigDecimal.valueOf(averageTotalExpense), 1, RoundingMode.HALF_UP)
+    return LiquidityCushion(
+        liquidCash, averageLivingExpense, averageTotalExpense, coveredWithoutInvesting, coveredContinuing,
+    )
+}
+
+private fun averageExpense(series: List<MonthTotals>, months: Int): Long {
+    val totalExpense = series.fold(0L) { sum, month -> Math.addExact(sum, month.expenseMinor) }
+    return BigDecimal.valueOf(totalExpense)
+        .divide(BigDecimal.valueOf(months.toLong()), 0, RoundingMode.HALF_UP)
+        .longValueExact()
 }
 
 private fun percentage(part: Long, total: Long): Int? = if (total <= 0L) null else

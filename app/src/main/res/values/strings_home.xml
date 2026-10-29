@@ -19,7 +19,10 @@
     <string name="ini_month_excluded">%1$d movimientos en otra divisa no se han contabilizado.</string>
     <string name="ini_budget_remaining">Presupuesto restante del mes</string>
     <string name="ini_chart_networth">Evolución del patrimonio</string>
-    <string name="ini_chart_networth_note">Las inversiones se valoran a coste en el histórico.</string>
+    <string name="ini_chart_networth_note">La liquidez está al día con tus apuntes; las inversiones, según la última actualización de Rumbo (%1$s).</string>
+    <string name="ini_evolution_liquidity">Liquidez</string>
+    <string name="ini_evolution_investment">Inversión</string>
+    <string name="ini_evolution_total">Total</string>
     <string name="ini_chart_networth_desc">Gráfico de línea con la evolución del patrimonio total en el periodo seleccionado.</string>
     <string name="ini_chart_income_vs_expenses">Ingresos frente a gastos</string>
     <string name="ini_chart_income_vs_expenses_desc">Gráfico de barras de ingresos y gastos por mes.</string>
@@ -46,7 +49,10 @@
     <string name="ini_spent_percent">%1$d %% de los ingresos gastado</string>
     <string name="ini_liquidity_cushion">Colchón de liquidez</string>
     <string name="ini_liquidity_months">Tu efectivo cubre %1$s meses de gastos</string>
+    <string name="ini_liquidity_months_double">Tu efectivo cubre %1$s meses sin invertir · %2$s meses si sigues invirtiendo</string>
     <string name="ini_average_expense">Gasto medio: %1$s/mes (últimos 6 meses)</string>
+    <string name="ini_average_living_expense">Gasto medio sin invertir: %1$s/mes (últimos 6 meses)</string>
+    <string name="ini_average_total_expense">Gasto medio si sigues invirtiendo: %1$s/mes (últimos 6 meses)</string>
     <string name="ini_investments_summary">Inversiones</string>
     <string name="ini_value">Valor</string>
     <string name="ini_gain">Ganancia</string>
