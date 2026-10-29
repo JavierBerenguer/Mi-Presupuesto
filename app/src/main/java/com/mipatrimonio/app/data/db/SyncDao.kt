@@ -17,7 +17,9 @@ interface SyncDao {
     @Query("SELECT COUNT(*) FROM sync_movimiento WHERE cuentaId = :remoteAccountId AND deletedAt IS NULL")
     suspend fun countMovementsForAccount(remoteAccountId: String): Int
     @Query("SELECT * FROM sync_producto WHERE id = :id") suspend fun producto(id: String): SyncProductoEntity?
-    @Query("SELECT * FROM sync_outbox ORDER BY id LIMIT 1") suspend fun firstOutbox(): SyncOutboxEntity?
+    /** Primero las cuentas: los saldos y movimientos las referencian (clave foránea en Supabase). */
+    @Query("SELECT * FROM sync_outbox ORDER BY CASE tabla WHEN 'cuentas_app' THEN 0 WHEN 'saldos_cuenta' THEN 1 ELSE 2 END, id LIMIT 1")
+    suspend fun firstOutbox(): SyncOutboxEntity?
     @Query("SELECT COUNT(*) FROM sync_outbox WHERE tabla = :table AND filaId = :rowId")
     suspend fun pendingCount(table: String, rowId: String): Int
     @Query("SELECT * FROM sync_outbox ORDER BY id") fun observeOutbox(): Flow<List<SyncOutboxEntity>>

@@ -232,7 +232,7 @@ class SyncRepository(
         return when {
             response.status in 200..299 -> { dao.deleteOutbox(row.id); OutboxResult.SENT }
             response.status in 400..499 -> {
-                dao.upsertOutbox(row.copy(intentos = row.intentos + 1, ultimoError = "El servidor rechazó los datos (${response.status})"))
+                dao.upsertOutbox(row.copy(intentos = row.intentos + 1, ultimoError = "El servidor rechazó los datos (${response.status}): " + response.body.take(300)))
                 OutboxResult.BLOCKED
             }
             else -> { dao.upsertOutbox(row.copy(intentos = row.intentos + 1)); OutboxResult.RETRY }
