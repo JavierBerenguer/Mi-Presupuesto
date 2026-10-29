@@ -93,6 +93,18 @@ Este documento lo mantiene Claude. Cada bloque indica en qué versión se prueba
 - [ ] G6. El **ojo** oculta todos los importes nuevos.
 - [ ] G7. En el menú **Más** ya no aparece «Patrimonio».
 
+---
+
+## H. Panel completo de Rumbo en Cartera — ✅ disponible (v1.6.0)
+*Requisitos:* el SQL `20261030000000_paneles_storage.sql` ejecutado (hecho) y Rumbo reiniciado. En Supabase › Storage › `paneles` tiene que haber un `.html`.
+- [ ] H1. Cartera › **Ver panel completo de Rumbo**: se ve el panel del escritorio, con sus pestañas y gráficos funcionando.
+- [ ] H2. Arriba sale «Actualizado en el escritorio: …» con la hora de la última subida.
+- [ ] H3. Cambia algo en Rumbo y vuelve a abrir el panel, o pulsa recargar: el cambio aparece.
+- [ ] H4. **Modo avión:** el panel abre igual desde la caché, con el aviso «sin conexión».
+- [ ] H5. Un enlace externo del panel (por ejemplo, el de la licencia) se abre en el navegador, no dentro de la app.
+- [ ] H6. Con el **ojo** activado (importes ocultos), primero sale un aviso con el botón «Mostrar panel».
+- [ ] H7. Al cerrar sesión en Sincronización y volver a entrar, el panel se descarga de nuevo, porque la caché se ha borrado.
+
 ## Resultados y problemas encontrados
 *(Escribe aquí lo que falle; Claude lo convierte en fichas de corrección.)*
 
