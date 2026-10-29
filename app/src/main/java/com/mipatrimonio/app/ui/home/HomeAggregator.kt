@@ -325,3 +325,21 @@ private fun String.normalized(): String = Normalizer.normalize(this, Normalizer.
     .lowercase(Locale.ROOT)
 
 private val HUNDRED = BigDecimal.valueOf(100L)
+
+/**
+ * Con la vista «Liquidez», lo que salió de las cuentas hacia Rumbo cuenta como gasto en la categoría
+ * Inversiones (se suma a su porción o se crea). En el resto de vistas no es gasto: sigue siendo patrimonio.
+ */
+internal fun expenseWithInvesting(
+    spends: List<CategorySpend>,
+    investedMinor: Long,
+    categories: List<Category>,
+): List<CategorySpend> {
+    if (investedMinor <= 0L) return spends
+    val roots = StatsCalculator.investmentRootIds(categories)
+    val rootId = categories.firstOrNull { it.id in roots && it.parentId == null }?.id ?: roots.first()
+    val existing = spends.firstOrNull { it.categoryId == rootId }
+    val merged = if (existing == null) spends + CategorySpend(rootId, investedMinor) else
+        spends.map { if (it === existing) it.copy(amountMinor = Math.addExact(it.amountMinor, investedMinor)) else it }
+    return merged.sortedByDescending { it.amountMinor }
+}

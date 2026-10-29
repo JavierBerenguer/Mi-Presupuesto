@@ -423,8 +423,11 @@ private fun InvestmentsCard(summary: InvestmentSummary, format: (Long) -> String
 private fun ExpenseDistributionCard(state: HomeState, categories: List<Category>, format: (Long) -> String) {
     SectionCard(title = stringResource(R.string.ini_chart_expense_distribution)) {
         val noCategory = stringResource(R.string.ini_no_category)
+        val liquidityView = state.selectedEvolutionSeries == EvolutionSeries.LIQUIDITY
+        val spends = if (liquidityView) expenseWithInvesting(state.expenseByCategory, state.investedInPeriodMinor, categories)
+            else state.expenseByCategory
         DonutChart(
-            slices = state.expenseByCategory.map { spend ->
+            slices = spends.map { spend ->
                 val category = categories.find { it.id == spend.categoryId }
                 DonutSlice(
                     category?.name ?: noCategory,
@@ -433,13 +436,16 @@ private fun ExpenseDistributionCard(state: HomeState, categories: List<Category>
                     category?.resolvedIconKey(categories) ?: "other",
                 )
             },
-            centerLabel = format(state.expenseByCategory.fold(0L) { sum, item -> Math.addExact(sum, item.amountMinor) }),
+            centerLabel = format(spends.fold(0L) { sum, item -> Math.addExact(sum, item.amountMinor) }),
             formatValue = format,
             description = stringResource(R.string.ini_chart_expense_distribution_desc),
             emptyText = stringResource(R.string.ini_no_data_period),
         )
         if (state.investedInPeriodMinor > 0L) Text(
-            stringResource(R.string.ini_invested_in_period, format(state.investedInPeriodMinor)),
+            stringResource(
+                if (liquidityView) R.string.ini_invested_counted_as_expense else R.string.ini_invested_in_period,
+                format(state.investedInPeriodMinor),
+            ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

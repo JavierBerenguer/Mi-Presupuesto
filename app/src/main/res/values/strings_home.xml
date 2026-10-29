@@ -66,5 +66,6 @@
     <string name="ini_rumbo_updated">Datos de Rumbo: %1$s</string>
     <string name="ini_open_portfolio">Ver cartera ›</string>
     <string name="ini_analysis">Análisis</string>
-    <string name="ini_invested_in_period">Además, en este periodo pasaste %1$s de tus cuentas a inversiones (compras en Rumbo menos ventas y dividendos). No es un gasto: sigue siendo tu patrimonio.</string>
+    <string name="ini_invested_in_period">Además, en este periodo pasaste %1$s de tus cuentas a inversiones (compras en Rumbo menos ventas y dividendos). No es un gasto: sigue siendo tu patrimonio. Elige «Liquidez» arriba para contarlo como gasto.</string>
+    <string name="ini_invested_counted_as_expense">Vista «Liquidez»: incluye en Inversiones %1$s que salieron de tus cuentas hacia Rumbo (compras menos ventas y dividendos).</string>
 </resources>

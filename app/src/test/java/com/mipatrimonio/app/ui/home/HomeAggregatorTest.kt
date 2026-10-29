@@ -1,6 +1,8 @@
 package com.mipatrimonio.app.ui.home
 
 import com.mipatrimonio.app.domain.calc.LiquidityMovement
+import com.mipatrimonio.app.domain.calc.CategorySpend
+import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.data.sync.PortfolioClass
 import com.mipatrimonio.app.data.sync.PortfolioProduct
 import com.mipatrimonio.app.data.sync.PortfolioSummary
@@ -241,6 +243,20 @@ class HomeAggregatorTest {
         assertEquals(200_00L, result?.averageTotalExpenseMinor)
         assertEquals(BigDecimal("12.0"), result?.coveredMonthsWithoutInvesting)
         assertEquals(BigDecimal("6.0"), result?.coveredMonthsContinuingInvesting)
+    }
+
+    @Test
+    fun `vista liquidez suma lo invertido en Rumbo a la porcion de Inversiones`() {
+        val categorias = listOf(Category("mp-inversiones", "Inversiones", null, 0xFF000000, false))
+        val base = listOf(CategorySpend("casa", 300_00), CategorySpend("mp-inversiones", 50_00))
+
+        val conPorcion = expenseWithInvesting(base, 500_00, categorias)
+        assertEquals(listOf("mp-inversiones" to 550_00L, "casa" to 300_00L), conPorcion.map { it.categoryId to it.amountMinor })
+
+        val sinPorcion = expenseWithInvesting(listOf(CategorySpend("casa", 300_00)), 100_00, categorias)
+        assertEquals(listOf("casa" to 300_00L, "mp-inversiones" to 100_00L), sinPorcion.map { it.categoryId to it.amountMinor })
+
+        assertEquals(base, expenseWithInvesting(base, 0L, categorias))
     }
 
     @Test
