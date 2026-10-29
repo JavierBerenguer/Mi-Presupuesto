@@ -113,6 +113,15 @@ Este documento lo mantiene Claude. Cada bloque indica en qué versión se prueba
 - [ ] H6. Con el **ojo** activado (importes ocultos), primero sale un aviso con el botón «Mostrar panel».
 - [ ] H7. Al cerrar sesión en Sincronización y volver a entrar, el panel se descarga de nuevo, porque la caché se ha borrado.
 
+---
+
+## I. Historia de las cuentas en el escritorio — ✅ disponible (v1.8.0)
+*Requisitos:* SQL `rumbo-main\supabase\migrations\20261031000000_historial_cuentas.sql` ejecutado en Supabase y Rumbo reiniciado.
+- [ ] I1. Móvil › Sincronización › **Sincronizar ahora**. Debe quedar «pendientes: 0», sin errores.
+- [ ] I2. En Supabase, `select nombre, jsonb_array_length(historial) from cuentas_app;`: Trade Republic tiene un elemento por mes cerrado.
+- [ ] I3. En Rumbo, la **Evolución del patrimonio** ya no dice «Trade Republic entra en el seguimiento el 29 oct»: la cuenta tiene historia mes a mes.
+- [ ] I4. **El mes** ya no muestra 997 € como «Nuevo en el panel».
+
 ## Resultados y problemas encontrados
 *(Escribe aquí lo que falle; Claude lo convierte en fichas de corrección.)*
 
