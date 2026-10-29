@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.mipatrimonio.app.data.db.AccountEntity
+import com.mipatrimonio.app.data.db.AccountBalanceEntity
 import com.mipatrimonio.app.data.db.AppDatabase
 import com.mipatrimonio.app.data.db.NotificationRecordEntity
 import com.mipatrimonio.app.data.db.NotificationRuleEntity
@@ -98,6 +99,33 @@ class BackupTest {
         assertEquals("p-default", db.notificationDao().getStructure("s")?.defaultProductId)
         assertEquals("p-rule", db.notificationDao().getRule("r")?.productId)
         assertEquals("m", db.notificationDao().getRecord("n")?.syncMovementId)
+    }
+
+    @Test fun `copia v17 restaura cuentas con valores compartidos por defecto`() = runBlocking {
+        val root = JSONObject(legacyV14()).put("dbVersion", 17)
+        val decoded = BackupJson().decode(root.toString().toByteArray(Charsets.UTF_8))
+        BackupRepository(db, settingsRule.repository, "test").restore(decoded)
+        val account = db.accountDao().getAllForBackup().single()
+        assertTrue(account.liquidity)
+        assertTrue(account.useInApp)
+        assertNull(account.shortName)
+        assertTrue(db.accountBalanceDao().getAllForBackup().isEmpty())
+    }
+
+    @Test fun `ida y vuelta v18 conserva cuenta compartida y saldos anotados`() = runBlocking {
+        db.accountDao().insertAllForRestore(
+            listOf(AccountEntity("a", "Cuenta", "OTRA", "EUR", 0, false, 1, 2, "C", "Banco", 4, false, false)),
+        )
+        db.accountBalanceDao().insertAllForRestore(listOf(AccountBalanceEntity("b", "a", 10, 12_345, 3)))
+        val repository = BackupRepository(db, settingsRule.repository, "test")
+        repository.restore(BackupJson().decode(BackupJson().encode(repository.export())))
+        val account = db.accountDao().getAllForBackup().single()
+        assertEquals("C", account.shortName)
+        assertEquals("Banco", account.institution)
+        assertEquals(4, account.color)
+        assertFalse(account.liquidity)
+        assertFalse(account.useInApp)
+        assertEquals(12_345L, db.accountBalanceDao().getAllForBackup().single().balanceMinor)
     }
 
     private fun legacyV14() = """{

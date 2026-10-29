@@ -39,6 +39,7 @@ class RecurringRepository(
         }
         val source = db.accountDao().getById(rule.accountId)
             ?: throw IllegalArgumentException("La cuenta no existe")
+        require(source.useInApp) { "La cuenta no admite apuntes" }
         require(!source.archived) { "La cuenta está archivada" }
         require(source.currency == rule.currency) { "La divisa debe ser la de la cuenta" }
         if (rule.kind == RecurringKind.TRANSFERENCIA) {
@@ -46,6 +47,7 @@ class RecurringRepository(
             require(destinationId != rule.accountId) { "Las cuentas deben ser distintas" }
             val destination = db.accountDao().getById(destinationId)
                 ?: throw IllegalArgumentException("La cuenta de destino no existe")
+            require(destination.useInApp) { "La cuenta de destino no admite apuntes" }
             require(!destination.archived) { "La cuenta de destino está archivada" }
             require(destination.currency == source.currency) {
                 "Las órdenes permanentes entre cuentas requieren la misma divisa"

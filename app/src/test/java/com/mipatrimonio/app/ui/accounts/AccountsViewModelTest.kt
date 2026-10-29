@@ -87,7 +87,8 @@ class AccountsViewModelTest {
         assertEquals(1, deps.transfers)
         assertEquals(1, deps.notificationApps)
         assertFalse(deps.canDelete)
-        assertTrue(runCatching { ledger.deleteAccount("a1") }.exceptionOrNull() is IllegalArgumentException)
+        ledger.deleteAccount("a1")
+        assertTrue(ledger.accounts.first().first { it.id == "a1" }.archived)
     }
 
     @Test

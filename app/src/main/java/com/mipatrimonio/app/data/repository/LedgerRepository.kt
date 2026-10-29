@@ -7,9 +7,12 @@ import com.mipatrimonio.app.data.db.BudgetCategoryEntity
 import com.mipatrimonio.app.data.db.toDomain
 import com.mipatrimonio.app.data.db.toEntity
 import com.mipatrimonio.app.data.db.toRuleEntities
+import com.mipatrimonio.app.data.sync.SyncRepository
+import com.mipatrimonio.app.data.sync.mapLiquidityMovements
 import com.mipatrimonio.app.domain.calc.BalanceCalculator
 import com.mipatrimonio.app.domain.calc.TransactionGroups
 import com.mipatrimonio.app.domain.model.Account
+import com.mipatrimonio.app.domain.model.AccountBalanceRecord
 import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.model.Transaction
@@ -18,15 +21,18 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import java.time.LocalDate
+import java.util.UUID
 
 data class AccountDependencies(
     val transactions: Int,
     val transfers: Int,
     val notificationApps: Int,
+    val liquidityMovements: Int = 0,
 ) {
-    val hasHistory: Boolean get() = transactions + transfers > 0
+    val hasHistory: Boolean get() = transactions + transfers + liquidityMovements > 0
     val canDelete: Boolean
-        get() = transactions + transfers + notificationApps == 0
+        get() = transactions + transfers + notificationApps + liquidityMovements == 0
 }
 
 data class CategoryUsage(
@@ -55,6 +61,7 @@ class LedgerRepository(
     private val budgetDao = db.budgetDao()
 
     val accounts: Flow<List<Account>> = accountDao.observeAll().map { l -> l.map { it.toDomain() } }
+    val accountBalances: Flow<List<AccountBalanceRecord>> = db.accountBalanceDao().observeAll().map { rows -> rows.map { it.toDomain() } }
     val categories: Flow<List<Category>> = categoryDao.observeAll().map { l -> l.map { it.toDomain() } }
     val transactions: Flow<List<Transaction>> = transactionDao.observeAll().map { l -> l.map { it.toDomain() } }
     val transfers: Flow<List<Transfer>> = transferDao.observeAll().map { l -> l.map { it.toDomain() } }
@@ -67,13 +74,55 @@ class LedgerRepository(
 
     suspend fun saveAccount(account: Account) = db.withTransaction {
         require(account.name.isNotBlank()) { "El nombre de la cuenta es obligatorio" }
+        require(account.color == null || account.color in 1..12) { "El color de la cuenta no es válido" }
         val existing = accountDao.getById(account.id)
         if (existing != null && existing.currency != account.currency) {
             require(!accountDependenciesUnchecked(account.id).hasHistory) {
                 "No se puede cambiar la divisa de una cuenta con historial"
             }
         }
-        accountDao.upsert(account.toEntity(updatedAt = clock()))
+        var value = account
+        if (existing != null && existing.useInApp != account.useInApp) {
+            if (!account.useInApp) {
+                require(!accountDependenciesUnchecked(account.id).hasHistory) { "Archiva la cuenta o mueve sus apuntes" }
+                val existingAccount = existing.toDomain()
+                val currentBalance = BalanceCalculator.balance(
+                    existingAccount,
+                    transactionDao.getAllForBackup().map { it.toDomain() },
+                    transferDao.getAllForBackup().map { it.toDomain() },
+                    LocalDate.now(),
+                    mapLiquidityMovements(
+                        db.syncDao().movementsForAccount(SyncRepository.accountIdToRemoteId(account.id)),
+                        listOf(existingAccount),
+                    ).entries,
+                )
+                db.accountBalanceDao().upsert(
+                    AccountBalanceRecord(
+                        db.accountBalanceDao().liveOnDate(account.id, LocalDate.now().toEpochDay())?.id
+                            ?: UUID.randomUUID().toString(),
+                        account.id, LocalDate.now(), currentBalance, clock(),
+                    ).toEntity(),
+                )
+                db.notificationDao().clearAccountFromAuthorizations(account.id)
+                db.notificationDao().clearAccountFromPendingProposals(account.id)
+            } else {
+                value = account.copy(initialBalanceMinor = db.accountBalanceDao().latest(account.id)?.balanceMinor ?: 0L)
+            }
+        }
+        accountDao.upsert(value.toEntity(updatedAt = clock()))
+    }
+
+    suspend fun saveAccountBalance(record: AccountBalanceRecord) = db.withTransaction {
+        val account = accountDao.getById(record.accountId) ?: throw IllegalArgumentException("La cuenta no existe")
+        require(!account.useInApp) { "Esta cuenta calcula el saldo con sus apuntes" }
+        val existing = db.accountBalanceDao().liveOnDate(record.accountId, record.date.toEpochDay())
+        db.accountBalanceDao().upsert(record.copy(id = existing?.id ?: record.id, updatedAt = clock(), deletedAt = null).toEntity())
+    }
+
+    suspend fun deleteAccountBalance(id: String) = db.withTransaction {
+        val existing = db.accountBalanceDao().getById(id) ?: return@withTransaction
+        val timestamp = clock()
+        db.accountBalanceDao().upsert(existing.copy(updatedAt = timestamp, deletedAt = timestamp))
     }
 
     suspend fun setAccountArchived(id: String, archived: Boolean) = db.withTransaction {
@@ -90,12 +139,20 @@ class LedgerRepository(
             transactions = transactionDao.countForAccount(id) + db.recurringRuleDao().countForAccount(id),
             transfers = transferDao.countForAccount(id),
             notificationApps = db.notificationDao().countAuthorizationsForAccount(id),
+            liquidityMovements = db.syncDao().countMovementsForAccount(SyncRepository.accountIdToRemoteId(id)),
         )
 
     suspend fun deleteAccount(id: String) = db.withTransaction {
         val dependencies = accountDependenciesUnchecked(id)
-        require(dependencies.canDelete) { "La cuenta tiene datos asociados y no se puede eliminar" }
-        db.openHelper.writableDatabase.execSQL("DELETE FROM account WHERE id = ?", arrayOf(id))
+        val existing = accountDao.getById(id) ?: return@withTransaction
+        if (dependencies.hasHistory) {
+            accountDao.upsert(existing.copy(archived = true, updatedAt = clock()))
+        } else {
+            val timestamp = clock()
+            db.notificationDao().clearAccountFromAuthorizations(id)
+            db.notificationDao().clearAccountFromPendingProposals(id)
+            accountDao.upsert(existing.copy(deletedAt = timestamp, updatedAt = timestamp))
+        }
     }
 
     suspend fun saveCategory(category: Category) {
@@ -170,6 +227,7 @@ class LedgerRepository(
     suspend fun saveTransaction(transaction: Transaction) = db.withTransaction {
         require(transaction.amountMinor > 0) { "El importe debe ser mayor que cero" }
         val account = accountDao.getById(transaction.accountId) ?: throw IllegalArgumentException("La cuenta no existe")
+        require(account.useInApp) { "La cuenta no admite apuntes" }
         require(!account.archived) { "La cuenta está archivada" }
         require(account.currency == transaction.currency) { "La divisa del movimiento debe ser la de la cuenta" }
         validateTransactionGroupChange(transaction)
@@ -232,6 +290,7 @@ class LedgerRepository(
     suspend fun saveTransfer(transfer: Transfer) = db.withTransaction {
         val from = accountDao.getById(transfer.fromAccountId)?.toDomain() ?: throw IllegalArgumentException("Cuenta de origen inexistente")
         val to = accountDao.getById(transfer.toAccountId)?.toDomain() ?: throw IllegalArgumentException("Cuenta de destino inexistente")
+        require(from.useInApp && to.useInApp) { "La cuenta no admite transferencias" }
         BalanceCalculator.validateTransfer(from, to, transfer.fromAmountMinor, transfer.toAmountMinor)
             ?.let { throw IllegalArgumentException(it) }
         transferDao.upsert(transfer.toEntity(updatedAt = clock()))

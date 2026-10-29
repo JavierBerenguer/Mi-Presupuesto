@@ -11,6 +11,7 @@ import java.time.LocalDate
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -43,5 +44,16 @@ class TradeRepublicImportRepositoryTest {
         val preview = ImportPreview(listOf(movement), emptyList(), emptyList())
         assertEquals(1, repository.execute(repository.plan(preview, "a")).transactions)
         assertEquals(0, repository.execute(repository.plan(preview, "a")).transactions)
+    }
+
+    @Test fun `rechaza cuenta sin uso en app`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking {
+                LedgerRepository(db).saveAccount(
+                    Account("external", "Externa", AccountType.OTRA, "EUR", 0, false, 1, useInApp = false),
+                )
+                repository.plan(ImportPreview(emptyList(), emptyList(), emptyList()), "external")
+            }
+        }
     }
 }

@@ -19,6 +19,7 @@ class BackupRepository(
                 appVersion = appVersion,
                 settings = exportedSettings,
                 accounts = db.accountDao().getAllForBackup(),
+                accountBalances = db.accountBalanceDao().getAllForBackup(),
                 categories = db.categoryDao().getAllForBackup(),
                 transactions = db.transactionDao().getAllForBackup(),
                 transfers = db.transferDao().getAllForBackup(),
@@ -58,10 +59,12 @@ class BackupRepository(
             db.transactionDao().deleteAllForRestore()
             budget.deleteAllForRestore()
             db.categoryDao().deleteAllForRestore()
+            db.accountBalanceDao().deleteAllForRestore()
             db.accountDao().deleteAllForRestore()
             restoreCheckpoint("deleted")
 
             db.accountDao().insertAllForRestore(data.accounts)
+            db.accountBalanceDao().insertAllForRestore(data.accountBalances)
             db.categoryDao().insertAllForRestore(data.categories)
             budget.insertAllForRestore(data.budgets)
             budget.insertAllRulesForRestore(data.budgetCategories)

@@ -52,7 +52,7 @@ class TradeRepublicImportViewModel(
     init {
         viewModelScope.launch {
             combine(ledger.accounts, ledger.categories, settings.settings) { accounts, categories, saved ->
-                Data(accounts.filterNot { it.archived }, categories.filterNot { it.archived }, saved.tradeRepublicAccountId)
+                Data(accounts.filter { !it.archived && it.useInApp }, categories.filterNot { it.archived }, saved.tradeRepublicAccountId)
             }.collect { data ->
                 val current = mutableState.value
                 mutableState.value = current.copy(

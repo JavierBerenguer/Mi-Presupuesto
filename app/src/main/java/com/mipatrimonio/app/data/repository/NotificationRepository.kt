@@ -83,7 +83,9 @@ class NotificationRepository(
         val existing = dao.getAuthorizationRule(value)
         val mode = if (authorized && (existing == null || existing.autoConfirmMode == AutoConfirmMode.OFF.name)) AutoConfirmMode.TODAS.name
         else existing?.autoConfirmMode ?: AutoConfirmMode.OFF.name
-        dao.upsertAuthorizationRule(NotificationAuthorizationEntity(value, authorized, accountId.clean(), existing?.createdAt ?: clock(), mode))
+        val cleanAccountId = accountId.clean()
+        requireEligibleAccount(cleanAccountId)
+        dao.upsertAuthorizationRule(NotificationAuthorizationEntity(value, authorized, cleanAccountId, existing?.createdAt ?: clock(), mode))
     }
     suspend fun updateAuthorized(packageName: String, authorized: Boolean) = db.withTransaction {
         dao.getAuthorizationRule(packageName)?.let {
@@ -92,8 +94,16 @@ class NotificationRepository(
         }
     }
     suspend fun updateAccount(packageName: String, accountId: String?) = db.withTransaction {
-        dao.getAuthorizationRule(packageName)?.let { dao.upsertAuthorizationRule(it.copy(accountId = accountId.clean())) }
+        val cleanAccountId = accountId.clean()
+        requireEligibleAccount(cleanAccountId)
+        dao.getAuthorizationRule(packageName)?.let { dao.upsertAuthorizationRule(it.copy(accountId = cleanAccountId)) }
         reprocessPendingLocked()
+    }
+
+    private suspend fun requireEligibleAccount(accountId: String?) {
+        if (accountId == null) return
+        val account = db.accountDao().getById(accountId) ?: throw IllegalArgumentException("La cuenta no existe")
+        require(account.useInApp) { "La cuenta no está disponible para notificaciones" }
     }
     suspend fun updateAutoConfirmMode(packageName: String, mode: AutoConfirmMode) = db.withTransaction {
         dao.getAuthorizationRule(packageName)?.let { dao.upsertAuthorizationRule(it.copy(autoConfirmMode = mode.name)) }
@@ -274,7 +284,7 @@ class NotificationRepository(
             return resolvePurchase(base, authorization, structure, rule, match)
         }
         val account = authorization.accountId?.let { db.accountDao().getById(it) }
-        if (account == null || account.archived || account.currency != base.currency) return base.copy(status = NotificationRecordStatus.PENDIENTE_CUENTA.name)
+        if (account == null || account.archived || !account.useInApp || account.currency != base.currency) return base.copy(status = NotificationRecordStatus.PENDIENTE_CUENTA.name)
         if (structure == null || match == null) return base.copy(status = NotificationRecordStatus.PENDIENTE_ESTRUCTURA.name)
         if (rule == null && row.status == NotificationRecordStatus.PENDIENTE_REGLA.name) {
             return base.copy(status = NotificationRecordStatus.PENDIENTE_REGLA.name)

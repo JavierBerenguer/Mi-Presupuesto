@@ -350,6 +350,17 @@ class EntryFormViewModelTest {
 
     private suspend fun EntryFormViewModel.ready(): EntryFormUiState = uiState.first { !it.isLoading }
 
+    @Test fun `selector excluye cuentas sin uso en app y trata seleccion previa como vacia`() {
+        val external = account("external").copy(useInApp = false)
+        val state = EntryFormUiState(
+            isLoading = false,
+            accounts = listOf(account("active"), external),
+            values = EntryFormValues(accountId = external.id),
+        )
+        assertEquals(listOf("active"), state.activeAccounts.map { it.id })
+        assertNull(state.selectedAccount)
+    }
+
     private fun account(id: String, currency: String = "EUR", archived: Boolean = false) = Account(
         id = id,
         name = "Cuenta $id",

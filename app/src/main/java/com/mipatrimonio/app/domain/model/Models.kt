@@ -12,6 +12,20 @@ data class Account(
     val initialBalanceMinor: Long,
     val archived: Boolean,
     val createdAt: Long,
+    val shortName: String? = null,
+    val institution: String? = null,
+    val color: Int? = null,
+    val liquidity: Boolean = true,
+    val useInApp: Boolean = true,
+)
+
+data class AccountBalanceRecord(
+    val id: String,
+    val accountId: String,
+    val date: LocalDate,
+    val balanceMinor: Long,
+    val updatedAt: Long,
+    val deletedAt: Long? = null,
 )
 
 data class Category(

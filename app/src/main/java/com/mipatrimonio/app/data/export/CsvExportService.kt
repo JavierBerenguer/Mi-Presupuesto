@@ -31,6 +31,7 @@ class CsvExportService(
             val categories = data.categories.associateBy { it.id }
             val rows = linkedMapOf(
                 "cuentas.csv" to accountsRows(data, today, zoneId),
+                "saldos_cuenta.csv" to accountBalanceRows(data),
                 "categorias.csv" to categoryRows(data.categories, categories),
                 "movimientos.csv" to transactionRows(data, accounts, categories, today),
                 "transferencias.csv" to transferRows(data, accounts, categories, today),
@@ -54,13 +55,27 @@ class CsvExportService(
         }
 
         private fun accountsRows(data: CsvExportData, today: LocalDate, zoneId: ZoneId): List<List<String>> =
-            rows(listOf("id", "nombre", "tipo", "divisa", "saldo_inicial", "saldo_actual", "archivada", "fecha_creacion")) {
+            rows(listOf("id", "nombre", "nombre_corto", "tipo", "entidad", "divisa", "color", "liquidez", "uso_en_app", "saldo_inicial", "saldo_actual", "archivada", "fecha_creacion")) {
                 data.accounts.map { account ->
                     listOf(
-                        account.id, account.name, account.type.name.toSpanishWords(), account.currency,
+                        account.id, account.name, account.shortName.orEmpty(), account.type.name.toSpanishWords(),
+                        account.institution.orEmpty(), account.currency, account.color?.toString().orEmpty(),
+                        yesNo(account.liquidity), yesNo(account.useInApp),
                         money(account.initialBalanceMinor, account.currency),
-                        money(BalanceCalculator.balance(account, data.transactions, data.transfers, today), account.currency),
+                        money(BalanceCalculator.balance(account, data.transactions, data.transfers, today, balanceRecords = data.accountBalances), account.currency),
                         yesNo(account.archived), Instant.ofEpochMilli(account.createdAt).atZone(zoneId).toLocalDate().toString(),
+                    )
+                }
+            }
+
+        private fun accountBalanceRows(data: CsvExportData): List<List<String>> =
+            rows(listOf("id", "cuenta_id", "fecha", "saldo", "actualizado", "eliminado")) {
+                val currencies = data.accounts.associate { it.id to it.currency }
+                data.accountBalances.map { value ->
+                    listOf(
+                        value.id, value.accountId, value.date.toString(),
+                        money(value.balanceMinor, currencies[value.accountId] ?: "EUR"),
+                        value.updatedAt.toString(), value.deletedAt?.toString().orEmpty(),
                     )
                 }
             }

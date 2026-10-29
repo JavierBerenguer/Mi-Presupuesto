@@ -1,6 +1,8 @@
 package com.mipatrimonio.app.domain.usecase
 
 import com.mipatrimonio.app.domain.model.Account
+import com.mipatrimonio.app.domain.model.AccountBalanceRecord
+import com.mipatrimonio.app.domain.calc.BalanceCalculator
 import com.mipatrimonio.app.domain.model.MovementStatus
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionType
@@ -19,21 +21,24 @@ object HistoryCalculator {
         transfers: List<Transfer>,
         dates: List<LocalDate>,
         today: LocalDate,
+        balanceRecords: List<AccountBalanceRecord> = emptyList(),
     ): List<NetWorthPoint> {
         val included = accounts.filter { !it.archived && it.currency == baseCurrency }
         val ids = included.mapTo(hashSetOf()) { it.id }
-        val initial = included.fold(0L) { total, account -> Math.addExact(total, account.initialBalanceMinor) }
         return dates.filter { movementStatus(it, today) == MovementStatus.EJECUTADO }.map { date ->
-            var total = initial
+            var total = included.filterNot(Account::useInApp).fold(0L) { value, account ->
+                Math.addExact(value, BalanceCalculator.balance(account, emptyList(), emptyList(), date, balanceRecords = balanceRecords))
+            }
+            total = included.filter(Account::useInApp).fold(total) { value, account -> Math.addExact(value, account.initialBalanceMinor) }
             transactions.forEach { transaction ->
-                if (transaction.accountId !in ids || movementStatus(transaction.date, date) != MovementStatus.EJECUTADO) return@forEach
+                if (transaction.accountId !in ids || included.none { it.id == transaction.accountId && it.useInApp } || movementStatus(transaction.date, date) != MovementStatus.EJECUTADO) return@forEach
                 total = if (transaction.type == TransactionType.INGRESO) Math.addExact(total, transaction.amountMinor)
                 else Math.subtractExact(total, transaction.amountMinor)
             }
             transfers.forEach { transfer ->
                 if (movementStatus(transfer.date, date) != MovementStatus.EJECUTADO) return@forEach
-                if (transfer.toAccountId in ids) total = Math.addExact(total, transfer.toAmountMinor)
-                if (transfer.fromAccountId in ids) total = Math.subtractExact(total, transfer.fromAmountMinor)
+                if (included.any { it.id == transfer.toAccountId && it.useInApp }) total = Math.addExact(total, transfer.toAmountMinor)
+                if (included.any { it.id == transfer.fromAccountId && it.useInApp }) total = Math.subtractExact(total, transfer.fromAmountMinor)
             }
             NetWorthPoint(date, total)
         }

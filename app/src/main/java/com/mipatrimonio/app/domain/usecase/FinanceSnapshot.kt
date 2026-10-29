@@ -5,6 +5,7 @@ import com.mipatrimonio.app.domain.calc.BalanceCalculator
 import com.mipatrimonio.app.domain.calc.NetWorth
 import com.mipatrimonio.app.domain.calc.NetWorthCalculator
 import com.mipatrimonio.app.domain.model.Account
+import com.mipatrimonio.app.domain.model.AccountBalanceRecord
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.Transfer
 import java.time.LocalDate
@@ -22,8 +23,9 @@ object SnapshotBuilder {
         transactions: List<Transaction>,
         transfers: List<Transfer>,
         today: LocalDate,
+        balanceRecords: List<AccountBalanceRecord> = emptyList(),
     ): FinanceSnapshot {
-        val balances = accounts.map { AccountBalance(it, BalanceCalculator.balance(it, transactions, transfers, today)) }
+        val balances = accounts.map { AccountBalance(it, BalanceCalculator.balance(it, transactions, transfers, today, balanceRecords = balanceRecords)) }
         return FinanceSnapshot(baseCurrency, balances, NetWorthCalculator.compute(baseCurrency, balances))
     }
 }

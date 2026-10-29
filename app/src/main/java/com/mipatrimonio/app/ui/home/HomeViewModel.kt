@@ -9,6 +9,7 @@ import com.mipatrimonio.app.data.sync.mapLiquidityMovements
 import com.mipatrimonio.app.data.sync.PortfolioSummaryParser
 import com.mipatrimonio.app.data.sync.PortfolioSummaryResult
 import com.mipatrimonio.app.domain.model.Account
+import com.mipatrimonio.app.domain.model.AccountBalanceRecord
 import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.model.Transaction
@@ -33,14 +34,21 @@ class HomeViewModel(
         val transfers: List<Transfer>,
         val categories: List<Category>,
         val budgets: List<Budget>,
+        val accountBalances: List<AccountBalanceRecord>,
+    )
+    private data class LedgerCore(
+        val accounts: List<Account>, val transactions: List<Transaction>, val transfers: List<Transfer>,
+        val categories: List<Category>, val budgets: List<Budget>,
     )
 
     private val selectedPeriod = MutableStateFlow(Period.MES)
     val period: StateFlow<Period> = selectedPeriod
 
     private val ledgerData = combine(
-        ledger.accounts, ledger.transactions, ledger.transfers, ledger.categories, ledger.budgets, ::LedgerData,
-    )
+        ledger.accounts, ledger.transactions, ledger.transfers, ledger.categories, ledger.budgets, ::LedgerCore,
+    ).combine(ledger.accountBalances) { core, balances ->
+        LedgerData(core.accounts, core.transactions, core.transfers, core.categories, core.budgets, balances)
+    }
     private val remoteMovements = sync?.movimientos ?: kotlinx.coroutines.flow.flowOf(emptyList())
     private val remoteSummary = sync?.resumen ?: kotlinx.coroutines.flow.flowOf(null)
     /** `null` mientras no llega el primer dato. */
@@ -62,6 +70,7 @@ class HomeViewModel(
             liquidityMovements = liquidity,
             portfolioValueMinor = summary?.total?.valueMinor ?: 0L,
             portfolioGenerated = summary?.generated,
+            accountBalanceRecords = l.accountBalances,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 

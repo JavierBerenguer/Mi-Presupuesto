@@ -3,6 +3,7 @@ package com.mipatrimonio.app.data.backup
 object BackupValidator {
     fun validate(data: BackupData) {
         unique("account", data.accounts.map { it.id })
+        unique("account_balance", data.accountBalances.map { it.id })
         unique("category", data.categories.map { it.id })
         unique("txn", data.transactions.map { it.id })
         unique("transfer", data.transfers.map { it.id })
@@ -16,6 +17,7 @@ object BackupValidator {
         unique("notification_record", data.notificationRecords.map { it.id })
 
         val accounts = data.accounts.mapTo(hashSetOf()) { it.id }
+        data.accountBalances.forEach { reference("account_balance.accountId", it.accountId, accounts) }
         val categories = data.categories.mapTo(hashSetOf()) { it.id }
         val budgets = data.budgets.mapTo(hashSetOf()) { it.id }
         val transactions = data.transactions.mapTo(hashSetOf()) { it.id }

@@ -190,7 +190,7 @@ fun PurchaseDialog(
                 AmountField(stringResource(R.string.cartera_units_optional), units, { units = it })
                 AmountField(stringResource(R.string.cartera_commission_optional), commission, { commission = it }, suffix = "EUR")
                 DropdownField(
-                    stringResource(R.string.cartera_liquidity_account), accounts.filter { it.currency == "EUR" && !it.archived }, account,
+                    stringResource(R.string.cartera_liquidity_account), accounts.filter { it.currency == "EUR" && !it.archived && it.useInApp }, account,
                     { it.name }, { account = it }, noneLabel = stringResource(R.string.cartera_no_account),
                 )
                 OutlinedTextField(note, { note = it }, label = { Text(stringResource(R.string.cartera_note)) }, modifier = Modifier.fillMaxWidth())

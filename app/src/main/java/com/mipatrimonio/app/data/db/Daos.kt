@@ -19,14 +19,39 @@ interface AccountDao {
     @Insert
     suspend fun insertAllForRestore(entities: List<AccountEntity>)
 
-    @Query("SELECT * FROM account ORDER BY archived, createdAt")
+    @Query("SELECT * FROM account WHERE deletedAt IS NULL ORDER BY archived, createdAt")
     fun observeAll(): Flow<List<AccountEntity>>
 
-    @Query("SELECT * FROM account WHERE id = :id")
+    @Query("SELECT * FROM account WHERE id = :id AND deletedAt IS NULL")
     suspend fun getById(id: String): AccountEntity?
 
     @Upsert
     suspend fun upsert(entity: AccountEntity)
+}
+
+@Dao
+interface AccountBalanceDao {
+    @Query("SELECT * FROM account_balance ORDER BY accountId, epochDay, updatedAt")
+    suspend fun getAllForBackup(): List<AccountBalanceEntity>
+
+    @Query("SELECT * FROM account_balance WHERE deletedAt IS NULL ORDER BY epochDay DESC, updatedAt DESC")
+    fun observeAll(): Flow<List<AccountBalanceEntity>>
+
+    @Query("SELECT * FROM account_balance WHERE accountId = :accountId ORDER BY epochDay DESC, updatedAt DESC")
+    fun observeForAccount(accountId: String): Flow<List<AccountBalanceEntity>>
+
+    @Query("SELECT * FROM account_balance WHERE id = :id")
+    suspend fun getById(id: String): AccountBalanceEntity?
+
+    @Query("SELECT * FROM account_balance WHERE accountId = :accountId AND deletedAt IS NULL ORDER BY epochDay DESC, updatedAt DESC LIMIT 1")
+    suspend fun latest(accountId: String): AccountBalanceEntity?
+
+    @Query("SELECT * FROM account_balance WHERE accountId = :accountId AND epochDay = :epochDay AND deletedAt IS NULL ORDER BY updatedAt DESC LIMIT 1")
+    suspend fun liveOnDate(accountId: String, epochDay: Long): AccountBalanceEntity?
+
+    @Upsert suspend fun upsert(entity: AccountBalanceEntity)
+    @Insert suspend fun insertAllForRestore(entities: List<AccountBalanceEntity>)
+    @Query("DELETE FROM account_balance") suspend fun deleteAllForRestore()
 }
 
 @Dao
@@ -340,6 +365,12 @@ interface NotificationDao {
 
     @Query("SELECT COUNT(*) FROM notification_authorization WHERE accountId = :accountId")
     suspend fun countAuthorizationsForAccount(accountId: String): Int
+
+    @Query("UPDATE notification_authorization SET accountId = NULL WHERE accountId = :accountId")
+    suspend fun clearAccountFromAuthorizations(accountId: String)
+
+    @Query("UPDATE pending_proposal SET accountId = NULL WHERE accountId = :accountId AND status = 'PENDIENTE'")
+    suspend fun clearAccountFromPendingProposals(accountId: String)
 
     @Query("SELECT * FROM pending_proposal WHERE status = 'PENDIENTE' ORDER BY postedAt DESC, createdAt DESC")
     fun observePendingProposals(): Flow<List<PendingProposalEntity>>
