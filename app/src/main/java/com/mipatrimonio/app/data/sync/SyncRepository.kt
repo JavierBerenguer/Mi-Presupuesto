@@ -78,6 +78,8 @@ class SyncRepository(
 
     suspend fun synchronize() {
         val client = configuredAuth() ?: return
+        dropVanishedProfiles(client)
+        dao.resetOutboxAttempts()
         pullTable("perfiles", client)
         pullTable("productos", client)
         pullTable("movimientos", client)
@@ -91,6 +93,24 @@ class SyncRepository(
         publishAccountBalances()
         while (processNextOutbox() == OutboxResult.SENT) Unit
         settings.setSyncLastSuccessAt(clock())
+    }
+
+    /**
+     * Si un perfil local ya no existe en el servidor (p. ej. tras vaciar Supabase), se olvida con su réplica
+     * y se rehace la sincronización desde cero: cursores y huellas a cero, así las cuentas se vuelven a publicar.
+     */
+    private suspend fun dropVanishedProfiles(client: SyncAuthClient) {
+        val response = client.authorized(SyncHttpRequest("GET", "/rest/v1/perfiles?select=id"))
+        if (response.status !in 200..299) throw remoteError(response)
+        val remote = JSONArray(response.body).let { rows -> (0 until rows.length()).mapTo(mutableSetOf()) { rows.getJSONObject(it).getString("id") } }
+        val vanished = dao.perfilIds().filter { it !in remote }
+        if (vanished.isEmpty()) return
+        db.withTransaction {
+            dao.deleteResumenOf(vanished); dao.deleteMovimientosOf(vanished); dao.deleteProductosOf(vanished); dao.deletePerfiles(vanished)
+            dao.outboxFor("movimientos").filter { JSONObject(it.json).optString("perfil_id") in vanished }.forEach { dao.deleteOutbox(it.id) }
+            dao.clearCursors(); dao.clearFingerprints()
+        }
+        if (settings.settings.first().syncProfileId in vanished) settings.setSyncProfile(null)
     }
 
     suspend fun pullTable(table: String, authClient: SyncAuthClient? = null) {

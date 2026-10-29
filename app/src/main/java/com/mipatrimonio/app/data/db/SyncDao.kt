@@ -35,6 +35,13 @@ interface SyncDao {
     @Upsert suspend fun upsertOutbox(value: SyncOutboxEntity)
     @Query("DELETE FROM sync_outbox WHERE id = :id") suspend fun deleteOutbox(id: Long)
     @Query("DELETE FROM sync_outbox WHERE tabla = :table AND filaId = :rowId") suspend fun deletePendingFor(table: String, rowId: String)
+    @Query("SELECT id FROM sync_perfil") suspend fun perfilIds(): List<String>
+    @Query("SELECT * FROM sync_outbox WHERE tabla = :table") suspend fun outboxFor(table: String): List<SyncOutboxEntity>
+    @Query("UPDATE sync_outbox SET intentos = 0") suspend fun resetOutboxAttempts()
+    @Query("DELETE FROM sync_perfil WHERE id IN (:ids)") suspend fun deletePerfiles(ids: List<String>)
+    @Query("DELETE FROM sync_producto WHERE perfilId IN (:ids)") suspend fun deleteProductosOf(ids: List<String>)
+    @Query("DELETE FROM sync_movimiento WHERE perfilId IN (:ids)") suspend fun deleteMovimientosOf(ids: List<String>)
+    @Query("DELETE FROM sync_resumen WHERE perfilId IN (:ids)") suspend fun deleteResumenOf(ids: List<String>)
     @Query("DELETE FROM sync_perfil") suspend fun clearPerfiles()
     @Query("DELETE FROM sync_producto") suspend fun clearProductos()
     @Query("DELETE FROM sync_movimiento") suspend fun clearMovimientos()

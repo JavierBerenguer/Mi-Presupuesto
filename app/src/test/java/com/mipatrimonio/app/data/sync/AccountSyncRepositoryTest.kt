@@ -97,6 +97,41 @@ class AccountSyncRepositoryTest {
         assertEquals(5_678L, ledger.accountBalances.first().single().balanceMinor)
     }
 
+    @Test fun `perfil borrado en el servidor se olvida y las cuentas se publican con el perfil nuevo`() = runBlocking {
+        val old = "44444444-4444-4444-4444-444444444444"
+        val fresh = "55555555-5555-5555-5555-555555555555"
+        db.syncDao().upsertPerfil(com.mipatrimonio.app.data.db.SyncPerfilEntity(old, "Principal", 0, null, "2026-01-01T00:00:00Z"))
+        settingsRule.repository.setSyncProfile(old)
+        ledger.saveAccount(Account("11111111-1111-1111-1111-111111111111", "Cuenta", AccountType.OTRA, "EUR", 0, false, 1))
+        sync.publishAccounts()
+        val blocked = db.syncDao().observeOutbox().first().single()
+        db.syncDao().upsertOutbox(blocked.copy(intentos = 10, ultimoError = "409"))
+        val sent = mutableListOf<String>()
+        val transport = SyncTransport { request ->
+            when {
+                request.pathAndQuery.startsWith("/auth/v1/token") -> SyncHttpResponse(
+                    200, """{"access_token":"a","refresh_token":"r","expires_in":3600}""",
+                )
+                request.method == "POST" -> { sent += request.body.orEmpty(); SyncHttpResponse(201, "") }
+                request.pathAndQuery.startsWith("/rest/v1/perfiles?select=id") -> SyncHttpResponse(200, """[{"id":"$fresh"}]""")
+                request.pathAndQuery.startsWith("/rest/v1/perfiles") -> SyncHttpResponse(
+                    200, """[{"id":"$fresh","nombre":"Principal","orden":0,"deleted_at":null,"updated_at":"2026-02-01T00:00:00Z"}]""",
+                )
+                else -> SyncHttpResponse(200, "[]")
+            }
+        }
+        val remoteSync = SyncRepository(db, settingsRule.repository, ledger, { _, _ ->
+            SyncAuthClient(transport, MemorySessionStore(), now = { 0L })
+        }, clock = { 1_000L })
+
+        remoteSync.signIn("https://example.supabase.co", "sb_publishable_test", "a@b.es", "secret")
+
+        assertEquals(listOf(fresh), db.syncDao().perfilIds())
+        assertEquals(fresh, settingsRule.repository.settings.first().syncProfileId)
+        assertEquals(fresh, JSONObject(sent.single()).getString("perfil_id"))
+        assertEquals(0, db.syncDao().observeOutbox().first().size)
+    }
+
     private class MemorySessionStore : SessionStore {
         override suspend fun readRefreshToken(): String? = null
         override suspend fun writeRefreshToken(token: String) = Unit
