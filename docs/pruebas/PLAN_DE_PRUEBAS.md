@@ -16,22 +16,22 @@ Este documento lo mantiene Claude. Cada bloque indica en qué versión se prueba
 - [X] **Rumbo:** ejecuta `Iniciar.bat` en `rumbo-main`. Se abre en el navegador.
 
 ## A. Rumbo en modo nube (escritorio) — ✅ disponible ya
-- [ ] A1. Pulsa **☁ Nube**, pega la URL y la clave *publishable* (las tienes en `rumbo-main\supabase.env`) e inicia sesión con tu email y contraseña. Debe quedar conectado.
-- [ ] A2. Crea un producto cotizado, por ejemplo un ETF buscado por ISIN, y registra una **compra** con unidades. El panel lo muestra con su valor.
-- [ ] A3. Cierra Rumbo y vuelve a abrirlo: los datos siguen ahí, porque se leen de la nube.
+- [x] A1. Pulsa **☁ Nube**, pega la URL y la clave *publishable* (las tienes en `rumbo-main\supabase.env`) e inicia sesión con tu email y contraseña. Debe quedar conectado.
+- [x] A2. Crea un producto cotizado, por ejemplo un ETF buscado por ISIN, y registra una **compra** con unidades. El panel lo muestra con su valor.
+- [x] A3. Cierra Rumbo y vuelve a abrirlo: los datos siguen ahí, porque se leen de la nube.
 - [ ] A4. *(opcional)* Sin internet, Rumbo abre en **solo lectura** con un aviso. Al intentar guardar, aparece el mensaje «Sin conexión con la nube».
 - [ ] A5. *(opcional)* Si usabas Rumbo en local antes, prueba «Subir mi cartera local».
 
 ## B. Sincronización en el móvil — ✅ disponible ya (v1.2.0)
-- [ ] B1. En **Ajustes › Sincronización con Rumbo** pon la URL, la clave publishable, tu email y tu contraseña, y pulsa **Iniciar sesión**. Se debe ver «Conectado como…».
-- [ ] B2. Elige el **perfil** (Principal) y pulsa **Sincronizar ahora**. Debe aparecer la fecha de la última sincronización.
-- [ ] B3. En Rumbo, pulsa **«↻ Actualizar precios»** (arriba del panel) o **☁ › «Sincronizar ahora»**: tus **cuentas de la app** aparecen como efectivo con su saldo actual.
-- [ ] B4. Crea un apunte en el móvil. En 1 minuto o al pulsar Sincronizar ahora, el saldo de esa cuenta se actualiza en Rumbo tras pulsar «↻ Actualizar precios».
+- [x] B1. En **Ajustes › Sincronización con Rumbo** pon la URL, la clave publishable, tu email y tu contraseña, y pulsa **Iniciar sesión**. Se debe ver «Conectado como…».
+- [x] B2. Elige el **perfil** (Principal) y pulsa **Sincronizar ahora**. Debe aparecer la fecha de la última sincronización.
+- [x] B3. En Rumbo, pulsa **«↻ Actualizar precios»** (arriba del panel) o **☁ › «Sincronizar ahora»**: tus **cuentas de la app** aparecen como efectivo con su saldo actual.
+- [x] B4. Crea un apunte en el móvil. En 1 minuto o al pulsar Sincronizar ahora, el saldo de esa cuenta se actualiza en Rumbo tras pulsar «↻ Actualizar precios».
 
 ## C. Cartera y liquidez — ✅ disponible ya (v1.2.0)
-- [ ] C1. Pestaña **Cartera** del móvil: muestra el valor, la ganancia, la TIR, el reparto y el producto creado en A2, con «Actualizado: <fecha>».
+- [x] C1. Pestaña **Cartera** del móvil: muestra el valor, la ganancia, la TIR, el reparto y el producto creado en A2, con «Actualizado: <fecha>».
   - El valor **no** incluye tus cuentas: en Rumbo el patrimonio sí las suma; en la Cartera del móvil no.
-- [ ] C2. Al tocar el producto se ve su detalle y sus movimientos. Los de escritorio dicen «Se edita en Rumbo».
+- [x] C2. Al tocar el producto se ve su detalle y sus movimientos. Los de escritorio dicen «Se edita en Rumbo».
 - [ ] C3. **Venta con liquidez:** en Rumbo, registra una venta (o un dividendo) eligiendo **Cuenta de liquidez (app)** = una cuenta tuya en EUR. Sincroniza el móvil.
   - Aparece un apunte «Venta · <producto>» en esa cuenta.
   - El saldo de la cuenta sube.
@@ -58,7 +58,7 @@ Este documento lo mantiene Claude. Cada bloque indica en qué versión se prueba
 ## E. Lo de la v1.1.0 que aún no has probado en el móvil
 - [ ] E1. Una notificación de un **comercio nuevo** de una estructura conocida crea el apunte solo. Aparece en Ajustes › Automatización › **Comercios nuevos**.
 - [ ] E2. Llega el **aviso push** «Automatización pendiente». Al tocarlo se abre Automatización en la pestaña correcta.
-- [ ] E3. **Agrupar:** mantén pulsada una cena y selecciona los Bizums › Agrupar › elige la cena.
+- [x] E3. **Agrupar:** mantén pulsada una cena y selecciona los Bizums › Agrupar › elige la cena.
   - Se ve una fila con el neto y «+N».
   - Presupuestos e Inicio cuentan el neto.
 
@@ -67,16 +67,31 @@ Este documento lo mantiene Claude. Cada bloque indica en qué versión se prueba
 ## F. Primera carga de inversiones (Trade Republic + Neverless) — ✅ disponible
 *Archivos generados:* `D:\XX_Claude\App - Rea - Rumbo\Primera Carga\primera_carga.xlsx` y `informe_primera_carga.txt` (léelo antes).
 *Requisitos:* bloques A y B hechos. El móvil tiene que haber sincronizado, para que Rumbo vea la cuenta «Trade Republic».
-- [ ] F1. En Rumbo (modo nube, con sesión iniciada): **Importar** › elige `primera_carga.xlsx` › **Previsualizar**.
+- [x] F1. En Rumbo (modo nube, con sesión iniciada): **Importar** › elige `primera_carga.xlsx` › **Previsualizar**.
   - Buscará cada ISIN en internet: tarda un poco.
   - Revisa que no haya errores. Si alguno sale, cópiamelo.
-- [ ] F2. **Confirmar.** Aparecen unos 18 productos, cada uno con su número de unidades. Compáralo con lo que ves en Trade Republic y en Neverless; la lista de posiciones esperadas está en el informe.
+- [x] F2. **Confirmar.** Aparecen unos 18 productos, cada uno con su número de unidades. Compáralo con lo que ves en Trade Republic y en Neverless; la lista de posiciones esperadas está en el informe.
 - [ ] F3. **Fondos privados** («Private Equity (LU…)»): no tienen precio público. Añade su **valor actual** en «Saldos y valores», con el dato que te dé TR.
 - [ ] F4. Sincroniza el móvil:
   - la cuenta «Trade Republic» muestra los apuntes de compras y ventas;
   - su saldo debe parecerse al saldo real de efectivo de TR (el efecto en caja total está en el informe).
   - Si no cuadra, dime la diferencia.
 - [ ] F5. La Cartera del móvil muestra todos los productos y el total que calcula Rumbo.
+
+---
+
+## G. Nuevo Inicio — ✅ disponible (v1.5.0)
+- [ ] G1. **Patrimonio total** = Efectivo + Inversiones.
+  - Debe coincidir con el patrimonio de Rumbo una vez sincronizado el móvil.
+  - La barra muestra el % de cada parte.
+- [ ] G2. Al tocar la tarjeta **Efectivo** se abre Cuentas. Al tocar **Inversiones**, la pestaña Cartera, con la ganancia y la rentabilidad de Rumbo.
+- [ ] G3. **Operativa del mes:** los ingresos, los gastos y el ahorro coinciden con Movimientos. La tasa de ahorro sale solo si hay ingresos.
+- [ ] G4. **Colchón de liquidez:**
+  - meses = efectivo de las cuentas marcadas «Cuenta como liquidez» / gasto medio de los 6 meses completos anteriores;
+  - si una cuenta no debería contar, desmárcale la casilla.
+- [ ] G5. **Resumen de inversiones:** rentabilidad, TIR y reparto por tipo (sin «Efectivo»), con el enlace «Ver cartera».
+- [ ] G6. El **ojo** oculta todos los importes nuevos.
+- [ ] G7. En el menú **Más** ya no aparece «Patrimonio».
 
 ## Resultados y problemas encontrados
 *(Escribe aquí lo que falle; Claude lo convierte en fichas de corrección.)*
