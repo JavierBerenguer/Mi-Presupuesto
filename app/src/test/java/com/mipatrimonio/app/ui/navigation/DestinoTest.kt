@@ -32,7 +32,6 @@ class DestinoTest {
                 Rutas.CUENTAS,
                 Rutas.CATEGORIAS,
                 Rutas.RECURRENTES,
-                Rutas.PATRIMONIO,
                 Rutas.COPIAS,
                 Rutas.AJUSTES,
             ),

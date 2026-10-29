@@ -1,29 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+<resources>
     <string name="ini_welcome_empty">Bienvenido a Mi Patrimonio. Crea tu primera cuenta para empezar a registrar tus finanzas.</string>
     <string name="ini_create_account">Crear cuenta</string>
-    <string name="ini_networth">Patrimonio neto</string>
-    <string name="ini_available">Dinero disponible</string>
-    <string name="ini_month">Este mes</string>
+    <string name="ini_networth">Patrimonio total</string>
+    <string name="ini_cash">Efectivo</string>
+    <string name="ini_investments">Inversiones</string>
+    <plurals name="ini_account_count">
+        <item quantity="one">%1$d cuenta</item>
+        <item quantity="other">%1$d cuentas</item>
+    </plurals>
+    <string name="ini_no_rumbo_data">Sin datos de Rumbo</string>
+    <string name="ini_open_sync">Ir a Sincronización</string>
+    <string name="ini_allocation_cash">Efectivo · %1$d %%</string>
+    <string name="ini_allocation_investments">Inversiones · %1$d %%</string>
+    <string name="ini_month">Operativa de %1$s</string>
     <string name="ini_income">Ingresos</string>
     <string name="ini_expenses">Gastos</string>
-    <string name="ini_balance">Balance</string>
     <string name="ini_month_excluded">%1$d movimientos en otra divisa no se han contabilizado.</string>
     <string name="ini_budget_remaining">Presupuesto restante del mes</string>
-    <string name="ini_no_budgets">Sin presupuestos mensuales</string>
     <string name="ini_chart_networth">Evolución del patrimonio</string>
     <string name="ini_chart_networth_note">Las inversiones se valoran a coste en el histórico.</string>
-    <string name="ini_chart_networth_desc">Gráfico de línea con la evolución del patrimonio neto en el periodo seleccionado.</string>
+    <string name="ini_chart_networth_desc">Gráfico de línea con la evolución del patrimonio total en el periodo seleccionado.</string>
     <string name="ini_chart_income_vs_expenses">Ingresos frente a gastos</string>
     <string name="ini_chart_income_vs_expenses_desc">Gráfico de barras de ingresos y gastos por mes.</string>
     <string name="ini_chart_expense_distribution">Distribución de gastos</string>
     <string name="ini_chart_expense_distribution_desc">Gráfico circular con el reparto de gastos por categoría.</string>
     <string name="ini_no_data_period">Sin datos en este periodo.</string>
     <string name="ini_no_category">Sin categoría</string>
-    <string name="ini_total">Total</string>
     <string name="ini_hide_amounts">Ocultar importes</string>
     <string name="ini_show_amounts">Mostrar importes</string>
-    <string name="ini_period_max">M&#225;x</string>
+    <string name="ini_period_max">Máx</string>
     <string name="ini_period_1m">1M</string>
     <string name="ini_period_3m">3M</string>
     <string name="ini_period_6m">6M</string>
@@ -33,10 +39,25 @@
         <item quantity="one">%1$d apunte creado desde notificaciones</item>
         <item quantity="other">%1$d apuntes creados desde notificaciones</item>
     </plurals>
-    <string name="ini_automatic_help">Rev&#237;salos o corr&#237;gelos cuando quieras</string>
-    <string name="ini_open_automatic">Abrir movimientos autom&#225;ticos</string>
+    <string name="ini_automatic_help">Revísalos o corrígelos cuando quieras</string>
+    <string name="ini_open_automatic">Abrir movimientos automáticos</string>
     <string name="ini_saving">Ahorro</string>
+    <string name="ini_saving_rate">Tasa de ahorro: %1$s %%</string>
     <string name="ini_spent_percent">%1$d %% de los ingresos gastado</string>
-    <string name="ini_rumbo_investments">Inversiones (Rumbo): %1$s</string>
-    <string name="ini_rumbo_updated">Actualizado: %1$s</string>
+    <string name="ini_liquidity_cushion">Colchón de liquidez</string>
+    <string name="ini_liquidity_months">Tu efectivo cubre %1$s meses de gastos</string>
+    <string name="ini_average_expense">Gasto medio: %1$s/mes (últimos 6 meses)</string>
+    <string name="ini_investments_summary">Inversiones</string>
+    <string name="ini_value">Valor</string>
+    <string name="ini_gain">Ganancia</string>
+    <string name="ini_return">Rentabilidad</string>
+    <string name="ini_irr">TIR</string>
+    <string name="ini_not_available">No disponible</string>
+    <string name="ini_percent_value">%1$s %%</string>
+    <string name="ini_gain_only">Ganancia: %1$s</string>
+    <string name="ini_gain_and_return">Ganancia: %1$s · %2$s</string>
+    <string name="ini_class_weight">%1$d %%</string>
+    <string name="ini_rumbo_updated">Datos de Rumbo: %1$s</string>
+    <string name="ini_open_portfolio">Ver cartera ›</string>
+    <string name="ini_analysis">Análisis</string>
 </resources>
