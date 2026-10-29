@@ -101,6 +101,28 @@ class AccountSyncRepositoryTest {
         assertEquals("2025-12-31", JSONObject(queued.json).getJSONArray("historial").getJSONObject(0).getString("fecha"))
     }
 
+    @Test fun `sincronizar pregunta si existe la columna historial aunque ninguna cuenta haya cambiado`() = runBlocking {
+        for ((status, expected) in listOf(400 to false, 200 to true)) {
+            settingsRule.repository.setSyncAccountHistorySupported(false)
+            val transport = SyncTransport { request ->
+                when {
+                    request.pathAndQuery.startsWith("/auth/v1/token") -> SyncHttpResponse(
+                        200, """{"access_token":"a","refresh_token":"r","expires_in":3600}""",
+                    )
+                    request.pathAndQuery.startsWith("/rest/v1/cuentas_app?select=historial") -> SyncHttpResponse(status, "[]")
+                    else -> SyncHttpResponse(200, "[]") // sin filas nuevas: bajar no lo descubriría
+                }
+            }
+            val remoteSync = SyncRepository(db, settingsRule.repository, ledger, { _, _ ->
+                SyncAuthClient(transport, MemorySessionStore(), now = { 0L })
+            }, clock = { 1_000L })
+
+            remoteSync.signIn("https://example.supabase.co", "sb_publishable_test", "a@b.es", "secret")
+
+            assertEquals(expected, settingsRule.repository.settings.first().syncAccountHistorySupported)
+        }
+    }
+
     @Test fun `historial usa meses cerrados apuntes transferencias y liquidez y excluye cuenta sin uso`() = runBlocking {
         settingsRule.repository.setSyncProfile("profile")
         settingsRule.repository.setSyncAccountHistorySupported(true)

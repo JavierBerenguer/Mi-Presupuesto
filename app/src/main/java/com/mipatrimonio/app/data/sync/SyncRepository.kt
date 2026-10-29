@@ -99,6 +99,7 @@ class SyncRepository(
         pullTable("resumen_cartera", client)
         pullTable("cuentas_app", client)
         pullTable("saldos_cuenta", client)
+        probeAccountHistorySupport(client)
         val profiles = perfiles.first()
         val config = settings.settings.first()
         principalProfile(profiles)?.let { if (it.id != config.syncProfileId) settings.setSyncProfile(it.id) }
@@ -253,6 +254,20 @@ class SyncRepository(
             enqueued = true
         }
         if (enqueued) onOutboxEnqueued()
+    }
+
+    /**
+     * Pregunta directamente si existe `cuentas_app.historial`: bajar filas solo lo descubre si alguna cambió
+     * después de la migración. 200 = existe; 400 (columna desconocida) u otro fallo = todavía no, sin bloquear nada.
+     */
+    private suspend fun probeAccountHistorySupport(client: SyncAuthClient) {
+        if (settings.settings.first().syncAccountHistorySupported) return
+        val response = try {
+            client.authorized(SyncHttpRequest("GET", "/rest/v1/cuentas_app?select=historial&limit=1"))
+        } catch (_: SyncConnectionException) { return }
+        if (response.status !in 200..299) return
+        settings.setSyncAccountHistorySupported(true)
+        dao.clearFingerprints()
     }
 
     private suspend fun detectAccountHistorySupport(table: String, rows: JSONArray) {
