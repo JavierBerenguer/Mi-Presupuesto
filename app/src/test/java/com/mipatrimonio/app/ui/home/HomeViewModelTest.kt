@@ -70,6 +70,13 @@ class HomeViewModelTest {
         val initial = firstViewModel.state.first { it?.automaticTransactionsCount == 1 }!!
         assertEquals(25, initial.spentIncomePercent)
         assertEquals(1, initial.automaticTransactionsCount)
+        assertEquals(EvolutionSeries.TOTAL, initial.selectedEvolutionSeries)
+
+        firstViewModel.selectEvolutionSeries(EvolutionSeries.LIQUIDITY)
+        assertEquals(
+            EvolutionSeries.LIQUIDITY,
+            firstViewModel.state.first { it?.selectedEvolutionSeries == EvolutionSeries.LIQUIDITY }?.selectedEvolutionSeries,
+        )
 
         firstViewModel.setHideAmounts(true)
         settings.settings.first { it.hideAmounts }

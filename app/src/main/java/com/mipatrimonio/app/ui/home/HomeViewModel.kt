@@ -43,6 +43,7 @@ class HomeViewModel(
 
     private val selectedPeriod = MutableStateFlow(Period.MES)
     val period: StateFlow<Period> = selectedPeriod
+    private val selectedEvolutionSeries = MutableStateFlow(EvolutionSeries.TOTAL)
 
     private val ledgerData = combine(
         ledger.accounts, ledger.transactions, ledger.transfers, ledger.categories, ledger.budgets, ::LedgerCore,
@@ -51,10 +52,14 @@ class HomeViewModel(
     }
     private val remoteMovements = sync?.movimientos ?: kotlinx.coroutines.flow.flowOf(emptyList())
     private val remoteSummary = sync?.resumen ?: kotlinx.coroutines.flow.flowOf(null)
+    private val summarySelection = combine(remoteSummary, selectedEvolutionSeries) { summary, selection ->
+        summary to selection
+    }
     /** `null` mientras no llega el primer dato. */
     val state: StateFlow<HomeState?> = combine(
-        ledgerData, settings.settings, selectedPeriod, remoteMovements, remoteSummary,
-    ) { l, config, period, movements, rawSummary ->
+        ledgerData, settings.settings, selectedPeriod, remoteMovements, summarySelection,
+    ) { l, config, period, movements, summaryAndSelection ->
+        val (rawSummary, evolutionSelection) = summaryAndSelection
         val liquidity = mapLiquidityMovements(movements, l.accounts).entries
         val summary = rawSummary?.let { PortfolioSummaryParser.parse(it.datosJson) as? PortfolioSummaryResult.Success }?.summary
         buildHomeState(
@@ -70,6 +75,7 @@ class HomeViewModel(
             liquidityMovements = liquidity,
             portfolioSummary = summary,
             accountBalanceRecords = l.accountBalances,
+            evolutionSeries = evolutionSelection,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -79,6 +85,10 @@ class HomeViewModel(
 
     fun selectPeriod(period: Period) {
         selectedPeriod.value = period
+    }
+
+    fun selectEvolutionSeries(series: EvolutionSeries) {
+        selectedEvolutionSeries.value = series
     }
 
     fun setHideAmounts(hidden: Boolean) {

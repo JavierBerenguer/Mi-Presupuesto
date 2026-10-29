@@ -4,6 +4,7 @@ import com.mipatrimonio.app.data.sync.PortfolioClass
 import com.mipatrimonio.app.data.sync.PortfolioProduct
 import com.mipatrimonio.app.data.sync.PortfolioSummary
 import com.mipatrimonio.app.data.sync.PortfolioTotal
+import com.mipatrimonio.app.data.sync.PortfolioHistoryPoint
 import com.mipatrimonio.app.domain.TestData.account
 import com.mipatrimonio.app.domain.TestData.category
 import com.mipatrimonio.app.domain.TestData.tx
@@ -32,9 +33,11 @@ class HomeAggregatorTest {
         accounts: List<com.mipatrimonio.app.domain.model.Account> = listOf(account("a1", initial = 100_00)),
         period: Period = Period.MES,
         portfolio: PortfolioSummary? = null,
+        evolution: EvolutionSeries = EvolutionSeries.TOTAL,
     ) = buildHomeState(
         "EUR", accounts, txs, emptyList(), cats, budgets, today, period,
         portfolioSummary = portfolio,
+        evolutionSeries = evolution,
     )
 
     private fun budget(id: String, category: String?, limit: Long, period: BudgetPeriod = BudgetPeriod.MENSUAL, currency: String = "EUR") =
@@ -90,11 +93,11 @@ class HomeAggregatorTest {
                 tx(GASTO, 20_00, category = "super"),
                 tx(GASTO, 5_00, category = "ocio"),
                 tx(GASTO, 1_00),
-                tx(INGRESO, 900_00, category = "comida"),
+                tx(INGRESO, 4_00, category = "comida"), // devolución: resta del gasto de la raíz (T-091)
             ),
         )
         val byId = s.expenseByCategory.associate { it.categoryId to it.amountMinor }
-        assertEquals(30_00L, byId["comida"])
+        assertEquals(26_00L, byId["comida"])
         assertEquals(5_00L, byId["ocio"])
         assertEquals(1_00L, byId[null])
     }
@@ -183,11 +186,11 @@ class HomeAggregatorTest {
             tx(GASTO, 100_00, date = today.minusMonths(back.toLong()), account = liquid.id)
         }
 
-        val result = liquidityCushion("EUR", accounts, balances, expenses, today)
+        val result = liquidityCushion("EUR", accounts, balances, expenses, cats, today)
 
         assertEquals(1_200_00L, result?.liquidCashMinor)
-        assertEquals(100_00L, result?.averageExpenseMinor)
-        assertEquals(BigDecimal("12.0"), result?.coveredMonths)
+        assertEquals(100_00L, result?.averageLivingExpenseMinor)
+        assertEquals(BigDecimal("12.0"), result?.coveredMonthsWithoutInvesting)
     }
 
     @Test
@@ -200,10 +203,10 @@ class HomeAggregatorTest {
             add(tx(GASTO, 999_00, date = today))
         }
 
-        val result = liquidityCushion("EUR", listOf(account), listOf(AccountBalance(account, 1_200_00)), transactions, today)
+        val result = liquidityCushion("EUR", listOf(account), listOf(AccountBalance(account, 1_200_00)), transactions, cats, today)
 
-        assertEquals(200_00L, result?.averageExpenseMinor)
-        assertEquals(BigDecimal("6.0"), result?.coveredMonths)
+        assertEquals(200_00L, result?.averageLivingExpenseMinor)
+        assertEquals(BigDecimal("6.0"), result?.coveredMonthsWithoutInvesting)
     }
 
     @Test
@@ -214,10 +217,10 @@ class HomeAggregatorTest {
             tx(GASTO, 200_00, date = LocalDate.of(2026, 2, 10)),
         )
 
-        val result = liquidityCushion("EUR", listOf(account), listOf(AccountBalance(account, 300_00)), transactions, today)
+        val result = liquidityCushion("EUR", listOf(account), listOf(AccountBalance(account, 300_00)), transactions, cats, today)
 
-        assertEquals(150_00L, result?.averageExpenseMinor)
-        assertEquals(BigDecimal("2.0"), result?.coveredMonths)
+        assertEquals(150_00L, result?.averageLivingExpenseMinor)
+        assertEquals(BigDecimal("2.0"), result?.coveredMonthsWithoutInvesting)
     }
 
     @Test
@@ -225,7 +228,7 @@ class HomeAggregatorTest {
         val account = account("a", initial = 300_00)
         val income = tx(INGRESO, 100_00, date = LocalDate.of(2026, 2, 10))
 
-        assertNull(liquidityCushion("EUR", listOf(account), listOf(AccountBalance(account, 300_00)), listOf(income), today))
+        assertNull(liquidityCushion("EUR", listOf(account), listOf(AccountBalance(account, 300_00)), listOf(income), cats, today))
     }
 
     @Test
@@ -235,9 +238,60 @@ class HomeAggregatorTest {
 
         assertNull(
             liquidityCushion(
-                "EUR", listOf(account), listOf(AccountBalance(account, 300_00)), listOf(currentExpense), today,
+                "EUR", listOf(account), listOf(AccountBalance(account, 300_00)), listOf(currentExpense), cats, today,
             ),
         )
+    }
+
+    @Test
+    fun `colchon separa gasto de vida y gasto total y sin inversiones deja un valor`() {
+        val account = account("a", initial = 1_200_00)
+        val categories = cats + com.mipatrimonio.app.domain.model.Category(
+            "custom-invest", "Invérsiones", null, 0xFF000000, false,
+        )
+        val transactions = (1..6).flatMap { back ->
+            listOf(
+                tx(GASTO, 100_00, date = today.minusMonths(back.toLong()), category = "ocio"),
+                tx(GASTO, 50_00, date = today.minusMonths(back.toLong()), category = "custom-invest"),
+            )
+        }
+
+        val result = liquidityCushion(
+            "EUR", listOf(account), listOf(AccountBalance(account, 1_200_00)), transactions, categories, today,
+        )
+        val withoutInvestments = liquidityCushion(
+            "EUR", listOf(account), listOf(AccountBalance(account, 1_200_00)),
+            transactions.filterNot { it.categoryId == "custom-invest" }, categories, today,
+        )
+
+        assertEquals(100_00L, result?.averageLivingExpenseMinor)
+        assertEquals(150_00L, result?.averageTotalExpenseMinor)
+        assertEquals(BigDecimal("12.0"), result?.coveredMonthsWithoutInvesting)
+        assertEquals(BigDecimal("8.0"), result?.coveredMonthsContinuingInvesting)
+        assertNull(withoutInvestments?.coveredMonthsContinuingInvesting)
+    }
+
+    @Test
+    fun `series de inversion y total alinean antes dentro y despues y cambian variacion`() {
+        val liquidity = listOf(
+            com.mipatrimonio.app.domain.usecase.NetWorthPoint(LocalDate.of(2026, 1, 1), 100L),
+            com.mipatrimonio.app.domain.usecase.NetWorthPoint(LocalDate.of(2026, 1, 5), 200L),
+            com.mipatrimonio.app.domain.usecase.NetWorthPoint(LocalDate.of(2026, 1, 10), 300L),
+        )
+        val history = listOf(
+            PortfolioHistoryPoint(LocalDate.of(2026, 1, 3), 10L),
+            PortfolioHistoryPoint(LocalDate.of(2026, 1, 7), 25L),
+        )
+
+        assertEquals(listOf(0L, 10L, 25L), buildEvolutionSeries(liquidity, history, EvolutionSeries.INVESTMENT).map { it.totalMinor })
+        assertEquals(listOf(100L, 210L, 325L), buildEvolutionSeries(liquidity, history, EvolutionSeries.TOTAL).map { it.totalMinor })
+
+        val summary = portfolio(
+            value = 25L,
+            history = history.map { it.copy(date = it.date.plusMonths(2)) },
+        )
+        assertEquals(25L, state(portfolio = summary, evolution = EvolutionSeries.INVESTMENT).displayedVariationMinor)
+        assertEquals(0L, state(portfolio = summary, evolution = EvolutionSeries.LIQUIDITY).displayedVariationMinor)
     }
 
     @Test
@@ -262,6 +316,7 @@ class HomeAggregatorTest {
         value: Long = 1_000_00,
         products: List<PortfolioProduct> = emptyList(),
         classes: List<PortfolioClass> = emptyList(),
+        history: List<PortfolioHistoryPoint>? = null,
     ) = PortfolioSummary(
         generated = "2026-03-20",
         currency = "EUR",
@@ -269,6 +324,7 @@ class HomeAggregatorTest {
         classes = classes,
         products = products,
         warnings = emptyList(),
+        history = history,
     )
 
     private fun product(id: String, contributed: Long, gain: Long) = PortfolioProduct(

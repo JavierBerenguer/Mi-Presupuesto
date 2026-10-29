@@ -97,7 +97,7 @@ fun HomeScreen(
         s.allocation?.let { AllocationBar(it) }
         SummaryCards(s, format, onOpenAccounts, onOpenPortfolio, onOpenSync)
         PeriodTabs(s.period, viewModel::selectPeriod)
-        EvolutionCard(s)
+        EvolutionCard(s, viewModel::selectEvolutionSeries)
         if (s.netWorth.excludedCurrencies.isNotEmpty()) NetWorthNotices(s.netWorth)
         if (s.automaticTransactionsCount > 0) {
             AutomaticMovementsCard(s.automaticTransactionsCount, onOpenAutomaticMovements)
@@ -238,20 +238,40 @@ private fun PeriodTabs(period: Period, onSelect: (Period) -> Unit) {
 }
 
 @Composable
-private fun EvolutionCard(state: HomeState) {
-    SectionCard(title = stringResource(R.string.ini_chart_networth)) {
+private fun EvolutionCard(state: HomeState, onSelectSeries: (EvolutionSeries) -> Unit) {
+    SectionCard {
+        val seriesOptions = if (state.hasInvestmentHistory) EvolutionSeries.entries else
+            listOf(EvolutionSeries.LIQUIDITY, EvolutionSeries.TOTAL)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.ini_chart_networth), style = MaterialTheme.typography.titleMedium)
+            PillTabs(
+                options = seriesOptions.map { series ->
+                    stringResource(
+                        when (series) {
+                            EvolutionSeries.LIQUIDITY -> R.string.ini_evolution_liquidity
+                            EvolutionSeries.INVESTMENT -> R.string.ini_evolution_investment
+                            EvolutionSeries.TOTAL -> R.string.ini_evolution_total
+                        },
+                    )
+                },
+                selectedIndex = seriesOptions.indexOf(state.selectedEvolutionSeries).coerceAtLeast(0),
+                onSelected = { onSelectSeries(seriesOptions[it]) },
+                modifier = Modifier.weight(1f).padding(start = 8.dp),
+            )
+        }
         Sparkline(
             values = state.netWorthSeries.map { it.totalMinor.toFloat() },
             description = stringResource(R.string.ini_chart_networth_desc),
             modifier = Modifier.fillMaxWidth().height(120.dp),
         )
         if (state.netWorthSeries.isEmpty()) Text(stringResource(R.string.ini_no_data_period))
-        Text(
-            stringResource(R.string.ini_chart_networth_note),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        if (state.investments != null) Text(
+        if (state.hasInvestmentHistory) {
+            Text(
+                stringResource(R.string.ini_chart_networth_note, state.investmentHistoryUpdated.orEmpty()),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else if (state.investments != null) Text(
             stringResource(R.string.cartera_history_partial),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -327,14 +347,31 @@ private fun MonthCard(state: HomeState, format: (Long) -> String, hiddenAmount: 
 private fun LiquidityCushionCard(cushion: LiquidityCushion, format: (Long) -> String) {
     SectionCard(title = stringResource(R.string.ini_liquidity_cushion)) {
         Text(
-            stringResource(R.string.ini_liquidity_months, decimal(cushion.coveredMonths)),
+            cushion.coveredMonthsContinuingInvesting?.let { continuing ->
+                stringResource(
+                    R.string.ini_liquidity_months_double,
+                    decimal(cushion.coveredMonthsWithoutInvesting),
+                    decimal(continuing),
+                )
+            } ?: stringResource(R.string.ini_liquidity_months, decimal(cushion.coveredMonthsWithoutInvesting)),
             style = MaterialTheme.typography.titleMedium,
         )
         Text(
-            stringResource(R.string.ini_average_expense, format(cushion.averageExpenseMinor)),
+            stringResource(
+                if (cushion.coveredMonthsContinuingInvesting == null) R.string.ini_average_expense
+                else R.string.ini_average_living_expense,
+                format(cushion.averageLivingExpenseMinor),
+            ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        cushion.coveredMonthsContinuingInvesting?.let {
+            Text(
+                stringResource(R.string.ini_average_total_expense, format(cushion.averageTotalExpenseMinor)),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -437,7 +474,8 @@ private fun Category?.colorOrDefault(): Color = this?.let { Color(it.colorArgb) 
 
 private fun signedAmount(amount: Long, currency: String, hidden: Boolean, hiddenAmount: String, sign: String): String {
     if (hidden) return hiddenAmount
-    return sign + MoneyMath.format(amount, currency).removePrefix("-")
+    val displayedSign = if (amount >= 0L) sign else if (sign == "+") "−" else "+"
+    return displayedSign + MoneyMath.format(amount, currency).removePrefix("-")
 }
 
 private fun percentageNumber(value: BigDecimal): String = decimal(
