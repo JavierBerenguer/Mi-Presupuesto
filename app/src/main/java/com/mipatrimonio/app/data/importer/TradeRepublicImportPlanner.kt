@@ -54,7 +54,7 @@ data class TradeRepublicPlanningContext(
 )
 
 object TradeRepublicImportPlanner {
-    const val REASON_INVESTMENT = "Inversión: se gestiona en Rumbo"
+    const val REASON_INVESTMENT = "Inversión: se gestiona en el escritorio"
 
     fun plan(preview: ImportPreview, context: TradeRepublicPlanningContext): TradeRepublicImportPlan {
         require(context.accountId.isNotBlank()) { "Selecciona una cuenta de efectivo" }

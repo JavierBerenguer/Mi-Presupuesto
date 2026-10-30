@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="inv_rumbo_empty">La nueva cartera llegará con la sincronización con Rumbo</string>
+    <string name="inv_rumbo_empty">La nueva cartera llegará con la sincronización con el escritorio</string>
     <string name="app_name">Mi Patrimonio</string>
 
     <string name="nav_inicio">Inicio</string>

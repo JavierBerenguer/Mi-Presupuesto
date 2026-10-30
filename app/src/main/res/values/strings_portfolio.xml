@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="cartera_title">Cartera</string>
-    <string name="cartera_no_session">Conecta Mi Patrimonio con Rumbo para ver tu cartera.</string>
-    <string name="cartera_connect">Conectar con Rumbo</string>
-    <string name="cartera_no_summary">Abre Rumbo en el ordenador para generar el primer resumen.</string>
+    <string name="cartera_no_session">Conecta la sincronización para ver tu cartera.</string>
+    <string name="cartera_connect">Conectar sincronización</string>
+    <string name="cartera_no_summary">Abre Mi Patrimonio en el ordenador para generar el primer resumen.</string>
     <string name="cartera_sync_now">Sincronizar ahora</string>
-    <string name="cartera_summary_error">No se ha podido leer el resumen de Rumbo.</string>
+    <string name="cartera_summary_error">No se ha podido leer el resumen de la cartera.</string>
     <string name="cartera_updated">Actualizado: %1$s</string>
     <string name="cartera_value">Valor de la cartera</string>
     <string name="cartera_gain">Ganancia</string>
@@ -17,10 +17,10 @@
     <string name="cartera_products">Productos</string>
     <string name="cartera_no_products">Sin productos</string>
     <string name="cartera_product_gain">Ganancia: %1$s · %2$s</string>
-    <string name="cartera_warnings">Avisos de Rumbo</string>
+    <string name="cartera_warnings">Avisos del escritorio</string>
     <string name="cartera_register_purchase">Registrar compra</string>
     <string name="cartera_purchase_title">Nueva compra</string>
-    <string name="cartera_no_products_help">Crea primero un producto en Rumbo y sincroniza de nuevo.</string>
+    <string name="cartera_no_products_help">Crea primero un producto en el escritorio y sincroniza de nuevo.</string>
     <string name="cartera_search_product">Buscar producto</string>
     <string name="cartera_product">Producto</string>
     <string name="cartera_date">Fecha</string>
@@ -38,23 +38,23 @@
     <string name="cartera_no_movements">Este producto no tiene movimientos.</string>
     <string name="cartera_movement_metadata">%1$s unidades · %2$s · %3$s</string>
     <string name="cartera_foreign_account_warning">Este movimiento no afecta al saldo porque la cuenta no está en EUR.</string>
-    <string name="cartera_edit_in_rumbo">Se edita en Rumbo</string>
+    <string name="cartera_edit_in_rumbo">Se edita en el escritorio</string>
     <string name="cartera_edit_movement_title">Editar movimiento</string>
     <string name="cartera_original_notification">Notificación original</string>
     <string name="cartera_delete_movement_title">Eliminar movimiento</string>
     <string name="cartera_delete_movement_message">El movimiento desaparecerá de la cartera y del saldo de la cuenta.</string>
-    <string name="cartera_investments_rumbo">Inversiones (Rumbo)</string>
-    <string name="cartera_history_partial">El histórico no incluye la cartera de Rumbo porque no hay una serie de valoraciones.</string>
-    <string name="rumbo_panel_title">Panel completo de Rumbo</string>
-    <string name="rumbo_panel_open">Ver panel completo de Rumbo</string>
-    <string name="rumbo_panel_no_configuration">Conecta la sincronización con Rumbo y selecciona un perfil para ver el panel.</string>
+    <string name="cartera_investments_rumbo">Inversiones</string>
+    <string name="cartera_history_partial">El histórico no incluye las inversiones porque el escritorio aún no ha publicado su serie.</string>
+    <string name="rumbo_panel_title">Panel completo</string>
+    <string name="rumbo_panel_open">Ver panel completo</string>
+    <string name="rumbo_panel_no_configuration">Conecta la sincronización para ver el panel.</string>
     <string name="rumbo_panel_open_sync">Ir a Sincronización</string>
     <string name="rumbo_panel_not_published">Abre Mi Patrimonio en el escritorio con la nube activa para publicar el panel.</string>
-    <string name="rumbo_panel_unavailable">No se ha podido cargar el panel de Rumbo.</string>
+    <string name="rumbo_panel_unavailable">No se ha podido cargar el panel.</string>
     <string name="rumbo_panel_retry">Reintentar</string>
     <string name="rumbo_panel_reload">Recargar panel</string>
     <string name="rumbo_panel_updated">Actualizado en el escritorio: %1$s</string>
     <string name="rumbo_panel_offline">Sin conexión. Se muestra la copia guardada.</string>
-    <string name="rumbo_panel_hidden_warning">Los importes están ocultos en la app. El panel de Rumbo contiene información financiera sin ocultar.</string>
+    <string name="rumbo_panel_hidden_warning">Los importes están ocultos en la app. El panel contiene información financiera sin ocultar.</string>
     <string name="rumbo_panel_show">Mostrar panel</string>
 </resources>

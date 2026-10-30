@@ -57,7 +57,7 @@ class RumboPanelCache(private val noBackupFilesDir: File) {
         val temporary = File(target.parentFile, "${target.name}.tmp")
         temporary.writeText(contents, Charsets.UTF_8)
         check(temporary.renameTo(target) || run { target.delete() && temporary.renameTo(target) }) {
-            "No se pudo guardar el panel de Rumbo"
+            "No se pudo guardar el panel"
         }
     }
 
@@ -122,7 +122,7 @@ class RumboPanelRepository(
         } ?: return RumboPanelDownload.NoSession
         if (response.status == 400 || response.status == 404) return RumboPanelDownload.NotPublished
         if (response.status == 401) throw SyncSessionExpiredException()
-        if (response.status !in 200..299) throw SyncConnectionException("No se pudo descargar el panel de Rumbo")
+        if (response.status !in 200..299) throw SyncConnectionException("No se pudo descargar el panel")
         require(response.body.toByteArray(Charsets.UTF_8).size <= MAX_BYTES) {
             "El panel supera el límite de 20 MB"
         }

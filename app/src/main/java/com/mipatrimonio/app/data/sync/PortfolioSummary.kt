@@ -81,7 +81,7 @@ object PortfolioSummaryParser {
         )
     }.fold(
         onSuccess = { PortfolioSummaryResult.Success(it) },
-        onFailure = { PortfolioSummaryResult.Error(it.message ?: "El resumen de Rumbo está incompleto") },
+        onFailure = { PortfolioSummaryResult.Error(it.message ?: "El resumen de la cartera está incompleto") },
     )
 
     private fun weight(value: Long, total: Long): BigDecimal = if (total == 0L) BigDecimal.ZERO else
