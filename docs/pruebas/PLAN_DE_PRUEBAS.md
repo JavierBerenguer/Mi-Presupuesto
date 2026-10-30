@@ -51,8 +51,8 @@ Este documento lo mantiene Claude. Cada bloque indica en qué versión se prueba
 - [ ] D5. *(caso límite)* Con la sesión cerrada, la notificación queda pendiente. Al volver a entrar y sincronizar, se crea la compra.
 
 ## E. Lo de la v1.1.0 que aún no has probado
-- [ ] E1. Una notificación de un **comercio nuevo** de una estructura conocida crea el apunte sola. Aparece en Ajustes › Automatización › **Comercios nuevos**.
-- [ ] E2. Llega el **aviso push** «Automatización pendiente». Al tocarlo se abre Automatización en la pestaña correcta.
+- [X] E1. Una notificación de un **comercio nuevo** de una estructura conocida crea el apunte sola. Aparece en Ajustes › Automatización › **Comercios nuevos**.
+- [X] E2. Llega el **aviso push** «Automatización pendiente». Al tocarlo se abre Automatización en la pestaña correcta.
 - [x] E3. **Agrupar:** una cena con sus Bizums se ve como una fila con el neto y «+N».
 
 ---
@@ -72,34 +72,34 @@ Este documento lo mantiene Claude. Cada bloque indica en qué versión se prueba
 
 ## G. Nuevo Inicio (v1.5.0 → v1.8.x)
 - [x] ✔ G1. **Patrimonio total** = Efectivo + Inversiones, y coincide con Rumbo (5.870,27 €). La barra muestra el % de cada parte.
-- [ ] G2. Al tocar **Efectivo** se abre Cuentas. Al tocar **Inversiones**, la pestaña Cartera.
+- [x] G2. Al tocar **Efectivo** se abre Cuentas. Al tocar **Inversiones**, la pestaña Cartera.
 - [ ] G3. **Operativa del mes:** los ingresos, los gastos y el ahorro coinciden con Movimientos. La tasa de ahorro sale solo si hay ingresos.
-- [ ] G4. **Colchón de liquidez** (v1.7.1):
+- [x] G4. **Colchón de liquidez** (v1.7.1):
   - «X meses sin invertir» usa el gasto de vida de los 6 meses completos anteriores;
   - «Y meses si sigues invirtiendo» suma además lo que pasas a inversiones a través de Rumbo, así que debe salir claramente menor.
-- [ ] G5. **Resumen de inversiones:** rentabilidad, TIR, reparto por tipo (sin «Efectivo») y el enlace «Ver cartera».
-- [ ] G6. El **ojo** oculta todos los importes nuevos, también los del eje del gráfico.
-- [ ] G7. En el menú **Más** ya no aparece «Patrimonio».
+- [x] G5. **Resumen de inversiones:** rentabilidad, TIR, reparto por tipo (sin «Efectivo») y el enlace «Ver cartera».
+- [x] G6. El **ojo** oculta todos los importes nuevos, también los del eje del gráfico.
+- [x] G7. En el menú **Más** ya no aparece «Patrimonio».
 - [x] ✔ G8. El **gráfico circular** ya no muestra «Ingresos». Una devolución resta del gasto de su categoría.
-- [ ] G9. **Operativa neta:** las transferencias propias de salida restan de los ingresos y no suman a los gastos.
+- [x] G9. **Operativa neta:** las transferencias propias de salida restan de los ingresos y no suman a los gastos.
 - [x] ✔ G10. **Evolución** con chips **Liquidez · Inversión · Total**, los tres visibles (v1.7.1).
 - [x] ✔ G11. El gráfico tiene **ejes y cuadrícula** (v1.7.1) y **los importes en el eje vertical** (v1.8.3).
-- [ ] G12. **Gastos según la vista** (v1.8.1):
+- [x] G12. **Gastos según la vista** (v1.8.1):
   - con **Liquidez** elegida, lo invertido a través de Rumbo se suma a la porción Inversiones del gráfico circular;
   - con **Inversión** o **Total**, no se suma y aparece la nota «Además, en este periodo pasaste X € a inversiones…».
-- [ ] G13. **Deslizar hacia abajo** en Inicio y en Movimientos sincroniza, con el círculo de carga (v1.8.4). En Cartera ya funcionaba.
+- [x] G13. **Deslizar hacia abajo** en Inicio y en Movimientos sincroniza, con el círculo de carga (v1.8.4). En Cartera ya funcionaba.
 
 ---
 
 ## H. Panel completo de Rumbo en Cartera (v1.6.1)
 *Requisitos:* SQL `20261030000000_paneles_storage.sql` ejecutado (hecho, verificación en true) y Rumbo reiniciado.
-- [ ] H1. Cartera › **Ver panel completo de Rumbo**: se ve el panel del escritorio, con sus pestañas y gráficos. *(La v1.6.0 decía «no es HTML»; se corrigió en la v1.6.1.)*
-- [ ] H2. Arriba sale «Actualizado en el escritorio: …».
-- [ ] H3. Cambia algo en Rumbo y pulsa recargar: el cambio aparece.
-- [ ] H4. **Modo avión:** abre desde la caché, con el aviso «sin conexión».
+- [x] H1. Cartera › **Ver panel completo de Rumbo**: se ve el panel del escritorio, con sus pestañas y gráficos. *(La v1.6.0 decía «no es HTML»; se corrigió en la v1.6.1.)*
+- [x] H2. Arriba sale «Actualizado en el escritorio: …».
+- [x] H3. Cambia algo en Rumbo y pulsa recargar: el cambio aparece.
+- [x] H4. **Modo avión:** abre desde la caché, con el aviso «sin conexión».
 - [ ] H5. Un enlace externo del panel se abre en el navegador, no dentro de la app.
-- [ ] H6. Con el **ojo** activado, primero sale el aviso con el botón «Mostrar panel».
-- [ ] H7. Al cerrar sesión y volver a entrar, el panel se descarga de nuevo.
+- [x] H6. Con el **ojo** activado, primero sale el aviso con el botón «Mostrar panel».
+- [x] H7. Al cerrar sesión y volver a entrar, el panel se descarga de nuevo.
 
 ---
 
@@ -113,11 +113,11 @@ Este documento lo mantiene Claude. Cada bloque indica en qué versión se prueba
 
 ## J. Escritorio (Rumbo): mejoras del 29/10
 - [x] ✔ J1. Al abrir Rumbo empieza en **Patrimonio**. Al recargar con F5, se queda en la pestaña donde estabas.
-- [ ] J2. Los botones **Activo / Producto / Entidad / Tipo** de Distribución marcan el que pulsas.
+- [x] J2. Los botones **Activo / Producto / Entidad / Tipo** de Distribución marcan el que pulsas.
 - [x] ✔ J3. En Movimientos, las **unidades pequeñas** se ven bien (0,000001 BTC, no «0»).
-- [ ] J4. **Aportaciones por mes** tiene leyenda: color, producto, lo aportado en el periodo y su %.
+- [x] J4. **Aportaciones por mes** tiene leyenda: color, producto, lo aportado en el periodo y su %.
 - [x] ✔ J5. **Copias mensuales** en modo nube: existe `mensual_2026-10.json`. Se guardan las 12 últimas.
-- [ ] J6. **Dónde está tu dinero de verdad:** con el MSCI World 2X referenciado a un MSCI World normal, «en bolsa» sube a ~3.090 €.
+- [x] J6. **Dónde está tu dinero de verdad:** con el MSCI World 2X referenciado a un MSCI World normal, «en bolsa» sube a ~3.090 €.
 
 ---
 
