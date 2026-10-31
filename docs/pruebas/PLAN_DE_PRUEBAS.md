@@ -8,7 +8,7 @@ Este documento lo mantiene Claude. Cada bloque indica en qué versión se prueba
 > - `~~tachado~~` ya no aplica.
 
 **Versiones actuales:**
-- **App:** v1.8.4 (https://github.com/JavierBerenguer/Mi-Presupuesto/releases/tag/v1.8.4).
+- **App:** v1.9.0 (https://github.com/JavierBerenguer/Mi-Presupuesto/releases/tag/v1.9.0).
 - **Rumbo:** rama `claude/supabase` de `JavierBerenguer/Rumbo-Patrimonio`, en `D:\XX_Claude\App - Rea - Rumbo\rumbo-main`. Tras actualizarlo, reinícialo con `Iniciar.bat`.
 
 ---
@@ -54,6 +54,9 @@ Este documento lo mantiene Claude. Cada bloque indica en qué versión se prueba
 - [X] E1. Una notificación de un **comercio nuevo** de una estructura conocida crea el apunte sola. Aparece en Ajustes › Automatización › **Comercios nuevos**.
 - [X] E2. Llega el **aviso push** «Automatización pendiente». Al tocarlo se abre Automatización en la pestaña correcta.
 - [x] E3. **Agrupar:** una cena con sus Bizums se ve como una fila con el neto y «+N».
+- [ ] E4. *(v1.9.0)* Con un pago en un **comercio nuevo**, el aviso dice «Nuevo comercio: <comercio>» y «Regla general: <estructura>».
+  - El botón **«Seguir usando la regla general»** guarda la regla sin abrir la app: el aviso desaparece y el comercio ya no sale en Automatización › Comercios nuevos.
+  - Si tocas el aviso en lugar del botón, se abre Comercios nuevos como antes.
 
 ---
 
