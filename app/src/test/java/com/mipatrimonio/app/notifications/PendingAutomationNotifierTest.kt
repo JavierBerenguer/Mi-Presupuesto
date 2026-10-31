@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import androidx.test.core.app.ApplicationProvider
+import com.mipatrimonio.app.data.repository.NewMerchantAlert
 import com.mipatrimonio.app.data.repository.PendingAutomationAlert
 import com.mipatrimonio.app.testutil.SettingsStoreRule
 import kotlinx.coroutines.test.runTest
@@ -69,5 +70,21 @@ class PendingAutomationNotifierTest {
         notifier.publish(PendingAutomationAlert(1, 0))
 
         assertTrue(manager.allNotifications.isEmpty())
+    }
+
+    @Test @Config(sdk = [32])
+    fun `comercio nuevo nombra la regla general y ofrece seguir usandola`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val manager = shadowOf(context.getSystemService(NotificationManager::class.java))
+        val notifier = PendingAutomationNotifier(context, settingsRule.repository)
+        notifier.createChannel()
+
+        notifier.publish(PendingAutomationAlert(0, 1, NewMerchantAlert("r1", "McDonald's", "Gasto con tarjeta", "s1", "mcdonald's")))
+
+        val notification = manager.allNotifications.single()
+        assertEquals("Nuevo comercio: McDonald's", notification.extras.getString(android.app.Notification.EXTRA_TITLE))
+        assertEquals("Regla general: Gasto con tarjeta", notification.extras.getCharSequence(android.app.Notification.EXTRA_TEXT).toString())
+        assertEquals("Seguir usando la regla general", notification.actions.single().title.toString())
+        assertTrue(manager.getNotification(newMerchantNotificationId("s1", "mcdonald's")) != null)
     }
 }

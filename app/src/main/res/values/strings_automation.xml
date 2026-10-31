@@ -12,6 +12,10 @@
     <string name="auto_notification_merchant_one">%1$d comercio nuevo</string>
     <string name="auto_notification_merchant_other">%1$d comercios nuevos</string>
     <string name="auto_notification_separator"> · </string>
+    <string name="auto_notification_new_merchant_title">Nuevo comercio: %1$s</string>
+    <string name="auto_notification_new_merchant_text">Regla general: %1$s</string>
+    <string name="auto_notification_keep_general">Seguir usando la regla general</string>
+    <string name="auto_notification_keep_general_error">No se pudo guardar la regla. Ábrela en Automatización › Comercios nuevos.</string>
     <string name="auto_pending_tab">Pendientes (%1$d)</string>
     <string name="auto_new_merchants_tab">Comercios nuevos (%1$d)</string>
     <string name="auto_structures_tab">Estructuras</string>

@@ -167,6 +167,7 @@ class NotificationRepository(
 
     private suspend fun pendingAlertForLocked(recordId: String): PendingAutomationAlert? {
         val record = dao.getRecord(recordId) ?: return null
+        var newMerchant: NewMerchantAlert? = null
         val shouldAlert = when {
             record.status == NotificationRecordStatus.PENDIENTE_ESTRUCTURA.name -> true
             record.status == NotificationRecordStatus.PENDIENTE_REGLA.name &&
@@ -175,9 +176,16 @@ class NotificationRepository(
                 record.ruleId == null && (record.transactionId != null || record.syncMovementId != null) &&
                 record.structureId != null && record.variableText != null -> {
                 val key = requireNotNull(record.structureId) to normalizeVariable(requireNotNull(record.variableText))
-                dao.getRecordsUsingStructureDefaults().count {
+                val isFirst = dao.getRecordsUsingStructureDefaults().count {
                     (it.structureId to normalizeVariable(requireNotNull(it.variableText))) == key
                 } == 1
+                if (isFirst) {
+                    // Primer apunte de este comercio con la regla general de la estructura: el aviso lo nombra.
+                    dao.getStructure(key.first)?.let { structure ->
+                        newMerchant = NewMerchantAlert(record.id, requireNotNull(record.variableText), structure.name, key.first, key.second)
+                    }
+                }
+                isFirst
             }
             else -> false
         }
@@ -198,6 +206,7 @@ class NotificationRepository(
         return PendingAutomationAlert(
             pendingStructureCount = dao.countPendingStructures(),
             newMerchantCount = newMerchantCount,
+            newMerchant = newMerchant,
         )
     }
 
@@ -375,6 +384,16 @@ data class MerchantUsingStructureDefaults(
 data class PendingAutomationAlert(
     val pendingStructureCount: Int,
     val newMerchantCount: Int,
+    /** Solo si el aviso lo provoca un comercio nuevo que ya se ha apuntado con la regla general de su estructura. */
+    val newMerchant: NewMerchantAlert? = null,
+)
+
+data class NewMerchantAlert(
+    val recordId: String,
+    val merchant: String,
+    val generalRuleName: String,
+    val structureId: String,
+    val variableKey: String,
 )
 
 private fun NotificationRecordEntity.toTransaction(id: String, accountId: String, structure: NotificationStructure, rule: NotificationRule?, amount: RecognizedAmount, now: Long, zoneId: ZoneId): Transaction {

@@ -287,14 +287,19 @@ class NotificationRepositoryTest {
         repository.createStructureFromRecord(seed, "Pago", 0..3, 14..20, NotificationDirection.GASTO)
 
         val first = (repository.ingest(notification("Pago 2 EUR en CAFÉ", 500_000)) as NotificationOutcome.Registrada).recordId
-        assertEquals(PendingAutomationAlert(0, 1), repository.pendingAlertFor(first))
+        val firstAlert = repository.pendingAlertFor(first)
+        assertEquals(1, firstAlert?.newMerchantCount)
+        // El aviso nombra el comercio y la regla general (la estructura) que se le ha aplicado.
+        assertEquals("CAFÉ", firstAlert?.newMerchant?.merchant)
+        assertEquals("Pago", firstAlert?.newMerchant?.generalRuleName)
+        assertEquals(first, firstAlert?.newMerchant?.recordId)
         val repeated = (repository.ingest(notification("Pago 3 EUR en cafe", 900_000)) as NotificationOutcome.Registrada).recordId
         assertNull(repository.pendingAlertFor(repeated))
         val second = (repository.ingest(notification("Pago 4 EUR en Otro", 1_300_000)) as NotificationOutcome.Registrada).recordId
-        assertEquals(PendingAutomationAlert(0, 2), repository.pendingAlertFor(second))
+        assertEquals(2, repository.pendingAlertFor(second)?.newMerchantCount)
 
         val (_, combinedAlert) = repository.ingestWithPendingAlert(notification("Estructura distinta 6 EUR", 1_500_000))
-        assertEquals(PendingAutomationAlert(1, 2), combinedAlert)
+        assertEquals(PendingAutomationAlert(1, 2), combinedAlert)   // sin comercio nuevo: aviso general
 
         repository.createRuleForRecord(first, NotificationRuleValues())
         val configured = (repository.ingest(notification("Pago 5 EUR en CAFE", 1_700_000)) as NotificationOutcome.Registrada).recordId
@@ -311,7 +316,7 @@ class NotificationRepositoryTest {
         LedgerRepository(db).deleteTransaction(requireNotNull(db.notificationDao().getRecord(first)?.transactionId))
 
         val returned = (repository.ingest(notification("Pago 3 EUR en DÓS", 900_000)) as NotificationOutcome.Registrada).recordId
-        assertEquals(PendingAutomationAlert(0, 1), repository.pendingAlertFor(returned))
+        assertEquals(1, repository.pendingAlertFor(returned)?.newMerchantCount)
     }
 
     private suspend fun authorizeWithAccount() { saveAccount("account", "EUR"); repository.setAuthorized(PACKAGE, true, "account") }
