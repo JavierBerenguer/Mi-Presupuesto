@@ -101,11 +101,14 @@ fun RecurringRuleEntity.toDomain() = RecurringRule(
     archived = archived,
     createdAt = createdAt,
     updatedAt = updatedAt,
+    productId = productId,
+    units = units?.let { java.math.BigDecimal(it) },
+    commissionMinor = commissionMinor,
 )
 
 fun RecurringRule.toEntity() = RecurringRuleEntity(
     id, kind.name, amountMinor, currency, accountId, destinationAccountId, categoryId,
     description, merchant, startDate.toEpochDay(), periodQuantity, periodUnit.name,
     endDate?.toEpochDay(), reminder.name, reminderCustomDays, lastGeneratedDate?.toEpochDay(),
-    archived, createdAt, updatedAt,
+    archived, createdAt, updatedAt, productId, units?.stripTrailingZeros()?.toPlainString(), commissionMinor,
 )

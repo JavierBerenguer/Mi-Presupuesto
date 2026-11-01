@@ -30,6 +30,7 @@ import com.mipatrimonio.app.domain.model.ReminderOption
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.first
 
@@ -111,7 +112,7 @@ class RecurringReminderScheduler(
         workManager.cancelAllWorkByTag(tag(ruleId))
     }
 
-    fun schedule(rule: RecurringRule) {
+    suspend fun schedule(rule: RecurringRule) {
         cancel(rule.id)
         if (rule.archived || rule.reminder == ReminderOption.NO) return
         val current = now()
@@ -135,7 +136,10 @@ class RecurringReminderScheduler(
             if (reminderDate.isBefore(today)) return@forEach
             val preferred = reminderDate.atTime(9, 0).atZone(current.zone)
             val scheduled = if (preferred.isAfter(current)) preferred else current
-            val body = rule.description.ifBlank { context.getString(R.string.recurring_notification_generic_body) }
+            val body = rule.description.ifBlank {
+                repository.productName(rule.productId)
+                    ?: context.getString(R.string.recurring_notification_generic_body)
+            }
             val data = Data.Builder()
                 .putString(RecurringReminderWorker.KEY_RULE_ID, rule.id)
                 .putLong(RecurringReminderWorker.KEY_DATE, occurrence.toEpochDay())
@@ -165,6 +169,33 @@ class RecurringReminderScheduler(
                 PERIODIC_WORK,
                 ExistingPeriodicWorkPolicy.UPDATE,
                 request,
+            )
+        }
+
+        @SuppressLint("MissingPermission")
+        fun notifyFailure(context: Context, rule: RecurringRule, date: LocalDate, reason: String) {
+            if (Build.VERSION.SDK_INT >= 33 &&
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+                PackageManager.PERMISSION_GRANTED
+            ) return
+            val description = rule.description.ifBlank { context.getString(R.string.recurring_unnamed) }
+            val body = context.getString(
+                R.string.recurring_generation_failure_body,
+                description,
+                date.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
+                reason,
+            )
+            val notification = NotificationCompat.Builder(context, RecurringReminderWorker.CHANNEL_ID)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle(context.getString(R.string.recurring_generation_failure_title))
+                .setContentText(body)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+                .setAutoCancel(true)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .build()
+            NotificationManagerCompat.from(context).notify(
+                ("recurring-failure-${rule.id}-${date.toEpochDay()}").hashCode(),
+                notification,
             )
         }
 

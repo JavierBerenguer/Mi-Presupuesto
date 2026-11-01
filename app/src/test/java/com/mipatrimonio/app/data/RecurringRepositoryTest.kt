@@ -44,7 +44,7 @@ class RecurringRepositoryTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
         ledger = LedgerRepository(db) { now++ }
-        recurring = RecurringRepository(db, { now++ }) { LocalDate.of(2026, 1, 2) }
+        recurring = RecurringRepository(db, clock = { now++ }, today = { LocalDate.of(2026, 1, 2) })
         ledger.saveAccount(Account("a", "Origen", AccountType.CORRIENTE, "EUR", 1_000, false, 1))
         ledger.saveAccount(Account("b", "Destino", AccountType.CORRIENTE, "EUR", 0, false, 2))
     }
@@ -144,5 +144,20 @@ class RecurringRepositoryTest {
             900L,
             BalanceCalculator.balance(account, transactions, ledger.transfers.first(), today = today),
         )
+    }
+
+    @Test
+    fun `gasto ingreso y transferencia mantienen horizonte de 31 dias`() = runBlocking<Unit> {
+        val today = LocalDate.of(2026, 1, 2)
+        recurring.saveRule(rule("expense", RecurringKind.GASTO).copy(startDate = today))
+        recurring.saveRule(rule("income", RecurringKind.INGRESO).copy(startDate = today))
+        recurring.saveRule(rule("transfer", RecurringKind.TRANSFERENCIA).copy(startDate = today))
+
+        recurring.generatePending(RecurringRepository.generationLimit(today))
+
+        assertEquals(4, ledger.transactions.first().size)
+        assertEquals(2, ledger.transfers.first().size)
+        assertTrue((ledger.transactions.first().map { it.date } + ledger.transfers.first().map { it.date })
+            .contains(today.plusMonths(1)))
     }
 }

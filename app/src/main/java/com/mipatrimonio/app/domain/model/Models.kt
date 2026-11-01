@@ -63,7 +63,11 @@ enum class TransactionType { INGRESO, GASTO }
 
 enum class TransactionSource { MANUAL, IMPORTACION, NOTIFICACION, RECURRENTE }
 
-enum class RecurringKind { GASTO, INGRESO, TRANSFERENCIA }
+enum class RecurringKind { GASTO, INGRESO, TRANSFERENCIA, COMPRA, VENTA, DIVIDENDO, COMISION }
+
+fun RecurringKind.isInvestment(): Boolean = this in setOf(
+    RecurringKind.COMPRA, RecurringKind.VENTA, RecurringKind.DIVIDENDO, RecurringKind.COMISION,
+)
 
 enum class RecurringPeriodUnit { DIA, MES, ANIO }
 
@@ -89,6 +93,9 @@ data class RecurringRule(
     val archived: Boolean,
     val createdAt: Long,
     val updatedAt: Long,
+    val productId: String? = null,
+    val units: java.math.BigDecimal? = null,
+    val commissionMinor: Long? = null,
 )
 
 /** Ingreso o gasto. El importe es siempre positivo; el signo lo da [type]. La divisa es la de la cuenta. */

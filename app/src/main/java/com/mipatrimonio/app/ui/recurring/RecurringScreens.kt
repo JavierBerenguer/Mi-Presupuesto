@@ -68,6 +68,7 @@ fun RecurringListScreen(
             c.settings,
             c.recurringReminderScheduler::cancel,
             c.recurringReminderScheduler::schedule,
+            products = c.sync.productos,
         )
     },
 ) {
@@ -101,6 +102,7 @@ fun RecurringListScreen(
                                     item.rule.description.ifBlank { stringResource(R.string.recurring_unnamed) },
                                     style = MaterialTheme.typography.titleMedium,
                                 )
+                                item.productName?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                                 Text(
                                     if (state.hideAmounts) stringResource(R.string.common_hidden_amount)
                                     else MoneyMath.format(item.rule.amountMinor, item.rule.currency),
@@ -167,7 +169,13 @@ fun RecurringFormScreen(
     ruleId: String?,
     onDone: () -> Unit,
     viewModel: RecurringFormViewModel = appViewModel { c ->
-        RecurringFormViewModel(c.recurring, c.ledger, ruleId, onSaved = c.recurringReminderScheduler::schedule)
+        RecurringFormViewModel(
+            c.recurring,
+            c.ledger,
+            ruleId,
+            onSaved = c.recurringReminderScheduler::schedule,
+            products = c.sync.productos,
+        )
     },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -203,20 +211,30 @@ private fun RecurringFormContent(state: RecurringFormUiState, viewModel: Recurri
             )
         }
         item { AmountField(stringResource(R.string.recurring_amount), values.amount, viewModel::setAmount) }
+        if (state.isInvestment) item {
+            DropdownField(
+                stringResource(R.string.recurring_product),
+                state.products.filter { it.deletedAt == null },
+                state.products.find { it.id == values.productId },
+                { it.corto ?: it.nombre },
+                { viewModel.setProduct(it?.id) },
+            )
+        }
         item {
             DropdownField(
-                stringResource(R.string.recurring_account), state.activeAccounts, state.accounts.find { it.id == values.accountId },
+                stringResource(if (state.isInvestment) R.string.recurring_liquidity_account else R.string.recurring_account),
+                state.activeAccounts, state.accounts.find { it.id == values.accountId },
                 { it.name }, { viewModel.setAccount(it?.id) },
             )
         }
-        if (values.kind == RecurringKind.TRANSFERENCIA) item {
+        if (state.showDestinationAccount) item {
             DropdownField(
                 stringResource(R.string.recurring_destination), state.destinationAccounts,
                 state.accounts.find { it.id == values.destinationAccountId }, { it.name },
                 { viewModel.setDestinationAccount(it?.id) },
             )
         }
-        item {
+        if (state.showCategory) item {
             CategoryPickerField(
                 label = stringResource(R.string.recurring_category),
                 categories = state.categories.filterNot { it.archived },
@@ -229,16 +247,29 @@ private fun RecurringFormContent(state: RecurringFormUiState, viewModel: Recurri
         item {
             OutlinedTextField(
                 values.description, viewModel::setDescription,
-                label = { Text(stringResource(R.string.recurring_description)) },
+                label = { Text(stringResource(if (state.isInvestment) R.string.recurring_note else R.string.recurring_description)) },
                 modifier = Modifier.fillMaxWidth(), singleLine = true,
             )
         }
-        item {
+        if (state.showMerchant) item {
             OutlinedTextField(
                 values.merchant, viewModel::setMerchant,
                 label = { Text(stringResource(R.string.recurring_merchant)) },
                 modifier = Modifier.fillMaxWidth(), singleLine = true,
             )
+        }
+        if (state.showUnits) item {
+            OutlinedTextField(
+                values.units,
+                viewModel::setUnits,
+                label = { Text(stringResource(R.string.recurring_units)) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+            )
+        }
+        if (state.showCommission) item {
+            AmountField(stringResource(R.string.recurring_commission), values.commission, viewModel::setCommission)
         }
         item { DateField(stringResource(R.string.recurring_start), values.startDate, viewModel::setStartDate) }
         item {
@@ -306,6 +337,10 @@ private fun kindLabel(kind: RecurringKind) = stringResource(when (kind) {
     RecurringKind.GASTO -> R.string.common_kind_gasto
     RecurringKind.INGRESO -> R.string.common_kind_ingreso
     RecurringKind.TRANSFERENCIA -> R.string.mov_transfer
+    RecurringKind.COMPRA -> R.string.recurring_kind_purchase
+    RecurringKind.VENTA -> R.string.recurring_kind_sale
+    RecurringKind.DIVIDENDO -> R.string.recurring_kind_dividend
+    RecurringKind.COMISION -> R.string.recurring_kind_fee
 })
 
 @Composable
@@ -330,7 +365,10 @@ private fun reminderLabel(option: ReminderOption) = stringResource(when (option)
 
 private fun RecurringFormError.messageResource() = when (this) {
     RecurringFormError.ACCOUNT -> R.string.recurring_error_account
+    RecurringFormError.PRODUCT -> R.string.recurring_error_product
     RecurringFormError.AMOUNT -> R.string.recurring_error_amount
+    RecurringFormError.UNITS -> R.string.recurring_error_units
+    RecurringFormError.COMMISSION -> R.string.recurring_error_commission
     RecurringFormError.PERIOD -> R.string.recurring_error_period
     RecurringFormError.CUSTOM_REMINDER -> R.string.recurring_error_custom_reminder
     RecurringFormError.END_DATE -> R.string.recurring_error_end_date

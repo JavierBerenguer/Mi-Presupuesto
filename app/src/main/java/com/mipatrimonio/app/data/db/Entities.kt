@@ -297,4 +297,7 @@ data class RecurringRuleEntity(
     @ColumnInfo(defaultValue = "0") val archived: Boolean,
     val createdAt: Long,
     val updatedAt: Long,
+    val productId: String? = null,
+    val units: String? = null,
+    val commissionMinor: Long? = null,
 )

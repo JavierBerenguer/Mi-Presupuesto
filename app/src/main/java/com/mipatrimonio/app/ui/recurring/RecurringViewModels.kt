@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.RecurringRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
+import com.mipatrimonio.app.data.db.SyncProductoEntity
 import com.mipatrimonio.app.domain.calc.RecurringGenerator
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Category
@@ -13,6 +14,8 @@ import com.mipatrimonio.app.domain.model.RecurringKind
 import com.mipatrimonio.app.domain.model.RecurringPeriodUnit
 import com.mipatrimonio.app.domain.model.RecurringRule
 import com.mipatrimonio.app.domain.model.ReminderOption
+import com.mipatrimonio.app.domain.model.isInvestment
+import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
 import kotlinx.coroutines.channels.Channel
@@ -21,12 +24,14 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-data class RecurringListItem(val rule: RecurringRule, val nextDate: LocalDate?)
+data class RecurringListItem(val rule: RecurringRule, val nextDate: LocalDate?, val productName: String? = null)
 
 data class RecurringListUiState(
     val isLoading: Boolean = true,
@@ -38,13 +43,20 @@ class RecurringListViewModel(
     private val repository: RecurringRepository,
     settings: SettingsRepository,
     private val onCancelled: (String) -> Unit = {},
-    private val onScheduled: (RecurringRule) -> Unit = {},
+    private val onScheduled: suspend (RecurringRule) -> Unit = {},
     private val today: () -> LocalDate = LocalDate::now,
+    products: Flow<List<SyncProductoEntity>> = flowOf(emptyList()),
 ) : ViewModel() {
-    val uiState: StateFlow<RecurringListUiState> = combine(repository.rules, settings.settings) { rules, config ->
+    val uiState: StateFlow<RecurringListUiState> = combine(repository.rules, settings.settings, products) { rules, config, productRows ->
         RecurringListUiState(
             isLoading = false,
-            items = rules.map { RecurringListItem(it, RecurringGenerator.nextDate(it, today())) },
+            items = rules.map { rule ->
+                RecurringListItem(
+                    rule,
+                    RecurringGenerator.nextDate(rule, today()),
+                    productRows.firstOrNull { it.id == rule.productId }?.let { it.corto ?: it.nombre },
+                )
+            },
             hideAmounts = config.hideAmounts,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RecurringListUiState())
@@ -55,7 +67,7 @@ class RecurringListViewModel(
             onCancelled(id)
         } else {
             repository.generatePending(RecurringRepository.generationLimit(today()))
-            repository.getRule(id)?.let(onScheduled)
+            repository.getRule(id)?.let { onScheduled(it) }
         }
     }
 
@@ -80,6 +92,9 @@ data class RecurringFormValues(
     val endDate: LocalDate = LocalDate.now().plusYears(1),
     val reminder: ReminderOption = ReminderOption.NO,
     val reminderCustomDays: String = "0",
+    val productId: String? = null,
+    val units: String = "",
+    val commission: String = "",
 )
 
 data class RecurringFormUiState(
@@ -89,14 +104,24 @@ data class RecurringFormUiState(
     val values: RecurringFormValues = RecurringFormValues(),
     val accounts: List<Account> = emptyList(),
     val categories: List<Category> = emptyList(),
+    val products: List<SyncProductoEntity> = emptyList(),
     val isSaving: Boolean = false,
     val error: RecurringFormError? = null,
 ) {
-    val activeAccounts get() = accounts.filterNot(Account::archived)
+    val activeAccounts get() = accounts.filter { account ->
+        !account.archived && account.useInApp &&
+            (!values.kind.isInvestment() || account.currency == "EUR")
+    }
     val destinationAccounts get() = activeAccounts.filter { it.id != values.accountId }
+    val isInvestment get() = values.kind.isInvestment()
+    val showCategory get() = !isInvestment
+    val showMerchant get() = !isInvestment
+    val showDestinationAccount get() = values.kind == RecurringKind.TRANSFERENCIA
+    val showUnits get() = values.kind == RecurringKind.COMPRA || values.kind == RecurringKind.VENTA
+    val showCommission get() = showUnits
 }
 
-enum class RecurringFormError { ACCOUNT, AMOUNT, PERIOD, CUSTOM_REMINDER, END_DATE, SAVE }
+enum class RecurringFormError { ACCOUNT, PRODUCT, AMOUNT, UNITS, COMMISSION, PERIOD, CUSTOM_REMINDER, END_DATE, SAVE }
 
 class RecurringFormViewModel(
     private val repository: RecurringRepository,
@@ -104,7 +129,8 @@ class RecurringFormViewModel(
     private val ruleId: String?,
     private val today: () -> LocalDate = LocalDate::now,
     private val clock: () -> Long = System::currentTimeMillis,
-    private val onSaved: (RecurringRule) -> Unit = {},
+    private val products: Flow<List<SyncProductoEntity>> = flowOf(emptyList()),
+    private val onSaved: suspend (RecurringRule) -> Unit = {},
 ) : ViewModel() {
     private data class FormStatus(
         val loading: Boolean,
@@ -143,7 +169,9 @@ class RecurringFormViewModel(
 
     val uiState: StateFlow<RecurringFormUiState> = combine(
         values,
-        combine(ledger.accounts, ledger.categories) { accounts, categories -> accounts to categories },
+        combine(ledger.accounts, ledger.categories, products) { accounts, categories, productRows ->
+            Triple(accounts, categories, productRows)
+        },
         combine(loading, notFound, saving, error) { load, missing, save, message ->
             FormStatus(load, missing, save, message)
         },
@@ -155,12 +183,23 @@ class RecurringFormViewModel(
             values = form,
             accounts = data.first,
             categories = data.second,
+            products = data.third,
             isSaving = status.saving,
             error = status.error,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RecurringFormUiState(isEditing = ruleId != null))
 
-    fun setKind(value: RecurringKind) = update { it.copy(kind = value) }
+    fun setKind(value: RecurringKind) = update { current ->
+        val eligibleAccounts = uiState.value.accounts.filter { account ->
+            !account.archived && account.useInApp &&
+                (!value.isInvestment() || account.currency == "EUR")
+        }
+        current.copy(
+            kind = value,
+            accountId = current.accountId.takeIf { id -> eligibleAccounts.any { it.id == id } }
+                ?: eligibleAccounts.firstOrNull()?.id,
+        )
+    }
     fun setAmount(value: String) = update { it.copy(amount = value) }
     fun setAccount(value: String?) = update { current ->
         current.copy(
@@ -180,14 +219,36 @@ class RecurringFormViewModel(
     fun setEndDate(value: LocalDate) = update { it.copy(endDate = value) }
     fun setReminder(value: ReminderOption) = update { it.copy(reminder = value) }
     fun setReminderCustomDays(value: String) = update { it.copy(reminderCustomDays = value) }
+    fun setProduct(value: String?) = update { it.copy(productId = value) }
+    fun setUnits(value: String) = update { it.copy(units = value) }
+    fun setCommission(value: String) = update { it.copy(commission = value) }
 
     fun save() {
         val form = values.value
-        val account = uiState.value.accounts.find { it.id == form.accountId && !it.archived }
+        val account = uiState.value.activeAccounts.find { it.id == form.accountId }
             ?: return fail(RecurringFormError.ACCOUNT)
         val amountMinor = runCatching {
             MoneyMath.parse(form.amount)?.let { MoneyMath.toMinor(it, account.currency) }
         }.getOrNull()?.takeIf { it > 0 } ?: return fail(RecurringFormError.AMOUNT)
+        val product = if (form.kind.isInvestment()) {
+            uiState.value.products.firstOrNull { it.id == form.productId && it.deletedAt == null }
+                ?: return fail(RecurringFormError.PRODUCT)
+        } else null
+        val units = if (form.kind == RecurringKind.COMPRA || form.kind == RecurringKind.VENTA) {
+            form.units.takeIf(String::isNotBlank)?.let { value ->
+                runCatching { BigDecimal(value.replace(',', '.')) }.getOrNull()
+                    ?: return fail(RecurringFormError.UNITS)
+            }
+        } else null
+        if (form.kind == RecurringKind.VENTA && product?.fuente != "manual" && units == null) {
+            return fail(RecurringFormError.UNITS)
+        }
+        val commissionMinor = if (form.kind == RecurringKind.COMPRA || form.kind == RecurringKind.VENTA) {
+            form.commission.takeIf(String::isNotBlank)?.let { value ->
+                runCatching { MoneyMath.parse(value)?.let { MoneyMath.toMinor(it, account.currency) } }
+                    .getOrNull()?.takeIf { it >= 0 } ?: return fail(RecurringFormError.COMMISSION)
+            }
+        } else null
         val quantity = form.periodQuantity.toIntOrNull()?.takeIf { it > 0 }
             ?: return fail(RecurringFormError.PERIOD)
         val customDays = if (form.reminder == ReminderOption.PERSONALIZADO) {
@@ -205,9 +266,9 @@ class RecurringFormViewModel(
             currency = account.currency,
             accountId = account.id,
             destinationAccountId = form.destinationAccountId.takeIf { form.kind == RecurringKind.TRANSFERENCIA },
-            categoryId = form.categoryId,
+            categoryId = form.categoryId.takeUnless { form.kind.isInvestment() },
             description = form.description,
-            merchant = form.merchant,
+            merchant = form.merchant.takeUnless { form.kind.isInvestment() }.orEmpty(),
             startDate = form.startDate,
             periodQuantity = quantity,
             periodUnit = form.periodUnit,
@@ -218,6 +279,9 @@ class RecurringFormViewModel(
             archived = previous?.archived ?: false,
             createdAt = previous?.createdAt ?: clock(),
             updatedAt = clock(),
+            productId = product?.id,
+            units = units,
+            commissionMinor = commissionMinor,
         )
         viewModelScope.launch {
             saving.value = true
@@ -257,4 +321,7 @@ private fun RecurringRule.toFormValues() = RecurringFormValues(
     endDate = endDate ?: startDate.plusYears(1),
     reminder = reminder,
     reminderCustomDays = (reminderCustomDays ?: 0).toString(),
+    productId = productId,
+    units = units?.stripTrailingZeros()?.toPlainString().orEmpty(),
+    commission = commissionMinor?.let { MoneyMath.toDecimal(it, currency).stripTrailingZeros().toPlainString() }.orEmpty(),
 )
