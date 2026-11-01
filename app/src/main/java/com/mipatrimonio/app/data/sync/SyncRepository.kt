@@ -200,6 +200,7 @@ class SyncRepository(
         comisionMinor: Long?, cuentaId: String?, nota: String?, origen: String = "movil", id: String? = null,
         retencionMinor: Long? = null,
     ): String {
+        require(origen == "movil" || origen == "importacion") { "El origen del movimiento no es válido" }
         if (id != null && dao.movimiento(id) != null) return id
         val product = dao.producto(productoId)
         val account = cuentaId?.let { id -> ledger.accounts.first().firstOrNull { it.id == id } }

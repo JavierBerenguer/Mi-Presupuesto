@@ -66,6 +66,19 @@ class InvestmentMovementSyncRepositoryTest {
         }
     }
 
+    @Test fun `dividendo importado conserva id determinista y origen`() = runBlocking {
+        val id = "11111111-1111-1111-1111-111111111111"
+        sync.crearMovimientoInversion(
+            "dividendo", "p", date, 100, null, null, "a", "Dividendo TR",
+            origen = "importacion", id = id,
+        )
+
+        assertEquals(id, db.syncDao().movimiento(id)?.id)
+        assertEquals("importacion", db.syncDao().movimiento(id)?.origen)
+        val json = JSONObject(db.syncDao().outboxFor("movimientos").single().json)
+        assertEquals("importacion", json.getString("origen"))
+    }
+
     @Test fun `edita origen escritorio sin cambiarlo y publica ambas cuentas`() = runBlocking {
         db.syncDao().upsertMovimiento(movement("m", "escritorio", SyncRepository.accountIdToRemoteId("a")))
 

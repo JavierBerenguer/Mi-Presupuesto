@@ -1,16 +1,20 @@
 package com.mipatrimonio.app.data.importer
 
 import com.mipatrimonio.app.data.repository.DefaultCategories
+import com.mipatrimonio.app.data.db.SyncProductoEntity
 import com.mipatrimonio.app.domain.model.MoneyMath
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
 import java.util.Locale
+import java.time.LocalDate
+import java.util.UUID
 
 sealed interface ImportRowDecision {
     data object Ignore : ImportRowDecision
     data object AcceptDefault : ImportRowDecision
     data class AsTransaction(val categoryId: String? = null) : ImportRowDecision
+    data class AsInvestment(val productId: String) : ImportRowDecision
 }
 
 enum class ImportRowStatus { CREATE, ALREADY_IMPORTED, REVIEW, IGNORED }
@@ -18,7 +22,23 @@ enum class ImportRowStatus { CREATE, ALREADY_IMPORTED, REVIEW, IGNORED }
 sealed interface ImportRecord {
     val id: String
     data class Movement(val value: Transaction) : ImportRecord { override val id = value.id }
+    data class InvestmentDividend(
+        override val id: String,
+        val productId: String,
+        val date: LocalDate,
+        val netMinor: Long,
+        val withholdingMinor: Long?,
+        val accountId: String,
+        val note: String,
+    ) : ImportRecord
 }
+
+data class ExistingInvestmentDividend(
+    val productId: String,
+    val accountId: String?,
+    val date: LocalDate,
+    val netMinor: Long,
+)
 
 data class PlannedImportRow(
     val source: ImportedMovement,
@@ -51,6 +71,11 @@ data class TradeRepublicPlanningContext(
     val existingRecordIds: Set<String>,
     val decisions: Map<String, ImportRowDecision> = emptyMap(),
     val now: Long = System.currentTimeMillis(),
+    val products: List<SyncProductoEntity> = emptyList(),
+    val existingInvestmentMovementIds: Set<String> = emptySet(),
+    val existingDividends: List<ExistingInvestmentDividend> = emptyList(),
+    val hasSyncSession: Boolean = false,
+    val investmentAccountId: String = accountId,
 )
 
 object TradeRepublicImportPlanner {
@@ -70,7 +95,8 @@ object TradeRepublicImportPlanner {
             return PlannedImportRow(row, ImportRowStatus.IGNORED, reason = REASON_INVESTMENT)
         }
         val id = recordId(row.externalId)
-        if (id in context.existingRecordIds) return PlannedImportRow(row, ImportRowStatus.ALREADY_IMPORTED)
+        if (id in context.existingRecordIds) return alreadyImported(row)
+        if (row.kind == ImportedKind.DIVIDENDO) return planDividend(row, context)
         if (row.currency != null && !row.currency.equals(context.accountCurrency, ignoreCase = true)) {
             return PlannedImportRow(row, ImportRowStatus.IGNORED, reason = REASON_FOREIGN_CURRENCY)
         }
@@ -105,6 +131,81 @@ object TradeRepublicImportPlanner {
         )
         return PlannedImportRow(row, ImportRowStatus.CREATE, ImportRecord.Movement(transaction), cashEffectMinor = net)
     }
+
+    private fun planDividend(row: ImportedMovement, context: TradeRepublicPlanningContext): PlannedImportRow {
+        val movementId = investmentMovementId(row.externalId)
+        if (movementId in context.existingInvestmentMovementIds) return alreadyImported(row)
+        if (row.currency != null && !row.currency.equals(context.accountCurrency, ignoreCase = true)) {
+            return PlannedImportRow(row, ImportRowStatus.IGNORED, reason = REASON_FOREIGN_CURRENCY)
+        }
+        val decision = context.decisions[row.externalId]
+        if (decision == ImportRowDecision.Ignore) {
+            return PlannedImportRow(row, ImportRowStatus.IGNORED, reason = "Ignorada por el usuario")
+        }
+        if (row.currency == null && decision !is ImportRowDecision.AsInvestment) {
+            return PlannedImportRow(row, ImportRowStatus.REVIEW, reason = "La fila no tiene divisa")
+        }
+        val net = net(row) ?: return PlannedImportRow(row, ImportRowStatus.REVIEW, reason = "El importe está fuera de rango")
+        if (net <= 0L) return PlannedImportRow(row, ImportRowStatus.REVIEW, reason = row.reviewReason ?: "El dividendo no tiene un importe neto positivo")
+        if (!context.hasSyncSession || context.products.isEmpty()) {
+            return PlannedImportRow(row, ImportRowStatus.REVIEW, reason = REASON_SYNC_SESSION)
+        }
+        if (row.needsReview && decision !is ImportRowDecision.AsInvestment) {
+            return PlannedImportRow(row, ImportRowStatus.REVIEW, reason = row.reviewReason)
+        }
+        val activeProducts = context.products.filter { it.deletedAt == null }
+        val product = when (decision) {
+            is ImportRowDecision.AsInvestment -> activeProducts.singleOrNull { it.id == decision.productId }
+                ?: return PlannedImportRow(row, ImportRowStatus.REVIEW, reason = "El producto elegido ya no está disponible")
+            else -> {
+                val isin = normalizeIsin(row.isin)
+                val matches = activeProducts.filter { normalizeIsin(it.identificador) == isin && isin.isNotEmpty() }
+                when (matches.size) {
+                    1 -> matches.single()
+                    0 -> return PlannedImportRow(row, ImportRowStatus.REVIEW, reason = missingProductReason(row))
+                    else -> return PlannedImportRow(row, ImportRowStatus.REVIEW, reason = "Hay varios productos con el ISIN ${row.isin.orEmpty().trim()}")
+                }
+            }
+        }
+        val nearby = context.existingDividends.filter {
+            it.productId == product.id && it.accountId == context.investmentAccountId &&
+                kotlin.math.abs(it.date.toEpochDay() - row.date.toEpochDay()) <= DUPLICATE_DAY_RANGE
+        }
+        if (nearby.any { amountsMatch(it.netMinor, net) }) return alreadyImported(row)
+        nearby.minByOrNull { kotlin.math.abs(it.date.toEpochDay() - row.date.toEpochDay()) }?.let { existing ->
+            return PlannedImportRow(
+                row,
+                ImportRowStatus.REVIEW,
+                reason = "Hay un dividendo de este producto el ${existing.date} con otro importe (${MoneyMath.format(existing.netMinor, context.accountCurrency)}): revisa si es el mismo",
+            )
+        }
+        val record = ImportRecord.InvestmentDividend(
+            id = movementId,
+            productId = product.id,
+            date = row.date,
+            netMinor = net,
+            withholdingMinor = row.taxCents.takeIf { it < 0L && it != Long.MIN_VALUE }?.let { -it },
+            accountId = context.accountId,
+            note = row.description,
+        )
+        return PlannedImportRow(row, ImportRowStatus.CREATE, record, cashEffectMinor = net)
+    }
+
+    private fun net(row: ImportedMovement): Long? =
+        runCatching { Math.addExact(Math.addExact(row.amountCents, row.feeCents), row.taxCents) }.getOrNull()
+
+    private fun alreadyImported(row: ImportedMovement) =
+        PlannedImportRow(row, ImportRowStatus.ALREADY_IMPORTED, reason = REASON_ALREADY_IN_PORTFOLIO)
+
+    private fun missingProductReason(row: ImportedMovement): String {
+        val name = row.assetName?.takeIf { it.isNotBlank() } ?: row.description
+        return "No tienes «$name» (${row.isin.orEmpty().trim()}) en la cartera: dalo de alta en el escritorio y vuelve a importar"
+    }
+
+    private fun normalizeIsin(value: String?): String = value.orEmpty().trim().uppercase(Locale.ROOT)
+
+    private fun amountsMatch(first: Long, second: Long): Boolean =
+        runCatching { kotlin.math.abs(Math.subtractExact(first, second)) <= DUPLICATE_AMOUNT_RANGE }.getOrDefault(false)
 
     private fun category(row: ImportedMovement, type: TransactionType): String = when {
         row.rawType.equals("INTEREST_PAYMENT", true) -> "mp-ingresos-intereses"
@@ -151,9 +252,15 @@ object TradeRepublicImportPlanner {
     }.also { id -> check(DefaultCategories.all.any { it.id == id }) }
 
     fun recordId(externalId: String) = "import:tr:$externalId"
+    fun investmentMovementId(externalId: String): String =
+        UUID.nameUUIDFromBytes("tr:$externalId".toByteArray(Charsets.UTF_8)).toString()
 
     private val CARD_TYPES = setOf("CARD_TRANSACTION", "CARD_TRANSACTION_INTERNATIONAL")
     private const val CATEGORY_CASH = "CASH"
     const val REASON_OUTSIDE_SCOPE = "Categoría fuera del ámbito de caja"
     const val REASON_FOREIGN_CURRENCY = "Divisa distinta de la cuenta"
+    const val REASON_ALREADY_IN_PORTFOLIO = "Ya está en la cartera"
+    const val REASON_SYNC_SESSION = "Inicia sesión en la sincronización para importar los dividendos"
+    private const val DUPLICATE_DAY_RANGE = 3L
+    private const val DUPLICATE_AMOUNT_RANGE = 1L
 }

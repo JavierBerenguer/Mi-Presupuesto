@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 
 /** Inyección de dependencias manual: suficiente para el tamaño actual y sin magia de generación de código. */
 @OptIn(FlowPreview::class)
@@ -93,7 +94,27 @@ class AppContainer(context: Context) {
     val csvExportFiles = CsvExportFileStore(context.applicationContext.contentResolver)
     val csvExport = CsvExportService(CsvExportRepository(database))
     val importFiles = ImportFileStore(context.applicationContext.contentResolver)
-    val tradeRepublicImport = TradeRepublicImportRepository(database)
+    val tradeRepublicImport = TradeRepublicImportRepository(
+        db = database,
+        productsProvider = { sync.productos.first() },
+        investmentMovementsProvider = { database.syncDao().allMovimientos() },
+        hasSyncSession = sync::hasSession,
+        createInvestmentDividend = { dividend ->
+            sync.crearMovimientoInversion(
+                tipo = "dividendo",
+                productoId = dividend.productId,
+                fecha = dividend.date,
+                importeMinor = dividend.netMinor,
+                unidades = null,
+                comisionMinor = null,
+                retencionMinor = dividend.withholdingMinor,
+                cuentaId = dividend.accountId,
+                nota = dividend.note,
+                origen = "importacion",
+                id = dividend.id,
+            )
+        },
+    )
     val notifications = NotificationRepository(
         database,
         NotificationEngine(listOf(GenericSpanishParser())),

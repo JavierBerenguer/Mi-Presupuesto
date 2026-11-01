@@ -5,9 +5,9 @@ import com.mipatrimonio.app.data.importer.ImportRowDecision
 import com.mipatrimonio.app.data.importer.ImportRowStatus
 import com.mipatrimonio.app.data.importer.PlannedImportRow
 
-enum class ImportReviewAction { IMPORT_MOVEMENT, NONE }
+enum class ImportReviewAction { IMPORT_MOVEMENT, SELECT_INVESTMENT, NONE }
 
-enum class ImportReviewDecisionState { PENDING, IGNORED, IMPORT_MOVEMENT }
+enum class ImportReviewDecisionState { PENDING, IGNORED, IMPORT_MOVEMENT, IMPORT_INVESTMENT }
 
 data class ImportReviewItem(
     val row: PlannedImportRow,
@@ -21,6 +21,7 @@ internal fun canConvertToMovement(row: ImportedMovement): Boolean =
 
 internal fun importReviewItem(row: PlannedImportRow, decision: ImportRowDecision?): ImportReviewItem {
     val action = when {
+        row.source.kind == com.mipatrimonio.app.data.importer.ImportedKind.DIVIDENDO -> ImportReviewAction.SELECT_INVESTMENT
         canConvertToMovement(row.source) -> ImportReviewAction.IMPORT_MOVEMENT
         else -> ImportReviewAction.NONE
     }
@@ -29,6 +30,7 @@ internal fun importReviewItem(row: PlannedImportRow, decision: ImportRowDecision
         decision == ImportRowDecision.Ignore -> ImportReviewDecisionState.IGNORED
         decision == ImportRowDecision.AcceptDefault -> ImportReviewDecisionState.IMPORT_MOVEMENT
         decision is ImportRowDecision.AsTransaction -> ImportReviewDecisionState.IMPORT_MOVEMENT
+        decision is ImportRowDecision.AsInvestment -> ImportReviewDecisionState.IMPORT_INVESTMENT
         else -> ImportReviewDecisionState.PENDING
     }
     return ImportReviewItem(row, action, state)
