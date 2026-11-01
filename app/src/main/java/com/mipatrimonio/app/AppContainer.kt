@@ -153,6 +153,7 @@ class AppContainer(context: Context) {
         pendingAutomationNotifier.createChannel()
         RecurringReminderScheduler.enqueuePeriodic(context.applicationContext)
         SyncScheduler.schedule(context.applicationContext)
+        scope.launch { runCatching { sync.removeGhostAccounts() } }
         clearLegacyMarketSecrets(context.applicationContext)
         scope.launch {
             recurring.generatePending(
