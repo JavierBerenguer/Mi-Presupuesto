@@ -581,3 +581,11 @@ El usuario dejó `datos-privados/Documento de cambios/Documento.md` (+ 4 captura
   - `Primera Carga/primera_carga.xlsx`: 307 filas, dividendos con cuenta; se quitó la fila de saldo de Neverless.
   - **T-086** (propuesta de categorías de Codex) en curso.
   - **Pendiente del usuario:** copia de seguridad actual + contraseña temporal en `Primera Carga`, para generar la copia limpia (T-087).
+- **Integración de los movimientos de inversión (decidido con el usuario, 2026-11-01):**
+  - Alcance: movimientos de inversión (compra, venta, dividendo, comisión) con cuenta de liquidez en EUR.
+  - Subcategorías del usuario en Inversiones: «Comisión», «Compra», «Dividendo» y «Venta». Categoría fija según el tipo, reservada (no se elige en apuntes).
+  - Regla general nueva: **el tipo del apunte decide** si es ingreso o gasto, no la categoría raíz. Dividendo = ingreso; comisión = gasto; compra y venta = neutras (transferencia efectivo ↔ Cartera), con una línea «Invertido».
+  - Retención: campo opcional del dividendo y de la venta; el importe sigue siendo el neto y todo usa el neto, salvo el informe fiscal (bruto + retención). Una sola fila y una sola categoría.
+  - Los dividendos de TR deben ser dividendos de inversión (producto por ISIN + cuenta TR). Los intereses y FEE de TR siguen como apunte.
+  - Fichas: **T-097** categoría automática (Room v20) → T-098 estadísticas (el tipo decide + inversiones en totales) → T-099 crear y editar todos los tipos desde el móvil (formularios compra/venta y dividendo/comisión) → T-100 órdenes permanentes de inversión → T-101 importación TR de dividendos → T-102 retenciones (Supabase + escritorio + móvil).
+  - Color actual de la fila de inversión (modo oscuro): fondo `#20352E`, icono `#B5E8D5`.
