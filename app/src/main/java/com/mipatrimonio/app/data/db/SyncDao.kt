@@ -12,6 +12,7 @@ interface SyncDao {
     @Query("SELECT * FROM sync_movimiento WHERE perfilId = :perfilId AND deletedAt IS NULL ORDER BY fecha DESC") fun observeMovimientos(perfilId: String): Flow<List<SyncMovimientoEntity>>
     @Query("SELECT * FROM sync_resumen WHERE perfilId = :perfilId") fun observeResumen(perfilId: String): Flow<SyncResumenEntity?>
     @Query("SELECT * FROM sync_movimiento WHERE id = :id") suspend fun movimiento(id: String): SyncMovimientoEntity?
+    @Query("SELECT * FROM sync_movimiento") suspend fun allMovimientos(): List<SyncMovimientoEntity>
     @Query("SELECT * FROM sync_movimiento WHERE cuentaId = :remoteAccountId AND deletedAt IS NULL")
     suspend fun movementsForAccount(remoteAccountId: String): List<SyncMovimientoEntity>
     @Query("SELECT COUNT(*) FROM sync_movimiento WHERE cuentaId = :remoteAccountId AND deletedAt IS NULL")

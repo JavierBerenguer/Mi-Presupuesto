@@ -46,8 +46,8 @@ class SyncPortfolioGateway(private val repository: SyncRepository) : PortfolioGa
         repository.crearCompra(productId, date, amountMinor, units, commissionMinor, accountId, "movil", note)
     }
     override suspend fun editMovement(id: String, date: LocalDate, amountMinor: Long, units: BigDecimal?, commissionMinor: Long?, accountId: String?, note: String?) =
-        repository.editarMovimientoPropio(id, date, amountMinor, units, commissionMinor, accountId, note)
-    override suspend fun deleteMovement(id: String) = repository.borrarMovimientoPropio(id)
+        repository.editarMovimientoInversion(id, date, amountMinor, units, commissionMinor, accountId, note)
+    override suspend fun deleteMovement(id: String) = repository.borrarMovimientoInversion(id)
 }
 
 enum class PortfolioStatus { NO_SESSION, NO_SUMMARY, READY, ERROR }
@@ -139,7 +139,7 @@ class PortfolioViewModel(
         PortfolioUiState(
             loading = values[0] == null, status = status,
             summary = (parsed as? PortfolioSummaryResult.Success)?.summary,
-            products = products.filter { it.tipo !in setOf("efectivo", "deuda", "inmueble") },
+            products = products.filter { it.tipo != "deuda" },
             movements = movements, accounts = accounts, syncing = local.first,
             error = local.second ?: (parsed as? PortfolioSummaryResult.Error)?.message,
             originalNotifications = notificationRecords.mapNotNull { record ->

@@ -45,6 +45,7 @@ import com.mipatrimonio.app.ui.common.MoneyText
 import com.mipatrimonio.app.ui.common.SectionCard
 import com.mipatrimonio.app.ui.common.appViewModel
 import com.mipatrimonio.app.ui.common.formatDate
+import com.mipatrimonio.app.ui.movements.InvestmentMovementDialog
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.LocalDate
@@ -97,15 +98,17 @@ fun ProductDetailScreen(
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
         )
     }
-    if (buying) PurchaseDialog(state.products, state.accounts, state.error, onDismiss = { buying = false; viewModel.clearError() }) {
-            _, date, amount, units, commission, account, note ->
-        viewModel.savePurchase(productId, date, amount, units, commission, account, note) { buying = false }
-    }
+    if (buying) InvestmentMovementDialog(
+        initialProductId = productId,
+        requireAccount = false,
+        onDismiss = { buying = false; viewModel.clearError() },
+    )
     editing?.let { movement ->
-        MovementEditDialog(movement, state.accounts, state.error, state.originalNotifications[movement.id], onDismiss = { editing = null; viewModel.clearError() }) {
-                date, amount, units, commission, account, note ->
-            viewModel.editMovement(movement.id, date, amount, units, commission, account, note) { editing = null }
-        }
+        InvestmentMovementDialog(
+            movementId = movement.id,
+            requireAccount = false,
+            onDismiss = { editing = null; viewModel.clearError() },
+        )
     }
     deleting?.let { movement ->
         ConfirmDialog(
@@ -140,7 +143,7 @@ private fun MovementRow(movement: SyncMovimientoEntity, accounts: List<Account>,
 }
 
 fun isMovementEditable(movement: SyncMovimientoEntity): Boolean =
-    movement.origen == "movil" || movement.origen == "notificacion"
+    movement.tipo in setOf("compra", "venta", "dividendo", "comision")
 
 @Composable
 private fun MovementEditDialog(

@@ -167,4 +167,16 @@
     <string name="mov_selected_item">Apunte seleccionado</string>
     <string name="mov_round_up_included">Incluye −%1$s de redondeo pendiente</string>
     <string name="mov_round_up_included_hidden">Incluye •••• de redondeo pendiente</string>
+    <string name="mov_investment">Inversión</string>
+    <string name="mov_investment_new">Nuevo movimiento de inversión</string>
+    <string name="mov_investment_edit">Editar movimiento de inversión</string>
+    <string name="mov_investment_purchase">Compra</string>
+    <string name="mov_investment_sale">Venta</string>
+    <string name="mov_investment_dividend">Dividendo</string>
+    <string name="mov_investment_fee">Comisión</string>
+    <string name="mov_investment_all">Todas (%1$s)</string>
+    <string name="mov_investment_account_required">Selecciona una cuenta</string>
+    <string name="mov_investment_type_locked">Al editar no se pueden cambiar el tipo de apunte ni la operación.</string>
+    <string name="mov_investment_missing">Este movimiento ya no existe</string>
+    <string name="mov_investment_view_product">Ver producto</string>
 </resources>

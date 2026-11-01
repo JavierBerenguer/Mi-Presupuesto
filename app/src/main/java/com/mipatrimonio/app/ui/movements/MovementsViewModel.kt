@@ -334,7 +334,7 @@ class MovementsViewModel(
                 when (item) {
                     is MovementItem.Tx -> ledger.deleteTransaction(item.transaction.id)
                     is MovementItem.Move -> ledger.deleteTransfer(item.transfer.id)
-                    is MovementItem.Liquidity -> Unit
+                    is MovementItem.Liquidity -> sync?.borrarMovimientoInversion(item.movement.id)
                 }
             }.onFailure { error.value = it.message }
         }

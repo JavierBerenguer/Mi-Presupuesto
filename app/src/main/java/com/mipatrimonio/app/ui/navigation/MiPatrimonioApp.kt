@@ -167,7 +167,13 @@ private fun AppNavHost(
                 onNewEntry = { navController.navigate(Rutas.apunte(null)) },
                 onEditEntry = { navController.navigate(Rutas.apunte(it)) },
                 onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
-                onOpenInvestment = { navController.navigate(Rutas.productoCartera(it)) },
+                onOpenInvestment = { target ->
+                    if (target.startsWith("product:")) {
+                        navController.navigate(Rutas.productoCartera(target.removePrefix("product:")))
+                    } else {
+                        navController.navigate(Rutas.apunte("investment:$target"))
+                    }
+                },
                 initialSource = entry.savedStateHandle.remove<String>(Rutas.MOVEMENT_SOURCE_KEY)
                     ?.let(SourceFilter::valueOf),
             )
@@ -237,6 +243,7 @@ private fun AppNavHost(
                 onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
                 onOpenCategories = { navController.navigate(Rutas.CATEGORIAS) },
                 onConfigureMerchant = { navController.navigate(Rutas.configurarRegla(it)) },
+                onOpenProduct = { navController.navigate(Rutas.productoCartera(it)) },
             )
         }
         composable(Rutas.SINCRONIZACION) { SyncScreen() }

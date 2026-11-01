@@ -7,13 +7,18 @@ import androidx.room.PrimaryKey
 data class SyncPerfilEntity(@PrimaryKey val id: String, val nombre: String, val orden: Int, val deletedAt: String?, val updatedAt: String)
 
 @Entity(tableName = "sync_producto")
-data class SyncProductoEntity(@PrimaryKey val id: String, val perfilId: String, val nombre: String, val corto: String?, val tipo: String, val moneda: String, val identificador: String?, val deletedAt: String?, val updatedAt: String)
+data class SyncProductoEntity(
+    @PrimaryKey val id: String, val perfilId: String, val nombre: String, val corto: String?,
+    val tipo: String, val moneda: String, val identificador: String?, val deletedAt: String?,
+    val updatedAt: String, val fuente: String? = null,
+)
 
 @Entity(tableName = "sync_movimiento")
 data class SyncMovimientoEntity(
     @PrimaryKey val id: String, val perfilId: String, val productoId: String, val fecha: Long,
     val tipo: String, val unidades: String, val importeMinor: Long, val comisionMinor: Long?,
     val cuentaId: String?, val origen: String, val nota: String?, val deletedAt: String?, val updatedAt: String,
+    val destinoId: String? = null, val unidadesDestino: String? = null,
 )
 
 @Entity(tableName = "sync_resumen")
