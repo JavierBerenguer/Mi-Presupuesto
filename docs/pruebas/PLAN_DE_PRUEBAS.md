@@ -149,6 +149,51 @@ Este documento lo mantiene Claude. Cada bloque indica en qué versión se prueba
   - **Categorías › Categoría padre**: solo salen categorías principales, y está desactivado si la categoría tiene subcategorías;
   - **Borrar una categoría en uso › destino**: «Sin categoría» solo aparece si ningún presupuesto la usa.
 
+## L. Movimientos de inversión integrados (v1.11.0, fichas T-097 a T-104)
+**Antes de empezar:**
+- Instala la v1.11.0 en el móvil.
+- Cierra y vuelve a abrir el escritorio con su lanzador: así arranca con el código nuevo.
+
+**Categorías (T-097)**
+- [ ] L1. **Ajustes › Categorías › Inversiones:** «Compra», «Venta», «Dividendo» y «Comisión» llevan la nota «Movimientos de inversión». Se pueden renombrar y cambiar de color (prueba `#B5E8D5`), pero no borrar, archivar ni mover a otra categoría.
+- [ ] L2. **Movimientos › Filtros › Categoría › Inversiones:** salen los movimientos de inversión (compras, dividendos…) junto a los apuntes de Inversiones. Con «Dividendo», solo los dividendos.
+- [ ] L3. Al buscar «Dividendo» en Movimientos salen los dividendos. Su icono y su color son los de la categoría.
+- [ ] L4. Al crear un apunte normal (o una regla de notificación, o al importar de TR), en el selector de categorías **no** aparecen esas cuatro.
+
+**Totales e Inicio (T-098)**
+- [ ] L5. Un ingreso apuntado en una categoría que no es «Ingresos» (por ejemplo, un regalo en «Otros») suma en los **ingresos** del mes, no resta de los gastos.
+- [ ] L6. Un dividendo con cuenta suma en ingresos y una comisión con cuenta, en gastos. Una compra no cambia ni ingresos ni gastos.
+- [ ] L7. La tarjeta del mes en **Inicio** muestra «Invertido este mes» (compras − ventas), o «Desinvertido» si vendiste más. El saldo de la cuenta es el mismo de antes.
+- [ ] L8. Un presupuesto de Inversiones › Comisión cuenta las comisiones de inversión.
+
+**Crear y editar desde el móvil (T-099)**
+- [ ] L9. **Movimientos › Nuevo apunte:** hay una cuarta pestaña, **«Inversión»**, y debajo Compra · Venta · Dividendo · Comisión. Sin cuenta de liquidez no deja guardar.
+- [ ] L10. **Equito:** registra en el móvil un dividendo de «Equito (Real Estate)» en «Equito Cash». Comprueba que:
+  - sube el saldo de Equito Cash;
+  - sale en Movimientos;
+  - en el escritorio aparece en **Mis datos › Movimientos** al recargar la página (más de 30 s después).
+- [ ] L11. **Venta:** «Todas» rellena las participaciones que tenías ese día. Si pones más, no deja guardar y explica cuántas tenías.
+- [ ] L12. Edita en el móvil un movimiento creado en el escritorio (por ejemplo, la nota): el cambio llega al escritorio y el movimiento sigue siendo «del escritorio».
+- [ ] L13. Borra un movimiento de inversión desde la lista de Movimientos: pide confirmación y desaparece también del escritorio.
+
+**Órdenes permanentes (T-100)**
+- [ ] L14. Crea una orden de **dividendo** mensual (por ejemplo, el alquiler de Equito) con fecha de inicio pasada. Se crean las ocurrencias pasadas, **ninguna futura**, y llegan al escritorio.
+- [ ] L15. Edita el importe de la orden: los movimientos ya creados no cambian. Borra la orden: tampoco desaparecen.
+
+**Retenciones (T-101 y T-102)**
+- [ ] L16. **Escritorio:** un dividendo con «Retención» 30 € e importe 120 € muestra «bruto 150 · ret. 30» en la tabla. El panel suma 120.
+- [ ] L17. **Escritorio › Renta (informe fiscal):** ese cobro sale con bruto 150 y retención 30, y el total de retenciones del año lo incluye.
+- [ ] L18. **Móvil:** ese movimiento muestra «bruto 150 € · retención 30 €» y suma 120 al saldo. Quita la retención desde el móvil: también se quita en el escritorio.
+- [ ] L19. **Escritorio:** quita la **nota** o la **comisión** de un movimiento y recarga la página: no vuelve a aparecer (fallo corregido en T-101).
+
+**Importación de TR (T-103)**
+- [ ] L20. Importa un extracto de TR con dividendos: los que ya están en el escritorio salen como «Ya está en la cartera». Los nuevos van «a la cartera», al producto de su ISIN y con su retención. Intereses y comisiones siguen como apuntes.
+- [ ] L21. Un dividendo de un ISIN que no tienes en la cartera queda en revisión, y puedes elegir el producto o ignorarlo.
+
+**Escritorio siempre al día (T-104)**
+- [ ] L22. Cambia algo desde el móvil, espera más de 30 s y pulsa **F5** en el escritorio: aparece sin cerrar la app.
+- [ ] L23. Guarda o borra algo en **Mis datos**: el panel, los gráficos y las tablas se actualizan solos, y sigues en la misma pestaña y en la misma posición.
+
 ---
 
 ## Resultados y problemas encontrados
