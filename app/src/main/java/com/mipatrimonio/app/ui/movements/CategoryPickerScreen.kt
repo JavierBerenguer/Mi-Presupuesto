@@ -79,17 +79,24 @@ fun CategoryPickerScreen(
     onNewCategory: (() -> Unit)? = null,
     unassignedLabel: String? = null,
     showUnassigned: Boolean = true,
+    excludeReserved: Boolean = false,
 ) {
+    val visibleCategories = remember(categories, excludeReserved) {
+        selectableCategories(categories, excludeReserved)
+    }
+    val selectableFrequentCategories = remember(frequentCategories, excludeReserved) {
+        selectableCategories(frequentCategories, excludeReserved)
+    }
     var query by remember { mutableStateOf("") }
-    val tabs = if (frequentCategories.isEmpty()) {
+    val tabs = if (selectableFrequentCategories.isEmpty()) {
         listOf(CategoryTab.TREE, CategoryTab.ALPHABETICAL)
     } else {
         listOf(CategoryTab.FREQUENT, CategoryTab.TREE, CategoryTab.ALPHABETICAL)
     }
     var selectedTab by remember(tabs) { mutableStateOf(tabs.first()) }
     val expanded = remember { mutableStateListOf<String>() }
-    val matches = remember(categories, query) {
-        if (query.isBlank()) categories else categories.filter { category ->
+    val matches = remember(visibleCategories, query) {
+        if (query.isBlank()) visibleCategories else visibleCategories.filter { category ->
             categoryPath(category, categories).contains(query.trim(), ignoreCase = true)
         }
     }
@@ -171,21 +178,21 @@ fun CategoryPickerScreen(
                         modifier = Modifier.fillMaxSize(),
                     )
                     selectedTab == CategoryTab.FREQUENT -> CategoryList(
-                        categories = frequentCategories,
+                        categories = selectableFrequentCategories,
                         allCategories = categories,
                         selectedId = selectedId,
                         onSelected = onSelected,
                         modifier = Modifier.fillMaxSize(),
                     )
                     selectedTab == CategoryTab.ALPHABETICAL -> CategoryList(
-                        categories = categories.sortedBy { categoryPath(it, categories).lowercase() },
+                        categories = visibleCategories.sortedBy { categoryPath(it, categories).lowercase() },
                         allCategories = categories,
                         selectedId = selectedId,
                         onSelected = onSelected,
                         modifier = Modifier.fillMaxSize(),
                     )
                     else -> CategoryTree(
-                        categories = categories,
+                        categories = visibleCategories,
                         selectedId = selectedId,
                         expanded = expanded,
                         onSelected = onSelected,
@@ -401,6 +408,7 @@ fun CategoryPickerField(
     allowNone: Boolean = true,
     valueWhenNone: String = noneLabel,
     enabled: Boolean = true,
+    excludeReserved: Boolean = false,
 ) {
     var showPicker by rememberSaveable { mutableStateOf(false) }
     val category = categories.find { it.id == selectedId }
@@ -438,11 +446,15 @@ fun CategoryPickerField(
                     onBack = { showPicker = false },
                     unassignedLabel = noneLabel,
                     showUnassigned = allowNone,
+                    excludeReserved = excludeReserved,
                 )
             }
         }
     }
 }
+
+internal fun selectableCategories(categories: List<Category>, excludeReserved: Boolean): List<Category> =
+    categories.filter { !excludeReserved || it.investmentKind == null }
 
 internal fun categoryPath(category: Category, categories: List<Category>): String {
     val parent = category.parentId?.let { id -> categories.find { it.id == id } }

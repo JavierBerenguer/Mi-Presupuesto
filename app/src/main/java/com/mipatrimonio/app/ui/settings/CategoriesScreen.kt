@@ -67,6 +67,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mipatrimonio.app.R
 import com.mipatrimonio.app.ui.movements.CategoryPickerField
 import com.mipatrimonio.app.domain.model.Category
+import com.mipatrimonio.app.domain.model.InvestmentKind
 import com.mipatrimonio.app.ui.common.ConfirmDialog
 import com.mipatrimonio.app.ui.common.CategoryIconBadge
 import com.mipatrimonio.app.ui.common.CategoryIconPickerViewModel
@@ -90,6 +91,13 @@ private val categoryColorPalette = listOf(
     0xFF57CC99,
     0xFF9EE493,
 )
+
+private fun InvestmentKind.investmentNoteResource(): Int = when (this) {
+    InvestmentKind.COMPRA -> R.string.aj_investment_category_purchases
+    InvestmentKind.VENTA -> R.string.aj_investment_category_sales
+    InvestmentKind.DIVIDENDO -> R.string.aj_investment_category_dividends
+    InvestmentKind.COMISION -> R.string.aj_investment_category_fees
+}
 
 @Composable
 fun CategoriesScreen(
@@ -271,6 +279,8 @@ private fun CategoryRow(
     onArchive: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    val protected = category.investmentKind != null ||
+        categories.any { it.parentId == category.id && it.investmentKind != null }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -297,6 +307,13 @@ private fun CategoryRow(
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
+                    category.investmentKind?.let { kind ->
+                        Text(
+                            stringResource(kind.investmentNoteResource()),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
                 if (childCount > 0 && onToggleExpanded != null) {
                     IconButton(onClick = onToggleExpanded) {
@@ -314,20 +331,22 @@ private fun CategoryRow(
                         contentDescription = stringResource(R.string.aj_edit_category, category.name),
                     )
                 }
-                IconButton(onClick = onArchive) {
-                    Icon(
-                        if (category.archived) Icons.Default.Unarchive else Icons.Default.Archive,
-                        contentDescription = stringResource(
-                            if (category.archived) R.string.aj_restore_category else R.string.aj_archive_category,
-                            category.name,
-                        ),
-                    )
-                }
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = stringResource(R.string.aj_delete_category, category.name),
-                    )
+                if (!protected) {
+                    IconButton(onClick = onArchive) {
+                        Icon(
+                            if (category.archived) Icons.Default.Unarchive else Icons.Default.Archive,
+                            contentDescription = stringResource(
+                                if (category.archived) R.string.aj_restore_category else R.string.aj_archive_category,
+                                category.name,
+                            ),
+                        )
+                    }
+                    IconButton(onClick = onDelete) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = stringResource(R.string.aj_delete_category, category.name),
+                        )
+                    }
                 }
             }
         }
@@ -376,7 +395,7 @@ private fun CategoryDeleteDialog(
                     )
                     CategoryPickerField(
                         label = stringResource(R.string.aj_delete_category_target),
-                        categories = state.targets.map { it.category },
+                        categories = state.targets.map { it.category }.filter { it.investmentKind == null },
                         selectedId = state.targetId.takeIf { state.targetSelected },
                         onSelected = onTargetSelected,
                         noneLabel = withoutCategoryLabel,
@@ -465,7 +484,7 @@ private fun CategoryFormDialog(
                     selectedId = selectedParent?.id,
                     onSelected = { parentId = it },
                     noneLabel = stringResource(R.string.common_none),
-                    enabled = !hasChildren,
+                    enabled = !hasChildren && category?.investmentKind == null,
                 )
                 if (hasChildren) {
                     Text(

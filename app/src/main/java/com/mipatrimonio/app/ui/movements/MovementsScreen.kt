@@ -653,7 +653,7 @@ private fun MovementRow(
     val rowCategory = when (item) {
         is MovementItem.Tx -> item.transaction.categoryId?.let(categoriesById::get)
         is MovementItem.Move -> item.transfer.categoryId?.let(categoriesById::get)
-        is MovementItem.Liquidity -> null
+        is MovementItem.Liquidity -> item.categoryId?.let(categoriesById::get)
     }
     val isFuture = movementStatus(item.date, LocalDate.now()) == MovementStatus.PREVISTO
     val isRestrictedFuture = isFuture && grayFuture
@@ -672,7 +672,7 @@ private fun MovementRow(
             .padding(start = 12.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (item is MovementItem.Liquidity) {
+        if (item is MovementItem.Liquidity && rowCategory == null) {
             Surface(
                 modifier = Modifier.size(40.dp),
                 shape = CircleShape,

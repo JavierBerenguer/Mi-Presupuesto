@@ -14,6 +14,7 @@ import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.MovementStatus
+import com.mipatrimonio.app.domain.model.InvestmentKind
 import com.mipatrimonio.app.domain.model.movementStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -104,6 +105,9 @@ class MovementsViewModel(
         ledgerData, settings.settings, syncMovements, syncProducts,
     ) { ledgerData, currentSettings, remoteMovements, remoteProducts ->
         val existingTransactionIds = ledgerData.transactions.mapTo(hashSetOf(), Transaction::id)
+        val investmentCategories = ledgerData.categories.mapNotNull { category ->
+            category.investmentKind?.let { it to category.id }
+        }.toMap()
         val retainedSelection = selectedIds.value.intersect(existingTransactionIds)
         if (retainedSelection != selectedIds.value) selectedIds.value = retainedSelection
         SourceData(
@@ -115,6 +119,7 @@ class MovementsViewModel(
                     MovementItem.Liquidity(
                         movement, remoteProducts.firstOrNull { it.id == movement.productoId }?.nombre.orEmpty(),
                         entry.accountId, entry.effectMinor,
+                        InvestmentKind.fromMovementType(movement.tipo)?.let(investmentCategories::get),
                     )
                 },
             baseCurrency = currentSettings.baseCurrency,

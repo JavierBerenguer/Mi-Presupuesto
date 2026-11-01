@@ -49,7 +49,10 @@ data class AccountBalanceEntity(
     val remoteUpdatedAt: String? = null,
 )
 
-@Entity(tableName = "category", indices = [Index("parentId")])
+@Entity(
+    tableName = "category",
+    indices = [Index("parentId"), Index(value = ["investmentKind"], unique = true)],
+)
 data class CategoryEntity(
     @PrimaryKey val id: String,
     val name: String,
@@ -60,6 +63,7 @@ data class CategoryEntity(
     val archived: Boolean,
     val sortOrder: Int,
     val icon: String? = null,
+    val investmentKind: String? = null,
 )
 
 @Entity(

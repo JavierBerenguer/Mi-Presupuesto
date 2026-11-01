@@ -13,4 +13,4 @@ internal fun automationCategoryLabel(
 }
 
 internal fun selectableAutomationCategories(categories: List<Category>): List<Category> =
-    categories.filterNot(Category::archived)
+    categories.filter { !it.archived && it.investmentKind == null }

@@ -116,6 +116,7 @@ fun TradeRepublicImportScreen(
                                 onSelected = { id -> id?.let { viewModel.setDecision(row.source.externalId, ImportRowDecision.AsTransaction(it)) } },
                                 noneLabel = stringResource(R.string.import_tr_select_category),
                                 allowNone = false,
+                                excludeReserved = true,
                             )
                         }
                     }

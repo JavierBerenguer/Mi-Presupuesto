@@ -7,6 +7,8 @@ import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.model.Transfer
+import com.mipatrimonio.app.domain.model.InvestmentKind
+import com.mipatrimonio.app.data.db.SyncMovimientoEntity
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -21,6 +23,8 @@ class MovementFiltersTest {
         Category("comida", "Alimentación", null, 0, false),
         Category("super", "Supermercado", "comida", 0, false),
         Category("nomina", "Nómina", null, 0, false),
+        Category("invest", "Inversiones", null, 0, false),
+        Category("dividend", "Dividendos y cupones", "invest", 0, false, investmentKind = InvestmentKind.DIVIDENDO),
     )
 
     private fun tx(
@@ -171,5 +175,51 @@ class MovementFiltersTest {
             applyFilters(listOf(grouped), MovementFilters(query = "lucia"), accounts, categories),
         )
         assertEquals(20_00L, groupMovementsByDay(listOf(grouped), "EUR").single().balanceMinor)
+    }
+
+    @Test
+    fun `inversiones filtra apuntes y liquidez por raiz y dividendo`() {
+        val expense = tx("investment-expense", TransactionType.GASTO, 10_00, 2, category = "dividend")
+        val dividend = liquidity("liquidity-dividend", "dividendo", "dividend")
+        val purchase = liquidity("liquidity-purchase", "compra", null)
+        val mixed = listOf(expense, dividend, purchase)
+
+        assertEquals(
+            listOf("investment-expense", "liquidity-dividend"),
+            movementIds(applyFilters(mixed, MovementFilters(categoryId = "invest"), accounts, categories)),
+        )
+        assertEquals(
+            listOf("investment-expense", "liquidity-dividend"),
+            movementIds(applyFilters(mixed, MovementFilters(categoryId = "dividend"), accounts, categories)),
+        )
+        assertEquals(
+            listOf("liquidity-dividend", "liquidity-purchase"),
+            movementIds(applyFilters(mixed, MovementFilters(kind = KindFilter.INVERSION), accounts, categories)),
+        )
+    }
+
+    @Test fun `busqueda por categoria encuentra liquidez`() {
+        val dividend = liquidity("liquidity-dividend", "dividendo", "dividend")
+
+        assertEquals(
+            listOf("liquidity-dividend"),
+            movementIds(applyFilters(listOf(dividend), MovementFilters(query = "cupones"), accounts, categories)),
+        )
+    }
+
+    private fun liquidity(id: String, type: String, categoryId: String?) = MovementItem.Liquidity(
+        SyncMovimientoEntity(
+            id, "profile", "product", LocalDate.of(2026, 3, 2).toEpochDay(), type, "1", 1_000,
+            null, "account", "manual", null, null, "2026-03-02T00:00:00Z",
+        ),
+        "Producto", "a1", 1_000, categoryId,
+    )
+
+    private fun movementIds(items: List<MovementItem>) = items.map {
+        when (it) {
+            is MovementItem.Tx -> it.transaction.id
+            is MovementItem.Move -> it.transfer.id
+            is MovementItem.Liquidity -> it.movement.id
+        }
     }
 }

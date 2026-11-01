@@ -39,7 +39,25 @@ data class Category(
     val colorArgb: Long,
     val archived: Boolean,
     val icon: String? = null,
+    val investmentKind: InvestmentKind? = null,
 )
+
+enum class InvestmentKind {
+    COMPRA,
+    VENTA,
+    DIVIDENDO,
+    COMISION;
+
+    companion object {
+        fun fromMovementType(tipo: String): InvestmentKind? = when (tipo) {
+            "compra" -> COMPRA
+            "venta" -> VENTA
+            "dividendo" -> DIVIDENDO
+            "comision" -> COMISION
+            else -> null
+        }
+    }
+}
 
 enum class TransactionType { INGRESO, GASTO }
 

@@ -223,6 +223,7 @@ private fun RecurringFormContent(state: RecurringFormUiState, viewModel: Recurri
                 selectedId = values.categoryId,
                 onSelected = viewModel::setCategory,
                 noneLabel = stringResource(R.string.recurring_no_category),
+                excludeReserved = true,
             )
         }
         item {

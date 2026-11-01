@@ -35,8 +35,13 @@ fun AccountBalanceRecord.toEntity(remoteUpdatedAt: String? = null) = AccountBala
     id, accountId, date.toEpochDay(), balanceMinor, updatedAt, deletedAt, remoteUpdatedAt,
 )
 
-fun CategoryEntity.toDomain() = Category(id, name, parentId, colorArgb, archived, icon)
-fun Category.toEntity(sortOrder: Int = 0) = CategoryEntity(id, name, "GASTO", parentId, colorArgb, archived, sortOrder, icon)
+fun CategoryEntity.toDomain() = Category(
+    id, name, parentId, colorArgb, archived, icon,
+    investmentKind?.let { value -> runCatching { enumValueOf<com.mipatrimonio.app.domain.model.InvestmentKind>(value) }.getOrNull() },
+)
+fun Category.toEntity(sortOrder: Int = 0) = CategoryEntity(
+    id, name, "GASTO", parentId, colorArgb, archived, sortOrder, icon, investmentKind?.name,
+)
 
 fun TransactionEntity.toDomain() = Transaction(
     id, TransactionType.valueOf(type), amountMinor, currency, LocalDate.ofEpochDay(epochDay), accountId, categoryId,

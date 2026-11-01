@@ -126,6 +126,7 @@ fun EntryFormScreen(
             },
             onBack = { showCategoryPicker = false },
             onNewCategory = onOpenCategories,
+            excludeReserved = true,
         )
     } else {
         EntryFormScaffold(

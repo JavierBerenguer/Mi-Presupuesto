@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="aj_investment_category_purchases">Movimientos de inversión: compras</string>
+    <string name="aj_investment_category_sales">Movimientos de inversión: ventas</string>
+    <string name="aj_investment_category_dividends">Movimientos de inversión: dividendos</string>
+    <string name="aj_investment_category_fees">Movimientos de inversión: comisiones</string>
     <string name="aj_bank_notifications">Notificaciones bancarias</string>
     <string name="aj_pending_proposals">Propuestas pendientes</string>
     <string name="aj_notification_automation">Automatización de notificaciones</string>
