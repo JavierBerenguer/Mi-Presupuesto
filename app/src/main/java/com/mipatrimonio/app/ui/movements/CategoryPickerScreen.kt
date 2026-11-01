@@ -55,6 +55,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.mipatrimonio.app.R
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.ui.common.CategoryIconBadge
@@ -72,6 +78,7 @@ fun CategoryPickerScreen(
     onBack: () -> Unit,
     onNewCategory: (() -> Unit)? = null,
     unassignedLabel: String? = null,
+    showUnassigned: Boolean = true,
 ) {
     var query by remember { mutableStateOf("") }
     val tabs = if (frequentCategories.isEmpty()) {
@@ -93,11 +100,13 @@ fun CategoryPickerScreen(
             SecondaryTopBar(title = stringResource(R.string.mov_choose_category), onBack = onBack)
         },
         bottomBar = {
-            CategoryActionBar(
-                onUnassigned = { onSelected(null) },
-                onNewCategory = onNewCategory,
-                unassignedLabel = unassignedLabel ?: stringResource(R.string.mov_category_unassigned),
-            )
+            if (showUnassigned || onNewCategory != null) {
+                CategoryActionBar(
+                    onUnassigned = if (showUnassigned) { { onSelected(null) } } else null,
+                    onNewCategory = onNewCategory,
+                    unassignedLabel = unassignedLabel ?: stringResource(R.string.mov_category_unassigned),
+                )
+            }
         },
     ) { padding ->
         Column(
@@ -339,7 +348,7 @@ private fun UnderlineTabs(
 }
 
 @Composable
-private fun CategoryActionBar(onUnassigned: () -> Unit, onNewCategory: (() -> Unit)?, unassignedLabel: String) {
+private fun CategoryActionBar(onUnassigned: (() -> Unit)?, onNewCategory: (() -> Unit)?, unassignedLabel: String) {
     Surface(
         modifier = Modifier.fillMaxWidth().imePadding(),
         color = MaterialTheme.colorScheme.surface,
@@ -350,11 +359,13 @@ private fun CategoryActionBar(onUnassigned: () -> Unit, onNewCategory: (() -> Un
                 Modifier.fillMaxWidth().navigationBarsPadding().padding(20.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                OutlinedButton(
-                    onClick = onUnassigned,
-                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                ) {
-                    Text(unassignedLabel, maxLines = 2, textAlign = TextAlign.Center)
+                if (onUnassigned != null) {
+                    OutlinedButton(
+                        onClick = onUnassigned,
+                        modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    ) {
+                        Text(unassignedLabel, maxLines = 2, textAlign = TextAlign.Center)
+                    }
                 }
                 if (onNewCategory != null) {
                     Button(
@@ -370,6 +381,64 @@ private fun CategoryActionBar(onUnassigned: () -> Unit, onNewCategory: (() -> Un
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Campo de formulario que abre [CategoryPickerScreen] a pantalla completa.
+ * [noneLabel] se muestra cuando no hay categoría y es el botón inferior del selector, salvo si [allowNone] es falso.
+ */
+@Composable
+fun CategoryPickerField(
+    label: String,
+    categories: List<Category>,
+    selectedId: String?,
+    onSelected: (String?) -> Unit,
+    noneLabel: String,
+    modifier: Modifier = Modifier,
+    allowNone: Boolean = true,
+    valueWhenNone: String = noneLabel,
+    enabled: Boolean = true,
+) {
+    var showPicker by rememberSaveable { mutableStateOf(false) }
+    val category = categories.find { it.id == selectedId }
+    Box(modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = category?.let { categoryPath(it, categories) } ?: valueWhenNone,
+            onValueChange = {},
+            readOnly = true,
+            enabled = enabled,
+            label = { Text(label) },
+            leadingIcon = category?.let { selected -> { CategoryIconBadge(selected, categories, size = 32.dp) } },
+            trailingIcon = { Icon(Icons.Outlined.ChevronRight, contentDescription = null) },
+            maxLines = 2,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Box(
+            Modifier.matchParentSize().clickable(enabled = enabled, role = Role.Button) { showPicker = true }
+                .semantics { contentDescription = label },
+        )
+    }
+    if (showPicker) {
+        Dialog(
+            onDismissRequest = { showPicker = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            Surface(Modifier.fillMaxSize()) {
+                CategoryPickerScreen(
+                    categories = categories,
+                    frequentCategories = emptyList(),
+                    selectedId = selectedId,
+                    onSelected = {
+                        onSelected(it)
+                        showPicker = false
+                    },
+                    onBack = { showPicker = false },
+                    unassignedLabel = noneLabel,
+                    showUnassigned = allowNone,
+                )
             }
         }
     }

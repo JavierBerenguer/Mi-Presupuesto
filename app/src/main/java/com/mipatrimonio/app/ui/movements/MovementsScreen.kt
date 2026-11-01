@@ -33,7 +33,6 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Calculate
 import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FilterList
@@ -70,14 +69,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mipatrimonio.app.R
 import com.mipatrimonio.app.domain.model.Account
@@ -1003,27 +998,6 @@ private fun MovementFiltersDialog(
     var minAmount by remember(filters, baseCurrency) { mutableStateOf(filters.minAmountMinor.toInputAmount(baseCurrency)) }
     var maxAmount by remember(filters, baseCurrency) { mutableStateOf(filters.maxAmountMinor.toInputAmount(baseCurrency)) }
     var amountError by remember { mutableStateOf(false) }
-    var showCategoryPicker by remember { mutableStateOf(false) }
-    if (showCategoryPicker) {
-        Dialog(
-            onDismissRequest = { showCategoryPicker = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false),
-        ) {
-            Surface(Modifier.fillMaxSize()) {
-                CategoryPickerScreen(
-                    categories = categories,
-                    frequentCategories = emptyList(),
-                    selectedId = draft.categoryId,
-                    onSelected = {
-                        draft = draft.copy(categoryId = it)
-                        showCategoryPicker = false
-                    },
-                    onBack = { showCategoryPicker = false },
-                    unassignedLabel = stringResource(R.string.mov_filter_all_categories),
-                )
-            }
-        }
-    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.mov_filters)) },
@@ -1045,7 +1019,13 @@ private fun MovementFiltersDialog(
                     onSelected = { draft = draft.copy(accountId = it?.id) },
                     noneLabel = stringResource(R.string.mov_filter_all_accounts),
                 )
-                FilterCategoryField(draft.categoryId, categories, onClick = { showCategoryPicker = true })
+                CategoryPickerField(
+                    label = stringResource(R.string.mov_filter_category),
+                    categories = categories,
+                    selectedId = draft.categoryId,
+                    onSelected = { draft = draft.copy(categoryId = it) },
+                    noneLabel = stringResource(R.string.mov_filter_all_categories),
+                )
                 OptionalDateField(stringResource(R.string.mov_filter_from), stringResource(R.string.mov_filter_add_from), draft.from) {
                     draft = draft.copy(from = it)
                 }
@@ -1072,28 +1052,6 @@ private fun MovementFiltersDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     )
-}
-
-@Composable
-private fun FilterCategoryField(categoryId: String?, categories: List<Category>, onClick: () -> Unit) {
-    val label = stringResource(R.string.mov_filter_category)
-    val category = categories.find { it.id == categoryId }
-    Box(Modifier.fillMaxWidth()) {
-        OutlinedTextField(
-            value = category?.let { categoryPath(it, categories) } ?: stringResource(R.string.mov_filter_all_categories),
-            onValueChange = {},
-            readOnly = true,
-            label = { Text(label) },
-            leadingIcon = category?.let { selected -> { CategoryIconBadge(selected, categories, size = 32.dp) } },
-            trailingIcon = { Icon(Icons.Outlined.ChevronRight, contentDescription = null) },
-            maxLines = 2,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Box(
-            Modifier.matchParentSize().clickable(role = Role.Button, onClick = onClick)
-                .semantics { contentDescription = label },
-        )
-    }
 }
 
 @Composable

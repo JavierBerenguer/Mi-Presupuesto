@@ -65,12 +65,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mipatrimonio.app.R
+import com.mipatrimonio.app.ui.movements.CategoryPickerField
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.ui.common.ConfirmDialog
 import com.mipatrimonio.app.ui.common.CategoryIconBadge
 import com.mipatrimonio.app.ui.common.CategoryIconPickerViewModel
 import com.mipatrimonio.app.ui.common.CategoryIcons
-import com.mipatrimonio.app.ui.common.DropdownField
 import com.mipatrimonio.app.ui.common.EmptyState
 import com.mipatrimonio.app.ui.common.HexColorPicker
 import com.mipatrimonio.app.ui.common.LoadingBox
@@ -90,8 +90,6 @@ private val categoryColorPalette = listOf(
     0xFF57CC99,
     0xFF9EE493,
 )
-
-private data class DeleteTargetOption(val categoryId: String?, val label: String)
 
 @Composable
 fun CategoriesScreen(
@@ -344,13 +342,6 @@ private fun CategoryDeleteDialog(
     onDismiss: () -> Unit,
 ) {
     val withoutCategoryLabel = stringResource(R.string.aj_without_category)
-    val targetOptions = buildList {
-        if (state.usage.budgets == 0) {
-            add(DeleteTargetOption(null, withoutCategoryLabel))
-        }
-        addAll(state.targets.map { DeleteTargetOption(it.category.id, it.label) })
-    }
-    val selected = targetOptions.firstOrNull { state.targetSelected && it.categoryId == state.targetId }
     AlertDialog(
         onDismissRequest = { if (!state.isDeleting) onDismiss() },
         title = { Text(stringResource(R.string.aj_delete_category_title)) },
@@ -383,12 +374,14 @@ private fun CategoryDeleteDialog(
                             state.usage.pendingProposals,
                         ),
                     )
-                    DropdownField(
+                    CategoryPickerField(
                         label = stringResource(R.string.aj_delete_category_target),
-                        options = targetOptions,
-                        selected = selected,
-                        optionLabel = { it.label },
-                        onSelected = { option -> option?.let { onTargetSelected(it.categoryId) } },
+                        categories = state.targets.map { it.category },
+                        selectedId = state.targetId.takeIf { state.targetSelected },
+                        onSelected = onTargetSelected,
+                        noneLabel = withoutCategoryLabel,
+                        allowNone = state.usage.budgets == 0,
+                        valueWhenNone = if (state.targetSelected) withoutCategoryLabel else "",
                         enabled = !state.isDeleting,
                     )
                     if (state.usage.budgets > 0) {
@@ -466,13 +459,13 @@ private fun CategoryFormDialog(
                     isError = error == CategoryFormError.BlankName,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                DropdownField(
+                CategoryPickerField(
                     label = stringResource(R.string.aj_parent_category),
-                    options = parentOptions,
-                    selected = selectedParent,
-                    optionLabel = { it.name },
-                    onSelected = { parentId = it?.id },
+                    categories = parentOptions,
+                    selectedId = selectedParent?.id,
+                    onSelected = { parentId = it },
                     noneLabel = stringResource(R.string.common_none),
+                    enabled = !hasChildren,
                 )
                 if (hasChildren) {
                     Text(

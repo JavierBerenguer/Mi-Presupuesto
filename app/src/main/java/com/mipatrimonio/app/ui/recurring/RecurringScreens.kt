@@ -43,6 +43,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mipatrimonio.app.R
+import com.mipatrimonio.app.ui.movements.CategoryPickerField
 import com.mipatrimonio.app.domain.model.MoneyMath
 import com.mipatrimonio.app.domain.model.RecurringKind
 import com.mipatrimonio.app.domain.model.RecurringPeriodUnit
@@ -216,9 +217,11 @@ private fun RecurringFormContent(state: RecurringFormUiState, viewModel: Recurri
             )
         }
         item {
-            DropdownField(
-                stringResource(R.string.recurring_category), state.categories.filterNot { it.archived },
-                state.categories.find { it.id == values.categoryId }, { it.name }, { viewModel.setCategory(it?.id) },
+            CategoryPickerField(
+                label = stringResource(R.string.recurring_category),
+                categories = state.categories.filterNot { it.archived },
+                selectedId = values.categoryId,
+                onSelected = viewModel::setCategory,
                 noneLabel = stringResource(R.string.recurring_no_category),
             )
         }

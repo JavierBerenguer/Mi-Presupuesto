@@ -23,6 +23,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mipatrimonio.app.R
+import com.mipatrimonio.app.ui.movements.CategoryPickerField
 import com.mipatrimonio.app.data.importer.ImportRowDecision
 import com.mipatrimonio.app.domain.model.MoneyMath
 import com.mipatrimonio.app.ui.common.DropdownField
@@ -108,11 +109,13 @@ fun TradeRepublicImportScreen(
                         }
                         if (item.action == ImportReviewAction.IMPORT_MOVEMENT) {
                             val selectedCategoryId = (state.decisions[row.source.externalId] as? ImportRowDecision.AsTransaction)?.categoryId
-                            DropdownField(
-                                stringResource(R.string.import_tr_category), state.categories,
-                                state.categories.firstOrNull { it.id == selectedCategoryId }, { it.name },
-                                { it?.let { category -> viewModel.setDecision(row.source.externalId, ImportRowDecision.AsTransaction(category.id)) } },
+                            CategoryPickerField(
+                                label = stringResource(R.string.import_tr_category),
+                                categories = state.categories,
+                                selectedId = selectedCategoryId,
+                                onSelected = { id -> id?.let { viewModel.setDecision(row.source.externalId, ImportRowDecision.AsTransaction(it)) } },
                                 noneLabel = stringResource(R.string.import_tr_select_category),
+                                allowNone = false,
                             )
                         }
                     }
