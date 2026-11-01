@@ -178,6 +178,24 @@ class MovementFiltersTest {
     }
 
     @Test
+    fun `grupo de ingresos se muestra como ingreso por la suma`() {
+        val parent = tx("parent", TransactionType.INGRESO, 50_00, 4, description = "Nómina")
+        val child = Transaction(
+            "child", TransactionType.INGRESO, 20_00, "EUR", LocalDate.of(2026, 3, 4), "a1", null,
+            "Extra", "", "", TransactionSource.MANUAL, 1, 1, "parent",
+        )
+        val grouped = parent.copy(groupChildren = listOf(child))
+
+        assertEquals(TransactionType.INGRESO, grouped.displayedTransaction.type)
+        assertEquals(70_00L, grouped.displayedTransaction.amountMinor)
+        assertEquals(
+            listOf(grouped),
+            applyFilters(listOf(grouped), MovementFilters(kind = KindFilter.INGRESOS), accounts, categories),
+        )
+        assertEquals(70_00L, groupMovementsByDay(listOf(grouped), "EUR").single().balanceMinor)
+    }
+
+    @Test
     fun `inversiones filtra apuntes y liquidez por raiz y dividendo`() {
         val expense = tx("investment-expense", TransactionType.GASTO, 10_00, 2, category = "dividend")
         val dividend = liquidity("liquidity-dividend", "dividendo", "dividend")
