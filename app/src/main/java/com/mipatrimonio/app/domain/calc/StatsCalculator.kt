@@ -42,30 +42,12 @@ object StatsCalculator {
                 excluded++
                 continue
             }
-            val root = rootCategory(t.categoryId, categories)
-            when {
-                root?.isIncomeRoot() == true -> {
-                    val signed = if (t.type == TransactionType.INGRESO) t.amountMinor else Math.negateExact(t.amountMinor)
-                    income = Math.addExact(income, signed)
+            when (t.type) {
+                TransactionType.INGRESO -> income = Math.addExact(income, t.amountMinor)
+                TransactionType.GASTO -> {
+                    val rootId = rootCategory(t.categoryId, categories)?.id ?: t.categoryId
+                    if (rootId !in excludedExpenseRootIds) expense = Math.addExact(expense, t.amountMinor)
                 }
-                root != null -> {
-                    if (root.id in excludedExpenseRootIds) continue
-                    val signed = if (t.type == TransactionType.GASTO) t.amountMinor else Math.negateExact(t.amountMinor)
-                    expense = Math.addExact(expense, signed)
-                }
-                t.categoryId != null -> {
-                    val isIncomeRoot = t.categoryId == INCOME_ROOT_ID
-                    if (isIncomeRoot) {
-                        val signed = if (t.type == TransactionType.INGRESO) t.amountMinor else Math.negateExact(t.amountMinor)
-                        income = Math.addExact(income, signed)
-                    } else {
-                        if (t.categoryId in excludedExpenseRootIds) continue
-                        val signed = if (t.type == TransactionType.GASTO) t.amountMinor else Math.negateExact(t.amountMinor)
-                        expense = Math.addExact(expense, signed)
-                    }
-                }
-                t.type == TransactionType.INGRESO -> income = Math.addExact(income, t.amountMinor)
-                else -> expense = Math.addExact(expense, t.amountMinor)
             }
         }
         return PeriodTotals(income, expense, excluded)
@@ -102,12 +84,9 @@ object StatsCalculator {
         val sums = LinkedHashMap<String?, Long>()
         for (t in TransactionGroups.netForStatistics(transactions)) {
             if (t.currency != baseCurrency || t.date !in range || movementStatus(t.date, today) != MovementStatus.EJECUTADO) continue
-            val rootCategory = rootCategory(t.categoryId, categories)
-            val root = rootCategory?.id ?: t.categoryId
-            if (rootCategory?.isIncomeRoot() == true || root == INCOME_ROOT_ID) continue
-            if (root == null && t.type == TransactionType.INGRESO) continue
-            val signed = if (t.type == TransactionType.GASTO) t.amountMinor else Math.negateExact(t.amountMinor)
-            sums[root] = Math.addExact(sums[root] ?: 0L, signed)
+            if (t.type != TransactionType.GASTO) continue
+            val root = rootCategory(t.categoryId, categories)?.id ?: t.categoryId
+            sums[root] = Math.addExact(sums[root] ?: 0L, t.amountMinor)
         }
         return sums.filterValues { it > 0L }
             .map { CategorySpend(it.key, it.value) }
@@ -128,12 +107,9 @@ object StatsCalculator {
         .filter { it.parentId == null && (it.id == INVESTMENT_ROOT_ID || it.name.normalized() == "inversiones") }
         .mapTo(mutableSetOf(INVESTMENT_ROOT_ID), Category::id)
 
-    private fun Category.isIncomeRoot(): Boolean = id == INCOME_ROOT_ID || name.normalized() == "ingresos"
-
     private fun String.normalized(): String = Normalizer.normalize(this, Normalizer.Form.NFD)
         .replace("\\p{M}+".toRegex(), "")
         .lowercase(Locale.ROOT)
 
-    private const val INCOME_ROOT_ID = "mp-ingresos"
     private const val INVESTMENT_ROOT_ID = "mp-inversiones"
 }

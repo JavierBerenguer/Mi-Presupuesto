@@ -8,6 +8,8 @@ import com.mipatrimonio.app.domain.calc.BudgetCalculator
 import com.mipatrimonio.app.domain.calc.CategorySpend
 import com.mipatrimonio.app.domain.calc.LiquidityBalanceCalculator
 import com.mipatrimonio.app.domain.calc.LiquidityMovement
+import com.mipatrimonio.app.domain.calc.InvestmentCashFlow
+import com.mipatrimonio.app.domain.calc.InvestmentStats
 import com.mipatrimonio.app.domain.calc.MonthTotals
 import com.mipatrimonio.app.domain.calc.NetWorth
 import com.mipatrimonio.app.domain.calc.NetWorthCalculator
@@ -87,8 +89,9 @@ data class HomeState(
     val investments: InvestmentSummary?,
     val allocation: AssetAllocation?,
     val liquidityCushion: LiquidityCushion?,
-    /** Lo que pasó de las cuentas a inversiones en el periodo (compras de Rumbo menos ventas y dividendos). No es gasto. */
+    /** Compras de inversión menos ventas en el periodo. No es gasto. */
     val investedInPeriodMinor: Long = 0L,
+    val investedThisMonthMinor: Long = 0L,
     val displayedCashMinor: Long = netWorth.cashMinor,
     val roundUpPendingMinor: Long = 0L,
 )
@@ -122,6 +125,7 @@ fun buildHomeState(
     period: Period,
     hideAmounts: Boolean = false,
     liquidityMovements: List<LiquidityMovement> = emptyList(),
+    investmentCashFlows: List<InvestmentCashFlow> = emptyList(),
     portfolioSummary: PortfolioSummary? = null,
     accountBalanceRecords: List<AccountBalanceRecord> = emptyList(),
     evolutionSeries: EvolutionSeries = EvolutionSeries.TOTAL,
@@ -145,11 +149,13 @@ fun buildHomeState(
     val displayedCash = Math.subtractExact(netWorth.cashMinor, roundUpPending)
     val firstActivity = (
         transactions.map { it.date } + transfers.map { it.date } + liquidityMovements.map { it.date } +
+            investmentCashFlows.map { it.date } +
             accountBalanceRecords.map { it.date }
         ).minOrNull()
     val thisMonth = YearMonth.from(today)
     val includedAccountIds = accounts.filter { !it.archived && it.useInApp && it.currency == baseCurrency }
         .mapTo(hashSetOf(), Account::id)
+    val statisticsTransactions = transactions + InvestmentStats.statTransactions(investmentCashFlows, categories)
     val filteredSeries = HistoryCalculator.netWorthSeries(
         baseCurrency,
         accounts,
@@ -167,7 +173,7 @@ fun buildHomeState(
         )
     }
     val monthTotals = StatsCalculator.totals(
-        transactions, baseCurrency, StatsCalculator.monthRange(thisMonth), today, categories,
+        statisticsTransactions, baseCurrency, StatsCalculator.monthRange(thisMonth), today, categories,
     )
     val investments = portfolioSummary?.toInvestmentSummary()
     val investmentHistory = portfolioSummary?.history
@@ -186,17 +192,17 @@ fun buildHomeState(
         month = thisMonth,
         monthTotals = monthTotals,
         savingRatePercent = savingRate(monthTotals),
-        budgetRemaining = budgetRemaining(budgets, transactions, categories, baseCurrency, today),
+        budgetRemaining = budgetRemaining(budgets, statisticsTransactions, categories, baseCurrency, today),
         period = period,
         netWorthSeries = displayedSeries,
         selectedEvolutionSeries = selectedSeries,
         hasInvestmentHistory = investmentHistory != null,
         investmentHistoryUpdated = portfolioSummary?.generated?.substringBefore('T'),
         monthlySeries = StatsCalculator.monthlySeries(
-            transactions, baseCurrency, thisMonth, period.barMonths(today, firstActivity), today, categories,
+            statisticsTransactions, baseCurrency, thisMonth, period.barMonths(today, firstActivity), today, categories,
         ),
         expenseByCategory = StatsCalculator.expenseByCategory(
-            transactions, categories, baseCurrency, period.range(today, firstActivity), today,
+            statisticsTransactions, categories, baseCurrency, period.range(today, firstActivity), today,
         ),
         hideAmounts = hideAmounts,
         automaticTransactionsCount = transactions.count {
@@ -210,12 +216,16 @@ fun buildHomeState(
             Math.subtractExact(displayedSeries.last().totalMinor, displayedSeries.first().totalMinor),
         investments = investments,
         allocation = assetAllocation(displayedCash, investments?.valueMinor),
-        liquidityCushion = liquidityCushion(baseCurrency, accounts, balances, transactions, categories, today, liquidityMovements)
+        liquidityCushion = liquidityCushion(
+            baseCurrency, accounts, balances, statisticsTransactions, categories, today, investmentCashFlows,
+        )
             ?.withPendingRoundUp(roundUpPending),
-        investedInPeriodMinor = period.range(today, firstActivity).let { range ->
-            -liquidityMovements.filter { it.accountId in includedAccountIds && it.date in range }
-                .fold(0L) { sum, movement -> Math.addExact(sum, movement.effectMinor) }
-        },
+        investedInPeriodMinor = InvestmentStats.investedMinor(
+            investmentCashFlows, period.range(today, firstActivity), includedAccountIds,
+        ),
+        investedThisMonthMinor = InvestmentStats.investedMinor(
+            investmentCashFlows, StatsCalculator.monthRange(thisMonth), includedAccountIds,
+        ),
         displayedCashMinor = displayedCash,
         roundUpPendingMinor = roundUpPending,
     )
@@ -294,7 +304,7 @@ internal fun liquidityCushion(
     transactions: List<Transaction>,
     categories: List<Category>,
     today: LocalDate,
-    liquidityMovements: List<LiquidityMovement> = emptyList(),
+    investmentCashFlows: List<InvestmentCashFlow> = emptyList(),
 ): LiquidityCushion? {
     val previousMonth = YearMonth.from(today).minusMonths(1)
     val firstActivityMonth = transactions.asSequence()
@@ -313,12 +323,10 @@ internal fun liquidityCushion(
         StatsCalculator.investmentRootIds(categories),
     )
     val averageLivingExpense = averageExpense(livingSeries, months)
-    // «Si sigues invirtiendo»: el gasto de vida, la categoría Inversiones y lo que de verdad sale de las
-    // cuentas de liquidez hacia Rumbo (compras menos ventas y dividendos), de media en los mismos meses.
+    // «Si sigues invirtiendo»: gasto total y compras menos ventas, de media en los mismos meses.
     val liquidityIds = accounts.filter { !it.archived && it.liquidity && it.currency == baseCurrency }.mapTo(hashSetOf(), Account::id)
     val window = previousMonth.minusMonths(months.toLong() - 1).atDay(1)..previousMonth.atEndOfMonth()
-    val netInvested = -liquidityMovements.filter { it.accountId in liquidityIds && it.date in window }
-        .fold(0L) { sum, movement -> Math.addExact(sum, movement.effectMinor) }
+    val netInvested = InvestmentStats.investedMinor(investmentCashFlows, window, liquidityIds)
     val averageInvested = BigDecimal.valueOf(maxOf(0L, netInvested))
         .divide(BigDecimal.valueOf(months.toLong()), 0, RoundingMode.HALF_UP).longValueExact()
     val averageTotalExpense = Math.addExact(averageExpense(totalSeries, months), averageInvested)

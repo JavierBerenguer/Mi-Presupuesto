@@ -327,6 +327,14 @@ private fun MonthCard(state: HomeState, format: (Long) -> String, hiddenAmount: 
                 ),
                 if (state.monthTotals.balanceMinor >= 0) MoneyColors.positive else MoneyColors.negative,
             )
+            if (state.investedThisMonthMinor != 0L) {
+                val disinvested = state.investedThisMonthMinor < 0L
+                LabeledAmount(
+                    stringResource(if (disinvested) R.string.ini_disinvested_this_month else R.string.ini_invested_this_month),
+                    format(Math.abs(state.investedThisMonthMinor)),
+                    MaterialTheme.colorScheme.onSurface,
+                )
+            }
         }
         state.savingRatePercent?.let {
             Text(stringResource(R.string.ini_saving_rate, decimal(it)), style = MaterialTheme.typography.bodyMedium)
@@ -443,10 +451,14 @@ private fun ExpenseDistributionCard(state: HomeState, categories: List<Category>
             description = stringResource(R.string.ini_chart_expense_distribution_desc),
             emptyText = stringResource(R.string.ini_no_data_period),
         )
-        if (state.investedInPeriodMinor > 0L) Text(
+        if (state.investedInPeriodMinor != 0L) Text(
             stringResource(
-                if (liquidityView) R.string.ini_invested_counted_as_expense else R.string.ini_invested_in_period,
-                format(state.investedInPeriodMinor),
+                when {
+                    state.investedInPeriodMinor < 0L -> R.string.ini_disinvested_in_period
+                    liquidityView -> R.string.ini_invested_counted_as_expense
+                    else -> R.string.ini_invested_in_period
+                },
+                format(Math.abs(state.investedInPeriodMinor)),
             ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

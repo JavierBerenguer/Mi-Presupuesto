@@ -2,8 +2,14 @@ package com.mipatrimonio.app.ui.budgets
 
 import com.mipatrimonio.app.domain.calc.BudgetLevel
 import com.mipatrimonio.app.domain.calc.BudgetStatus
+import com.mipatrimonio.app.domain.calc.BudgetCalculator
+import com.mipatrimonio.app.domain.calc.InvestmentCashFlow
+import com.mipatrimonio.app.domain.calc.InvestmentStats
 import com.mipatrimonio.app.domain.model.Budget
+import com.mipatrimonio.app.domain.model.BudgetCategoryRule
 import com.mipatrimonio.app.domain.model.BudgetPeriod
+import com.mipatrimonio.app.domain.model.Category
+import com.mipatrimonio.app.domain.model.InvestmentKind
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -65,5 +71,30 @@ class BudgetRulesTest {
         assertFalse(usesExpenseWarning(status(budget("1", "a"), 0.894))) // 89.4 % redondea HALF_UP a 89
         assertTrue(usesExpenseWarning(status(budget("1", "a"), 0.9)))
         assertTrue(usesExpenseWarning(status(budget("2", "a"), 0.901)))
+    }
+
+    @Test fun `presupuesto de comision cuenta la comision y ocio no cuenta el dividendo`() {
+        val date = LocalDate.of(2026, 3, 10)
+        val categories = listOf(
+            Category("invest", "Inversiones", null, 0, false),
+            Category("fee", "Comisión", "invest", 0, false, investmentKind = InvestmentKind.COMISION),
+            Category("div", "Dividendo", "invest", 0, false, investmentKind = InvestmentKind.DIVIDENDO),
+            Category("leisure", "Ocio", null, 0, false),
+        )
+        val transactions = InvestmentStats.statTransactions(
+            listOf(
+                InvestmentCashFlow("fee", "a", date, InvestmentKind.COMISION, 1_00),
+                InvestmentCashFlow("div", "a", date, InvestmentKind.DIVIDENDO, 20_00),
+            ),
+            categories,
+        )
+        val feeBudget = Budget(
+            "fee-budget", "Comisiones", 100_00, "EUR", BudgetPeriod.MENSUAL, date.withDayOfMonth(1), null, 90,
+            listOf(BudgetCategoryRule("fee", false)), false,
+        )
+        val leisureBudget = feeBudget.copy(id = "leisure-budget", categoryRules = listOf(BudgetCategoryRule("leisure", false)))
+
+        assertEquals(1_00L, BudgetCalculator.status(feeBudget, transactions, categories, date, date).spentMinor)
+        assertEquals(0L, BudgetCalculator.status(leisureBudget, transactions, categories, date, date).spentMinor)
     }
 }

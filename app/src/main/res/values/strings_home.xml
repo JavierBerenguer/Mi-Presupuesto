@@ -45,6 +45,8 @@
     <string name="ini_automatic_help">Revísalos o corrígelos cuando quieras</string>
     <string name="ini_open_automatic">Abrir movimientos automáticos</string>
     <string name="ini_saving">Ahorro</string>
+    <string name="ini_invested_this_month">Invertido este mes</string>
+    <string name="ini_disinvested_this_month">Desinvertido este mes</string>
     <string name="ini_saving_rate">Tasa de ahorro: %1$s %%</string>
     <string name="ini_spent_percent">%1$d %% de los ingresos gastado</string>
     <string name="ini_liquidity_cushion">Colchón de liquidez</string>
@@ -66,6 +68,7 @@
     <string name="ini_rumbo_updated">Datos del escritorio: %1$s</string>
     <string name="ini_open_portfolio">Ver cartera ›</string>
     <string name="ini_analysis">Análisis</string>
-    <string name="ini_invested_in_period">Además, en este periodo pasaste %1$s de tus cuentas a inversiones (compras menos ventas y dividendos). No es un gasto: sigue siendo tu patrimonio. Elige «Liquidez» arriba para contarlo como gasto.</string>
-    <string name="ini_invested_counted_as_expense">Vista «Liquidez»: incluye en Inversiones %1$s que salieron de tus cuentas hacia inversiones (compras menos ventas y dividendos).</string>
+    <string name="ini_invested_in_period">Invertido: %1$s. No es un gasto: sigue siendo tu patrimonio. Elige «Liquidez» arriba para contarlo como gasto.</string>
+    <string name="ini_invested_counted_as_expense">Vista «Liquidez»: incluye en Inversiones %1$s invertidos (compras menos ventas).</string>
+    <string name="ini_disinvested_in_period">Desinvertido: %1$s.</string>
 </resources>

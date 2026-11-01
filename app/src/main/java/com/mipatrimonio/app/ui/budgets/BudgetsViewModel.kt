@@ -4,8 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
+import com.mipatrimonio.app.data.sync.SyncRepository
+import com.mipatrimonio.app.data.sync.mapInvestmentCashFlows
 import com.mipatrimonio.app.domain.calc.BudgetCalculator
 import com.mipatrimonio.app.domain.calc.BudgetStatus
+import com.mipatrimonio.app.domain.calc.InvestmentStats
 import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.BudgetCategoryRule
 import com.mipatrimonio.app.domain.model.BudgetPeriod
@@ -66,11 +69,18 @@ class BudgetsViewModel(
     private val ledger: LedgerRepository,
     settings: SettingsRepository,
     private val today: () -> LocalDate = LocalDate::now,
+    sync: SyncRepository? = null,
 ) : ViewModel() {
     private val selectedMonth = MutableStateFlow(YearMonth.now())
+    private val remoteMovements = sync?.movimientos ?: kotlinx.coroutines.flow.flowOf(emptyList())
+    private val statisticsTransactions = combine(
+        ledger.transactions, ledger.accounts, ledger.categories, remoteMovements,
+    ) { transactions, accounts, categories, movements ->
+        transactions + InvestmentStats.statTransactions(mapInvestmentCashFlows(movements, accounts), categories)
+    }
 
     val uiState: StateFlow<BudgetsUiState> = combine(
-        ledger.budgets, ledger.transactions, ledger.categories, settings.settings, selectedMonth,
+        ledger.budgets, statisticsTransactions, ledger.categories, settings.settings, selectedMonth,
     ) { budgets, transactions, categories, config, month ->
         val currentDate = today()
         val statuses = budgets.asSequence()

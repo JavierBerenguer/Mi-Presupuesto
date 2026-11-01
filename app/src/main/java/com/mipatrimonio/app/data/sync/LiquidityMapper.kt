@@ -2,7 +2,9 @@ package com.mipatrimonio.app.data.sync
 
 import com.mipatrimonio.app.data.db.SyncMovimientoEntity
 import com.mipatrimonio.app.domain.calc.LiquidityMovement
+import com.mipatrimonio.app.domain.calc.InvestmentCashFlow
 import com.mipatrimonio.app.domain.model.Account
+import com.mipatrimonio.app.domain.model.InvestmentKind
 import java.time.LocalDate
 
 data class LiquidityMapping(val entries: List<LiquidityMovement>, val ignoredForeignCurrencyIds: Set<String>)
@@ -25,6 +27,20 @@ fun mapLiquidityMovements(movements: List<SyncMovimientoEntity>, accounts: List<
         LiquidityMovement(movement.id, account.id, LocalDate.ofEpochDay(movement.fecha), effect)
     }
     return LiquidityMapping(entries, ignored)
+}
+
+fun mapInvestmentCashFlows(
+    movements: List<SyncMovimientoEntity>,
+    accounts: List<Account>,
+): List<InvestmentCashFlow> {
+    val accountsByRemoteId = accounts.associateBy { SyncRepository.accountIdToRemoteId(it.id) }
+    return movements.mapNotNull { movement ->
+        if (movement.deletedAt != null || movement.importeMinor <= 0L) return@mapNotNull null
+        val account = movement.cuentaId?.let(accountsByRemoteId::get) ?: return@mapNotNull null
+        if (account.currency != "EUR") return@mapNotNull null
+        val kind = InvestmentKind.fromMovementType(movement.tipo) ?: return@mapNotNull null
+        InvestmentCashFlow(movement.id, account.id, LocalDate.ofEpochDay(movement.fecha), kind, movement.importeMinor)
+    }
 }
 
 fun publishedAccountBalance(
