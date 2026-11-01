@@ -18,7 +18,7 @@
     <string name="cartera_no_products">Sin productos</string>
     <string name="cartera_product_gain">Ganancia: %1$s · %2$s</string>
     <string name="cartera_warnings">Avisos del escritorio</string>
-    <string name="cartera_register_purchase">Registrar compra</string>
+    <string name="cartera_register_purchase">Registrar movimiento</string>
     <string name="cartera_purchase_title">Nueva compra</string>
     <string name="cartera_no_products_help">Crea primero un producto en el escritorio y sincroniza de nuevo.</string>
     <string name="cartera_search_product">Buscar producto</string>

@@ -53,6 +53,7 @@ import com.mipatrimonio.app.ui.common.SectionCard
 import com.mipatrimonio.app.ui.common.appViewModel
 import com.mipatrimonio.app.ui.common.charts.DonutChart
 import com.mipatrimonio.app.ui.common.charts.DonutSlice
+import com.mipatrimonio.app.ui.movements.InvestmentMovementDialog
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.LocalDate
@@ -135,10 +136,9 @@ fun PortfolioScreen(
             }
         }
     }
-    if (buying) PurchaseDialog(state.products, state.accounts, state.error, onDismiss = {
-        buying = false; viewModel.clearError()
-    }, onSave = { product, date, amount, units, commission, account, note ->
-        viewModel.savePurchase(product, date, amount, units, commission, account, note) { buying = false }
+    if (buying) InvestmentMovementDialog(requireAccount = false, onDismiss = {
+        buying = false
+        viewModel.clearError()
     })
 }
 

@@ -178,36 +178,83 @@ class SyncRepository(
         val product = dao.producto(productoId) ?: throw IllegalArgumentException("El producto no existe")
         require(product.deletedAt == null) { "El producto ya no está disponible" }
         validateLiquidityAccount(cuentaId)
+        val account = cuentaId?.let { id -> ledger.accounts.first().firstOrNull { it.id == id } }
+        val values = InvestmentMovementRules.validate(
+            InvestmentMovementType.PURCHASE, product, fecha, importeMinor, unidades, comisionMinor,
+            cuentaId, account, dao.allMovimientos(), today(), allowMissingPurchaseUnits = true, note = nota,
+        )
         val id = UUID.randomUUID().toString()
         val updated = OffsetDateTime.ofInstant(java.time.Instant.ofEpochMilli(clock()), ZoneOffset.UTC).toString()
         val entity = SyncMovimientoEntity(id, product.perfilId, productoId, fecha.toEpochDay(), "compra",
-            unidades?.stripTrailingZeros()?.toPlainString() ?: "0", importeMinor, comisionMinor,
+            values.units?.stripTrailingZeros()?.toPlainString() ?: "0", importeMinor, comisionMinor,
             cuentaId?.let(::accountIdToRemoteId), origen,
-            nota?.trim()?.takeIf(String::isNotEmpty), null, updated)
+            values.note, null, updated)
         db.withTransaction { dao.upsertMovimiento(entity); enqueueMovement(entity) }
         onOutboxEnqueued()
         if (entity.cuentaId != null) publishAccounts()
         return id
     }
 
-    suspend fun editarMovimientoPropio(
+    suspend fun crearMovimientoInversion(
+        tipo: String, productoId: String, fecha: LocalDate, importeMinor: Long, unidades: BigDecimal?,
+        comisionMinor: Long?, cuentaId: String?, nota: String?, origen: String = "movil",
+    ): String {
+        val product = dao.producto(productoId)
+        val account = cuentaId?.let { id -> ledger.accounts.first().firstOrNull { it.id == id } }
+        val values = InvestmentMovementRules.validate(
+            type = InvestmentMovementType.fromWireName(tipo), product = product, date = fecha,
+            amountMinor = importeMinor, units = unidades, commissionMinor = comisionMinor,
+            accountId = cuentaId, account = account, movements = dao.allMovimientos(), today = today(), note = nota,
+        )
+        val id = UUID.randomUUID().toString()
+        val entity = SyncMovimientoEntity(
+            id = id, perfilId = values.product.perfilId, productoId = values.product.id,
+            fecha = values.date.toEpochDay(), tipo = tipo,
+            unidades = values.units?.stripTrailingZeros()?.toPlainString() ?: "0",
+            importeMinor = values.amountMinor, comisionMinor = values.commissionMinor,
+            cuentaId = cuentaId?.let(::accountIdToRemoteId), origen = origen,
+            nota = values.note, deletedAt = null, updatedAt = nowIso(),
+        )
+        db.withTransaction { dao.upsertMovimiento(entity); enqueueMovement(entity) }
+        onOutboxEnqueued()
+        if (entity.cuentaId != null) publishAccounts()
+        return id
+    }
+
+    suspend fun editarMovimientoInversion(
         id: String, fecha: LocalDate, importeMinor: Long, unidades: BigDecimal?, comisionMinor: Long?, cuentaId: String?, nota: String?,
     ) {
-        val old = ownMovement(id)
+        configuredAuth()?.let { client ->
+            try {
+                if (client.hasSession()) pullTable("movimientos", client)
+            } catch (_: SyncConnectionException) {
+                // La edición sigue siendo local y se enviará desde outbox al recuperar la red.
+            }
+        }
+        val old = editableMovement(id)
+        require(old.deletedAt == null) { "Este movimiento ya no existe" }
         require(importeMinor > 0 && (comisionMinor == null || comisionMinor >= 0)) { "Los importes deben ser válidos" }
         require(comisionMinor == null || comisionMinor < importeMinor) { "La comisión debe ser menor que el importe" }
         require(!fecha.isAfter(today())) { "La fecha no puede ser futura" }
         validateLiquidityAccount(cuentaId)
+        val product = dao.producto(old.productoId)
+        val account = cuentaId?.let { accountId -> ledger.accounts.first().firstOrNull { it.id == accountId } }
+        val values = InvestmentMovementRules.validate(
+            type = InvestmentMovementType.fromWireName(old.tipo), product = product, date = fecha,
+            amountMinor = importeMinor, units = unidades, commissionMinor = comisionMinor,
+            accountId = cuentaId, account = account, movements = dao.allMovimientos(), today = today(),
+            editingId = id, note = nota,
+        )
         val value = old.copy(fecha = fecha.toEpochDay(), importeMinor = importeMinor,
-            unidades = unidades?.stripTrailingZeros()?.toPlainString() ?: "0", comisionMinor = comisionMinor,
-            cuentaId = cuentaId?.let(::accountIdToRemoteId), nota = nota?.trim()?.takeIf(String::isNotEmpty), updatedAt = nowIso())
+            unidades = values.units?.stripTrailingZeros()?.toPlainString() ?: "0", comisionMinor = comisionMinor,
+            cuentaId = cuentaId?.let(::accountIdToRemoteId), nota = values.note, updatedAt = nowIso())
         db.withTransaction { dao.upsertMovimiento(value); enqueueMovement(value) }
         onOutboxEnqueued()
         if (old.cuentaId != null || value.cuentaId != null) publishAccounts()
     }
 
-    suspend fun borrarMovimientoPropio(id: String) {
-        val old = ownMovement(id)
+    suspend fun borrarMovimientoInversion(id: String) {
+        val old = editableMovement(id)
         val value = old.copy(deletedAt = nowIso(), updatedAt = nowIso())
         db.withTransaction { dao.upsertMovimiento(value); enqueueMovement(value) }
         onOutboxEnqueued()
@@ -353,9 +400,9 @@ class SyncRepository(
         }
     }
 
-    private suspend fun ownMovement(id: String): SyncMovimientoEntity {
+    private suspend fun editableMovement(id: String): SyncMovimientoEntity {
         val value = dao.movimiento(id) ?: throw IllegalArgumentException("El movimiento no existe")
-        require(value.origen == "movil" || value.origen == "notificacion") { "Solo se pueden modificar movimientos creados en el móvil" }
+        InvestmentMovementType.fromWireName(value.tipo)
         return value
     }
 
@@ -383,8 +430,25 @@ class SyncRepository(
         val updated = row.getString("updated_at")
         when (table) {
             "perfiles" -> dao.upsertPerfil(SyncPerfilEntity(row.getString("id"), row.getString("nombre"), row.optInt("orden"), deleted, updated))
-            "productos" -> dao.upsertProducto(SyncProductoEntity(row.getString("id"), row.getString("perfil_id"), row.getString("nombre"), row.nullableString("corto"), row.getString("tipo"), row.optString("moneda", "EUR"), row.nullableString("identificador"), deleted, updated))
-            "movimientos" -> dao.upsertMovimiento(SyncMovimientoEntity(row.getString("id"), row.getString("perfil_id"), row.getString("producto_id"), LocalDate.parse(row.getString("fecha")).toEpochDay(), row.getString("tipo"), BigDecimal(row.get("unidades").toString()).toPlainString(), MoneyMath.toMinor(BigDecimal(row.get("importe").toString()), "EUR"), row.nullableDecimal("comision")?.let { MoneyMath.toMinor(it, "EUR") }, row.nullableString("cuenta_id"), row.getString("origen"), row.nullableString("nota"), deleted, updated))
+            "productos" -> dao.upsertProducto(
+                SyncProductoEntity(
+                    row.getString("id"), row.getString("perfil_id"), row.getString("nombre"),
+                    row.nullableString("corto"), row.getString("tipo"), row.optString("moneda", "EUR"),
+                    row.nullableString("identificador"), deleted, updated, row.nullableString("fuente"),
+                ),
+            )
+            "movimientos" -> dao.upsertMovimiento(
+                SyncMovimientoEntity(
+                    row.getString("id"), row.getString("perfil_id"), row.getString("producto_id"),
+                    LocalDate.parse(row.getString("fecha")).toEpochDay(), row.getString("tipo"),
+                    BigDecimal(row.get("unidades").toString()).toPlainString(),
+                    MoneyMath.toMinor(BigDecimal(row.get("importe").toString()), "EUR"),
+                    row.nullableDecimal("comision")?.let { MoneyMath.toMinor(it, "EUR") },
+                    row.nullableString("cuenta_id"), row.getString("origen"), row.nullableString("nota"),
+                    deleted, updated, row.nullableString("destino_id"),
+                    row.nullableDecimal("unidades_destino")?.toPlainString(),
+                ),
+            )
             "resumen_cartera" -> dao.upsertResumen(SyncResumenEntity(row.getString("perfil_id"), row.optJSONObject("datos")?.toString() ?: "{}", row.nullableString("generado_at").orEmpty(), updated))
             "cuentas_app" -> applyRemoteAccount(row, deleted, updated)
             "saldos_cuenta" -> applyRemoteBalance(row, deleted, updated)

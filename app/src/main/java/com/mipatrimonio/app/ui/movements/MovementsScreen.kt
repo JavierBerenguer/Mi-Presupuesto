@@ -609,7 +609,10 @@ private fun DayGroup(
                 MovementRow(
                     item, accountsById, categoriesById, hideAmounts, grayFuture,
                     onOpen = {
-                        if (item is MovementItem.Liquidity) onOpenInvestment(item.movement.productoId)
+                        if (item is MovementItem.Liquidity) {
+                            if (item.movement.tipo in EDITABLE_INVESTMENT_TYPES) onOpenInvestment(item.movement.id)
+                            else onOpenInvestment("product:${item.movement.productoId}")
+                        }
                         else onEditEntry(item.id())
                     },
                     onDuplicate = { (item as? MovementItem.Tx)?.transaction?.let(onDuplicate) },
@@ -647,6 +650,7 @@ private fun MovementRow(
     var showMenu by remember { mutableStateOf(false) }
     var expanded by rememberSaveable((item as? MovementItem.Tx)?.transaction?.id) { mutableStateOf(false) }
     val transactionId = (item as? MovementItem.Tx)?.transaction?.id
+    val editableInvestment = item is MovementItem.Liquidity && item.movement.tipo in EDITABLE_INVESTMENT_TYPES
     val selected = transactionId in selectedIds
     val selectionActive = selectedIds.isNotEmpty()
     val p = movementPresentation(item, accountsById, categoriesById)
@@ -667,7 +671,7 @@ private fun MovementRow(
                 onClick = {
                     if (selectionActive) transactionId?.let(onToggleSelection) else onOpen()
                 },
-                onLongClick = { transactionId?.let(onStartSelection) },
+                onLongClick = { if (editableInvestment) onDelete() else transactionId?.let(onStartSelection) },
             )
             .padding(start = 12.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -753,7 +757,7 @@ private fun MovementRow(
                 Text(stringResource(R.string.mov_group_count, item.groupChildren.size))
             }
         }
-        if (!selectionActive && item !is MovementItem.Liquidity) Box {
+        if (!selectionActive && (item !is MovementItem.Liquidity || editableInvestment)) Box {
             IconButton(onClick = { showMenu = true }) { Icon(Icons.Outlined.MoreVert, stringResource(R.string.common_more_options)) }
             DropdownMenu(showMenu, { showMenu = false }) {
                 DropdownMenuItem(
@@ -1100,6 +1104,8 @@ private fun MovementItem.id() = when (this) {
     is MovementItem.Move -> transfer.id
     is MovementItem.Liquidity -> movement.id
 }
+
+private val EDITABLE_INVESTMENT_TYPES = setOf("compra", "venta", "dividendo", "comision")
 
 private fun Long?.toInputAmount(currency: String) = this?.let {
     MoneyMath.toDecimal(it, currency).stripTrailingZeros().toPlainString()

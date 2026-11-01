@@ -66,7 +66,8 @@ class PortfolioViewModelTest {
     @Test fun `solo movil y notificacion son editables`() {
         assertTrue(isMovementEditable(MOVEMENT.copy(origen = "movil")))
         assertTrue(isMovementEditable(MOVEMENT.copy(origen = "notificacion")))
-        assertFalse(isMovementEditable(MOVEMENT.copy(origen = "escritorio")))
+        assertTrue(isMovementEditable(MOVEMENT.copy(origen = "escritorio")))
+        assertFalse(isMovementEditable(MOVEMENT.copy(tipo = "traspaso", origen = "escritorio")))
     }
 
     private class FakeGateway(private val session: Boolean) : PortfolioGateway {
