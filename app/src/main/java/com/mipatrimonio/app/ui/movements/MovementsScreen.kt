@@ -187,6 +187,7 @@ fun MovementsScreen(
                 baseCurrency = state.baseCurrency,
                 hideAmounts = state.hideAmounts,
                 calculationMode = state.calculationMode,
+                roundUpPendingMinor = state.roundUpPendingMinor,
                 onClick = { showAccountSelection = true },
             )
             SegmentedControl(
@@ -342,6 +343,7 @@ private fun BalanceBar(
     baseCurrency: String,
     hideAmounts: Boolean,
     calculationMode: MovementsCalculationMode,
+    roundUpPendingMinor: Long,
     onClick: () -> Unit,
 ) {
     Card(
@@ -355,6 +357,11 @@ private fun BalanceBar(
             Column(Modifier.weight(1f)) {
                 Text(calculationModeLabel(calculationMode), style = MaterialTheme.typography.labelLarge)
                 Text(stringResource(R.string.mov_balance_accounts_hint), style = MaterialTheme.typography.bodySmall)
+                if (roundUpPendingMinor > 0L) Text(
+                    if (hideAmounts) stringResource(R.string.mov_round_up_included_hidden)
+                    else stringResource(R.string.mov_round_up_included, MoneyMath.format(roundUpPendingMinor, baseCurrency)),
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
             if (hideAmounts) {
                 Text(stringResource(R.string.common_hidden_amount), style = MaterialTheme.typography.titleLarge)

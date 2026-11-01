@@ -4,6 +4,9 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.mipatrimonio.app.data.db.AppDatabase
+import com.mipatrimonio.app.data.db.NotificationRecordEntity
+import com.mipatrimonio.app.data.db.NotificationStructureEntity
+import com.mipatrimonio.app.data.db.toEntity
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
 import com.mipatrimonio.app.testutil.SettingsStoreRule
@@ -14,6 +17,10 @@ import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.model.Transfer
 import com.mipatrimonio.app.domain.calc.MovementsCalculationMode
+import com.mipatrimonio.app.domain.notifications.NotificationRecordStatus
+import com.mipatrimonio.app.domain.notifications.NotificationTemplate
+import com.mipatrimonio.app.domain.notifications.NotificationTemplateJson
+import com.mipatrimonio.app.domain.notifications.TemplateSegment
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.flow.first
@@ -120,6 +127,26 @@ class MovementsViewModelTest {
             it.selectedMonth == targetMonth && it.visibleItems.singleOrNull()?.date == targetDate
         }
         assertEquals("target", (returned.visibleItems.single() as MovementItem.Tx).transaction.id)
+    }
+
+    @Test fun `saldo actual resta pendiente sin anadir filas`() = runTest {
+        val today = LocalDate.now()
+        val account = Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 100_00, false, 1,
+            roundUpMultiplier = 2, roundUpSettledAt = 0)
+        db.accountDao().upsert(account.toEntity(updatedAt = 1))
+        val payment = tx("payment", TransactionType.GASTO, 17_80, today, TransactionSource.NOTIFICACION)
+        ledger.saveTransaction(payment)
+        val template = NotificationTemplate(listOf(TemplateSegment.Literal("Pago "), TemplateSegment.Amount, TemplateSegment.Variable))
+        db.notificationDao().upsertStructure(NotificationStructureEntity("s", "bank", "Pago",
+            NotificationTemplateJson.encode(template), "GASTO", null, null, null, true, 1, 1, generatesRoundUp = true))
+        db.notificationDao().upsertRecord(NotificationRecordEntity("r", "bank", 1, "", 17_80, "EUR", "s", null,
+            null, NotificationRecordStatus.AUTOMATIZADA.name, payment.id, 1))
+
+        val state = MovementsViewModel(ledger, settings, today = { today }).uiState.first { !it.isLoading }
+
+        assertEquals(40L, state.roundUpPendingMinor)
+        assertEquals(100_00L - 17_80L - 40L, state.balanceMinor)
+        assertEquals(1, state.allItems.size)
     }
 
     @Test

@@ -28,6 +28,10 @@ data class AccountEntity(
     @ColumnInfo(defaultValue = "1") val useInApp: Boolean = true,
     val remoteUpdatedAt: String? = null,
     val deletedAt: Long? = null,
+    @ColumnInfo(defaultValue = "0") val roundUpMultiplier: Int = 0,
+    val roundUpSettledAt: Long? = null,
+    val roundUpLastEstimatedMinor: Long? = null,
+    val roundUpLastRealMinor: Long? = null,
 )
 
 @Entity(
@@ -209,6 +213,8 @@ data class NotificationStructureEntity(
     val updatedAt: Long,
     val target: String = "APUNTE",
     val defaultProductId: String? = null,
+    @ColumnInfo(defaultValue = "0") val generatesRoundUp: Boolean = false,
+    @ColumnInfo(defaultValue = "0") val isRoundUpInvestment: Boolean = false,
 )
 
 @Entity(

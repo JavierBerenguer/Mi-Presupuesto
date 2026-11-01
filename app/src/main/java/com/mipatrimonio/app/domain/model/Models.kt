@@ -17,6 +17,10 @@ data class Account(
     val color: Int? = null,
     val liquidity: Boolean = true,
     val useInApp: Boolean = true,
+    val roundUpMultiplier: Int = 0,
+    val roundUpSettledAt: Long? = null,
+    val roundUpLastEstimatedMinor: Long? = null,
+    val roundUpLastRealMinor: Long? = null,
 )
 
 data class AccountBalanceRecord(

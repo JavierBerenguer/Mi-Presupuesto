@@ -165,4 +165,6 @@
     <string name="mov_choose_group_parent">¿Sobre qué apunte se agrupan los demás?</string>
     <string name="mov_group_result">Neto resultante: %1$s</string>
     <string name="mov_selected_item">Apunte seleccionado</string>
+    <string name="mov_round_up_included">Incluye −%1$s de redondeo pendiente</string>
+    <string name="mov_round_up_included_hidden">Incluye •••• de redondeo pendiente</string>
 </resources>

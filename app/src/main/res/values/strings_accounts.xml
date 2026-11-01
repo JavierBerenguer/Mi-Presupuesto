@@ -44,4 +44,12 @@
     <string name="accounts_dependency_liquidity">Movimientos de liquidez: %1$d</string>
     <string name="accounts_loading_dependencies">Comprobando datos asociados…</string>
     <string name="accounts_active_totals">Total de cuentas activas por divisa</string>
+    <string name="accounts_round_up">Redondeo de la tarjeta</string>
+    <string name="accounts_round_up_disabled">Desactivado</string>
+    <string name="accounts_round_up_multiplier">x%1$d</string>
+    <string name="accounts_round_up_help">Resta del saldo lo que tu banco aparta al redondear cada pago con tarjeta, hasta que llega la inversión real</string>
+    <string name="accounts_round_up_pending">Redondeo pendiente: −%1$s</string>
+    <string name="accounts_round_up_pending_hidden">Redondeo pendiente: ••••</string>
+    <string name="accounts_round_up_last">Último redondeo: estimado %1$s, real %2$s</string>
+    <string name="accounts_round_up_last_hidden">Último redondeo: estimado ••••, real ••••</string>
 </resources>

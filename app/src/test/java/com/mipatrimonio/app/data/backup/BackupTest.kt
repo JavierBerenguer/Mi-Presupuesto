@@ -128,6 +128,38 @@ class BackupTest {
         assertEquals(12_345L, db.accountBalanceDao().getAllForBackup().single().balanceMinor)
     }
 
+    @Test fun `copia v18 restaura redondeo con valores por defecto`() = runBlocking {
+        val root = JSONObject(legacyV14()).put("dbVersion", 18)
+        val decoded = BackupJson().decode(root.toString().toByteArray(Charsets.UTF_8))
+        BackupRepository(db, settingsRule.repository, "test").restore(decoded)
+
+        val account = db.accountDao().getAllForBackup().single()
+        assertEquals(0, account.roundUpMultiplier)
+        assertNull(account.roundUpSettledAt)
+        assertNull(account.roundUpLastEstimatedMinor)
+        assertNull(account.roundUpLastRealMinor)
+    }
+
+    @Test fun `ida y vuelta v19 conserva configuracion y conciliacion de redondeo`() = runBlocking {
+        db.accountDao().insertAllForRestore(
+            listOf(AccountEntity("a", "Cuenta", "CORRIENTE", "EUR", 0, false, 1, 2,
+                roundUpMultiplier = 2, roundUpSettledAt = 10, roundUpLastEstimatedMinor = 40, roundUpLastRealMinor = 42)),
+        )
+        db.notificationDao().upsertStructure(
+            NotificationStructureEntity("s", "pkg", "Pago", "{}", "GASTO", null, null, null, true, 1, 1,
+                generatesRoundUp = true),
+        )
+        val repository = BackupRepository(db, settingsRule.repository, "test")
+        repository.restore(BackupJson().decode(BackupJson().encode(repository.export())))
+
+        val account = db.accountDao().getAllForBackup().single()
+        assertEquals(2, account.roundUpMultiplier)
+        assertEquals(10L, account.roundUpSettledAt)
+        assertEquals(40L, account.roundUpLastEstimatedMinor)
+        assertEquals(42L, account.roundUpLastRealMinor)
+        assertTrue(db.notificationDao().getStructure("s")!!.generatesRoundUp)
+    }
+
     private fun legacyV14() = """{
       "format":"mipatrimonio-backup","formatVersion":1,"dbVersion":14,"createdAt":1,"appVersion":"old",
       "counts":{"account":1,"category":0,"txn":0,"transfer":0,"budget":0,"budget_category":0,"recurring_rule":0,"notification_authorization":0,"pending_proposal":0,"notification_structure":0,"notification_rule":0,"notification_record":0,"portfolio":1,"asset":1,"investment_operation":1,"asset_price":1},

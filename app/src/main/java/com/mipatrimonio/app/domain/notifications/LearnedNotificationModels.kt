@@ -31,6 +31,7 @@ data class NotificationStructure(
     val defaultTitle: String? = null, val defaultDetail: String? = null, val defaultCategoryId: String? = null,
     val enabled: Boolean = true, val createdAt: Long, val updatedAt: Long,
     val target: NotificationTarget = NotificationTarget.APUNTE, val defaultProductId: String? = null,
+    val generatesRoundUp: Boolean = false, val isRoundUpInvestment: Boolean = false,
 )
 
 data class NotificationRule(

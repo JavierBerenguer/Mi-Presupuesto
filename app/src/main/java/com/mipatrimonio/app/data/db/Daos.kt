@@ -254,6 +254,9 @@ interface NotificationDao {
     @Query("SELECT * FROM notification_record ORDER BY id")
     suspend fun getAllRecordsForBackup(): List<NotificationRecordEntity>
 
+    @Query("SELECT * FROM notification_record ORDER BY postedAt, createdAt")
+    fun observeAllRecords(): Flow<List<NotificationRecordEntity>>
+
     @Insert suspend fun insertAllStructuresForRestore(rows: List<NotificationStructureEntity>)
     @Insert suspend fun insertAllRulesForRestore(rows: List<NotificationRuleEntity>)
     @Insert suspend fun insertAllRecordsForRestore(rows: List<NotificationRecordEntity>)

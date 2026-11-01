@@ -98,4 +98,6 @@
     <string name="auto_applied_rule">Regla: %1$s</string>
     <string name="auto_general_rule">general de la estructura</string>
     <string name="auto_configure_this_merchant">Configurar este comercio</string>
+    <string name="auto_generates_round_up">Genera redondeo</string>
+    <string name="auto_is_round_up_investment">Es la inversión del redondeo</string>
 </resources>

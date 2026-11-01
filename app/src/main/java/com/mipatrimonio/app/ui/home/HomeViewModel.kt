@@ -14,6 +14,8 @@ import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.Transfer
+import com.mipatrimonio.app.domain.notifications.NotificationRecord
+import com.mipatrimonio.app.domain.notifications.NotificationStructure
 import com.mipatrimonio.app.domain.usecase.Period
 import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,6 +37,8 @@ class HomeViewModel(
         val categories: List<Category>,
         val budgets: List<Budget>,
         val accountBalances: List<AccountBalanceRecord>,
+        val roundUpRecords: List<NotificationRecord>,
+        val roundUpStructures: List<NotificationStructure>,
     )
     private data class LedgerCore(
         val accounts: List<Account>, val transactions: List<Transaction>, val transfers: List<Transfer>,
@@ -45,10 +49,14 @@ class HomeViewModel(
     val period: StateFlow<Period> = selectedPeriod
     private val selectedEvolutionSeries = MutableStateFlow(EvolutionSeries.TOTAL)
 
-    private val ledgerData = combine(
+    private val ledgerCoreData = combine(
         ledger.accounts, ledger.transactions, ledger.transfers, ledger.categories, ledger.budgets, ::LedgerCore,
     ).combine(ledger.accountBalances) { core, balances ->
-        LedgerData(core.accounts, core.transactions, core.transfers, core.categories, core.budgets, balances)
+        core to balances
+    }
+    private val roundUpData = combine(ledger.roundUpRecords, ledger.roundUpStructures) { records, structures -> records to structures }
+    private val ledgerData = combine(ledgerCoreData, roundUpData) { (core, balances), (records, structures) ->
+        LedgerData(core.accounts, core.transactions, core.transfers, core.categories, core.budgets, balances, records, structures)
     }
     private val remoteMovements = sync?.movimientos ?: kotlinx.coroutines.flow.flowOf(emptyList())
     private val remoteSummary = sync?.resumen ?: kotlinx.coroutines.flow.flowOf(null)
@@ -76,6 +84,8 @@ class HomeViewModel(
             portfolioSummary = summary,
             accountBalanceRecords = l.accountBalances,
             evolutionSeries = evolutionSelection,
+            roundUpRecords = l.roundUpRecords,
+            roundUpStructures = l.roundUpStructures,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 

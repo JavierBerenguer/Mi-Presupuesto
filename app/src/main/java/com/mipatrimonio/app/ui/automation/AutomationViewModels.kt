@@ -156,6 +156,8 @@ data class TeachEditor(
     val defaults: NotificationDefaults = NotificationDefaults(),
     val ruleValues: NotificationRuleValues = NotificationRuleValues(),
     val target: NotificationTarget = NotificationTarget.APUNTE,
+    val generatesRoundUp: Boolean = false,
+    val isRoundUpInvestment: Boolean = false,
 )
 
 data class TeachStructureUiState(
@@ -269,6 +271,8 @@ class TeachStructureViewModel(
     fun setDefaults(value: NotificationDefaults) { editor.update { it.copy(defaults = value) }; refreshPreview(editor.value) }
     fun setRuleValues(value: NotificationRuleValues) { editor.update { it.copy(ruleValues = value) }; refreshPreview(editor.value) }
     fun setTarget(value: NotificationTarget) { editor.update { it.copy(target = value) }; refreshPreview(editor.value) }
+    fun setGeneratesRoundUp(value: Boolean) { editor.update { it.copy(generatesRoundUp = value) } }
+    fun setIsRoundUpInvestment(value: Boolean) { editor.update { it.copy(isRoundUpInvestment = value) } }
 
     fun save() {
         val state = uiState.value
@@ -279,7 +283,8 @@ class TeachStructureViewModel(
             val result = runCatching {
                 val before = notifications.records(NotificationRecordStatus.AUTOMATIZADA).first().size
                 notifications.createStructureFromRecord(recordId, state.editor.name, key, variable, state.editor.direction,
-                    state.editor.defaults, state.editor.ruleValues, state.editor.target)
+                    state.editor.defaults, state.editor.ruleValues, state.editor.target,
+                    state.editor.generatesRoundUp, state.editor.isRoundUpInvestment)
                 val after = notifications.records(NotificationRecordStatus.AUTOMATIZADA).first().size
                 (after - before - 1).coerceAtLeast(0)
             }
