@@ -8,7 +8,7 @@ Este documento lo mantiene Claude. Cada bloque indica en qué versión se prueba
 > - `~~tachado~~` ya no aplica.
 
 **Versiones actuales:**
-- **App:** v1.9.0 (https://github.com/JavierBerenguer/Mi-Presupuesto/releases/tag/v1.9.0).
+- **App:** v1.10.0 (https://github.com/JavierBerenguer/Mi-Presupuesto/releases/tag/v1.10.0).
 - **Rumbo:** rama `claude/supabase` de `JavierBerenguer/Rumbo-Patrimonio`, en `D:\XX_Claude\App - Rea - Rumbo\rumbo-main`. Tras actualizarlo, reinícialo con `Iniciar.bat`.
 
 ---
@@ -61,6 +61,17 @@ Este documento lo mantiene Claude. Cada bloque indica en qué versión se prueba
   - Los dos apuntes de hoy cambian.
   - Los de días anteriores y los de otros comercios no cambian.
   - Si antes retocaste a mano un campo de alguno de esos apuntes, ese campo se queda como lo dejaste.
+- [ ] E6. *(v1.10.0)* **Redondeo de Trade Republic:**
+  - **Configuración:** en la cuenta TR, «Redondeo de la tarjeta» = x2. En la estructura de tus pagos con tarjeta de TR, marca «Genera redondeo».
+  - **Tras un pago con tarjeta de 17,80 €:**
+    - Cuentas muestra «Redondeo pendiente: −0,40 €» y el saldo baja 0,40 €;
+    - también lo reflejan el «Saldo actual» de Movimientos y el Efectivo de Inicio;
+    - las estadísticas y los presupuestos no cambian;
+    - en el escritorio, el saldo de TR no baja.
+  - **Cuando llegue la notificación de TR de la inversión del redondeo:** enséñala con destino «Compra de inversión» y marca «Es la inversión del redondeo».
+    - Se registra la compra.
+    - El pendiente vuelve a 0 (solo quedan los pagos posteriores).
+    - La cuenta muestra «Último redondeo: estimado X €, real Y €».
 
 ---
 

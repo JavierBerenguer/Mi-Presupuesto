@@ -1,4 +1,4 @@
-import java.util.Properties
+﻿import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -6,7 +6,7 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
-// Firma de distribución: solo si existe keystore.properties (ignorado por git; ver README).
+// Firma de distribuciÃ³n: solo si existe keystore.properties (ignorado por git; ver README).
 val keystoreProperties = Properties().apply {
     val file = rootProject.file("keystore.properties")
     if (file.exists()) file.inputStream().use(::load)
@@ -24,8 +24,8 @@ android {
         applicationId = "com.mipatrimonio.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 21
-        versionName = "1.9.1"
+        versionCode = 22
+        versionName = "1.10.0"
     }
 
     signingConfigs {
