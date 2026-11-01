@@ -194,6 +194,12 @@ Este documento lo mantiene Claude. Cada bloque indica en qué versión se prueba
 - [ ] L22. Cambia algo desde el móvil, espera más de 30 s y pulsa **F5** en el escritorio: aparece sin cerrar la app.
 - [ ] L23. Guarda o borra algo en **Mis datos**: el panel, los gráficos y las tablas se actualizan solos, y sigues en la misma pestaña y en la misma posición.
 
+**Agrupar apuntes y cuenta fantasma (v1.11.1, T-106 y T-105)**
+- [ ] L24. Agrupa **dos ingresos** (por ejemplo, 50 y 20): se puede, y el diálogo dice «Resultado: ingreso de 70,00 €». Con **dos gastos** (40 y 15) dice «gasto de 55,00 €».
+- [ ] L25. Al agrupar, cualquier apunte se puede elegir como principal. Un grupo antiguo (gasto con devolución) sigue dando el mismo importe que antes.
+- [ ] L26. Abre el apunte principal de un grupo de ingresos: debajo pone «Agrupa N apuntes · ingreso de X», sin signo menos.
+- [ ] L27. Tras instalar la v1.11.1 y abrir la app, no aparece ninguna cuenta llamada «null» en ningún selector de cuentas, y los saldos son los de antes.
+
 ---
 
 ## Resultados y problemas encontrados
