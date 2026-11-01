@@ -54,6 +54,7 @@ data class InvestmentMovementFormValues(
     val amount: String = "",
     val units: String = "",
     val commission: String = "",
+    val withholding: String = "",
     val accountId: String? = null,
     val note: String = "",
 )
@@ -130,6 +131,7 @@ class InvestmentMovementFormViewModel(
     fun setAmount(value: String) = change { it.copy(amount = value) }
     fun setUnits(value: String) = change { it.copy(units = value) }
     fun setCommission(value: String) = change { it.copy(commission = value) }
+    fun setWithholding(value: String) = change { it.copy(withholding = value) }
     fun setAccount(id: String?) = change { it.copy(accountId = id) }
     fun setNote(value: String) = change { it.copy(note = value) }
     fun useAllUnits() = change { it.copy(units = MoneyMath.formatQuantity(uiState.value.availableUnits)) }
@@ -146,10 +148,14 @@ class InvestmentMovementFormViewModel(
                 MoneyMath.parse(it)?.let { decimal -> MoneyMath.toMinor(decimal, "EUR") }
                     ?: throw IllegalArgumentException("La comisión no es válida")
             }
+            val withholding = state.values.withholding.takeIf(String::isNotBlank)?.let {
+                MoneyMath.parse(it)?.let { decimal -> MoneyMath.toMinor(decimal, "EUR") }
+                    ?: throw IllegalArgumentException("La retención no es válida")
+            }
             InvestmentMovementRules.validate(
                 state.values.type, state.product, state.values.date, amount, units, commission,
                 state.values.accountId, state.account, source.value.movements, today(), movementId,
-                requireAccount = requireAccount, note = state.values.note,
+                requireAccount = requireAccount, note = state.values.note, withholdingMinor = withholding,
             )
         }
         parsed.onFailure { error.value = it.message }.onSuccess { valid ->
@@ -158,10 +164,10 @@ class InvestmentMovementFormViewModel(
                 runCatching {
                     if (movementId == null) sync.crearMovimientoInversion(
                         valid.type.wireName, valid.product.id, valid.date, valid.amountMinor, valid.units,
-                        valid.commissionMinor, valid.accountId, valid.note,
+                        valid.commissionMinor, valid.accountId, valid.note, retencionMinor = valid.withholdingMinor,
                     ) else sync.editarMovimientoInversion(
                         movementId, valid.date, valid.amountMinor, valid.units, valid.commissionMinor,
-                        valid.accountId, valid.note,
+                        valid.accountId, valid.note, valid.withholdingMinor,
                     )
                 }.onSuccess { error.value = null; completedChannel.send(Unit) }
                     .onFailure { error.value = it.message ?: "No se pudo guardar el movimiento" }
@@ -181,6 +187,7 @@ private fun SyncMovimientoEntity.toValues(accounts: List<Account>) = InvestmentM
     date = LocalDate.ofEpochDay(fecha), amount = MoneyMath.toDecimal(importeMinor, "EUR").toPlainString(),
     units = unidades.takeUnless { it == "0" }.orEmpty(),
     commission = comisionMinor?.let { MoneyMath.toDecimal(it, "EUR").toPlainString() }.orEmpty(),
+    withholding = retencionMinor?.let { MoneyMath.toDecimal(it, "EUR").toPlainString() }.orEmpty(),
     accountId = cuentaId?.let { remote -> accounts.firstOrNull { SyncRepository.accountIdToRemoteId(it.id) == remote }?.id },
     note = nota.orEmpty(),
 )
@@ -236,6 +243,18 @@ fun InvestmentMovementFields(state: InvestmentMovementFormState, viewModel: Inve
                 }
             }
             AmountField(stringResource(R.string.cartera_commission_optional), state.values.commission, viewModel::setCommission, suffix = "EUR")
+        }
+        if (state.values.type == InvestmentMovementType.DIVIDEND || state.values.type == InvestmentMovementType.SALE) {
+            AmountField(
+                stringResource(R.string.mov_investment_withholding),
+                state.values.withholding,
+                viewModel::setWithholding,
+                suffix = "EUR",
+            )
+            Text(
+                stringResource(R.string.mov_investment_withholding_help),
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
         DropdownField(
             stringResource(R.string.cartera_liquidity_account), state.accounts, state.account, { it.name },

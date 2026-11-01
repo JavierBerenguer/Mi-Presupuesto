@@ -224,11 +224,31 @@ class BackupTest {
         assertNull(rule.commissionMinor)
     }
 
-    @Test fun `ida y vuelta v22 conserva campos recurrentes de inversion`() = runBlocking {
+    @Test fun `copia v22 restaura retencion recurrente como nula`() = runBlocking {
+        val root = JSONObject(legacyV14()).put("dbVersion", 22)
+        root.getJSONObject("tables").put("recurring_rule", org.json.JSONArray().put(JSONObject().apply {
+            put("id", "r"); put("kind", "DIVIDENDO"); put("amountMinor", 100); put("currency", "EUR")
+            put("accountId", "a"); put("destinationAccountId", JSONObject.NULL); put("categoryId", JSONObject.NULL)
+            put("description", "Dividendo"); put("merchant", ""); put("startEpochDay", 1)
+            put("periodQuantity", 1); put("periodUnit", "MES"); put("endEpochDay", JSONObject.NULL)
+            put("reminder", "NO"); put("reminderCustomDays", JSONObject.NULL)
+            put("lastGeneratedEpochDay", JSONObject.NULL); put("archived", false); put("createdAt", 1); put("updatedAt", 1)
+            put("productId", "p"); put("units", JSONObject.NULL); put("commissionMinor", JSONObject.NULL)
+        }))
+        root.getJSONObject("counts").put("recurring_rule", 1)
+
+        BackupRepository(db, settingsRule.repository, "test").restore(
+            BackupJson().decode(root.toString().toByteArray(Charsets.UTF_8)),
+        )
+
+        assertNull(db.recurringRuleDao().getAllForBackup().single().withholdingMinor)
+    }
+
+    @Test fun `ida y vuelta v23 conserva campos recurrentes de inversion`() = runBlocking {
         db.accountDao().insertAllForRestore(listOf(AccountEntity("a", "Cuenta", "CORRIENTE", "EUR", 0, false, 1, 1)))
         db.recurringRuleDao().insertAllForRestore(listOf(RecurringRuleEntity(
             "r", "COMPRA", 10_000, "EUR", "a", null, null, "Fondo", "", 1, 1, "MES",
-            null, "NO", null, 1, false, 1, 1, "p", "1.25", 25,
+            null, "NO", null, 1, false, 1, 1, "p", "1.25", 25, 300,
         )))
         val repository = BackupRepository(db, settingsRule.repository, "test")
 
@@ -238,6 +258,7 @@ class BackupTest {
         assertEquals("p", rule.productId)
         assertEquals("1.25", rule.units)
         assertEquals(25L, rule.commissionMinor)
+        assertEquals(300L, rule.withholdingMinor)
     }
 
     private fun legacyV14() = """{

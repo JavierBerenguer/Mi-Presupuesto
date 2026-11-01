@@ -94,6 +94,17 @@ class InvestmentMovementFormViewModelTest {
         assertNotNull(viewModel.uiState.first { it.error != null }.error)
     }
 
+    @Test fun `dividendo guarda retencion opcional`() = runTest {
+        val viewModel = viewModel(requireAccount = false)
+        fillDividend(viewModel)
+        viewModel.setWithholding("2,50")
+
+        viewModel.save()
+        viewModel.completed.first()
+
+        assertEquals(250L, db.syncDao().allMovimientos().single().retencionMinor)
+    }
+
     private suspend fun viewModel(requireAccount: Boolean) = InvestmentMovementFormViewModel(
         sync, ledger, requireAccount = requireAccount, today = { date },
     ).also { it.uiState.first { state -> !state.loading } }

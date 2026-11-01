@@ -653,7 +653,7 @@ private fun MovementRow(
     val editableInvestment = item is MovementItem.Liquidity && item.movement.tipo in EDITABLE_INVESTMENT_TYPES
     val selected = transactionId in selectedIds
     val selectionActive = selectedIds.isNotEmpty()
-    val p = movementPresentation(item, accountsById, categoriesById)
+    val p = movementPresentation(item, accountsById, categoriesById, hideAmounts)
     val rowCategory = when (item) {
         is MovementItem.Tx -> item.transaction.categoryId?.let(categoriesById::get)
         is MovementItem.Move -> item.transfer.categoryId?.let(categoriesById::get)
@@ -938,6 +938,7 @@ private fun movementPresentation(
     item: MovementItem,
     accounts: Map<String, Account>,
     categories: Map<String, Category>,
+    hideAmounts: Boolean,
 ): MovementPresentation = when (item) {
     is MovementItem.Tx -> {
         val tx = item.transaction
@@ -980,13 +981,31 @@ private fun movementPresentation(
     is MovementItem.Liquidity -> {
         val account = accounts[item.localAccountId]?.name ?: stringResource(R.string.mov_unknown_account)
         val amount = MoneyMath.format(kotlin.math.abs(item.effectMinor), "EUR")
+        val breakdownAmounts = investmentWithholdingAmounts(item.movement, hideAmounts)
+        val breakdown = breakdownAmounts?.let { (gross, withholding) ->
+            stringResource(
+                R.string.mov_investment_withholding_breakdown,
+                gross,
+                withholding,
+            )
+        }
         MovementPresentation(
             stringResource(R.string.mov_investment_title, item.movement.tipo.replaceFirstChar(Char::uppercase), item.productName),
-            account,
+            breakdown?.let { stringResource(R.string.mov_investment_account_breakdown, account, it) } ?: account,
             "EUR", AmountKind.NEUTRAL, false,
             stringResource(if (item.effectMinor >= 0L) R.string.mov_positive_amount else R.string.mov_negative_amount, amount),
         )
     }
+}
+
+internal fun investmentWithholdingAmounts(
+    movement: com.mipatrimonio.app.data.db.SyncMovimientoEntity,
+    hideAmounts: Boolean,
+): Pair<String, String>? {
+    val withholding = movement.retencionMinor ?: return null
+    if (hideAmounts) return null
+    return MoneyMath.format(Math.addExact(movement.importeMinor, withholding), "EUR") to
+        MoneyMath.format(withholding, "EUR")
 }
 
 @Composable

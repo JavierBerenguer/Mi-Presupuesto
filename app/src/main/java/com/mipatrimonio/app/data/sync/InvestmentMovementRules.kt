@@ -24,6 +24,7 @@ data class InvestmentMovementValues(
     val amountMinor: Long,
     val units: BigDecimal?,
     val commissionMinor: Long?,
+    val withholdingMinor: Long?,
     val accountId: String?,
     val note: String?,
 )
@@ -49,6 +50,7 @@ object InvestmentMovementRules {
         requireAccount: Boolean = false,
         allowMissingPurchaseUnits: Boolean = false,
         note: String? = null,
+        withholdingMinor: Long? = null,
     ): InvestmentMovementValues {
         require(product != null) { "Selecciona un producto" }
         require(product.deletedAt == null) { "El producto ya no está disponible" }
@@ -62,6 +64,10 @@ object InvestmentMovementRules {
         } else {
             require(units == null || units.compareTo(BigDecimal.ZERO) == 0) { "Este movimiento no admite participaciones" }
             require(commissionMinor == null) { "Este movimiento no admite comisión incluida" }
+        }
+        require(withholdingMinor == null || withholdingMinor >= 0) { "La retención no puede ser negativa" }
+        require(withholdingMinor == null || type == InvestmentMovementType.DIVIDEND || type == InvestmentMovementType.SALE) {
+            "Este movimiento no admite retención"
         }
         if (requireAccount) require(accountId != null) { "Selecciona una cuenta de liquidez" }
         if (accountId != null) {
@@ -82,7 +88,7 @@ object InvestmentMovementRules {
         return InvestmentMovementValues(
             type, product, date, amountMinor,
             if (type == InvestmentMovementType.DIVIDEND || type == InvestmentMovementType.FEE) BigDecimal.ZERO else validatedUnits,
-            commissionMinor, accountId, note?.trim()?.takeIf(String::isNotEmpty),
+            commissionMinor, withholdingMinor, accountId, note?.trim()?.takeIf(String::isNotEmpty),
         )
     }
 

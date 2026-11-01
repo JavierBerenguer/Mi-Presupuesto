@@ -135,6 +135,7 @@ class BackupJson {
         "lastGeneratedEpochDay" to v.lastGeneratedEpochDay, "archived" to v.archived,
         "createdAt" to v.createdAt, "updatedAt" to v.updatedAt,
         "productId" to v.productId, "units" to v.units, "commissionMinor" to v.commissionMinor,
+        "withholdingMinor" to v.withholdingMinor,
     )
     private fun authorization(v: NotificationAuthorizationEntity) = row(
         "packageName" to v.packageName, "authorized" to v.authorized, "accountId" to v.accountId,
@@ -182,7 +183,7 @@ class BackupJson {
     private fun readTransfer(j: JSONObject) = TransferEntity(j.s("id"), j.s("fromAccountId"), j.s("toAccountId"), j.l("fromAmountMinor"), j.l("toAmountMinor"), j.l("epochDay"), j.s("description"), j.l("createdAt"), j.l("updatedAt"), j.ns("categoryId"))
     private fun readBudget(j: JSONObject) = BudgetEntity(j.s("id"), j.ns("categoryId"), j.s("period"), j.l("limitMinor"), j.s("currency"), j.b("archived"), j.l("createdAt"), j.os("name", ""), j.ol("startEpochDay", 0), j.nl("endEpochDay"), j.oi("alertThresholdPct", 90))
     private fun readBudgetCategory(j: JSONObject) = BudgetCategoryEntity(j.s("budgetId"), j.s("categoryId"), j.b("includeSubcategories"))
-    private fun readRecurring(j: JSONObject) = RecurringRuleEntity(j.s("id"), j.s("kind"), j.l("amountMinor"), j.s("currency"), j.s("accountId"), j.ns("destinationAccountId"), j.ns("categoryId"), j.s("description"), j.s("merchant"), j.l("startEpochDay"), j.i("periodQuantity"), j.s("periodUnit"), j.nl("endEpochDay"), j.s("reminder"), j.ni("reminderCustomDays"), j.nl("lastGeneratedEpochDay"), j.ob("archived", false), j.l("createdAt"), j.l("updatedAt"), j.ns("productId"), j.ns("units"), j.nl("commissionMinor"))
+    private fun readRecurring(j: JSONObject) = RecurringRuleEntity(j.s("id"), j.s("kind"), j.l("amountMinor"), j.s("currency"), j.s("accountId"), j.ns("destinationAccountId"), j.ns("categoryId"), j.s("description"), j.s("merchant"), j.l("startEpochDay"), j.i("periodQuantity"), j.s("periodUnit"), j.nl("endEpochDay"), j.s("reminder"), j.ni("reminderCustomDays"), j.nl("lastGeneratedEpochDay"), j.ob("archived", false), j.l("createdAt"), j.l("updatedAt"), j.ns("productId"), j.ns("units"), j.nl("commissionMinor"), j.nl("withholdingMinor"))
     private fun readAuthorization(j: JSONObject) = NotificationAuthorizationEntity(j.s("packageName"), j.b("authorized"), j.ns("accountId"), j.l("createdAt"), j.os("autoConfirmMode", "OFF"))
     private fun readProposal(j: JSONObject) = PendingProposalEntity(j.s("id"), j.s("packageName"), j.ns("accountId"), j.s("kind"), j.l("amountMinor"), j.s("currency"), j.ns("merchant"), j.s("confidence"), j.s("parserId"), j.l("postedAt"), j.s("status"), j.ns("resultingTransactionId"), j.l("createdAt"))
     private fun readNotificationStructure(j: JSONObject) = NotificationStructureEntity(j.s("id"), j.s("packageName"), j.s("name"), j.s("template"), j.s("direction"), j.ns("defaultTitle"), j.ns("defaultDetail"), j.ns("defaultCategoryId"), j.b("enabled"), j.l("createdAt"), j.l("updatedAt"), j.os("target", "APUNTE"), j.ns("defaultProductId"), j.ob("generatesRoundUp", false), j.ob("isRoundUpInvestment", false))

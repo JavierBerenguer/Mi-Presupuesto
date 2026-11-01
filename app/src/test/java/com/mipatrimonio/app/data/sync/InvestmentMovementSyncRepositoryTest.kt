@@ -127,6 +127,32 @@ class InvestmentMovementSyncRepositoryTest {
         assertEquals("2.5", db.syncDao().movimiento("m2")!!.unidadesDestino)
     }
 
+    @Test fun `retencion se envia solo con valor y se descarga en centimos`() = runBlocking {
+        sync.crearMovimientoInversion(
+            "dividendo", "p", date, 12_000, null, null, "a", null, retencionMinor = 3_000,
+        )
+        val json = JSONObject(db.syncDao().outboxFor("movimientos").single().json)
+        assertEquals(0, BigDecimal(json.get("retencion").toString()).compareTo(BigDecimal("30")))
+
+        db.syncDao().deletePendingFor("movimientos", json.getString("id"))
+        sync.crearMovimientoInversion("dividendo", "p", date, 12_000, null, null, "a", null)
+        assertFalse(JSONObject(db.syncDao().outboxFor("movimientos").single().json).has("retencion"))
+
+        val rows = """[{"id":"remote","perfil_id":"profile","producto_id":"p","fecha":"2026-01-02","tipo":"dividendo","unidades":0,"importe":120,"retencion":30,"comision":null,"cuenta_id":null,"origen":"escritorio","nota":null,"deleted_at":null,"updated_at":"2026-01-01T00:00:00Z"}]"""
+        sync.pullTable("movimientos", signedClient { SyncHttpResponse(200, rows) })
+        assertEquals(3_000L, db.syncDao().movimiento("remote")!!.retencionMinor)
+    }
+
+    @Test fun `editar borrando retencion envia nulo explicito`() = runBlocking {
+        db.syncDao().upsertMovimiento(movement("m", "escritorio", null).copy(tipo = "dividendo", unidades = "0", retencionMinor = 3_000))
+
+        sync.editarMovimientoInversion("m", date, 12_000, null, null, null, null, retencionMinor = null)
+
+        val json = JSONObject(db.syncDao().outboxFor("movimientos").single().json)
+        assertTrue(json.has("retencion"))
+        assertTrue(json.isNull("retencion"))
+    }
+
     private fun movement(id: String, origin: String, account: String?) = SyncMovimientoEntity(
         id, "profile", "p", date.toEpochDay(), "compra", "1", 100, null, account,
         origin, null, null, "now",

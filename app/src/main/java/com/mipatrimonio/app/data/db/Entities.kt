@@ -300,4 +300,5 @@ data class RecurringRuleEntity(
     val productId: String? = null,
     val units: String? = null,
     val commissionMinor: Long? = null,
+    val withholdingMinor: Long? = null,
 )

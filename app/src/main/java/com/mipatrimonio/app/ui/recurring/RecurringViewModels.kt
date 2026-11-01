@@ -95,6 +95,7 @@ data class RecurringFormValues(
     val productId: String? = null,
     val units: String = "",
     val commission: String = "",
+    val withholding: String = "",
 )
 
 data class RecurringFormUiState(
@@ -119,9 +120,10 @@ data class RecurringFormUiState(
     val showDestinationAccount get() = values.kind == RecurringKind.TRANSFERENCIA
     val showUnits get() = values.kind == RecurringKind.COMPRA || values.kind == RecurringKind.VENTA
     val showCommission get() = showUnits
+    val showWithholding get() = values.kind == RecurringKind.DIVIDENDO || values.kind == RecurringKind.VENTA
 }
 
-enum class RecurringFormError { ACCOUNT, PRODUCT, AMOUNT, UNITS, COMMISSION, PERIOD, CUSTOM_REMINDER, END_DATE, SAVE }
+enum class RecurringFormError { ACCOUNT, PRODUCT, AMOUNT, UNITS, COMMISSION, WITHHOLDING, PERIOD, CUSTOM_REMINDER, END_DATE, SAVE }
 
 class RecurringFormViewModel(
     private val repository: RecurringRepository,
@@ -222,6 +224,7 @@ class RecurringFormViewModel(
     fun setProduct(value: String?) = update { it.copy(productId = value) }
     fun setUnits(value: String) = update { it.copy(units = value) }
     fun setCommission(value: String) = update { it.copy(commission = value) }
+    fun setWithholding(value: String) = update { it.copy(withholding = value) }
 
     fun save() {
         val form = values.value
@@ -247,6 +250,12 @@ class RecurringFormViewModel(
             form.commission.takeIf(String::isNotBlank)?.let { value ->
                 runCatching { MoneyMath.parse(value)?.let { MoneyMath.toMinor(it, account.currency) } }
                     .getOrNull()?.takeIf { it >= 0 } ?: return fail(RecurringFormError.COMMISSION)
+            }
+        } else null
+        val withholdingMinor = if (form.kind == RecurringKind.DIVIDENDO || form.kind == RecurringKind.VENTA) {
+            form.withholding.takeIf(String::isNotBlank)?.let { value ->
+                runCatching { MoneyMath.parse(value)?.let { MoneyMath.toMinor(it, account.currency) } }
+                    .getOrNull()?.takeIf { it >= 0 } ?: return fail(RecurringFormError.WITHHOLDING)
             }
         } else null
         val quantity = form.periodQuantity.toIntOrNull()?.takeIf { it > 0 }
@@ -282,6 +291,7 @@ class RecurringFormViewModel(
             productId = product?.id,
             units = units,
             commissionMinor = commissionMinor,
+            withholdingMinor = withholdingMinor,
         )
         viewModelScope.launch {
             saving.value = true
@@ -324,4 +334,5 @@ private fun RecurringRule.toFormValues() = RecurringFormValues(
     productId = productId,
     units = units?.stripTrailingZeros()?.toPlainString().orEmpty(),
     commission = commissionMinor?.let { MoneyMath.toDecimal(it, currency).stripTrailingZeros().toPlainString() }.orEmpty(),
+    withholding = withholdingMinor?.let { MoneyMath.toDecimal(it, currency).stripTrailingZeros().toPlainString() }.orEmpty(),
 )

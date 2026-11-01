@@ -41,6 +41,12 @@ fun SyncScreen(viewModel: SyncViewModel = appViewModel { c -> SyncViewModel(c.sy
             OutlinedButton(onClick = { confirmSignOut = true }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.sync_sign_out)) }
             if (state.pending.isNotEmpty()) {
                 Text(stringResource(R.string.sync_pending_count, state.pending.size))
+                if (state.pending.any { isMissingWithholdingColumnError(it.ultimoError) }) {
+                    Text(
+                        stringResource(R.string.sync_missing_withholding_column),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
                 state.pending.filter { it.ultimoError != null }.forEach { Text(it.ultimoError.orEmpty(), color = MaterialTheme.colorScheme.error) }
             }
         }
@@ -48,4 +54,11 @@ fun SyncScreen(viewModel: SyncViewModel = appViewModel { c -> SyncViewModel(c.sy
         if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
     }
     if (confirmSignOut) AlertDialog(onDismissRequest = { confirmSignOut = false }, title = { Text(stringResource(R.string.sync_sign_out_confirm_title)) }, text = { Text(stringResource(R.string.sync_sign_out_confirm_body)) }, confirmButton = { TextButton(onClick = { confirmSignOut = false; viewModel.signOut() }) { Text(stringResource(R.string.sync_sign_out)) } }, dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text(stringResource(R.string.common_cancel)) } })
+}
+
+internal fun isMissingWithholdingColumnError(error: String?): Boolean {
+    val normalized = error?.lowercase().orEmpty()
+    return "retencion" in normalized && (
+        "column" in normalized || "columna" in normalized || "schema cache" in normalized
+    )
 }

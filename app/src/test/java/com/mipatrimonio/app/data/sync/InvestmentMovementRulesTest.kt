@@ -72,6 +72,14 @@ class InvestmentMovementRulesTest {
         assertFails { validate(InvestmentMovementType.PURCHASE, quoted, commission = 100) }
     }
 
+    @Test fun `retencion es opcional no negativa solo en dividendo y venta`() {
+        validate(InvestmentMovementType.DIVIDEND, quoted, units = null, withholding = 30)
+        validate(InvestmentMovementType.SALE, manual, units = null, withholding = 0)
+        assertFails { validate(InvestmentMovementType.DIVIDEND, quoted, units = null, withholding = -1) }
+        assertFails { validate(InvestmentMovementType.PURCHASE, manual, units = null, withholding = 30) }
+        assertFails { validate(InvestmentMovementType.FEE, quoted, units = null, withholding = 30) }
+    }
+
     @Test fun `cuenta valida y obligatoriedad se comprueban`() {
         assertFails { validate(InvestmentMovementType.DIVIDEND, quoted, units = null, requireAccount = true, accountId = null) }
         assertFails { validate(InvestmentMovementType.DIVIDEND, quoted, units = null, accountId = "a", account = account.copy(currency = "USD")) }
@@ -115,9 +123,10 @@ class InvestmentMovementRulesTest {
         type: InvestmentMovementType, product: SyncProductoEntity, units: BigDecimal? = BigDecimal.ONE,
         commission: Long? = null, amount: Long = 100, movements: List<SyncMovimientoEntity> = emptyList(),
         requireAccount: Boolean = false, accountId: String? = "a", account: Account? = this.account,
+        withholding: Long? = null,
     ) = InvestmentMovementRules.validate(
         type, product, date, amount, units, commission, accountId, account, movements, date,
-        requireAccount = requireAccount,
+        requireAccount = requireAccount, withholdingMinor = withholding,
     )
 
     private fun assertFails(block: () -> Unit) { assertThrows(IllegalArgumentException::class.java, block) }

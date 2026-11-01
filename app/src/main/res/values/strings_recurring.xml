@@ -20,6 +20,8 @@
     <string name="recurring_product">Producto</string>
     <string name="recurring_units">Participaciones</string>
     <string name="recurring_commission">Comisión incluida</string>
+    <string name="recurring_withholding">Retención</string>
+    <string name="recurring_withholding_help">Lo que te retuvo Hacienda. El importe es lo que te llegó: el bruto es la suma de los dos</string>
     <string name="recurring_note">Nota</string>
     <string name="recurring_kind_purchase">Compra</string>
     <string name="recurring_kind_sale">Venta</string>
@@ -58,6 +60,7 @@
     <string name="recurring_error_amount">El importe debe ser mayor que cero.</string>
     <string name="recurring_error_units">Indica unas participaciones válidas.</string>
     <string name="recurring_error_commission">La comisión debe ser un importe válido.</string>
+    <string name="recurring_error_withholding">La retención debe ser un importe válido y no negativo.</string>
     <string name="recurring_error_period">El periodo debe ser un entero mayor que cero.</string>
     <string name="recurring_error_custom_reminder">Los días de recordatorio no pueden ser negativos.</string>
     <string name="recurring_error_end_date">La fecha de expiración no puede ser anterior a la fecha de inicio.</string>

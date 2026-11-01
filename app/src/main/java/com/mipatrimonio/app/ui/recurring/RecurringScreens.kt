@@ -271,6 +271,16 @@ private fun RecurringFormContent(state: RecurringFormUiState, viewModel: Recurri
         if (state.showCommission) item {
             AmountField(stringResource(R.string.recurring_commission), values.commission, viewModel::setCommission)
         }
+        if (state.showWithholding) item {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                AmountField(stringResource(R.string.recurring_withholding), values.withholding, viewModel::setWithholding)
+                Text(
+                    stringResource(R.string.recurring_withholding_help),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
         item { DateField(stringResource(R.string.recurring_start), values.startDate, viewModel::setStartDate) }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -369,6 +379,7 @@ private fun RecurringFormError.messageResource() = when (this) {
     RecurringFormError.AMOUNT -> R.string.recurring_error_amount
     RecurringFormError.UNITS -> R.string.recurring_error_units
     RecurringFormError.COMMISSION -> R.string.recurring_error_commission
+    RecurringFormError.WITHHOLDING -> R.string.recurring_error_withholding
     RecurringFormError.PERIOD -> R.string.recurring_error_period
     RecurringFormError.CUSTOM_REMINDER -> R.string.recurring_error_custom_reminder
     RecurringFormError.END_DATE -> R.string.recurring_error_end_date

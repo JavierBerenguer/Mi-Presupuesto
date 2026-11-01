@@ -51,18 +51,20 @@ class InvestmentRecurringRepositoryTest {
         repository = RecurringRepository(
             db,
             today = { today },
-            createInvestmentMovement = { id, type, productId, date, amount, units, commission, accountId, note ->
+            createInvestmentMovement = { id, type, productId, date, amount, units, commission, withholding, accountId, note ->
                 val product = db.syncDao().producto(productId)
                 val account = ledger.accounts.first().firstOrNull { it.id == accountId }
                 val values = InvestmentMovementRules.validate(
                     InvestmentMovementType.fromWireName(type), product, date, amount, units, commission,
                     accountId, account, db.syncDao().allMovimientos(), today,
                     requireAccount = true, allowMissingPurchaseUnits = true, note = note,
+                    withholdingMinor = withholding,
                 )
                 db.syncDao().upsertMovimiento(SyncMovimientoEntity(
                     id, values.product.perfilId, productId, date.toEpochDay(), type,
                     values.units?.stripTrailingZeros()?.toPlainString() ?: "0", amount, commission,
                     accountId, "movil", values.note, null, "2026-10-10T00:00:00Z",
+                    retencionMinor = values.withholdingMinor,
                 ))
             },
             notifyInvestmentFailure = { rule, date, reason -> failures += Triple(rule.id, date, reason) },
@@ -190,15 +192,32 @@ class InvestmentRecurringRepositoryTest {
         }
     }
 
+    @Test
+    fun `dividendo recurrente valida y genera la retencion fija`() = runBlocking {
+        repository.saveRule(rule(kind = RecurringKind.DIVIDENDO, withholdingMinor = 30))
+
+        assertEquals(30L, repository.getRule("r")?.withholdingMinor)
+        assertEquals(1, repository.generatePending(today).movementsCreated)
+        assertEquals(30L, db.syncDao().allMovimientos().single().retencionMinor)
+    }
+
+    @Test
+    fun `compra recurrente rechaza retencion`() = runBlocking<Unit> {
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { repository.saveRule(rule(withholdingMinor = 30)) }
+        }
+    }
+
     private fun rule(
         id: String = "r",
         kind: RecurringKind = RecurringKind.COMPRA,
         start: LocalDate = today,
         units: BigDecimal? = null,
+        withholdingMinor: Long? = null,
     ) = RecurringRule(
         id, kind, 100, "EUR", "a", null, null, "Aportación", "", start,
         1, RecurringPeriodUnit.MES, null, ReminderOption.NO, null, null, false, 1, 1,
-        "p", units, null,
+        "p", units, null, withholdingMinor,
     )
 
     private fun product(deletedAt: String? = null) = SyncProductoEntity(
