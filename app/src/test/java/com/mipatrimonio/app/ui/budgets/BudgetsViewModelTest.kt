@@ -4,14 +4,19 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.mipatrimonio.app.data.db.AppDatabase
+import com.mipatrimonio.app.data.db.SyncMovimientoEntity
+import com.mipatrimonio.app.data.db.toEntity
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
+import com.mipatrimonio.app.data.sync.SyncRepository
 import com.mipatrimonio.app.testutil.SettingsStoreRule
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountType
 import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.BudgetPeriod
 import com.mipatrimonio.app.domain.model.Category
+import com.mipatrimonio.app.domain.model.BudgetCategoryRule
+import com.mipatrimonio.app.domain.model.InvestmentKind
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
@@ -146,6 +151,37 @@ class BudgetsViewModelTest {
         ledger.saveBudget(Budget("food-budget", "food", BudgetPeriod.MENSUAL, 500_00, "EUR", false))
         val categoryOnly = viewModel.uiState.first { it.statuses.singleOrNull()?.budget?.id == "food-budget" }
         assertTrue(categoryOnly.statuses.none { it.budget.categoryId == null })
+    }
+
+    @Test fun `comision remota cuenta en su presupuesto y dividendo no cuenta en ocio`() = runTest {
+        val date = YearMonth.now().atDay(10)
+        ledger.saveCategory(Category("invest", "Inversiones", null, 0, false))
+        // saveCategory no deja poner la marca desde fuera (T-097): se inserta directamente, como hace la asignación.
+        db.categoryDao().upsert(Category("fee", "Comisión", "invest", 0, false, investmentKind = InvestmentKind.COMISION).toEntity())
+        db.categoryDao().upsert(Category("div", "Dividendo", "invest", 0, false, investmentKind = InvestmentKind.DIVIDENDO).toEntity())
+        ledger.saveCategory(Category("leisure", "Ocio", null, 0, false))
+        ledger.saveBudget(Budget(
+            "fee-budget", "Comisiones", 100_00, "EUR", BudgetPeriod.MENSUAL, date.withDayOfMonth(1), null, 90,
+            listOf(BudgetCategoryRule("fee", false)), false,
+        ))
+        ledger.saveBudget(Budget(
+            "leisure-budget", "Ocio", 100_00, "EUR", BudgetPeriod.MENSUAL, date.withDayOfMonth(1), null, 90,
+            listOf(BudgetCategoryRule("leisure", false)), false,
+        ))
+        settings.setSyncProfile("profile")
+        listOf("comision" to 1_00L, "dividendo" to 20_00L).forEachIndexed { index, (type, amount) ->
+            db.syncDao().upsertMovimiento(SyncMovimientoEntity(
+                "m$index", "profile", "product", date.toEpochDay(), type, "1", amount, null,
+                SyncRepository.accountIdToRemoteId("eur"), "escritorio", null, null, "now",
+            ))
+        }
+        val sync = SyncRepository(db, settings, ledger, { _, _ -> error("No se usa autenticación") })
+        val viewModel = BudgetsViewModel(ledger, settings, today = { date }, sync = sync)
+        val state = viewModel.uiState.first { it.statuses.size == 2 && it.incomeStatistics.totalMinor == 20_00L }
+
+        assertEquals(1_00L, state.statuses.single { it.budget.id == "fee-budget" }.spentMinor)
+        assertEquals(0L, state.statuses.single { it.budget.id == "leisure-budget" }.spentMinor)
+        assertEquals(1_00L, state.expenseStatistics.totalMinor)
     }
 
     @Test

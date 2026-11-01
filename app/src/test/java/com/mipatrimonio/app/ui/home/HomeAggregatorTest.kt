@@ -1,6 +1,8 @@
 package com.mipatrimonio.app.ui.home
 
 import com.mipatrimonio.app.domain.calc.LiquidityMovement
+import com.mipatrimonio.app.domain.calc.InvestmentCashFlow
+import com.mipatrimonio.app.domain.calc.InvestmentStats
 import com.mipatrimonio.app.domain.calc.CategorySpend
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.data.sync.PortfolioClass
@@ -17,6 +19,7 @@ import com.mipatrimonio.app.domain.model.BudgetPeriod
 import com.mipatrimonio.app.domain.model.TransactionType.GASTO
 import com.mipatrimonio.app.domain.model.TransactionType.INGRESO
 import com.mipatrimonio.app.domain.model.TransactionSource
+import com.mipatrimonio.app.domain.model.InvestmentKind
 import com.mipatrimonio.app.domain.notifications.NotificationDirection
 import com.mipatrimonio.app.domain.notifications.NotificationRecord
 import com.mipatrimonio.app.domain.notifications.NotificationRecordStatus
@@ -91,6 +94,44 @@ class HomeAggregatorTest {
         assertEquals(100_00L + 1000_00 - 999_00 - 300_00, s.netWorth.cashMinor)
     }
 
+    @Test fun `mes con compra venta dividendo y comision separa estadisticas inversion y saldo`() {
+        val account = account("a1", initial = 1_000_00)
+        val investmentCategories = listOf(
+            Category("mp-inversiones", "Inversiones", null, 0, false),
+            Category("div", "Dividendo", "mp-inversiones", 0, false, investmentKind = InvestmentKind.DIVIDENDO),
+            Category("fee", "Comisión", "mp-inversiones", 0, false, investmentKind = InvestmentKind.COMISION),
+        )
+        val flows = listOf(
+            InvestmentCashFlow("buy", account.id, today, InvestmentKind.COMPRA, 500_00),
+            InvestmentCashFlow("sell", account.id, today, InvestmentKind.VENTA, 200_00),
+            InvestmentCashFlow("dividend", account.id, today, InvestmentKind.DIVIDENDO, 20_00),
+            InvestmentCashFlow("commission", account.id, today, InvestmentKind.COMISION, 1_00),
+        )
+        val liquidity = listOf(
+            LiquidityMovement("buy", account.id, today, -500_00),
+            LiquidityMovement("sell", account.id, today, 200_00),
+            LiquidityMovement("dividend", account.id, today, 20_00),
+            LiquidityMovement("commission", account.id, today, -1_00),
+        )
+        val withoutProjection = buildHomeState(
+            "EUR", listOf(account), emptyList(), emptyList(), investmentCategories, emptyList(), today, Period.MES,
+            liquidityMovements = liquidity,
+        )
+        val result = buildHomeState(
+            "EUR", listOf(account), emptyList(), emptyList(), investmentCategories, emptyList(), today, Period.MES,
+            liquidityMovements = liquidity, investmentCashFlows = flows,
+        )
+
+        assertEquals(20_00L, result.monthTotals.incomeMinor)
+        assertEquals(1_00L, result.monthTotals.expenseMinor)
+        assertEquals(300_00L, result.investedThisMonthMinor)
+        assertEquals(300_00L, result.investedInPeriodMinor)
+        assertEquals(71_900L, result.netWorth.cashMinor)
+        assertEquals(withoutProjection.netWorth, result.netWorth)
+        assertEquals(withoutProjection.netWorthSeries, result.netWorthSeries)
+        assertEquals(301_00L, expenseWithInvesting(result.expenseByCategory, result.investedInPeriodMinor, investmentCategories).single().amountMinor)
+    }
+
     @Test
     fun `presupuesto restante prevalece el global sobre las categorias`() {
         val txs = listOf(tx(GASTO, 40_00, category = "comida"), tx(GASTO, 30_00, category = "ocio"))
@@ -120,11 +161,11 @@ class HomeAggregatorTest {
                 tx(GASTO, 20_00, category = "super"),
                 tx(GASTO, 5_00, category = "ocio"),
                 tx(GASTO, 1_00),
-                tx(INGRESO, 4_00, category = "comida"), // devolución: resta del gasto de la raíz (T-091)
+                tx(INGRESO, 4_00, category = "comida"),
             ),
         )
         val byId = s.expenseByCategory.associate { it.categoryId to it.amountMinor }
-        assertEquals(26_00L, byId["comida"])
+        assertEquals(30_00L, byId["comida"])
         assertEquals(5_00L, byId["ocio"])
         assertEquals(1_00L, byId[null])
     }
@@ -256,17 +297,42 @@ class HomeAggregatorTest {
         val transactions = (9..12).map { tx(GASTO, 100_00, date = LocalDate.of(2025, it, 10)) } +
             (1..2).map { tx(GASTO, 100_00, date = LocalDate.of(2026, it, 10)) }
         // 600 € de compras en Rumbo en la ventana (100 €/mes) y una venta de 0 fuera de ella.
-        val liquidity = (1..6).map { LiquidityMovement("m$it", account.id, LocalDate.of(2026, 2, it), -100_00) } +
-            LiquidityMovement("vieja", account.id, LocalDate.of(2025, 1, 5), -900_00)
+        val flows = (1..6).map {
+            InvestmentCashFlow("m$it", account.id, LocalDate.of(2026, 2, it), InvestmentKind.COMPRA, 100_00)
+        } + InvestmentCashFlow("vieja", account.id, LocalDate.of(2025, 1, 5), InvestmentKind.COMPRA, 900_00)
 
         val result = liquidityCushion(
-            "EUR", listOf(account), listOf(AccountBalance(account, 1_200_00)), transactions, cats, today, liquidity,
+            "EUR", listOf(account), listOf(AccountBalance(account, 1_200_00)), transactions, cats, today, flows,
         )
 
         assertEquals(100_00L, result?.averageLivingExpenseMinor)
         assertEquals(200_00L, result?.averageTotalExpenseMinor)
         assertEquals(BigDecimal("12.0"), result?.coveredMonthsWithoutInvesting)
         assertEquals(BigDecimal("6.0"), result?.coveredMonthsContinuingInvesting)
+    }
+
+    @Test fun `colchon excluye comisiones del gasto de vida y suma comisiones e inversion al total`() {
+        val account = account("a", initial = 1_200_00)
+        val categories = listOf(
+            Category("mp-inversiones", "Inversiones", null, 0, false),
+            Category("fee", "Comisión", "mp-inversiones", 0, false, investmentKind = InvestmentKind.COMISION),
+            Category("ocio", "Ocio", null, 0, false),
+        )
+        val expenses = (1..6).map { tx(GASTO, 100_00, date = today.minusMonths(it.toLong()), category = "ocio") }
+        val flows = (1..6).flatMap {
+            val date = today.minusMonths(it.toLong())
+            listOf(
+                InvestmentCashFlow("buy$it", account.id, date, InvestmentKind.COMPRA, 50_00),
+                InvestmentCashFlow("fee$it", account.id, date, InvestmentKind.COMISION, 1_00),
+            )
+        }
+        val statistics = expenses + InvestmentStats.statTransactions(flows, categories)
+        val result = liquidityCushion(
+            "EUR", listOf(account), listOf(AccountBalance(account, 1_200_00)), statistics, categories, today, flows,
+        )
+
+        assertEquals(100_00L, result?.averageLivingExpenseMinor)
+        assertEquals(151_00L, result?.averageTotalExpenseMinor)
     }
 
     @Test

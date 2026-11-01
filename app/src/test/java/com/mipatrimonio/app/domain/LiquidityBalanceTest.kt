@@ -3,6 +3,7 @@ package com.mipatrimonio.app.domain
 import com.mipatrimonio.app.data.db.SyncMovimientoEntity
 import com.mipatrimonio.app.data.sync.SyncRepository
 import com.mipatrimonio.app.data.sync.mapLiquidityMovements
+import com.mipatrimonio.app.data.sync.mapInvestmentCashFlows
 import com.mipatrimonio.app.data.sync.publishedAccountBalance
 import com.mipatrimonio.app.domain.calc.BalanceCalculator
 import com.mipatrimonio.app.domain.calc.MovementsBalanceCalculator
@@ -13,6 +14,7 @@ import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountType
 import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.BudgetPeriod
+import com.mipatrimonio.app.domain.model.InvestmentKind
 import java.time.LocalDate
 import java.time.YearMonth
 import org.junit.Assert.assertEquals
@@ -47,6 +49,22 @@ class LiquidityBalanceTest {
         assertTrue(mapLiquidityMovements(listOf(movement("x", "compra", 100).copy(cuentaId = "missing")), listOf(account)).entries.isEmpty())
         val usd = account.copy(id = "usd", currency = "USD")
         assertTrue(mapLiquidityMovements(listOf(movement("usd", "compra", 100, usd.id)), listOf(usd)).entries.isEmpty())
+    }
+
+    @Test fun `flujos de inversion usan solo cuenta local eur no borrada y tipo conocido`() {
+        val flows = mapInvestmentCashFlows(
+            listOf(
+                movement("buy", "compra", 100),
+                movement("deleted", "venta", 100).copy(deletedAt = "now"),
+                movement("missing", "dividendo", 100).copy(cuentaId = "missing"),
+                movement("unknown", "ajuste", 100),
+            ),
+            listOf(account),
+        )
+        assertEquals(listOf("buy"), flows.map { it.id })
+        assertEquals(listOf(InvestmentKind.COMPRA), flows.map { it.kind })
+        val usd = account.copy(id = "usd", currency = "USD")
+        assertTrue(mapInvestmentCashFlows(listOf(movement("usd", "comision", 100, usd.id)), listOf(usd)).isEmpty())
     }
 
     private fun movement(id: String, type: String, amount: Long, accountId: String = account.id) = SyncMovimientoEntity(

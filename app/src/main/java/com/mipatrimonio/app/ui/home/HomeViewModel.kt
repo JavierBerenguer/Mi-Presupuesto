@@ -6,6 +6,7 @@ import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
 import com.mipatrimonio.app.data.sync.SyncRepository
 import com.mipatrimonio.app.data.sync.mapLiquidityMovements
+import com.mipatrimonio.app.data.sync.mapInvestmentCashFlows
 import com.mipatrimonio.app.data.sync.PortfolioSummaryParser
 import com.mipatrimonio.app.data.sync.PortfolioSummaryResult
 import com.mipatrimonio.app.domain.model.Account
@@ -69,6 +70,7 @@ class HomeViewModel(
     ) { l, config, period, movements, summaryAndSelection ->
         val (rawSummary, evolutionSelection) = summaryAndSelection
         val liquidity = mapLiquidityMovements(movements, l.accounts).entries
+        val investmentCashFlows = mapInvestmentCashFlows(movements, l.accounts)
         val summary = rawSummary?.let { PortfolioSummaryParser.parse(it.datosJson) as? PortfolioSummaryResult.Success }?.summary
         buildHomeState(
             baseCurrency = config.baseCurrency,
@@ -81,6 +83,7 @@ class HomeViewModel(
             period = period,
             hideAmounts = config.hideAmounts,
             liquidityMovements = liquidity,
+            investmentCashFlows = investmentCashFlows,
             portfolioSummary = summary,
             accountBalanceRecords = l.accountBalances,
             evolutionSeries = evolutionSelection,
