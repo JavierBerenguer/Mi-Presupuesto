@@ -263,7 +263,7 @@ private fun EntryFormContent(
                 stringResource(R.string.mov_transfer),
             ),
             selectedIndex = kinds.indexOf(values.kind),
-            onSelected = { if (!state.isEditing) viewModel.setKind(kinds[it]) },
+            onSelected = { viewModel.setKind(kinds[it]) },
             selectedContainerColor = when (values.kind) {
                 EntryKind.EXPENSE -> MaterialTheme.extras.expense.copy(alpha = 0.24f)
                 EntryKind.INCOME -> MaterialTheme.colorScheme.primaryContainer

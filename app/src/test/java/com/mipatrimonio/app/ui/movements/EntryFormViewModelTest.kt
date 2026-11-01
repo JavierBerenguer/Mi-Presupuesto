@@ -180,6 +180,24 @@ class EntryFormViewModelTest {
     }
 
     @Test
+    fun `al editar un apunte de notificacion se puede cambiar gasto por ingreso conservando el origen`() = runTest {
+        ledger.saveAccount(account("a"))
+        ledger.saveTransaction(
+            transaction("tx", TransactionType.GASTO, 100, "a").copy(source = TransactionSource.NOTIFICACION),
+        )
+
+        val viewModel = viewModel("tx")
+        viewModel.ready()
+        viewModel.setKind(EntryKind.INCOME)
+        assertEquals(EntryKind.INCOME, viewModel.uiState.value.values.kind)
+        viewModel.save()
+
+        val saved = ledger.transactions.awaitValue { it.singleOrNull()?.type == TransactionType.INGRESO }.single()
+        assertEquals("tx", saved.id)
+        assertEquals(TransactionSource.NOTIFICACION, saved.source)
+    }
+
+    @Test
     fun `ofrece todas las categorias activas para cualquier tipo de apunte`() = runTest {
         ledger.saveAccount(account("a"))
         ledger.saveAccount(account("b"))

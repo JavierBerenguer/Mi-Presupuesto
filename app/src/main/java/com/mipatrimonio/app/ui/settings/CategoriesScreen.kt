@@ -72,6 +72,7 @@ import com.mipatrimonio.app.ui.common.CategoryIconPickerViewModel
 import com.mipatrimonio.app.ui.common.CategoryIcons
 import com.mipatrimonio.app.ui.common.DropdownField
 import com.mipatrimonio.app.ui.common.EmptyState
+import com.mipatrimonio.app.ui.common.HexColorPicker
 import com.mipatrimonio.app.ui.common.LoadingBox
 import com.mipatrimonio.app.ui.common.appViewModel
 
@@ -529,7 +530,7 @@ private fun CategoryFormDialog(
                             val description = stringResource(R.string.aj_select_color, colorNumber)
                             Box(
                                 modifier = Modifier
-                                    .size(48.dp)
+                                    .size(40.dp)
                                     .clip(CircleShape)
                                     .background(Color(color.toInt()))
                                     .border(
@@ -559,6 +560,7 @@ private fun CategoryFormDialog(
                         }
                     }
                 }
+                HexColorPicker(colorArgb = colorArgb, onColorChange = { colorArgb = it })
                 errorText?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
         },

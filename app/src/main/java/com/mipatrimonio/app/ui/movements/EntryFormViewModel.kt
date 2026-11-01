@@ -232,7 +232,11 @@ class EntryFormViewModel(
     )
 
     fun setKind(kind: EntryKind) {
-        if (entryId != null) return
+        if (entryId != null) {
+            // Al editar solo se alterna gasto/ingreso: pasar a transferencia cambiaría de tabla y rompería el enlace con la notificación.
+            if (kind != EntryKind.TRANSFER) updateValues { current -> if (current.kind == EntryKind.TRANSFER) current else current.copy(kind = kind) }
+            return
+        }
         val accounts = sourceData.value?.accounts.orEmpty()
         updateValues { current ->
             val sourceId = current.accountId

@@ -61,6 +61,9 @@
     <string name="aj_category_with_children">Una categoría con subcategorías no puede convertirse en subcategoría.</string>
     <string name="aj_color">Color</string>
     <string name="aj_select_color">Seleccionar color %1$d</string>
+    <string name="aj_color_hex">Hexadecimal</string>
+    <string name="aj_color_saturation">Saturación y brillo del color</string>
+    <string name="aj_color_hue">Tono del color</string>
     <string name="aj_error_blank_category_name">Escribe un nombre para la categoría.</string>
     <string name="aj_error_invalid_parent">La categoría padre no es válida.</string>
     <string name="aj_delete_category">Eliminar la categoría %1$s</string>

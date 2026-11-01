@@ -71,6 +71,7 @@ fun CategoryPickerScreen(
     onSelected: (String?) -> Unit,
     onBack: () -> Unit,
     onNewCategory: (() -> Unit)? = null,
+    unassignedLabel: String? = null,
 ) {
     var query by remember { mutableStateOf("") }
     val tabs = if (frequentCategories.isEmpty()) {
@@ -95,6 +96,7 @@ fun CategoryPickerScreen(
             CategoryActionBar(
                 onUnassigned = { onSelected(null) },
                 onNewCategory = onNewCategory,
+                unassignedLabel = unassignedLabel ?: stringResource(R.string.mov_category_unassigned),
             )
         },
     ) { padding ->
@@ -337,7 +339,7 @@ private fun UnderlineTabs(
 }
 
 @Composable
-private fun CategoryActionBar(onUnassigned: () -> Unit, onNewCategory: (() -> Unit)?) {
+private fun CategoryActionBar(onUnassigned: () -> Unit, onNewCategory: (() -> Unit)?, unassignedLabel: String) {
     Surface(
         modifier = Modifier.fillMaxWidth().imePadding(),
         color = MaterialTheme.colorScheme.surface,
@@ -352,7 +354,7 @@ private fun CategoryActionBar(onUnassigned: () -> Unit, onNewCategory: (() -> Un
                     onClick = onUnassigned,
                     modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                 ) {
-                    Text(stringResource(R.string.mov_category_unassigned), maxLines = 2, textAlign = TextAlign.Center)
+                    Text(unassignedLabel, maxLines = 2, textAlign = TextAlign.Center)
                 }
                 if (onNewCategory != null) {
                     Button(

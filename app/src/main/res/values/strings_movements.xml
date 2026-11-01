@@ -88,7 +88,7 @@
     <string name="mov_category">Categoría</string>
     <string name="mov_category_unassigned">Sin asignar</string>
     <string name="mov_more_details">Más detalles</string>
-    <string name="mov_type_locked">El tipo no se puede cambiar al editar un apunte.</string>
+    <string name="mov_type_locked">Al editar puedes cambiar entre gasto e ingreso; para convertirlo en transferencia, bórralo y créalo de nuevo.</string>
     <string name="mov_save_and_add">Guardar y añadir otro</string>
     <string name="mov_swap_accounts">Intercambiar cuentas</string>
     <string name="mov_destination_amount_required">Introduce un importe de destino mayor que cero.</string>

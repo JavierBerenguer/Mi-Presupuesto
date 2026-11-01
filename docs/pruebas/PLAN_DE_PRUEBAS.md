@@ -8,7 +8,7 @@ Este documento lo mantiene Claude. Cada bloque indica en qué versión se prueba
 > - `~~tachado~~` ya no aplica.
 
 **Versiones actuales:**
-- **App:** v1.10.0 (https://github.com/JavierBerenguer/Mi-Presupuesto/releases/tag/v1.10.0).
+- **App:** v1.10.1 (https://github.com/JavierBerenguer/Mi-Presupuesto/releases/tag/v1.10.1).
 - **Rumbo:** rama `claude/supabase` de `JavierBerenguer/Rumbo-Patrimonio`, en `D:\XX_Claude\App - Rea - Rumbo\rumbo-main`. Tras actualizarlo, reinícialo con `Iniciar.bat`.
 
 ---
@@ -136,6 +136,12 @@ Este documento lo mantiene Claude. Cada bloque indica en qué versión se prueba
 - [x] J4. **Aportaciones por mes** tiene leyenda: color, producto, lo aportado en el periodo y su %.
 - [x] ✔ J5. **Copias mensuales** en modo nube: existe `mensual_2026-10.json`. Se guardan las 12 últimas.
 - [x] J6. **Dónde está tu dinero de verdad:** con el MSCI World 2X referenciado a un MSCI World normal, «en bolsa» sube a ~3.090 €.
+
+## K. Categorías y edición de apuntes (v1.10.1)
+- [ ] K1. **Filtros de Movimientos › Categoría:** se abre el selector completo (búsqueda, árbol y A-Z). El botón inferior dice «Todas las categorías» y quita el filtro. Al elegir una categoría padre salen también sus subcategorías.
+- [ ] K2. **Ajustes › Categorías › nueva o editar › Color:** debajo de la paleta hay un área de color, una barra de tono y un campo «#». Al arrastrar cambia el icono de la vista previa. Al escribir `915959` el color se aplica; con menos de 6 cifras el campo se marca en rojo y no cambia nada.
+- [ ] K3. Guarda una categoría con un color hecho a mano, ciérrala y vuelve a abrirla: aparece el mismo código hexadecimal.
+- [ ] K4. **Editar un apunte que vino de una notificación:** se puede pasar de **gasto a ingreso** (y al revés) y guardar. Sigue saliendo como automático y conserva la notificación original. La pestaña Transferencia no hace nada al editar.
 
 ---
 
