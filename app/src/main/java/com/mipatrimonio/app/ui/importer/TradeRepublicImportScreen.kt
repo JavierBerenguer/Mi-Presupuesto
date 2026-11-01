@@ -25,6 +25,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mipatrimonio.app.R
 import com.mipatrimonio.app.ui.movements.CategoryPickerField
 import com.mipatrimonio.app.data.importer.ImportRowDecision
+import com.mipatrimonio.app.data.importer.ImportRecord
 import com.mipatrimonio.app.domain.model.MoneyMath
 import com.mipatrimonio.app.ui.common.DropdownField
 import com.mipatrimonio.app.ui.common.LoadingBox
@@ -62,6 +63,7 @@ fun TradeRepublicImportScreen(
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(stringResource(R.string.import_tr_preview), style = MaterialTheme.typography.titleLarge)
                     Text(stringResource(R.string.import_tr_count_create, plan.toCreate))
+                    Text(stringResource(R.string.import_tr_count_dividends, plan.rows.count { it.status == com.mipatrimonio.app.data.importer.ImportRowStatus.CREATE && it.record is ImportRecord.InvestmentDividend }))
                     Text(stringResource(R.string.import_tr_count_existing, plan.alreadyImported))
                     Text(stringResource(R.string.import_tr_count_review, plan.toReview))
                     Text(stringResource(R.string.import_tr_count_ignored, plan.ignored))
@@ -77,13 +79,24 @@ fun TradeRepublicImportScreen(
                     plan.duplicateIdsInFile.forEach { id ->
                         Text(stringResource(R.string.import_tr_duplicate, id))
                     }
+                    plan.rows.mapNotNull { it.record as? ImportRecord.InvestmentDividend }.forEach { dividend ->
+                        state.products.firstOrNull { it.id == dividend.productId }?.let { product ->
+                            Text(stringResource(R.string.import_tr_dividend_product, product.nombre))
+                        }
+                    }
                 }
             }
             if (plan.toReview > 0) {
                 Text(stringResource(R.string.import_tr_beta_warning), color = MaterialTheme.colorScheme.error)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = viewModel::ignoreAll) { Text(stringResource(R.string.import_tr_ignore_all)) }
-                    Button(onClick = viewModel::acceptAll) { Text(stringResource(R.string.import_tr_accept_all)) }
+                    if (plan.rows.any {
+                            it.status == com.mipatrimonio.app.data.importer.ImportRowStatus.REVIEW &&
+                                it.source.kind != com.mipatrimonio.app.data.importer.ImportedKind.DIVIDENDO
+                        }
+                    ) {
+                        Button(onClick = viewModel::acceptAll) { Text(stringResource(R.string.import_tr_accept_all)) }
+                    }
                 }
             }
             state.reviewItems.forEach { item ->
@@ -91,10 +104,16 @@ fun TradeRepublicImportScreen(
                 SectionCard {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(row.source.description.ifBlank { row.source.rawType }, style = MaterialTheme.typography.titleMedium)
+                        (row.record as? ImportRecord.InvestmentDividend)?.let { dividend ->
+                            state.products.firstOrNull { it.id == dividend.productId }?.let { product ->
+                                Text(stringResource(R.string.import_tr_product_found, product.nombre))
+                            }
+                        }
                         Text(when (item.decisionState) {
                             ImportReviewDecisionState.PENDING -> row.reason.orEmpty()
                             ImportReviewDecisionState.IGNORED -> stringResource(R.string.import_tr_status_ignored)
                             ImportReviewDecisionState.IMPORT_MOVEMENT -> stringResource(R.string.import_tr_status_movement)
+                            ImportReviewDecisionState.IMPORT_INVESTMENT -> stringResource(R.string.import_tr_status_investment)
                         })
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             OutlinedButton(onClick = { viewModel.setDecision(row.source.externalId, ImportRowDecision.Ignore) }) {
@@ -104,8 +123,20 @@ fun TradeRepublicImportScreen(
                                 ImportReviewAction.IMPORT_MOVEMENT -> Button(onClick = {
                                     viewModel.setDecision(row.source.externalId, ImportRowDecision.AsTransaction())
                                 }) { Text(stringResource(R.string.import_tr_as_movement)) }
+                                ImportReviewAction.SELECT_INVESTMENT -> Unit
                                 ImportReviewAction.NONE -> Unit
                             }
+                        }
+                        if (item.action == ImportReviewAction.SELECT_INVESTMENT) {
+                            val selectedProductId = (state.decisions[row.source.externalId] as? ImportRowDecision.AsInvestment)?.productId
+                            DropdownField(
+                                label = stringResource(R.string.import_tr_product),
+                                options = state.products,
+                                selected = state.products.firstOrNull { it.id == selectedProductId },
+                                optionLabel = { it.nombre },
+                                onSelected = { product -> product?.let { viewModel.setDecision(row.source.externalId, ImportRowDecision.AsInvestment(it.id)) } },
+                                noneLabel = stringResource(R.string.import_tr_select_product),
+                            )
                         }
                         if (item.action == ImportReviewAction.IMPORT_MOVEMENT) {
                             val selectedCategoryId = (state.decisions[row.source.externalId] as? ImportRowDecision.AsTransaction)?.categoryId
@@ -128,7 +159,7 @@ fun TradeRepublicImportScreen(
         }
         if (state.busy) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { CircularProgressIndicator() }
         state.report?.let { report ->
-            Text(stringResource(R.string.import_tr_report, report.totalCreated, report.transactions, report.omitted))
+            Text(stringResource(R.string.import_tr_report, report.totalCreated, report.transactions, report.investmentDividends, report.failedInvestmentDividends, report.omitted))
             if (report.omittedByReason.isNotEmpty()) {
                 Text(stringResource(R.string.import_tr_omitted_reasons, report.omittedByReason.entries.joinToString { "${it.key}: ${it.value}" }))
             }

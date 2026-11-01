@@ -34,6 +34,21 @@ class ImportReviewRulesTest {
         )
     }
 
+    @Test fun `dividendo solo ofrece seleccionar producto`() {
+        val dividend = PlannedImportRow(
+            row("DIVIDEND", 100).copy(kind = ImportedKind.DIVIDENDO),
+            ImportRowStatus.REVIEW,
+        )
+        assertEquals(ImportReviewAction.SELECT_INVESTMENT, importReviewItem(dividend, null).action)
+        assertEquals(
+            ImportReviewDecisionState.IMPORT_INVESTMENT,
+            importReviewItem(
+                dividend.copy(status = ImportRowStatus.CREATE),
+                ImportRowDecision.AsInvestment("product"),
+            ).decisionState,
+        )
+    }
+
     private fun row(rawType: String, amount: Long) = ImportedMovement(
         externalId = rawType,
         date = LocalDate.of(2026, 1, 1),
