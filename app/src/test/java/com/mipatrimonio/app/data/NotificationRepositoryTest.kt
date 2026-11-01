@@ -158,6 +158,7 @@ class NotificationRepositoryTest {
         val generalRecord = db.notificationDao().getRecord(generalId)!!
         val before = db.transactionDao().getById(requireNotNull(generalRecord.transactionId))!!
 
+        now = 2 * DAY   // al día siguiente: el apunte de ayer no se toca
         repository.createRuleForRecord(generalId, NotificationRuleValues("Específico", "Detalle específico"))
         val unchangedRecord = db.notificationDao().getRecord(generalId)!!
         val unchanged = db.transactionDao().getById(requireNotNull(unchangedRecord.transactionId))!!
@@ -229,6 +230,7 @@ class NotificationRepositoryTest {
         authorizeWithAccount(); db.categoryDao().upsert(CategoryEntity("cat", "Temporal", "GASTO", null, 0, false, 0))
         val seed = (repository.ingest(notification("Pago 1 EUR en Uno")) as NotificationOutcome.Registrada).recordId
         val structure = repository.createStructureFromRecord(seed, "Pago", 0..3, 14..16, NotificationDirection.GASTO)
+        now = 2 * DAY   // el apunte inicial es de otro día: no recibe la categoría de la regla
         val row = db.notificationDao().getAllRulesForBackup().single()
         repository.saveRule(NotificationRule(row.id, row.structureId, row.variableKey, row.variableDisplay,
             row.title, row.detail, "cat", row.enabled, row.createdAt, row.updatedAt))
@@ -323,5 +325,42 @@ class NotificationRepositoryTest {
     private suspend fun saveAccount(id: String, currency: String, archived: Boolean = false) =
         LedgerRepository(db, clock = { now++ }).saveAccount(Account(id, id, AccountType.CORRIENTE, currency, 0, archived, now))
     private fun notification(text: String, postedAt: Long = 1_000) = BankNotification(PACKAGE, "", text, postedAt)
-    private companion object { const val PACKAGE = "app.bank" }
+    @Test fun `cambiar una regla actualiza los apuntes de hoy de ese comercio y respeta lo editado`() = runTest {
+        authorizeWithAccount()
+        db.categoryDao().upsert(CategoryEntity("cafe", "Cafés", "GASTO", null, 0, false, 0))
+        val seed = (repository.ingest(notification("Pago 1 EUR en Uno")) as NotificationOutcome.Registrada).recordId
+        repository.createStructureFromRecord(seed, "Pago", 0..3, 14..16, NotificationDirection.GASTO,
+            NotificationDefaults("General", "Detalle general"))
+        now = 10 * DAY + 5_000   // «hoy» es el día 10
+        val yesterday = (repository.ingest(notification("Pago 2 EUR en Bar", 9 * DAY + 1_000)) as NotificationOutcome.Registrada).recordId
+        val today1 = (repository.ingest(notification("Pago 3 EUR en Bar", 10 * DAY + 1_000)) as NotificationOutcome.Registrada).recordId
+        val today2 = (repository.ingest(notification("Pago 4 EUR en bar", 10 * DAY + 2_000)) as NotificationOutcome.Registrada).recordId
+        val other = (repository.ingest(notification("Pago 5 EUR en Otro", 10 * DAY + 3_000)) as NotificationOutcome.Registrada).recordId
+        fun tx(record: String) = kotlinx.coroutines.runBlocking {
+            db.transactionDao().getById(requireNotNull(db.notificationDao().getRecord(record)?.transactionId))!!
+        }
+        // Retoque manual del detalle en uno de los de hoy.
+        db.transactionDao().upsert(tx(today2).copy(notes = "Lo cambié yo"))
+
+        // Nueva regla de comercio sobre apuntes creados con la regla general.
+        repository.createRuleForRecord(today1, NotificationRuleValues("Bar de la esquina", "Café", "cafe"))
+        assertEquals("Bar de la esquina", tx(today1).description)
+        assertEquals("Café", tx(today1).notes)
+        assertEquals("cafe", tx(today1).categoryId)
+        assertEquals("Bar de la esquina", tx(today2).description)
+        assertEquals("Lo cambié yo", tx(today2).notes)        // lo editado a mano se respeta
+        assertEquals("General", tx(yesterday).description)     // otro día: no se toca
+        assertEquals("General", tx(other).description)         // otro comercio: no se toca
+        assertNotNull(db.notificationDao().getRecord(today2)?.ruleId)
+
+        // Cambiar la regla vuelve a actualizar los de hoy.
+        val rule = db.notificationDao().getAllRulesForBackup().single { it.variableKey == "bar" }
+        repository.saveRule(NotificationRule(rule.id, rule.structureId, rule.variableKey, rule.variableDisplay,
+            "Bar Pepe", rule.detail, rule.categoryId, true, rule.createdAt, rule.updatedAt))
+        assertEquals("Bar Pepe", tx(today1).description)
+        assertEquals("Bar Pepe", tx(today2).description)
+        assertEquals("General", tx(yesterday).description)
+    }
+
+    private companion object { const val PACKAGE = "app.bank"; const val DAY = 86_400_000L }
 }

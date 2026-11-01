@@ -211,10 +211,10 @@ class AutomationViewModelsTest {
         viewModel.uiState.first { it.savedAdditionalCount != null }
         ingest("Pago 30 EUR en Dos", 200_000)
         val rows = ledger.transactions.awaitValue { rows -> rows.any { it.description == "Cafetería Dos" } }
-        val transaction = rows.single { it.description == "Cafetería Dos" }
+        val transaction = rows.single { it.description == "Cafetería Dos" && it.amountMinor == 3000L }
         assertEquals("Desayuno", transaction.notes)
-        assertEquals(3000L, transaction.amountMinor)
-        assertEquals(1, rows.count { it.description == "Dos" && it.amountMinor == 2000L })
+        // El apunte de ese comercio del mismo día también toma la regla nueva.
+        assertEquals(1, rows.count { it.description == "Cafetería Dos" && it.amountMinor == 2000L })
     }
 
     @Test fun `gestiona edicion desactivacion y eliminacion de estructuras y reglas`() = runTest {

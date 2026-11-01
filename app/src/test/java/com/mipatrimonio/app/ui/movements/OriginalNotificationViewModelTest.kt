@@ -99,7 +99,8 @@ class OriginalNotificationViewModelTest {
             entryId = transactionId,
             notifications = notifications,
         ).uiState.first { !it.isLoading && it.originalNotification != null }.originalNotification
-        assertTrue(afterRule?.usesStructureDefaults == true)
+        // El apunte es del mismo día: pasa a seguir la regla nueva del comercio.
+        assertTrue(afterRule?.usesStructureDefaults == false)
         assertNull(afterRule?.configurableRecordId)
     }
 }

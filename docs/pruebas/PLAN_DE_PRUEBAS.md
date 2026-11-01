@@ -57,6 +57,10 @@ Este documento lo mantiene Claude. Cada bloque indica en qué versión se prueba
 - [ ] E4. *(v1.9.0)* Con un pago en un **comercio nuevo**, el aviso dice «Nuevo comercio: <comercio>» y «Regla general: <estructura>».
   - El botón **«Seguir usando la regla general»** guarda la regla sin abrir la app: el aviso desaparece y el comercio ya no sale en Automatización › Comercios nuevos.
   - Si tocas el aviso en lugar del botón, se abre Comercios nuevos como antes.
+- [ ] E5. *(v1.9.1)* **Cambiar una regla actualiza los apuntes de hoy:** con dos pagos de hoy en el mismo comercio, creados con la regla general, crea o edita su regla y cambia el título o la categoría.
+  - Los dos apuntes de hoy cambian.
+  - Los de días anteriores y los de otros comercios no cambian.
+  - Si antes retocaste a mano un campo de alguno de esos apuntes, ese campo se queda como lo dejaste.
 
 ---
 

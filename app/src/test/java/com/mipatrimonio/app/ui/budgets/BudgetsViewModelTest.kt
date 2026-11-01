@@ -83,7 +83,7 @@ class BudgetsViewModelTest {
         ledger.saveTransfer(Transfer("transfer", "eur", "eur2", 5_000_00, 5_000_00, month.atDay(13), "", 1))
         settings.setHideAmounts(true)
 
-        val viewModel = BudgetsViewModel(ledger, settings)
+        val viewModel = BudgetsViewModel(ledger, settings, today = { YearMonth.now().atEndOfMonth() })
         val state = viewModel.uiState.first {
             it.expenseStatistics.totalMinor == 4_500_00L && it.hideAmounts
         }
@@ -101,7 +101,7 @@ class BudgetsViewModelTest {
         val month = YearMonth.now()
         ledger.saveCategory(category("parent", "Vivienda"))
         ledger.saveCategory(category("child", "Alquiler", parentId = "parent"))
-        val viewModel = BudgetsViewModel(ledger, settings)
+        val viewModel = BudgetsViewModel(ledger, settings, today = { YearMonth.now().atEndOfMonth() })
         assertTrue(viewModel.uiState.first { !it.loading }.statuses.isEmpty())
 
         ledger.saveBudget(Budget("global", null, BudgetPeriod.MENSUAL, 1_000_00, "EUR", false))
@@ -134,7 +134,7 @@ class BudgetsViewModelTest {
         val month = YearMonth.now()
         ledger.saveBudget(Budget("global", null, BudgetPeriod.MENSUAL, 1_000_00, "EUR", false))
         ledger.saveTransaction(tx("only", 100_00, month.atDay(5), "eur", "EUR", null))
-        val viewModel = BudgetsViewModel(ledger, settings)
+        val viewModel = BudgetsViewModel(ledger, settings, today = { YearMonth.now().atEndOfMonth() })
 
         val globalOnly = viewModel.uiState.first { it.statuses.singleOrNull()?.budget?.id == "global" }
         assertEquals(1, globalOnly.expenseStatistics.categories.size)

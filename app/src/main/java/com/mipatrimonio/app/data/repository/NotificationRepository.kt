@@ -250,11 +250,45 @@ class NotificationRepository(
         val rule = NotificationRule(existing?.id ?: idFactory(), structureId, key, display,
             values.title.clean(), values.detail.clean(), values.categoryId.clean(), true, existing?.createdAt ?: now, now,
             values.productId.clean())
-        dao.upsertRule(rule.toEntity()); reprocessPendingLocked(); rule
+        dao.upsertRule(rule.toEntity()); refreshTodayTransactions(existing?.toDomain(), rule); reprocessPendingLocked(); rule
     }
 
     suspend fun saveStructure(value: NotificationStructure) = db.withTransaction { dao.upsertStructure(value.copy(updatedAt = clock()).toEntity()); reprocessPendingLocked() }
-    suspend fun saveRule(value: NotificationRule) = db.withTransaction { dao.upsertRule(value.copy(variableKey = normalizeVariable(value.variableDisplay), updatedAt = clock()).toEntity()); reprocessPendingLocked() }
+    suspend fun saveRule(value: NotificationRule) = db.withTransaction {
+        val previous = dao.getRule(value.id)?.toDomain()
+        val saved = value.copy(variableKey = normalizeVariable(value.variableDisplay), updatedAt = clock())
+        dao.upsertRule(saved.toEntity()); refreshTodayTransactions(previous, saved); reprocessPendingLocked()
+    }
+
+    /**
+     * Al crear o cambiar la regla de un comercio, actualiza los apuntes **de hoy** de ese comercio en esa estructura:
+     * los que ya seguían la regla y los que se crearon con la regla general. Campo a campo (título, detalle y
+     * categoría), solo si el campo sigue como lo dejó la regla anterior: lo que se editó a mano se respeta.
+     */
+    private suspend fun refreshTodayTransactions(previous: NotificationRule?, rule: NotificationRule) {
+        if (!rule.enabled) return
+        val structure = dao.getStructure(rule.structureId)?.let { runCatching { it.toDomain() }.getOrNull() } ?: return
+        val today = Instant.ofEpochMilli(clock()).atZone(zoneId).toLocalDate()
+        val from = today.atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val to = today.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli() - 1
+        for (record in dao.getRecordsWithTransactionBetween(rule.structureId, from, to)) {
+            val variable = record.variableText ?: continue
+            if (normalizeVariable(variable) != rule.variableKey) continue
+            if (record.ruleId != null && record.ruleId != rule.id) continue
+            val transaction = db.transactionDao().getById(record.transactionId ?: continue) ?: continue
+            val before = if (record.ruleId == null) null else previous?.takeIf { it.enabled }
+            fun title(r: NotificationRule?) = r?.title.clean() ?: structure.defaultTitle.clean() ?: variable
+            fun detail(r: NotificationRule?) = r?.detail.clean() ?: structure.defaultDetail.clean().orEmpty()
+            fun category(r: NotificationRule?) = r?.categoryId ?: structure.defaultCategoryId
+            val updated = transaction.copy(
+                description = if (transaction.description == title(before)) title(rule) else transaction.description,
+                notes = if (transaction.notes == detail(before)) detail(rule) else transaction.notes,
+                categoryId = if (transaction.categoryId == category(before)) category(rule) else transaction.categoryId,
+            )
+            if (updated != transaction) db.transactionDao().upsert(updated.copy(updatedAt = clock()))
+            if (record.ruleId == null) dao.upsertRecord(record.copy(ruleId = rule.id))
+        }
+    }
     suspend fun setStructureEnabled(id: String, enabled: Boolean) = db.withTransaction { dao.getStructure(id)?.let { dao.upsertStructure(it.copy(enabled = enabled, updatedAt = clock())) }; reprocessPendingLocked() }
     suspend fun setRuleEnabled(id: String, enabled: Boolean) = db.withTransaction { dao.getRule(id)?.let { dao.upsertRule(it.copy(enabled = enabled, updatedAt = clock())) }; reprocessPendingLocked() }
     suspend fun deleteStructure(id: String) = db.withTransaction { dao.deleteStructure(id); reprocessPendingLocked() }

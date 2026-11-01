@@ -323,6 +323,9 @@ interface NotificationDao {
     suspend fun getRecordForTransaction(transactionId: String): NotificationRecordEntity?
     @Query("SELECT * FROM notification_record WHERE status IN ('PENDIENTE_ESTRUCTURA','PENDIENTE_REGLA','PENDIENTE_CUENTA','PENDIENTE_SINCRONIZACION') ORDER BY createdAt, id")
     suspend fun getPendingRecords(): List<NotificationRecordEntity>
+    @Query("SELECT * FROM notification_record WHERE structureId = :structureId AND transactionId IS NOT NULL AND postedAt BETWEEN :fromInclusive AND :toInclusive")
+    suspend fun getRecordsWithTransactionBetween(structureId: String, fromInclusive: Long, toInclusive: Long): List<NotificationRecordEntity>
+
     @Query("SELECT * FROM notification_record WHERE packageName = :packageName AND postedAt BETWEEN :fromInclusive AND :toInclusive")
     suspend fun getRecordsBetween(packageName: String, fromInclusive: Long, toInclusive: Long): List<NotificationRecordEntity>
     @Upsert suspend fun upsertRecord(row: NotificationRecordEntity)
