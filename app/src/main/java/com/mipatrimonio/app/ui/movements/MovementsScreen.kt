@@ -842,7 +842,12 @@ private fun GroupChildRow(
             )
         }
         if (hideAmounts) Text(stringResource(R.string.common_hidden_amount))
-        else AmountText(child.amountMinor, child.currency, AmountKind.INCOME, style = MaterialTheme.typography.titleSmall)
+        else AmountText(
+            child.amountMinor,
+            child.currency,
+            if (child.type == TransactionType.GASTO) AmountKind.EXPENSE else AmountKind.INCOME,
+            style = MaterialTheme.typography.titleSmall,
+        )
         if (selected) Icon(Icons.Outlined.Check, stringResource(R.string.mov_selected_item), Modifier.padding(8.dp))
         if (!selectionActive) Box {
             IconButton(onClick = { showMenu = true }) {
@@ -870,7 +875,10 @@ private fun GroupTransactionsDialog(
     onDismiss: () -> Unit,
 ) {
     var parentId by rememberSaveable(transactions) {
-        mutableStateOf(transactions.firstOrNull { it.type == TransactionType.GASTO }?.id)
+        mutableStateOf(
+            transactions.firstOrNull { it.type == TransactionType.GASTO }?.id
+                ?: transactions.firstOrNull()?.id,
+        )
     }
     val parent = transactions.find { it.id == parentId }
     val children = transactions.filter { it.id != parentId }
@@ -887,13 +895,12 @@ private fun GroupTransactionsDialog(
         text = {
             Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState())) {
                 transactions.forEach { transaction ->
-                    val enabled = transaction.type == TransactionType.GASTO
                     Row(
                         Modifier.fillMaxWidth().heightIn(min = 56.dp)
-                            .clickable(enabled = enabled) { parentId = transaction.id },
+                            .clickable { parentId = transaction.id },
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        RadioButton(selected = parentId == transaction.id, onClick = { parentId = transaction.id }, enabled = enabled)
+                        RadioButton(selected = parentId == transaction.id, onClick = { parentId = transaction.id })
                         Column(Modifier.weight(1f)) {
                             Text(transaction.description.ifBlank { transaction.merchant.ifBlank { stringResource(R.string.mov_no_description) } })
                             Text(formatDate(transaction.date), style = MaterialTheme.typography.bodySmall)
@@ -902,10 +909,15 @@ private fun GroupTransactionsDialog(
                     }
                 }
                 if (parent != null && validationError == null) {
+                    val net = TransactionGroups.netAmountMinor(parent, resultingChildren)
                     Text(
                         stringResource(
-                            R.string.mov_group_result,
-                            MoneyMath.format(TransactionGroups.netAmountMinor(parent, resultingChildren), parent.currency),
+                            when {
+                                net > 0L -> R.string.mov_group_result_expense
+                                net < 0L -> R.string.mov_group_result_income
+                                else -> R.string.mov_group_result_zero
+                            },
+                            MoneyMath.format(if (net < 0L) Math.negateExact(net) else net, parent.currency),
                         ),
                         style = MaterialTheme.typography.titleSmall,
                     )

@@ -280,7 +280,7 @@ class LedgerRepository(
     }
 
     suspend fun groupTransactions(parentId: String, childIds: List<String>) = db.withTransaction {
-        require(childIds.isNotEmpty()) { "Selecciona al menos un ingreso para agrupar" }
+        require(childIds.isNotEmpty()) { "Selecciona al menos un apunte para agrupar" }
         require(parentId !in childIds) { "El apunte principal no puede agruparse consigo mismo" }
         val parent = transactionDao.getById(parentId)?.toDomain()
             ?: throw IllegalArgumentException("El apunte principal no existe")
@@ -292,7 +292,7 @@ class LedgerRepository(
         TransactionGroups.validate(parent, children)
         children.forEach { child ->
             require(transactionDao.countChildren(child.id) == 0) {
-                "Un apunte principal de otro grupo no puede ser un ingreso agrupado"
+                "El principal de otro grupo no puede agruparse"
             }
         }
         val newIds = children.filter { it.groupParentId == null }.map(Transaction::id)

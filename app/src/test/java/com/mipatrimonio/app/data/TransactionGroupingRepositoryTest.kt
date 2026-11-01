@@ -51,8 +51,20 @@ class TransactionGroupingRepositoryTest {
         assertNull(db.transactionDao().getById("c2")?.groupParentId)
     }
 
+    @Test fun `agrupa ingresos entre si y gastos entre si`() = runTest {
+        repository.saveTransaction(tx("income-parent", TransactionType.INGRESO, 5000))
+        repository.saveTransaction(tx("income-child", TransactionType.INGRESO, 2000))
+        repository.saveTransaction(tx("expense-parent", TransactionType.GASTO, 4000))
+        repository.saveTransaction(tx("expense-child", TransactionType.GASTO, 1500))
+
+        repository.groupTransactions("income-parent", listOf("income-child"))
+        repository.groupTransactions("expense-parent", listOf("expense-child"))
+
+        assertEquals("income-parent", db.transactionDao().getById("income-child")?.groupParentId)
+        assertEquals("expense-parent", db.transactionDao().getById("expense-child")?.groupParentId)
+    }
+
     @Test fun `rechazos son atomicos`() = runTest {
-        repository.saveTransaction(tx("expense", TransactionType.GASTO, 100))
         repository.saveTransaction(tx("foreign", TransactionType.INGRESO, 100, currency = "USD", accountId = "usd"))
         repository.saveTransaction(tx("other-parent", TransactionType.GASTO, 100))
         repository.saveTransaction(tx("other-child", TransactionType.INGRESO, 10))
@@ -60,11 +72,10 @@ class TransactionGroupingRepositoryTest {
 
         val invalidCalls = listOf<suspend () -> Unit>(
             { repository.groupTransactions("p", emptyList()) },
-            { repository.groupTransactions("c1", listOf("c2")) },
-            { repository.groupTransactions("p", listOf("expense")) },
             { repository.groupTransactions("p", listOf("foreign")) },
             { repository.groupTransactions("p", listOf("other-child")) },
             { repository.groupTransactions("p", listOf("other-parent")) },
+            { repository.groupTransactions("p", listOf("p")) },
         )
         invalidCalls.forEach { call ->
             assertThrows(IllegalArgumentException::class.java) { kotlinx.coroutines.runBlocking { call() } }

@@ -237,7 +237,11 @@ class MovementsViewModelTest {
         val today = LocalDate.now()
         ledger.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
         ledger.saveTransaction(tx("i1", TransactionType.INGRESO, 100, today, TransactionSource.MANUAL))
-        ledger.saveTransaction(tx("i2", TransactionType.INGRESO, 100, today, TransactionSource.MANUAL))
+        // T-106: agrupar ingresos ya es válido; el grupo inválido es el de divisas distintas.
+        ledger.saveAccount(Account("u", "Cuenta USD", AccountType.CORRIENTE, "USD", 0, false, 2))
+        ledger.saveTransaction(
+            Transaction("i2", TransactionType.INGRESO, 100, "USD", today, "u", null, "", "", "", TransactionSource.MANUAL, 1, 1),
+        )
         val viewModel = MovementsViewModel(ledger, settings)
         viewModel.startSelection("i1")
         viewModel.toggleSelection("i1")

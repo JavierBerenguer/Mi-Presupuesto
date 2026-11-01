@@ -312,9 +312,14 @@ private fun EntryFormContent(
         if (state.groupChildCount > 0 && state.groupNetMinor != null && state.groupCurrency != null) {
             Text(
                 stringResource(
-                    R.string.mov_group_parent_summary,
+                    when {
+                        state.groupNetMinor > 0L -> R.string.mov_group_parent_summary_expense
+                        state.groupNetMinor < 0L -> R.string.mov_group_parent_summary_income
+                        else -> R.string.mov_group_parent_summary
+                    },
                     state.groupChildCount,
-                    MoneyMath.format(state.groupNetMinor, state.groupCurrency),
+                    // T-106: el neto lleva signo (gasto > 0, ingreso < 0); el texto ya dice cuál es.
+                    MoneyMath.format(Math.abs(state.groupNetMinor), state.groupCurrency),
                 ),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary,
