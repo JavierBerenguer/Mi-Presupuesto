@@ -6,11 +6,14 @@ import androidx.test.core.app.ApplicationProvider
 import com.mipatrimonio.app.data.db.AccountEntity
 import com.mipatrimonio.app.data.db.AccountBalanceEntity
 import com.mipatrimonio.app.data.db.AppDatabase
+import com.mipatrimonio.app.data.db.CategoryEntity
 import com.mipatrimonio.app.data.db.NotificationRecordEntity
 import com.mipatrimonio.app.data.db.NotificationRuleEntity
 import com.mipatrimonio.app.data.db.NotificationStructureEntity
 import com.mipatrimonio.app.data.db.SyncPerfilEntity
 import com.mipatrimonio.app.testutil.SettingsStoreRule
+import com.mipatrimonio.app.data.repository.LedgerRepository
+import com.mipatrimonio.app.domain.model.InvestmentKind
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.first
 import org.junit.After
@@ -158,6 +161,44 @@ class BackupTest {
         assertEquals(40L, account.roundUpLastEstimatedMinor)
         assertEquals(42L, account.roundUpLastRealMinor)
         assertTrue(db.notificationDao().getStructure("s")!!.generatesRoundUp)
+    }
+
+    @Test fun `copia v19 restaura sin marca y afterRestore asigna las cuatro`() = runBlocking {
+        val current = BackupData(
+            1, "test", emptyMap(),
+            categories = listOf(
+                CategoryEntity("mp-inversiones", "Inversiones", "GASTO", null, 1, false, 0, "investment"),
+                CategoryEntity("fee", "Comisión", "GASTO", "mp-inversiones", 1, false, 1, "fees"),
+            ),
+        )
+        val root = JSONObject(BackupJson().encode(current).toString(Charsets.UTF_8)).put("dbVersion", 19)
+        val rows = root.getJSONObject("tables").getJSONArray("category")
+        repeat(rows.length()) { rows.getJSONObject(it).remove("investmentKind") }
+        val decoded = BackupJson().decode(root.toString().toByteArray(Charsets.UTF_8))
+        assertTrue(decoded.categories.all { it.investmentKind == null })
+        val ledger = LedgerRepository(db)
+        val service = BackupService(
+            BackupRepository(db, settingsRule.repository, "test"),
+            afterRestore = { ledger.ensureInvestmentCategories() },
+        )
+
+        service.restore(decoded)
+
+        assertEquals(
+            InvestmentKind.entries.toSet(),
+            db.categoryDao().getAllForBackup().mapNotNull { it.investmentKind?.let(InvestmentKind::valueOf) }.toSet(),
+        )
+    }
+
+    @Test fun `ida y vuelta v20 conserva investmentKind`() = runBlocking {
+        db.categoryDao().insertAllForRestore(
+            listOf(CategoryEntity("purchase", "Compra", "GASTO", null, 1, false, 0, "investment", "COMPRA")),
+        )
+        val repository = BackupRepository(db, settingsRule.repository, "test")
+
+        repository.restore(BackupJson().decode(BackupJson().encode(repository.export())))
+
+        assertEquals("COMPRA", db.categoryDao().getAllForBackup().single().investmentKind)
     }
 
     private fun legacyV14() = """{

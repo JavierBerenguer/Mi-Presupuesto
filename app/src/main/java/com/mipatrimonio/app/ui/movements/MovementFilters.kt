@@ -47,6 +47,7 @@ sealed interface MovementItem {
         val productName: String,
         val localAccountId: String,
         val effectMinor: Long,
+        val categoryId: String? = null,
     ) : MovementItem {
         override val date: LocalDate = LocalDate.ofEpochDay(movement.fecha)
         override val createdAt: Long = 0L
@@ -169,7 +170,11 @@ private fun matchesAccount(item: MovementItem, accountId: String?): Boolean {
 
 private fun matchesCategory(item: MovementItem, categoryIds: Set<String>?): Boolean {
     if (categoryIds == null) return true
-    return item is MovementItem.Tx && item.transaction.categoryId in categoryIds
+    return when (item) {
+        is MovementItem.Tx -> item.transaction.categoryId in categoryIds
+        is MovementItem.Liquidity -> item.categoryId in categoryIds
+        is MovementItem.Move -> false
+    }
 }
 
 private fun categoryAndDescendantIds(categoryId: String, categories: List<Category>): Set<String> {
@@ -217,6 +222,7 @@ private fun searchableText(
     is MovementItem.Liquidity -> listOf(
         item.productName,
         item.movement.tipo,
+        item.categoryId?.let(categoriesById::get)?.name.orEmpty(),
         accountsById[item.localAccountId]?.name.orEmpty(),
     ).joinToString(" ")
 

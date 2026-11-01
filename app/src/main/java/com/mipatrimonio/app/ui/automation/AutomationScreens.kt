@@ -579,6 +579,7 @@ private fun ValuesEditor(
                     },
                     onBack = { showCategoryPicker = false },
                     onNewCategory = null,
+                    excludeReserved = true,
                 )
             }
         }

@@ -241,6 +241,7 @@ private fun ProposalReviewDialog(
                         selectedId = selectedCategory?.id,
                         onSelected = { categoryId = it },
                         noneLabel = stringResource(R.string.notif_no_category),
+                        excludeReserved = true,
                     )
                     OutlinedTextField(
                         value = merchant,

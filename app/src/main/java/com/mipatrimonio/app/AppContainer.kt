@@ -65,6 +65,7 @@ class AppContainer(context: Context) {
         ),
         afterRestore = {
             ledger.updateDefaultCategoryCatalogIfNeeded(settings)
+            ledger.ensureInvestmentCategories()
             recurring.generatePending(RecurringRepository.generationLimit(java.time.LocalDate.now()))
             recurringReminderScheduler.scheduleAll()
         },
@@ -100,6 +101,7 @@ class AppContainer(context: Context) {
     init {
         scope.launch {
             ledger.updateDefaultCategoryCatalogIfNeeded(settings)
+            ledger.ensureInvestmentCategories()
         }
         scope.launch {
             settings.settings.map { it.syncLastSuccessAt }.distinctUntilChanged().drop(1).collect { lastSuccess ->

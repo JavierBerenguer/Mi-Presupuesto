@@ -15,6 +15,7 @@ import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountBalanceRecord
 import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.Category
+import com.mipatrimonio.app.domain.model.InvestmentKind
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.Transfer
 import com.mipatrimonio.app.domain.calc.RoundUpCalculator
@@ -27,6 +28,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
+import java.text.Normalizer
+import java.util.Locale
 import java.util.UUID
 
 data class AccountDependencies(
@@ -187,9 +190,16 @@ class LedgerRepository(
         }
     }
 
-    suspend fun saveCategory(category: Category) {
+    suspend fun saveCategory(category: Category) = db.withTransaction {
         require(category.name.isNotBlank()) { "El nombre de la categoría es obligatorio" }
-        categoryDao.upsert(category.toEntity())
+        val existing = categoryDao.getById(category.id)?.toDomain()
+        val investmentKind = existing?.investmentKind
+        if (investmentKind != null) {
+            require(!category.archived) { INVESTMENT_CATEGORY_PROTECTED_MESSAGE }
+            val root = investmentRoot(categoryDao.getAllForBackup().map { it.toDomain() })
+            require(root != null && category.parentId == root.id) { INVESTMENT_CATEGORY_PROTECTED_MESSAGE }
+        }
+        categoryDao.upsert(category.copy(investmentKind = investmentKind).toEntity())
     }
 
     suspend fun categoryUsage(id: String): CategoryUsage = db.withTransaction {
@@ -199,6 +209,9 @@ class LedgerRepository(
 
     suspend fun deleteCategory(id: String, targetId: String?) = db.withTransaction {
         val categoryIds = categoryIdsToDelete(id)
+        require(categoryDao.getByIds(categoryIds).none { it.investmentKind != null }) {
+            INVESTMENT_CATEGORY_PROTECTED_MESSAGE
+        }
         val usage = categoryUsageUnchecked(categoryIds)
         val target = targetId?.let { destinationId ->
             require(destinationId !in categoryIds) {
@@ -393,6 +406,36 @@ class LedgerRepository(
         settings.setCategoryCatalogVersion(DefaultCategories.CATALOG_VERSION)
     }
 
+    suspend fun ensureInvestmentCategories() = db.withTransaction {
+        val initial = categoryDao.getAllForBackup().map { it.toDomain() }
+        var root = investmentRoot(initial)
+        if (root == null) {
+            root = requireNotNull(DefaultCategories.all.find { it.id == INVESTMENT_ROOT_ID })
+            categoryDao.upsert(root.toEntity())
+        }
+        val markedKinds = categoryDao.getAllForBackup().mapNotNull { entity ->
+            entity.investmentKind?.let { value -> runCatching { enumValueOf<InvestmentKind>(value) }.getOrNull() }
+        }.toSet()
+        InvestmentKind.entries.filterNot(markedKinds::contains).forEach { kind ->
+            val children = categoryDao.getChildren(root.id)
+            val names = investmentCategoryNames(kind)
+            val selected = names.firstNotNullOfOrNull { expected ->
+                children.firstOrNull { child ->
+                    !child.archived && child.investmentKind == null && normalizeCategoryName(child.name) == expected
+                }
+            }
+            val category = selected?.toDomain() ?: Category(
+                id = "$INVESTMENT_ROOT_ID-inv-${kind.name.lowercase(Locale.ROOT)}",
+                name = investmentCategoryLabel(kind),
+                parentId = root.id,
+                colorArgb = root.colorArgb,
+                archived = false,
+                icon = "investment",
+            )
+            categoryDao.upsert(category.copy(investmentKind = kind).toEntity())
+        }
+    }
+
     private suspend fun updateRemovedChildrenCategories(existingById: Map<String, com.mipatrimonio.app.data.db.CategoryEntity>) {
         val presentIds = DefaultCategories.removedChildrenIds.filter(existingById::containsKey)
         if (presentIds.isEmpty()) return
@@ -408,5 +451,35 @@ class LedgerRepository(
         transferDao.moveCategories(presentIds, null)
         db.recurringRuleDao().moveCategories(presentIds, null, clock())
         categoryDao.deleteByIds(presentIds)
+    }
+
+    private fun investmentRoot(categories: List<Category>): Category? =
+        categories.firstOrNull { it.id == INVESTMENT_ROOT_ID }
+            ?: categories.firstOrNull { it.parentId == null && normalizeCategoryName(it.name) == "inversiones" }
+
+    private fun investmentCategoryNames(kind: InvestmentKind): List<String> = when (kind) {
+        InvestmentKind.COMPRA -> listOf("compra", "compras")
+        InvestmentKind.VENTA -> listOf("venta", "ventas")
+        InvestmentKind.DIVIDENDO -> listOf("dividendo", "dividendos")
+        InvestmentKind.COMISION -> listOf("comision", "comisiones")
+    }
+
+    private fun investmentCategoryLabel(kind: InvestmentKind): String = when (kind) {
+        InvestmentKind.COMPRA -> "Compra"
+        InvestmentKind.VENTA -> "Venta"
+        InvestmentKind.DIVIDENDO -> "Dividendo"
+        InvestmentKind.COMISION -> "Comisión"
+    }
+
+    private fun normalizeCategoryName(value: String): String = Normalizer.normalize(value, Normalizer.Form.NFD)
+        .replace(COMBINING_MARKS, "")
+        .lowercase(Locale.ROOT)
+        .trim()
+
+    private companion object {
+        const val INVESTMENT_ROOT_ID = "mp-inversiones"
+        const val INVESTMENT_CATEGORY_PROTECTED_MESSAGE =
+            "La usan los movimientos de inversión: puedes renombrarla o cambiar su color, pero no borrarla"
+        val COMBINING_MARKS = "\\p{M}+".toRegex()
     }
 }
