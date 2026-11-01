@@ -67,6 +67,14 @@ class LiquidityBalanceTest {
         assertTrue(mapInvestmentCashFlows(listOf(movement("usd", "comision", 100, usd.id)), listOf(usd)).isEmpty())
     }
 
+    @Test fun `retencion anotada no cambia saldos ni flujos que usan el neto`() {
+        val dividend = movement("dividend", "dividendo", 12_000).copy(retencionMinor = 3_000)
+        val liquidity = mapLiquidityMovements(listOf(dividend), listOf(account)).entries
+
+        assertEquals(112_000L, BalanceCalculator.balance(account, emptyList(), emptyList(), today, liquidity))
+        assertEquals(12_000L, mapInvestmentCashFlows(listOf(dividend), listOf(account)).single().amountMinor)
+    }
+
     private fun movement(id: String, type: String, amount: Long, accountId: String = account.id) = SyncMovimientoEntity(
         id, "profile", "product", today.toEpochDay(), type, "1", amount, null,
         SyncRepository.accountIdToRemoteId(accountId), "escritorio", null, null, "2026-10-27T00:00:00Z",

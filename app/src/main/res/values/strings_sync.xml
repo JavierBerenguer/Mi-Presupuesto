@@ -16,4 +16,5 @@
     <string name="sync_sign_out_confirm_title">¿Cerrar la sesión?</string>
     <string name="sync_sign_out_confirm_body">Se borrarán los datos sincronizados de este dispositivo. Tus datos en la nube no se eliminarán.</string>
     <string name="sync_pending_count">Elementos pendientes de enviar: %1$d</string>
+    <string name="sync_missing_withholding_column">Falta actualizar la base de datos en la nube (retenciones)</string>
 </resources>

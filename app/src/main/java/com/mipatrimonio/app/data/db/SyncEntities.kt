@@ -19,6 +19,7 @@ data class SyncMovimientoEntity(
     val tipo: String, val unidades: String, val importeMinor: Long, val comisionMinor: Long?,
     val cuentaId: String?, val origen: String, val nota: String?, val deletedAt: String?, val updatedAt: String,
     val destinoId: String? = null, val unidadesDestino: String? = null,
+    val retencionMinor: Long? = null,
 )
 
 @Entity(tableName = "sync_resumen")

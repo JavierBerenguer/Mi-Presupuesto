@@ -198,6 +198,7 @@ class SyncRepository(
     suspend fun crearMovimientoInversion(
         tipo: String, productoId: String, fecha: LocalDate, importeMinor: Long, unidades: BigDecimal?,
         comisionMinor: Long?, cuentaId: String?, nota: String?, origen: String = "movil", id: String? = null,
+        retencionMinor: Long? = null,
     ): String {
         if (id != null && dao.movimiento(id) != null) return id
         val product = dao.producto(productoId)
@@ -208,6 +209,7 @@ class SyncRepository(
             amountMinor = importeMinor, units = unidades, commissionMinor = comisionMinor,
             accountId = cuentaId, account = account, movements = dao.allMovimientos(), today = today(), note = nota,
             allowMissingPurchaseUnits = id != null && movementType == InvestmentMovementType.PURCHASE,
+            withholdingMinor = retencionMinor,
         )
         val movementId = id ?: UUID.randomUUID().toString()
         val entity = SyncMovimientoEntity(
@@ -216,7 +218,7 @@ class SyncRepository(
             unidades = values.units?.stripTrailingZeros()?.toPlainString() ?: "0",
             importeMinor = values.amountMinor, comisionMinor = values.commissionMinor,
             cuentaId = cuentaId?.let(::accountIdToRemoteId), origen = origen,
-            nota = values.note, deletedAt = null, updatedAt = nowIso(),
+            nota = values.note, deletedAt = null, updatedAt = nowIso(), retencionMinor = values.withholdingMinor,
         )
         db.withTransaction { dao.upsertMovimiento(entity); enqueueMovement(entity) }
         onOutboxEnqueued()
@@ -226,6 +228,16 @@ class SyncRepository(
 
     suspend fun editarMovimientoInversion(
         id: String, fecha: LocalDate, importeMinor: Long, unidades: BigDecimal?, comisionMinor: Long?, cuentaId: String?, nota: String?,
+    ) = editInvestmentMovement(id, fecha, importeMinor, unidades, comisionMinor, cuentaId, nota, null, false)
+
+    suspend fun editarMovimientoInversion(
+        id: String, fecha: LocalDate, importeMinor: Long, unidades: BigDecimal?, comisionMinor: Long?, cuentaId: String?, nota: String?,
+        retencionMinor: Long?,
+    ) = editInvestmentMovement(id, fecha, importeMinor, unidades, comisionMinor, cuentaId, nota, retencionMinor, true)
+
+    private suspend fun editInvestmentMovement(
+        id: String, fecha: LocalDate, importeMinor: Long, unidades: BigDecimal?, comisionMinor: Long?, cuentaId: String?, nota: String?,
+        retencionMinor: Long?, updateWithholding: Boolean,
     ) {
         configuredAuth()?.let { client ->
             try {
@@ -247,11 +259,14 @@ class SyncRepository(
             amountMinor = importeMinor, units = unidades, commissionMinor = comisionMinor,
             accountId = cuentaId, account = account, movements = dao.allMovimientos(), today = today(),
             editingId = id, note = nota,
+            withholdingMinor = if (updateWithholding) retencionMinor else old.retencionMinor,
         )
         val value = old.copy(fecha = fecha.toEpochDay(), importeMinor = importeMinor,
             unidades = values.units?.stripTrailingZeros()?.toPlainString() ?: "0", comisionMinor = comisionMinor,
-            cuentaId = cuentaId?.let(::accountIdToRemoteId), nota = values.note, updatedAt = nowIso())
-        db.withTransaction { dao.upsertMovimiento(value); enqueueMovement(value) }
+            cuentaId = cuentaId?.let(::accountIdToRemoteId), nota = values.note,
+            retencionMinor = values.withholdingMinor, updatedAt = nowIso())
+        val clearedWithholding = updateWithholding && old.retencionMinor != null && value.retencionMinor == null
+        db.withTransaction { dao.upsertMovimiento(value); enqueueMovement(value, sendNullWithholding = clearedWithholding) }
         onOutboxEnqueued()
         if (old.cuentaId != null || value.cuentaId != null) publishAccounts()
     }
@@ -418,13 +433,18 @@ class SyncRepository(
         require(!account.archived) { "La cuenta de liquidez está archivada" }
     }
 
-    private suspend fun enqueueMovement(value: SyncMovimientoEntity) {
+    private suspend fun enqueueMovement(value: SyncMovimientoEntity, sendNullWithholding: Boolean = false) {
         val json = JSONObject().put("id", value.id).put("perfil_id", value.perfilId).put("producto_id", value.productoId)
             .put("fecha", LocalDate.ofEpochDay(value.fecha).toString()).put("tipo", value.tipo).put("unidades", BigDecimal(value.unidades))
             .put("importe", MoneyMath.toDecimal(value.importeMinor, "EUR"))
             .put("comision", value.comisionMinor?.let { MoneyMath.toDecimal(it, "EUR") } ?: JSONObject.NULL)
             .put("cuenta_id", value.cuentaId ?: JSONObject.NULL).put("origen", value.origen)
             .put("nota", value.nota ?: JSONObject.NULL).put("deleted_at", value.deletedAt ?: JSONObject.NULL)
+        if (value.retencionMinor != null) {
+            json.put("retencion", MoneyMath.toDecimal(value.retencionMinor, "EUR"))
+        } else if (sendNullWithholding) {
+            json.put("retencion", JSONObject.NULL)
+        }
         dao.upsertOutbox(SyncOutboxEntity(tabla = "movimientos", filaId = value.id, json = json.toString(), creadoAt = clock()))
     }
 
@@ -450,6 +470,7 @@ class SyncRepository(
                     row.nullableString("cuenta_id"), row.getString("origen"), row.nullableString("nota"),
                     deleted, updated, row.nullableString("destino_id"),
                     row.nullableDecimal("unidades_destino")?.toPlainString(),
+                    row.nullableDecimal("retencion")?.let { MoneyMath.toMinor(it, "EUR") },
                 ),
             )
             "resumen_cartera" -> dao.upsertResumen(SyncResumenEntity(row.getString("perfil_id"), row.optJSONObject("datos")?.toString() ?: "{}", row.nullableString("generado_at").orEmpty(), updated))

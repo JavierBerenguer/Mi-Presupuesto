@@ -152,6 +152,7 @@ class RecurringViewModelsTest {
         assertTrue(state.isInvestment)
         assertTrue(state.showUnits)
         assertTrue(state.showCommission)
+        assertFalse(state.showWithholding)
         assertFalse(state.showCategory)
         assertFalse(state.showMerchant)
         assertFalse(state.showDestinationAccount)
@@ -161,16 +162,19 @@ class RecurringViewModelsTest {
         assertTrue(state.isInvestment)
         assertFalse(state.showUnits)
         assertFalse(state.showCommission)
+        assertTrue(state.showWithholding)
 
         viewModel.setKind(RecurringKind.VENTA)
         state = viewModel.uiState.first { it.values.kind == RecurringKind.VENTA }
         assertTrue(state.showUnits)
         assertTrue(state.showCommission)
+        assertTrue(state.showWithholding)
 
         viewModel.setKind(RecurringKind.COMISION)
         state = viewModel.uiState.first { it.values.kind == RecurringKind.COMISION }
         assertFalse(state.showUnits)
         assertFalse(state.showCommission)
+        assertFalse(state.showWithholding)
 
         viewModel.setKind(RecurringKind.TRANSFERENCIA)
         state = viewModel.uiState.first { it.values.kind == RecurringKind.TRANSFERENCIA }
@@ -178,6 +182,31 @@ class RecurringViewModelsTest {
         assertTrue(state.showCategory)
         assertTrue(state.showMerchant)
         assertTrue(state.showDestinationAccount)
+        assertFalse(state.showWithholding)
+    }
+
+    @Test
+    fun `formulario guarda retencion fija de dividendo`() = runTest {
+        ledger.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
+        val product = SyncProductoEntity(
+            "p", "profile", "Fondo", "Fondo X", "fondo", "EUR", null, null,
+            "2026-09-28T00:00:00Z", "morningstar",
+        )
+        // El repositorio valida el producto contra la base de datos, no contra el flujo del formulario.
+        db.syncDao().upsertProducto(product)
+        val products = flowOf(listOf(product))
+        val viewModel = RecurringFormViewModel(recurring, ledger, null, { today }, products = products)
+        viewModel.uiState.first { !it.isLoading && it.products.isNotEmpty() }
+
+        viewModel.setKind(RecurringKind.DIVIDENDO)
+        viewModel.setProduct("p")
+        viewModel.setAmount("120")
+        viewModel.setWithholding("30")
+        viewModel.save()
+
+        val saved = recurring.rules.awaitValue { rules -> rules.singleOrNull()?.withholdingMinor == 3_000L }.single()
+        assertEquals(RecurringKind.DIVIDENDO, saved.kind)
+        assertEquals(3_000L, saved.withholdingMinor)
     }
 
     private fun rule() = RecurringRule(

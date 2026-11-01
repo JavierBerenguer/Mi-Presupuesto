@@ -55,7 +55,7 @@ class AppContainer(context: Context) {
     val pendingAutomationNotifier = PendingAutomationNotifier(context.applicationContext, settings)
     val recurring = RecurringRepository(
         database,
-        createInvestmentMovement = { id, type, productId, date, amountMinor, units, commissionMinor, accountId, note ->
+        createInvestmentMovement = { id, type, productId, date, amountMinor, units, commissionMinor, withholdingMinor, accountId, note ->
             sync.crearMovimientoInversion(
                 tipo = type,
                 productoId = productId,
@@ -63,6 +63,7 @@ class AppContainer(context: Context) {
                 importeMinor = amountMinor,
                 unidades = units,
                 comisionMinor = commissionMinor,
+                retencionMinor = withholdingMinor,
                 cuentaId = accountId,
                 nota = note,
                 origen = "movil",

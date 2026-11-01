@@ -33,6 +33,7 @@ typealias CreateRecurringInvestmentMovement = suspend (
     amountMinor: Long,
     units: BigDecimal?,
     commissionMinor: Long?,
+    withholdingMinor: Long?,
     accountId: String,
     note: String?,
 ) -> Unit
@@ -41,7 +42,7 @@ class RecurringRepository(
     private val db: AppDatabase,
     private val clock: () -> Long = System::currentTimeMillis,
     private val today: () -> LocalDate = LocalDate::now,
-    private val createInvestmentMovement: CreateRecurringInvestmentMovement = { _, _, _, _, _, _, _, _, _ ->
+    private val createInvestmentMovement: CreateRecurringInvestmentMovement = { _, _, _, _, _, _, _, _, _, _ ->
         throw IllegalStateException("La creación de movimientos de inversión no está configurada")
     },
     private val notifyInvestmentFailure: (RecurringRule, LocalDate, String) -> Unit = { _, _, _ -> },
@@ -175,7 +176,7 @@ class RecurringRepository(
                 val failure = runCatching {
                     createInvestmentMovement(
                         id, rule.kind.toWireName(), requireNotNull(rule.productId), date,
-                        rule.amountMinor, rule.units, rule.commissionMinor, rule.accountId,
+                        rule.amountMinor, rule.units, rule.commissionMinor, rule.withholdingMinor, rule.accountId,
                         rule.description.takeIf(String::isNotBlank),
                     )
                 }.exceptionOrNull()
@@ -204,6 +205,7 @@ class RecurringRepository(
             amountMinor = rule.amountMinor,
             units = if (type == InvestmentMovementType.SALE) BigDecimal.ZERO else rule.units,
             commissionMinor = rule.commissionMinor,
+            withholdingMinor = rule.withholdingMinor,
             accountId = rule.accountId,
             account = accountEntity?.toDomain(),
             movements = emptyList(),

@@ -104,6 +104,7 @@ fun RecurringRuleEntity.toDomain() = RecurringRule(
     productId = productId,
     units = units?.let { java.math.BigDecimal(it) },
     commissionMinor = commissionMinor,
+    withholdingMinor = withholdingMinor,
 )
 
 fun RecurringRule.toEntity() = RecurringRuleEntity(
@@ -111,4 +112,5 @@ fun RecurringRule.toEntity() = RecurringRuleEntity(
     description, merchant, startDate.toEpochDay(), periodQuantity, periodUnit.name,
     endDate?.toEpochDay(), reminder.name, reminderCustomDays, lastGeneratedDate?.toEpochDay(),
     archived, createdAt, updatedAt, productId, units?.stripTrailingZeros()?.toPlainString(), commissionMinor,
+    withholdingMinor,
 )

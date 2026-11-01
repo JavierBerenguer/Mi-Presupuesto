@@ -178,5 +178,9 @@
     <string name="mov_investment_account_required">Selecciona una cuenta</string>
     <string name="mov_investment_type_locked">Al editar no se pueden cambiar el tipo de apunte ni la operación.</string>
     <string name="mov_investment_missing">Este movimiento ya no existe</string>
+    <string name="mov_investment_withholding">Retención</string>
+    <string name="mov_investment_withholding_help">Lo que te retuvo Hacienda. El importe es lo que te llegó: el bruto es la suma de los dos</string>
+    <string name="mov_investment_withholding_breakdown">bruto %1$s · retención %2$s</string>
+    <string name="mov_investment_account_breakdown">%1$s · %2$s</string>
     <string name="mov_investment_view_product">Ver producto</string>
 </resources>

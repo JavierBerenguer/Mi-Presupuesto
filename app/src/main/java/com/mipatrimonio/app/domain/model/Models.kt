@@ -96,6 +96,7 @@ data class RecurringRule(
     val productId: String? = null,
     val units: java.math.BigDecimal? = null,
     val commissionMinor: Long? = null,
+    val withholdingMinor: Long? = null,
 )
 
 /** Ingreso o gasto. El importe es siempre positivo; el signo lo da [type]. La divisa es la de la cuenta. */
