@@ -1,18 +1,12 @@
 package com.mipatrimonio.app.data.db
 
 import com.mipatrimonio.app.domain.model.Account
+import com.mipatrimonio.app.domain.model.AccountBalanceRecord
 import com.mipatrimonio.app.domain.model.AccountType
-import com.mipatrimonio.app.domain.model.Asset
-import com.mipatrimonio.app.domain.model.AssetPrice
-import com.mipatrimonio.app.domain.model.AssetType
 import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.BudgetCategoryRule
 import com.mipatrimonio.app.domain.model.BudgetPeriod
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.InvestmentOperation
-import com.mipatrimonio.app.domain.model.OperationType
-import com.mipatrimonio.app.domain.model.Portfolio
-import com.mipatrimonio.app.domain.model.PriceSource
 import com.mipatrimonio.app.domain.model.RecurringKind
 import com.mipatrimonio.app.domain.model.RecurringPeriodUnit
 import com.mipatrimonio.app.domain.model.RecurringRule
@@ -21,24 +15,42 @@ import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.model.Transfer
-import java.math.BigDecimal
 import java.time.LocalDate
-import java.time.LocalTime
 
-fun AccountEntity.toDomain() = Account(id, name, AccountType.valueOf(type), currency, initialBalanceMinor, archived, createdAt)
-fun Account.toEntity(updatedAt: Long) = AccountEntity(id, name, type.name, currency, initialBalanceMinor, archived, createdAt, updatedAt)
+fun AccountEntity.toDomain() = Account(
+    id, name, AccountType.valueOf(type), currency, initialBalanceMinor, archived, createdAt,
+    shortName, institution, color, liquidity, useInApp, roundUpMultiplier, roundUpSettledAt,
+    roundUpLastEstimatedMinor, roundUpLastRealMinor,
+)
+fun Account.toEntity(updatedAt: Long, remoteUpdatedAt: String? = null, deletedAt: Long? = null) = AccountEntity(
+    id, name, type.name, currency, initialBalanceMinor, archived, createdAt, updatedAt,
+    shortName, institution, color, liquidity, useInApp, remoteUpdatedAt, deletedAt,
+    roundUpMultiplier, roundUpSettledAt, roundUpLastEstimatedMinor, roundUpLastRealMinor,
+)
 
-fun CategoryEntity.toDomain() = Category(id, name, parentId, colorArgb, archived, icon)
-fun Category.toEntity(sortOrder: Int = 0) = CategoryEntity(id, name, "GASTO", parentId, colorArgb, archived, sortOrder, icon)
+fun AccountBalanceEntity.toDomain() = AccountBalanceRecord(
+    id, accountId, LocalDate.ofEpochDay(epochDay), balanceMinor, updatedAt, deletedAt,
+)
+fun AccountBalanceRecord.toEntity(remoteUpdatedAt: String? = null) = AccountBalanceEntity(
+    id, accountId, date.toEpochDay(), balanceMinor, updatedAt, deletedAt, remoteUpdatedAt,
+)
+
+fun CategoryEntity.toDomain() = Category(
+    id, name, parentId, colorArgb, archived, icon,
+    investmentKind?.let { value -> runCatching { enumValueOf<com.mipatrimonio.app.domain.model.InvestmentKind>(value) }.getOrNull() },
+)
+fun Category.toEntity(sortOrder: Int = 0) = CategoryEntity(
+    id, name, "GASTO", parentId, colorArgb, archived, sortOrder, icon, investmentKind?.name,
+)
 
 fun TransactionEntity.toDomain() = Transaction(
     id, TransactionType.valueOf(type), amountMinor, currency, LocalDate.ofEpochDay(epochDay), accountId, categoryId,
-    description, merchant, notes, TransactionSource.valueOf(source), createdAt, updatedAt,
+    description, merchant, notes, TransactionSource.valueOf(source), createdAt, updatedAt, groupParentId,
 )
 
 fun Transaction.toEntity() = TransactionEntity(
     id, type.name, amountMinor, currency, date.toEpochDay(), accountId, categoryId,
-    description, merchant, notes, source.name, createdAt, updatedAt,
+    description, merchant, notes, source.name, createdAt, updatedAt, groupParentId,
 )
 
 fun TransferEntity.toDomain() = Transfer(
@@ -69,37 +81,6 @@ fun Budget.toEntity(createdAt: Long) = BudgetEntity(
 )
 fun Budget.toRuleEntities() = categoryRules.map { BudgetCategoryEntity(id, it.categoryId, it.includeSubcategories) }
 
-fun PortfolioEntity.toDomain() = Portfolio(id, name, createdAt, defaultAccountId, archived)
-fun Portfolio.toEntity() = PortfolioEntity(id, name, createdAt, defaultAccountId, archived)
-
-fun AssetEntity.toDomain() = Asset(
-    id, name, ticker, isin, AssetType.valueOf(type), market, currency, archived,
-    quoteProvider?.let(com.mipatrimonio.app.domain.model.QuoteProvider::valueOf), quoteSymbol, quoteMic,
-)
-fun Asset.toEntity(createdAt: Long) = AssetEntity(
-    id, name, ticker, isin, type.name, market, currency, createdAt, archived,
-    quoteProvider?.name, quoteSymbol, quoteMic,
-)
-
-fun InvestmentOperationEntity.toDomain() = InvestmentOperation(
-    id, portfolioId, assetId, OperationType.valueOf(type), LocalDate.ofEpochDay(epochDay),
-    BigDecimal(quantity), BigDecimal(unitPrice), feesMinor, currency, note, createdAt, accountId,
-    LocalTime.ofSecondOfDay(secondOfDay.toLong()),
-    transferGroupId,
-)
-
-fun InvestmentOperation.toEntity() = InvestmentOperationEntity(
-    id, portfolioId, assetId, type.name, date.toEpochDay(),
-    quantity.toPlainString(), unitPrice.toPlainString(), feesMinor, currency, note, createdAt, accountId,
-    time.toSecondOfDay(),
-    transferGroupId,
-)
-
-fun AssetPriceEntity.toDomain() = AssetPrice(
-    assetId, BigDecimal(price), currency, asOfEpochMillis, PriceSource.valueOf(source),
-    quality?.let(com.mipatrimonio.app.domain.model.PriceQuality::valueOf),
-)
-
 fun RecurringRuleEntity.toDomain() = RecurringRule(
     id = id,
     kind = RecurringKind.valueOf(kind),
@@ -120,11 +101,16 @@ fun RecurringRuleEntity.toDomain() = RecurringRule(
     archived = archived,
     createdAt = createdAt,
     updatedAt = updatedAt,
+    productId = productId,
+    units = units?.let { java.math.BigDecimal(it) },
+    commissionMinor = commissionMinor,
+    withholdingMinor = withholdingMinor,
 )
 
 fun RecurringRule.toEntity() = RecurringRuleEntity(
     id, kind.name, amountMinor, currency, accountId, destinationAccountId, categoryId,
     description, merchant, startDate.toEpochDay(), periodQuantity, periodUnit.name,
     endDate?.toEpochDay(), reminder.name, reminderCustomDays, lastGeneratedDate?.toEpochDay(),
-    archived, createdAt, updatedAt,
+    archived, createdAt, updatedAt, productId, units?.stripTrailingZeros()?.toPlainString(), commissionMinor,
+    withholdingMinor,
 )

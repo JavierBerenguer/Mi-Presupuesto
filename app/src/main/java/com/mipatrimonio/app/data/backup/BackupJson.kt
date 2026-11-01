@@ -9,15 +9,12 @@ class BackupJson {
     fun encode(data: BackupData): ByteArray {
         val tables = JSONObject()
             .putRows("account", data.accounts) { account(it) }
+            .putRows("account_balance", data.accountBalances) { accountBalance(it) }
             .putRows("category", data.categories) { category(it) }
             .putRows("txn", data.transactions) { transaction(it) }
             .putRows("transfer", data.transfers) { transfer(it) }
             .putRows("budget", data.budgets) { budget(it) }
             .putRows("budget_category", data.budgetCategories) { budgetCategory(it) }
-            .putRows("portfolio", data.portfolios) { portfolio(it) }
-            .putRows("asset", data.assets) { asset(it) }
-            .putRows("investment_operation", data.operations) { operation(it) }
-            .putRows("asset_price", data.prices) { price(it) }
             .putRows("recurring_rule", data.recurringRules) { recurring(it) }
             .putRows("notification_authorization", data.authorizations) { authorization(it) }
             .putRows("pending_proposal", data.proposals) { proposal(it) }
@@ -48,15 +45,12 @@ class BackupJson {
             appVersion = root.requiredString("appVersion"),
             settings = settings(root.requiredObject("settings")),
             accounts = tables.rows("account", ::readAccount),
+            accountBalances = tables.rows("account_balance", ::readAccountBalance),
             categories = tables.rows("category", ::readCategory),
             transactions = tables.rows("txn", ::readTransaction),
             transfers = tables.rows("transfer", ::readTransfer),
             budgets = tables.rows("budget", ::readBudget),
             budgetCategories = tables.rows("budget_category", ::readBudgetCategory),
-            portfolios = tables.rows("portfolio", ::readPortfolio),
-            assets = tables.rows("asset", ::readAsset),
-            operations = tables.rows("investment_operation", ::readOperation),
-            prices = tables.rows("asset_price", ::readPrice),
             recurringRules = tables.rows("recurring_rule", ::readRecurring),
             authorizations = tables.rows("notification_authorization", ::readAuthorization),
             proposals = tables.rows("pending_proposal", ::readProposal),
@@ -66,7 +60,7 @@ class BackupJson {
         )
         val declared = root.requiredObject("counts")
         data.counts().forEach { (table, count) ->
-            val declaredCount = if (table.startsWith("notification_") && !declared.has(table)) 0 else declared.requiredInt(table)
+            val declaredCount = if (!declared.has(table)) 0 else declared.requiredInt(table)
             if (declaredCount != count) throw BackupException.InvalidData("El recuento de $table no coincide")
         }
         data
@@ -93,16 +87,29 @@ class BackupJson {
         "id" to v.id, "name" to v.name, "type" to v.type, "currency" to v.currency,
         "initialBalanceMinor" to v.initialBalanceMinor, "archived" to v.archived,
         "createdAt" to v.createdAt, "updatedAt" to v.updatedAt,
+        "shortName" to v.shortName, "institution" to v.institution, "color" to v.color,
+        "liquidity" to v.liquidity, "useInApp" to v.useInApp,
+        "remoteUpdatedAt" to v.remoteUpdatedAt, "deletedAt" to v.deletedAt,
+        "roundUpMultiplier" to v.roundUpMultiplier, "roundUpSettledAt" to v.roundUpSettledAt,
+        "roundUpLastEstimatedMinor" to v.roundUpLastEstimatedMinor,
+        "roundUpLastRealMinor" to v.roundUpLastRealMinor,
+    )
+    private fun accountBalance(v: AccountBalanceEntity) = row(
+        "id" to v.id, "accountId" to v.accountId, "epochDay" to v.epochDay,
+        "balanceMinor" to v.balanceMinor, "updatedAt" to v.updatedAt,
+        "deletedAt" to v.deletedAt, "remoteUpdatedAt" to v.remoteUpdatedAt,
     )
     private fun category(v: CategoryEntity) = row(
         "id" to v.id, "name" to v.name, "kind" to v.kind, "parentId" to v.parentId,
         "colorArgb" to v.colorArgb, "archived" to v.archived, "sortOrder" to v.sortOrder, "icon" to v.icon,
+        "investmentKind" to v.investmentKind,
     )
     private fun transaction(v: TransactionEntity) = row(
         "id" to v.id, "type" to v.type, "amountMinor" to v.amountMinor, "currency" to v.currency,
         "epochDay" to v.epochDay, "accountId" to v.accountId, "categoryId" to v.categoryId,
         "description" to v.description, "merchant" to v.merchant, "notes" to v.notes,
         "source" to v.source, "createdAt" to v.createdAt, "updatedAt" to v.updatedAt,
+        "groupParentId" to v.groupParentId,
     )
     private fun transfer(v: TransferEntity) = row(
         "id" to v.id, "fromAccountId" to v.fromAccountId, "toAccountId" to v.toAccountId,
@@ -119,26 +126,6 @@ class BackupJson {
     private fun budgetCategory(v: BudgetCategoryEntity) = row(
         "budgetId" to v.budgetId, "categoryId" to v.categoryId, "includeSubcategories" to v.includeSubcategories,
     )
-    private fun portfolio(v: PortfolioEntity) = row(
-        "id" to v.id, "name" to v.name, "createdAt" to v.createdAt, "defaultAccountId" to v.defaultAccountId,
-        "archived" to v.archived,
-    )
-    private fun asset(v: AssetEntity) = row(
-        "id" to v.id, "name" to v.name, "ticker" to v.ticker, "isin" to v.isin, "type" to v.type,
-        "market" to v.market, "currency" to v.currency, "createdAt" to v.createdAt, "archived" to v.archived,
-        "quoteProvider" to v.quoteProvider, "quoteSymbol" to v.quoteSymbol, "quoteMic" to v.quoteMic,
-    )
-    private fun operation(v: InvestmentOperationEntity) = row(
-        "id" to v.id, "portfolioId" to v.portfolioId, "assetId" to v.assetId, "type" to v.type,
-        "epochDay" to v.epochDay, "quantity" to v.quantity, "unitPrice" to v.unitPrice,
-        "feesMinor" to v.feesMinor, "currency" to v.currency, "note" to v.note,
-        "createdAt" to v.createdAt, "accountId" to v.accountId, "secondOfDay" to v.secondOfDay,
-        "transferGroupId" to v.transferGroupId,
-    )
-    private fun price(v: AssetPriceEntity) = row(
-        "id" to v.id, "assetId" to v.assetId, "price" to v.price, "currency" to v.currency,
-        "asOfEpochMillis" to v.asOfEpochMillis, "source" to v.source, "quality" to v.quality,
-    )
     private fun recurring(v: RecurringRuleEntity) = row(
         "id" to v.id, "kind" to v.kind, "amountMinor" to v.amountMinor, "currency" to v.currency,
         "accountId" to v.accountId, "destinationAccountId" to v.destinationAccountId, "categoryId" to v.categoryId,
@@ -147,6 +134,8 @@ class BackupJson {
         "reminder" to v.reminder, "reminderCustomDays" to v.reminderCustomDays,
         "lastGeneratedEpochDay" to v.lastGeneratedEpochDay, "archived" to v.archived,
         "createdAt" to v.createdAt, "updatedAt" to v.updatedAt,
+        "productId" to v.productId, "units" to v.units, "commissionMinor" to v.commissionMinor,
+        "withholdingMinor" to v.withholdingMinor,
     )
     private fun authorization(v: NotificationAuthorizationEntity) = row(
         "packageName" to v.packageName, "authorized" to v.authorized, "accountId" to v.accountId,
@@ -162,36 +151,44 @@ class BackupJson {
         "id" to v.id, "packageName" to v.packageName, "name" to v.name, "template" to v.template,
         "direction" to v.direction, "defaultTitle" to v.defaultTitle, "defaultDetail" to v.defaultDetail,
         "defaultCategoryId" to v.defaultCategoryId, "enabled" to v.enabled, "createdAt" to v.createdAt, "updatedAt" to v.updatedAt,
+        "target" to v.target, "defaultProductId" to v.defaultProductId,
+        "generatesRoundUp" to v.generatesRoundUp, "isRoundUpInvestment" to v.isRoundUpInvestment,
     )
     private fun notificationRule(v: NotificationRuleEntity) = row(
         "id" to v.id, "structureId" to v.structureId, "variableKey" to v.variableKey, "variableDisplay" to v.variableDisplay,
         "title" to v.title, "detail" to v.detail, "categoryId" to v.categoryId, "enabled" to v.enabled,
         "createdAt" to v.createdAt, "updatedAt" to v.updatedAt,
+        "productId" to v.productId,
     )
     private fun notificationRecord(v: NotificationRecordEntity) = row(
         "id" to v.id, "packageName" to v.packageName, "postedAt" to v.postedAt, "text" to v.text,
         "amountMinor" to v.amountMinor, "currency" to v.currency, "structureId" to v.structureId, "ruleId" to v.ruleId,
         "variableText" to v.variableText, "status" to v.status, "transactionId" to v.transactionId, "createdAt" to v.createdAt,
+        "syncMovementId" to v.syncMovementId,
     )
 
-    private fun readAccount(j: JSONObject) = AccountEntity(j.s("id"), j.s("name"), j.s("type"), j.s("currency"), j.l("initialBalanceMinor"), j.b("archived"), j.l("createdAt"), j.l("updatedAt"))
-    private fun readCategory(j: JSONObject) = CategoryEntity(j.s("id"), j.s("name"), j.s("kind"), j.ns("parentId"), j.l("colorArgb"), j.b("archived"), j.i("sortOrder"), j.ns("icon"))
-    private fun readTransaction(j: JSONObject) = TransactionEntity(j.s("id"), j.s("type"), j.l("amountMinor"), j.s("currency"), j.l("epochDay"), j.s("accountId"), j.ns("categoryId"), j.s("description"), j.s("merchant"), j.s("notes"), j.s("source"), j.l("createdAt"), j.l("updatedAt"))
+    private fun readAccount(j: JSONObject) = AccountEntity(
+        j.s("id"), j.s("name"), j.s("type"), j.s("currency"), j.l("initialBalanceMinor"),
+        j.b("archived"), j.l("createdAt"), j.l("updatedAt"), j.ns("shortName"),
+        j.ns("institution"), j.ni("color"), j.ob("liquidity", true), j.ob("useInApp", true),
+        j.ns("remoteUpdatedAt"), j.nl("deletedAt"), j.oi("roundUpMultiplier", 0),
+        j.nl("roundUpSettledAt"), j.nl("roundUpLastEstimatedMinor"), j.nl("roundUpLastRealMinor"),
+    )
+    private fun readAccountBalance(j: JSONObject) = AccountBalanceEntity(
+        j.s("id"), j.s("accountId"), j.l("epochDay"), j.l("balanceMinor"),
+        j.l("updatedAt"), j.nl("deletedAt"), j.ns("remoteUpdatedAt"),
+    )
+    private fun readCategory(j: JSONObject) = CategoryEntity(j.s("id"), j.s("name"), j.s("kind"), j.ns("parentId"), j.l("colorArgb"), j.b("archived"), j.i("sortOrder"), j.ns("icon"), j.ns("investmentKind"))
+    private fun readTransaction(j: JSONObject) = TransactionEntity(j.s("id"), j.s("type"), j.l("amountMinor"), j.s("currency"), j.l("epochDay"), j.s("accountId"), j.ns("categoryId"), j.s("description"), j.s("merchant"), j.s("notes"), j.s("source"), j.l("createdAt"), j.l("updatedAt"), j.ns("groupParentId"))
     private fun readTransfer(j: JSONObject) = TransferEntity(j.s("id"), j.s("fromAccountId"), j.s("toAccountId"), j.l("fromAmountMinor"), j.l("toAmountMinor"), j.l("epochDay"), j.s("description"), j.l("createdAt"), j.l("updatedAt"), j.ns("categoryId"))
     private fun readBudget(j: JSONObject) = BudgetEntity(j.s("id"), j.ns("categoryId"), j.s("period"), j.l("limitMinor"), j.s("currency"), j.b("archived"), j.l("createdAt"), j.os("name", ""), j.ol("startEpochDay", 0), j.nl("endEpochDay"), j.oi("alertThresholdPct", 90))
     private fun readBudgetCategory(j: JSONObject) = BudgetCategoryEntity(j.s("budgetId"), j.s("categoryId"), j.b("includeSubcategories"))
-    private fun readPortfolio(j: JSONObject) = PortfolioEntity(
-        j.s("id"), j.s("name"), j.l("createdAt"), j.ns("defaultAccountId"), j.ob("archived", false),
-    )
-    private fun readAsset(j: JSONObject) = AssetEntity(j.s("id"), j.s("name"), j.s("ticker"), j.s("isin"), j.s("type"), j.s("market"), j.s("currency"), j.l("createdAt"), j.ob("archived", false), j.ns("quoteProvider"), j.ns("quoteSymbol"), j.ns("quoteMic"))
-    private fun readOperation(j: JSONObject) = InvestmentOperationEntity(j.s("id"), j.s("portfolioId"), j.s("assetId"), j.s("type"), j.l("epochDay"), j.s("quantity"), j.s("unitPrice"), j.l("feesMinor"), j.s("currency"), j.s("note"), j.l("createdAt"), j.ns("accountId"), j.oi("secondOfDay", 0), j.ns("transferGroupId"))
-    private fun readPrice(j: JSONObject) = AssetPriceEntity(j.s("id"), j.s("assetId"), j.s("price"), j.s("currency"), j.l("asOfEpochMillis"), j.s("source"), j.ns("quality"))
-    private fun readRecurring(j: JSONObject) = RecurringRuleEntity(j.s("id"), j.s("kind"), j.l("amountMinor"), j.s("currency"), j.s("accountId"), j.ns("destinationAccountId"), j.ns("categoryId"), j.s("description"), j.s("merchant"), j.l("startEpochDay"), j.i("periodQuantity"), j.s("periodUnit"), j.nl("endEpochDay"), j.s("reminder"), j.ni("reminderCustomDays"), j.nl("lastGeneratedEpochDay"), j.ob("archived", false), j.l("createdAt"), j.l("updatedAt"))
+    private fun readRecurring(j: JSONObject) = RecurringRuleEntity(j.s("id"), j.s("kind"), j.l("amountMinor"), j.s("currency"), j.s("accountId"), j.ns("destinationAccountId"), j.ns("categoryId"), j.s("description"), j.s("merchant"), j.l("startEpochDay"), j.i("periodQuantity"), j.s("periodUnit"), j.nl("endEpochDay"), j.s("reminder"), j.ni("reminderCustomDays"), j.nl("lastGeneratedEpochDay"), j.ob("archived", false), j.l("createdAt"), j.l("updatedAt"), j.ns("productId"), j.ns("units"), j.nl("commissionMinor"), j.nl("withholdingMinor"))
     private fun readAuthorization(j: JSONObject) = NotificationAuthorizationEntity(j.s("packageName"), j.b("authorized"), j.ns("accountId"), j.l("createdAt"), j.os("autoConfirmMode", "OFF"))
     private fun readProposal(j: JSONObject) = PendingProposalEntity(j.s("id"), j.s("packageName"), j.ns("accountId"), j.s("kind"), j.l("amountMinor"), j.s("currency"), j.ns("merchant"), j.s("confidence"), j.s("parserId"), j.l("postedAt"), j.s("status"), j.ns("resultingTransactionId"), j.l("createdAt"))
-    private fun readNotificationStructure(j: JSONObject) = NotificationStructureEntity(j.s("id"), j.s("packageName"), j.s("name"), j.s("template"), j.s("direction"), j.ns("defaultTitle"), j.ns("defaultDetail"), j.ns("defaultCategoryId"), j.b("enabled"), j.l("createdAt"), j.l("updatedAt"))
-    private fun readNotificationRule(j: JSONObject) = NotificationRuleEntity(j.s("id"), j.s("structureId"), j.s("variableKey"), j.s("variableDisplay"), j.ns("title"), j.ns("detail"), j.ns("categoryId"), j.b("enabled"), j.l("createdAt"), j.l("updatedAt"))
-    private fun readNotificationRecord(j: JSONObject) = NotificationRecordEntity(j.s("id"), j.s("packageName"), j.l("postedAt"), j.s("text"), j.nl("amountMinor"), j.ns("currency"), j.ns("structureId"), j.ns("ruleId"), j.ns("variableText"), j.s("status"), j.ns("transactionId"), j.l("createdAt"))
+    private fun readNotificationStructure(j: JSONObject) = NotificationStructureEntity(j.s("id"), j.s("packageName"), j.s("name"), j.s("template"), j.s("direction"), j.ns("defaultTitle"), j.ns("defaultDetail"), j.ns("defaultCategoryId"), j.b("enabled"), j.l("createdAt"), j.l("updatedAt"), j.os("target", "APUNTE"), j.ns("defaultProductId"), j.ob("generatesRoundUp", false), j.ob("isRoundUpInvestment", false))
+    private fun readNotificationRule(j: JSONObject) = NotificationRuleEntity(j.s("id"), j.s("structureId"), j.s("variableKey"), j.s("variableDisplay"), j.ns("title"), j.ns("detail"), j.ns("categoryId"), j.b("enabled"), j.l("createdAt"), j.l("updatedAt"), j.ns("productId"))
+    private fun readNotificationRecord(j: JSONObject) = NotificationRecordEntity(j.s("id"), j.s("packageName"), j.l("postedAt"), j.s("text"), j.nl("amountMinor"), j.ns("currency"), j.ns("structureId"), j.ns("ruleId"), j.ns("variableText"), j.s("status"), j.ns("transactionId"), j.l("createdAt"), j.ns("syncMovementId"))
 }
 
 private fun row(vararg pairs: Pair<String, Any?>) = JSONObject().apply { pairs.forEach { (k, v) -> put(k, v ?: JSONObject.NULL) } }

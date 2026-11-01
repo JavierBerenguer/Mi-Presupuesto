@@ -4,7 +4,6 @@ import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.model.Transfer
-import com.mipatrimonio.app.domain.model.InvestmentOperation
 import com.mipatrimonio.app.domain.model.MovementStatus
 import com.mipatrimonio.app.domain.model.movementStatus
 import java.time.LocalDate
@@ -22,7 +21,6 @@ object MovementsBalanceCalculator {
         includedAccounts: List<Account>,
         transactions: List<Transaction>,
         transfers: List<Transfer>,
-        operations: List<InvestmentOperation>,
         selectedMonth: YearMonth,
         baseCurrency: String,
         mode: MovementsCalculationMode,
@@ -30,6 +28,7 @@ object MovementsBalanceCalculator {
         hideFuture: Boolean,
         ignoreTransfers: Boolean,
         today: LocalDate,
+        liquidityMovements: List<LiquidityMovement> = emptyList(),
     ): Long {
         if (includedAccounts.isEmpty()) return 0L
         val includedById = includedAccounts.associateBy(Account::id)
@@ -52,7 +51,10 @@ object MovementsBalanceCalculator {
                 total = addTransferEffect(total, transfers, includedById, baseCurrency) {
                     movementStatus(it.date, cutoff) == MovementStatus.EJECUTADO
                 }
-                addInvestmentEffect(total, operations, includedById, baseCurrency) { true }
+                total = addLiquidityEffect(total, liquidityMovements, includedById.keys) {
+                    movementStatus(it.date, cutoff) == MovementStatus.EJECUTADO
+                }
+                total
             }
 
             MovementsCalculationMode.SALDO_MENSUAL -> {
@@ -65,19 +67,21 @@ object MovementsBalanceCalculator {
                     total = addTransferEffect(total, transfers, includedById, baseCurrency) {
                         it.date in firstDay..monthlyEndDay
                     }
-                    total = addInvestmentEffect(total, operations, includedById, baseCurrency) {
-                        it.date in firstDay..monthlyEndDay
-                    }
+                }
+                total = addLiquidityEffect(total, liquidityMovements, includedById.keys) {
+                    it.date in firstDay..monthlyEndDay
                 }
                 total
             }
 
             MovementsCalculationMode.GASTOS_MENSUALES -> sumTransactions(
-                transactions, includedById, baseCurrency, TransactionType.GASTO, firstDay, monthlyEndDay,
+                TransactionGroups.netForStatistics(transactions), includedById, baseCurrency,
+                TransactionType.GASTO, firstDay, monthlyEndDay,
             )
 
             MovementsCalculationMode.INGRESOS_MENSUALES -> sumTransactions(
-                transactions, includedById, baseCurrency, TransactionType.INGRESO, firstDay, monthlyEndDay,
+                TransactionGroups.netForStatistics(transactions), includedById, baseCurrency,
+                TransactionType.INGRESO, firstDay, monthlyEndDay,
             )
         }
     }
@@ -113,18 +117,6 @@ object MovementsBalanceCalculator {
             result = Math.addExact(result, transfer.toAmountMinor)
         }
         result
-    }
-
-    private fun addInvestmentEffect(
-        initial: Long,
-        operations: List<InvestmentOperation>,
-        includedById: Map<String, Account>,
-        baseCurrency: String,
-        include: (InvestmentOperation) -> Boolean,
-    ): Long = operations.fold(initial) { total, operation ->
-        val account = operation.accountId?.let(includedById::get)
-        if (account?.currency != baseCurrency || operation.currency != baseCurrency || !include(operation)) total
-        else Math.addExact(total, BalanceCalculator.investmentEffectMinor(operation))
     }
 
     private fun sumTransactions(

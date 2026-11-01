@@ -47,12 +47,5 @@ fun NetWorthNotices(netWorth: NetWorth, modifier: Modifier = Modifier) {
                 color = MoneyColors.warning,
             )
         }
-        if (netWorth.unpricedAssets.isNotEmpty()) {
-            Text(
-                stringResource(R.string.common_networth_unpriced, netWorth.unpricedAssets.joinToString(", ")),
-                style = small,
-                color = MoneyColors.warning,
-            )
-        }
     }
 }

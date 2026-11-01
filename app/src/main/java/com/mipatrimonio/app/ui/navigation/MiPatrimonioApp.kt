@@ -7,7 +7,11 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.padding
@@ -19,18 +23,18 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.mipatrimonio.app.R
+import com.mipatrimonio.app.AutomationNavigationRequest
 import com.mipatrimonio.app.ui.budgets.BudgetsScreen
 import com.mipatrimonio.app.ui.components.BottomNavBar
 import com.mipatrimonio.app.ui.components.SecondaryTopBar
 import com.mipatrimonio.app.ui.home.HomeScreen
-import com.mipatrimonio.app.ui.investments.InvestmentsScreen
-import com.mipatrimonio.app.ui.investments.AssetDetailScreen
-import com.mipatrimonio.app.ui.investments.AssetsScreen
+import com.mipatrimonio.app.ui.portfolio.PortfolioScreen
+import com.mipatrimonio.app.ui.portfolio.ProductDetailScreen
+import com.mipatrimonio.app.ui.portfolio.RumboPanelScreen
 import com.mipatrimonio.app.ui.movements.EntryFormScreen
 import com.mipatrimonio.app.ui.movements.MovementsScreen
 import com.mipatrimonio.app.ui.movements.SourceFilter
 import com.mipatrimonio.app.ui.more.MoreScreen
-import com.mipatrimonio.app.ui.networth.NetWorthScreen
 import com.mipatrimonio.app.ui.accounts.AccountsScreen
 import com.mipatrimonio.app.ui.settings.CategoriesScreen
 import com.mipatrimonio.app.ui.settings.NotificationSettingsScreen
@@ -41,15 +45,28 @@ import com.mipatrimonio.app.ui.recurring.RecurringFormScreen
 import com.mipatrimonio.app.ui.recurring.RecurringListScreen
 import com.mipatrimonio.app.ui.backup.BackupScreen
 import com.mipatrimonio.app.ui.importer.TradeRepublicImportScreen
-import com.mipatrimonio.app.ui.portfolios.PortfoliosScreen
 import com.mipatrimonio.app.ui.automation.AutomationScreen
 import com.mipatrimonio.app.ui.automation.ConfigureRuleScreen
 import com.mipatrimonio.app.ui.automation.TeachStructureScreen
+import com.mipatrimonio.app.ui.sync.SyncScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MiPatrimonioApp() {
+fun MiPatrimonioApp(
+    navigationRequest: AutomationNavigationRequest? = null,
+    onNavigationRequestConsumed: () -> Unit = {},
+) {
     val navController = rememberNavController()
+    var automationPermissionRequested by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(navigationRequest) {
+        navigationRequest?.let { request ->
+            navController.navigate(Rutas.automatizacionNotificaciones(request.initialTab)) {
+                popUpTo(Destino.rutaInicial) { inclusive = false }
+                launchSingleTop = true
+            }
+            onNavigationRequestConsumed()
+        }
+    }
     val entry by navController.currentBackStackEntryAsState()
     val route = entry?.destination?.route
     val destino = Destino.entries.firstOrNull { it.ruta == route }
@@ -83,34 +100,43 @@ fun MiPatrimonioApp() {
             }
         },
     ) { padding ->
-        AppNavHost(navController, Modifier.padding(padding))
+        AppNavHost(
+            navController = navController,
+            modifier = Modifier.padding(padding),
+            automationPermissionRequested = automationPermissionRequested,
+            onAutomationPermissionRequested = { automationPermissionRequested = true },
+        )
     }
 }
 
 private fun titleFor(route: String?, destino: Destino?): Int = when {
     destino != null -> destino.titulo
     route == Rutas.CUENTAS -> R.string.nav_cuentas
-    route == Rutas.ACTIVOS -> R.string.inv_assets_title
-    route == Rutas.CARTERAS -> R.string.portfolios_title
     route == Rutas.CATEGORIAS -> R.string.nav_categorias
     route == Rutas.NOTIFICACIONES -> R.string.notif_settings_title
     route == Rutas.PROPUESTAS -> R.string.notif_proposals_title
-    route == Rutas.AUTOMATIZACION_NOTIFICACIONES -> R.string.auto_title
+    route == Rutas.AUTOMATIZACION_NOTIFICACIONES || route == Rutas.AUTOMATIZACION_NOTIFICACIONES_ROUTE -> R.string.auto_title
     route == Rutas.ENSENAR_NOTIFICACION -> R.string.auto_teach
     route == Rutas.CONFIGURAR_REGLA -> R.string.auto_configure_merchant
     route == Rutas.DIAGNOSTICO_NOTIFICACIONES -> R.string.notif_diagnostics_title
-    route == Rutas.PATRIMONIO -> R.string.nav_patrimonio
     route == Rutas.AJUSTES -> R.string.nav_ajustes
-    route == Rutas.ACTIVO -> R.string.inv_asset_detail_title
     route == Rutas.RECURRENTES -> R.string.recurring_title
     route == Rutas.COPIAS -> R.string.backup_nav_title
     route == Rutas.IMPORTAR_TRADE_REPUBLIC -> R.string.import_tr_nav_title
     route == Rutas.RECURRENTE -> R.string.recurring_edit
+    route == Rutas.SINCRONIZACION -> R.string.sync_title
+    route == Rutas.PRODUCTO_CARTERA -> R.string.cartera_products
+    route == Rutas.PANEL_RUMBO -> R.string.rumbo_panel_title
     else -> R.string.app_name
 }
 
 @Composable
-private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
+private fun AppNavHost(
+    navController: NavHostController,
+    modifier: Modifier,
+    automationPermissionRequested: Boolean,
+    onAutomationPermissionRequested: () -> Unit,
+) {
     val idArg = listOf(navArgument("id") { type = NavType.StringType })
     fun idOf(entry: androidx.navigation.NavBackStackEntry): String? =
         entry.arguments?.getString("id")?.takeIf { it != Rutas.NUEVO }
@@ -119,6 +145,14 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
         composable(Destino.Inicio.ruta) {
             HomeScreen(
                 onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
+                onOpenPortfolio = {
+                    navController.navigate(Destino.Cartera.ruta) {
+                        popUpTo(Destino.rutaInicial) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
+                onOpenSync = { navController.navigate(Rutas.SINCRONIZACION) },
                 onOpenAutomaticMovements = {
                     navController.navigate(Destino.Movimientos.ruta) { launchSingleTop = true }
                     navController.currentBackStackEntry?.savedStateHandle?.set(
@@ -133,8 +167,12 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
                 onNewEntry = { navController.navigate(Rutas.apunte(null)) },
                 onEditEntry = { navController.navigate(Rutas.apunte(it)) },
                 onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
-                onOpenAssetDetail = { portfolioId, assetId ->
-                    navController.navigate(Rutas.activo(portfolioId, assetId))
+                onOpenInvestment = { target ->
+                    if (target.startsWith("product:")) {
+                        navController.navigate(Rutas.productoCartera(target.removePrefix("product:")))
+                    } else {
+                        navController.navigate(Rutas.apunte("investment:$target"))
+                    }
                 },
                 initialSource = entry.savedStateHandle.remove<String>(Rutas.MOVEMENT_SOURCE_KEY)
                     ?.let(SourceFilter::valueOf),
@@ -142,23 +180,19 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
         }
         composable(Destino.Presupuesto.ruta) { BudgetsScreen() }
         composable(Destino.Cartera.ruta) {
-            InvestmentsScreen(
-                onOpenAssetDetail = { portfolioId, assetId -> navController.navigate(Rutas.activo(portfolioId, assetId)) },
-                onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
-                onOpenAssets = { navController.navigate(Rutas.ACTIVOS) },
-                onOpenPortfolios = { navController.navigate(Rutas.CARTERAS) },
+            PortfolioScreen(
+                onConnect = { navController.navigate(Rutas.SINCRONIZACION) },
+                onOpenProduct = { navController.navigate(Rutas.productoCartera(it)) },
+                onOpenRumboPanel = { navController.navigate(Rutas.PANEL_RUMBO) },
             )
         }
         composable(Destino.Mas.ruta) {
             MoreScreen(onNavigate = { navController.navigate(it) })
         }
-        composable(Rutas.PATRIMONIO) { NetWorthScreen() }
         composable(Rutas.AJUSTES) {
             SettingsScreen(onNavigate = { navController.navigate(it) })
         }
         composable(Rutas.CUENTAS) { AccountsScreen() }
-        composable(Rutas.ACTIVOS) { AssetsScreen() }
-        composable(Rutas.CARTERAS) { PortfoliosScreen() }
         composable(Rutas.CATEGORIAS) { CategoriesScreen() }
         composable(Rutas.NOTIFICACIONES) {
             NotificationSettingsScreen(
@@ -167,8 +201,17 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
         }
         composable(Rutas.DIAGNOSTICO_NOTIFICACIONES) { NotificationDiagnosticsScreen() }
         composable(Rutas.PROPUESTAS) { PendingProposalsScreen() }
-        composable(Rutas.AUTOMATIZACION_NOTIFICACIONES) {
+        composable(
+            Rutas.AUTOMATIZACION_NOTIFICACIONES_ROUTE,
+            arguments = listOf(navArgument("tab") {
+                type = NavType.StringType
+                defaultValue = com.mipatrimonio.app.MainActivity.TAB_PENDING
+            }),
+        ) { entry ->
             AutomationScreen(
+                initialTab = entry.arguments?.getString("tab"),
+                permissionAlreadyRequested = automationPermissionRequested,
+                onPermissionRequested = onAutomationPermissionRequested,
                 onTeach = { navController.navigate(Rutas.ensenarNotificacion(it)) },
                 onConfigureRule = { navController.navigate(Rutas.configurarRegla(it)) },
                 onOpenNotificationSettings = { navController.navigate(Rutas.NOTIFICACIONES) },
@@ -199,19 +242,16 @@ private fun AppNavHost(navController: NavHostController, modifier: Modifier) {
                 onDone = { navController.popBackStack() },
                 onOpenAccounts = { navController.navigate(Rutas.CUENTAS) },
                 onOpenCategories = { navController.navigate(Rutas.CATEGORIAS) },
+                onConfigureMerchant = { navController.navigate(Rutas.configurarRegla(it)) },
+                onOpenProduct = { navController.navigate(Rutas.productoCartera(it)) },
             )
         }
-        composable(
-            Rutas.ACTIVO,
-            arguments = listOf(
-                navArgument("portfolioId") { type = NavType.StringType },
-                navArgument("assetId") { type = NavType.StringType },
-            ),
-        ) { entry ->
-            AssetDetailScreen(
-                portfolioId = entry.arguments?.getString("portfolioId").orEmpty(),
-                assetId = entry.arguments?.getString("assetId").orEmpty(),
-            )
+        composable(Rutas.SINCRONIZACION) { SyncScreen() }
+        composable(Rutas.PRODUCTO_CARTERA, idArg) { entry ->
+            ProductDetailScreen(entry.arguments?.getString("id").orEmpty())
+        }
+        composable(Rutas.PANEL_RUMBO) {
+            RumboPanelScreen(onOpenSync = { navController.navigate(Rutas.SINCRONIZACION) })
         }
     }
 }

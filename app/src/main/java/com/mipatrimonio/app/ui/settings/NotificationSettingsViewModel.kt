@@ -35,7 +35,7 @@ class NotificationSettingsViewModel(
         NotificationSettingsUiState(
             isLoading = false,
             rules = rules,
-            activeAccounts = accounts.filterNot { it.archived },
+            activeAccounts = accounts.filter { !it.archived && it.useInApp },
             errorMessage = error,
         )
     }.stateIn(

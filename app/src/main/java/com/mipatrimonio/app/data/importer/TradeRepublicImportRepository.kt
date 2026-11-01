@@ -6,9 +6,11 @@ import androidx.room.withTransaction
 import com.mipatrimonio.app.data.db.AppDatabase
 import com.mipatrimonio.app.data.db.toDomain
 import com.mipatrimonio.app.data.db.toEntity
-import com.mipatrimonio.app.domain.calc.PositionCalculator
-import com.mipatrimonio.app.domain.model.InvestmentOperation
+import com.mipatrimonio.app.data.db.SyncMovimientoEntity
+import com.mipatrimonio.app.data.db.SyncProductoEntity
+import com.mipatrimonio.app.data.sync.SyncRepository
 import java.nio.charset.StandardCharsets
+import java.time.LocalDate
 
 class ImportFileStore(private val resolver: ContentResolver) {
     fun read(uri: Uri): String = resolver.openInputStream(uri)?.use {
@@ -18,29 +20,25 @@ class ImportFileStore(private val resolver: ContentResolver) {
 
 data class ImportExecutionReport(
     val transactions: Int,
-    val transfers: Int,
-    val operations: Int,
-    val assets: Int,
+    val investmentDividends: Int = 0,
+    val failedInvestmentDividends: Int = 0,
     val omitted: Int,
     val omittedByReason: Map<String, Int>,
-    val notes: Map<String, Int> = emptyMap(),
 ) {
-    val totalCreated get() = transactions + transfers + operations
+    val totalCreated get() = transactions + investmentDividends
 }
 
 class TradeRepublicImportRepository(
     private val db: AppDatabase,
     private val afterInsert: (Int) -> Unit = {},
+    private val productsProvider: suspend () -> List<SyncProductoEntity> = { emptyList() },
+    private val investmentMovementsProvider: suspend () -> List<SyncMovimientoEntity> = { db.syncDao().allMovimientos() },
+    private val hasSyncSession: suspend () -> Boolean = { false },
+    private val createInvestmentDividend: suspend (ImportRecord.InvestmentDividend) -> Unit = {
+        throw IllegalStateException("No se configuró la importación de dividendos")
+    },
 ) {
-    private val neverless = NeverlessImportRepository(db)
-
-    suspend fun planNeverless(
-        preview: NeverlessPreview,
-        accountId: String,
-        decisions: Map<String, NeverlessRowDecision> = emptyMap(),
-    ): NeverlessImportPlan = neverless.plan(preview, accountId, decisions)
-
-    suspend fun executeNeverless(plan: NeverlessImportPlan): ImportExecutionReport = neverless.execute(plan)
+    suspend fun availableProducts(): List<SyncProductoEntity> = productsProvider().filter { it.deletedAt == null }
 
     suspend fun plan(
         preview: ImportPreview,
@@ -49,108 +47,84 @@ class TradeRepublicImportRepository(
     ): TradeRepublicImportPlan {
         val account = db.accountDao().getById(accountId)?.toDomain()
             ?: throw IllegalArgumentException("Selecciona una cuenta existente")
+        require(account.useInApp) { "La cuenta seleccionada no tiene uso en app" }
         require(!account.archived) { "La cuenta seleccionada está archivada" }
-        val ids = mutableSetOf<String>()
-        preview.movements.forEach { row ->
-            val id = TradeRepublicImportPlanner.recordId(row.externalId)
-            if (db.transactionDao().getById(id) != null || db.transferDao().getById(id) != null ||
-                db.investmentDao().getOperation(id) != null
-            ) ids += id
-            val dividendId = TradeRepublicImportPlanner.dividendRecordId(row.externalId)
-            if (db.investmentDao().getOperation(dividendId) != null) ids += dividendId
+        val ids = preview.movements.mapNotNullTo(mutableSetOf()) { row ->
+            TradeRepublicImportPlanner.recordId(row.externalId).takeIf { db.transactionDao().getById(it) != null }
         }
-        val plan = TradeRepublicImportPlanner.plan(
-            preview,
-            TradeRepublicPlanningContext(
-                accountId = accountId,
-                accountCurrency = account.currency,
-                existingRecordIds = ids,
-                existingAssets = db.investmentDao().getAllAssetsForBackup().map { it.toDomain() },
-                existingPortfolios = db.investmentDao().getAllPortfoliosForBackup().map { it.toDomain() },
-                decisions = decisions,
+        val hasDividends = preview.movements.any { it.kind == ImportedKind.DIVIDENDO }
+        val products = if (hasDividends) productsProvider() else emptyList()
+        val investmentMovements = if (hasDividends) investmentMovementsProvider() else emptyList()
+        val remoteAccountId = SyncRepository.accountIdToRemoteId(accountId)
+        return withoutUnavailableCategories(
+            TradeRepublicImportPlanner.plan(
+                preview,
+                TradeRepublicPlanningContext(
+                    accountId = accountId,
+                    accountCurrency = account.currency,
+                    existingRecordIds = ids,
+                    decisions = decisions,
+                    products = products,
+                    existingInvestmentMovementIds = investmentMovements.mapTo(hashSetOf()) { it.id },
+                    existingDividends = investmentMovements.filter {
+                        it.deletedAt == null && it.tipo.equals("dividendo", ignoreCase = true)
+                    }.map {
+                        ExistingInvestmentDividend(it.productoId, it.cuentaId, LocalDate.ofEpochDay(it.fecha), it.importeMinor)
+                    },
+                    hasSyncSession = hasDividends && hasSyncSession(),
+                    investmentAccountId = remoteAccountId,
+                ),
             ),
         )
-        return withoutUnavailableCategories(plan)
     }
 
-    suspend fun execute(plan: TradeRepublicImportPlan): ImportExecutionReport = db.withTransaction {
-        var assetCount = 0
-        plan.transactionIdsToDelete.forEach { db.transactionDao().delete(it) }
-        plan.newPortfolios.forEach { portfolio ->
-            db.investmentDao().insertPortfolioIfAbsent(portfolio.toEntity())
-        }
+    suspend fun execute(plan: TradeRepublicImportPlan): ImportExecutionReport {
         var transactionCount = 0
-        val transferCount = 0
-        var operationCount = 0
         var inserted = 0
-        plan.newAssets.forEach { asset ->
-            if (db.investmentDao().insertAssetIfAbsent(asset.toEntity(System.currentTimeMillis())) != -1L) assetCount++
-        }
-        val operationRows = plan.rows.filter { it.status == ImportRowStatus.CREATE }.flatMap { row ->
-            row.records.filterIsInstance<ImportRecord.Operation>().map { row to it.value }
-        }
-        operationRows.groupBy { (_, operation) -> operation.portfolioId to operation.assetId }.forEach { (key, additions) ->
-            val existing = db.investmentDao().operationsFor(key.first, key.second).map { it.toDomain() }
-            val accepted = mutableListOf<InvestmentOperation>()
-            additions.forEach { (row, addition) ->
-                if (existing.none { it.id == addition.id }) accepted += addition
-                runCatching { PositionCalculator.compute(existing + accepted) }
-                    .getOrElse { throw rowImportException(row, it) }
+        db.withTransaction {
+            plan.rows.filter { it.status == ImportRowStatus.CREATE }.forEach { row ->
+                val record = row.record as? ImportRecord.Movement ?: return@forEach
+                val categoryId = record.value.categoryId?.let { id ->
+                    db.categoryDao().getByIds(listOf(id)).singleOrNull()?.takeUnless { it.archived }?.id
+                }
+                if (db.transactionDao().insertIfAbsent(record.value.copy(categoryId = categoryId).toEntity()) != -1L) {
+                    transactionCount++
+                    afterInsert(++inserted)
+                }
             }
         }
+        var dividendCount = 0
+        val failures = mutableListOf<String>()
         plan.rows.filter { it.status == ImportRowStatus.CREATE }.forEach { row ->
-            row.records.forEach { record ->
-                runCatching {
-                    when (record) {
-                    is ImportRecord.Movement -> {
-                        val categoryId = record.value.categoryId?.let { id ->
-                            db.categoryDao().getByIds(listOf(id)).singleOrNull()?.takeUnless { it.archived }?.id
-                        }
-                        if (db.transactionDao().insertIfAbsent(record.value.copy(categoryId = categoryId).toEntity()) != -1L) transactionCount++
-                    }
-                    is ImportRecord.Operation -> if (db.investmentDao().insertOperationIfAbsent(record.value.toEntity()) != -1L) operationCount++
-                    }
-                    inserted++
-                    afterInsert(inserted)
-                }.getOrElse { throw rowImportException(row, it) }
-            }
+            val dividend = row.record as? ImportRecord.InvestmentDividend ?: return@forEach
+            runCatching { createInvestmentDividend(dividend) }
+                .onSuccess { dividendCount++ }
+                .onFailure { failures += (it.message ?: "No se pudo crear el dividendo") }
         }
         val omittedReasons = buildList {
-            plan.rows.filter { it.status != ImportRowStatus.CREATE }.forEach {
-                add(it.reason ?: it.status.name)
-            }
+            plan.rows.filter { it.status != ImportRowStatus.CREATE }.forEach { add(it.reason ?: it.status.name) }
             plan.issues.forEach { add(it.message) }
             plan.duplicateIdsInFile.forEach { add("Identificador duplicado dentro del fichero") }
+            addAll(failures)
         }.groupingBy { it }.eachCount()
-        ImportExecutionReport(
-            transactionCount, transferCount, operationCount, assetCount,
-            plan.rows.count { it.status != ImportRowStatus.CREATE } + plan.issues.size + plan.duplicateIdsInFile.size,
-            omittedReasons,
+        return ImportExecutionReport(
+            transactions = transactionCount,
+            investmentDividends = dividendCount,
+            failedInvestmentDividends = failures.size,
+            omitted = plan.rows.count { it.status != ImportRowStatus.CREATE } + plan.issues.size +
+                plan.duplicateIdsInFile.size + failures.size,
+            omittedByReason = omittedReasons,
         )
     }
 
     private suspend fun withoutUnavailableCategories(plan: TradeRepublicImportPlan): TradeRepublicImportPlan {
-        val categoryIds = plan.rows.flatMap { it.records }.mapNotNull { (it as? ImportRecord.Movement)?.value?.categoryId }.distinct()
-        if (categoryIds.isEmpty()) return plan
-        val activeIds = db.categoryDao().getByIds(categoryIds).filterNot { it.archived }.mapTo(hashSetOf()) { it.id }
+        val ids = plan.rows.mapNotNull { (it.record as? ImportRecord.Movement)?.value?.categoryId }.distinct()
+        if (ids.isEmpty()) return plan
+        val activeIds = db.categoryDao().getByIds(ids).filterNot { it.archived }.mapTo(hashSetOf()) { it.id }
         return plan.copy(rows = plan.rows.map { row ->
-            fun withoutCategory(record: ImportRecord): ImportRecord = if (record is ImportRecord.Movement &&
-                record.value.categoryId != null && record.value.categoryId !in activeIds
-            ) ImportRecord.Movement(record.value.copy(categoryId = null)) else record
-            row.copy(
-                record = row.record?.let(::withoutCategory),
-                additionalRecords = row.additionalRecords.map(::withoutCategory),
-            )
+            val movement = row.record as? ImportRecord.Movement ?: return@map row
+            if (movement.value.categoryId in activeIds) row
+            else row.copy(record = ImportRecord.Movement(movement.value.copy(categoryId = null)))
         })
-    }
-
-    private fun rowImportException(row: PlannedImportRow, cause: Throwable): IllegalArgumentException {
-        val source = row.source
-        val type = source.rawType.ifBlank { source.category }
-        val description = source.description.ifBlank { source.assetName.orEmpty() }.ifBlank { "Sin descripción" }
-        return IllegalArgumentException(
-            "No se pudo importar la fila $type del ${source.date}: $description. ${cause.message.orEmpty()}",
-            cause,
-        )
     }
 }

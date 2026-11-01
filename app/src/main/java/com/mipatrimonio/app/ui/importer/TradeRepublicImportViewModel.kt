@@ -14,6 +14,7 @@ import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Category
+import com.mipatrimonio.app.data.db.SyncProductoEntity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,6 +26,7 @@ data class TradeRepublicImportUiState(
     val busy: Boolean = false,
     val accounts: List<Account> = emptyList(),
     val categories: List<Category> = emptyList(),
+    val products: List<SyncProductoEntity> = emptyList(),
     val accountId: String? = null,
     val fileName: String? = null,
     val plan: TradeRepublicImportPlan? = null,
@@ -52,7 +54,11 @@ class TradeRepublicImportViewModel(
     init {
         viewModelScope.launch {
             combine(ledger.accounts, ledger.categories, settings.settings) { accounts, categories, saved ->
-                Data(accounts.filterNot { it.archived }, categories.filterNot { it.archived }, saved.tradeRepublicAccountId)
+                Data(
+                    accounts.filter { !it.archived && it.useInApp },
+                    categories.filter { !it.archived && it.investmentKind == null },
+                    saved.tradeRepublicAccountId,
+                )
             }.collect { data ->
                 val current = mutableState.value
                 mutableState.value = current.copy(
@@ -94,7 +100,11 @@ class TradeRepublicImportViewModel(
 
     private fun decideAll(decision: ImportRowDecision) {
         val reviewIds = mutableState.value.plan?.rows
-            ?.filter { it.status == com.mipatrimonio.app.data.importer.ImportRowStatus.REVIEW }
+            ?.filter {
+                it.status == com.mipatrimonio.app.data.importer.ImportRowStatus.REVIEW &&
+                    (decision != ImportRowDecision.AcceptDefault ||
+                        it.source.kind != com.mipatrimonio.app.data.importer.ImportedKind.DIVIDENDO)
+            }
             ?.map { it.source.externalId }
             .orEmpty()
         mutableState.value = mutableState.value.copy(
@@ -126,8 +136,11 @@ class TradeRepublicImportViewModel(
             runCatching {
                 val table = CsvParser.parse(text)
                 require(TradeRepublicCsvAdapter().matches(table.headers)) { "El fichero no tiene la cabecera de Trade Republic" }
-                repository.plan(TradeRepublicCsvAdapter().parse(table), accountId, mutableState.value.decisions)
-            }.onSuccess { mutableState.value = mutableState.value.copy(busy = false, plan = it) }
+                val plan = repository.plan(TradeRepublicCsvAdapter().parse(table), accountId, mutableState.value.decisions)
+                plan to repository.availableProducts()
+            }.onSuccess { (plan, products) ->
+                mutableState.value = mutableState.value.copy(busy = false, plan = plan, products = products)
+            }
                 .onFailure(::showError)
         }
     }

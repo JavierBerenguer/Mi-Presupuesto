@@ -27,7 +27,10 @@ Aplicación Android de finanzas personales que combina **gestión de presupuesto
 El APK de depuración queda en `app/build/outputs/apk/debug/app-debug.apk`. **No es un APK de distribución.**
 
 ## APK de distribución firmado
-La configuración de firma **no está incluida** ni se versiona ninguna clave. Para publicar hay que crear un keystore propio (`keytool -genkeypair …`), guardarlo fuera del repositorio y declarar `keystore.properties` (ignorado por git) con la ruta y contraseñas. No se ha generado ningún APK firmado.
+- **Dónde se publica:** las versiones firmadas están en [GitHub Releases](https://github.com/JavierBerenguer/Mi-Presupuesto/releases). Se pueden instalar y actualizar con ObtainX u Obtainium apuntando a este repositorio.
+- **Cómo se firma:** la firma se configura con `keystore.properties` en la raíz, que está ignorado por git e incluye `storeFile`, `storePassword`, `keyAlias` y `keyPassword`. Si no existe ese archivo, `assembleRelease` genera un APK sin firmar. La clave **nunca** se versiona; sin ella no se pueden publicar actualizaciones compatibles.
+- **Comando:** `./gradlew assembleRelease`, que genera `app/build/outputs/apk/release/app-release.apk`.
+- **Cada versión nueva** debe subir `versionCode` y `versionName` en `app/build.gradle.kts`.
 
 ## Cotizaciones y Supabase
 Aún **no** hay proveedor de cotizaciones ni sincronización con Supabase (Fase 9). Los precios de los activos se introducen manualmente. Cuando se implementen, no se incluirán claves privadas en el APK ni `service_role`; las claves públicas se usarán solo con Row Level Security. Los pasos de configuración se documentarán aquí.

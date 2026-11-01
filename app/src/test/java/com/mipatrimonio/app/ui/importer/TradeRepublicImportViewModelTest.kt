@@ -60,25 +60,15 @@ class TradeRepublicImportViewModelTest {
 
         viewModel.loadCsv(CSV)
         val pending = viewModel.uiState.first { it.plan != null && !it.busy }
-        assertEquals(2, pending.plan?.toReview)
-        assertEquals(ImportReviewAction.IMPORT_OPERATION, pending.reviewItems.single { it.row.source.externalId == "buy" }.action)
+        assertEquals(1, pending.plan?.toReview)
         assertEquals(ImportReviewAction.IMPORT_MOVEMENT, pending.reviewItems.single { it.row.source.externalId == "bonus" }.action)
         assertTrue(pending.reviewItems.all { it.decisionState == ImportReviewDecisionState.PENDING })
         viewModel.acceptAll()
-        val accepted = viewModel.uiState.first { it.plan?.toCreate == 3 && !it.busy }
-        assertEquals(ImportRowDecision.AcceptDefault, accepted.decisions["buy"])
-        assertEquals(
-            ImportReviewDecisionState.IMPORT_OPERATION,
-            accepted.reviewItems.single { it.row.source.externalId == "buy" }.decisionState,
-        )
+        val accepted = viewModel.uiState.first { it.plan?.toCreate == 2 && !it.busy }
         assertEquals(
             ImportReviewDecisionState.IMPORT_MOVEMENT,
             accepted.reviewItems.single { it.row.source.externalId == "bonus" }.decisionState,
         )
-        viewModel.setDecision("buy", ImportRowDecision.Ignore)
-        val changed = viewModel.uiState.first { it.plan?.toCreate == 2 && !it.busy }
-        assertEquals(ImportRowStatus.IGNORED, changed.plan?.rows?.single { it.source.externalId == "buy" }?.status)
-
         viewModel.confirm()
         val final = viewModel.uiState.first { it.report != null && !it.busy }
         assertEquals(2, final.report?.totalCreated)
@@ -91,10 +81,10 @@ class TradeRepublicImportViewModelTest {
         val viewModel = viewModel()
         viewModel.selectAccount("cash")
         viewModel.loadCsv(CSV)
-        viewModel.uiState.first { it.plan?.toReview == 2 && !it.busy }
+        viewModel.uiState.first { it.plan?.toReview == 1 && !it.busy }
         viewModel.ignoreAll()
         val ignored = viewModel.uiState.first { it.plan?.toReview == 0 && !it.busy }
-        assertEquals(2, ignored.decisions.values.count { it == ImportRowDecision.Ignore })
+        assertEquals(1, ignored.decisions.values.count { it == ImportRowDecision.Ignore })
         assertEquals(1, ignored.plan?.toCreate)
     }
 

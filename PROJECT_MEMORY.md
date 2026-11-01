@@ -507,3 +507,86 @@ El usuario dejó `datos-privados/Documento de cambios/Documento.md` (+ 4 captura
 - Próxima acción: siguiente bloque del ROADMAP (multidivisa/tipos de cambio, objetivos, alertas de presupuesto, bloqueo biométrico) salvo nuevas peticiones del usuario. Pendientes de datos del usuario: prueba real de EODHD con su clave; diferencia de saldo de TR (57,12 € fuera del CSV).
 - Nota operativa: el verificador de permisos de Bash/PowerShell falla a veces de forma transitoria («no verdict»); mientras tanto usar Read/Grep/Glob, que no dependen de él.
 - **Próxima acción exacta:** esperar ronda 2 de Codex en T-038 → `gradlew testDebugUnitTest assembleDebug` en `.local/worktrees/t-038` → integrar → APK en `.local/apk/` → lanzar T-039.
+- **Nueva sesión (2026-10-27):** proyecto clonado de GitHub en la carpeta nueva `D:\XX_Claude\App - Rea - Rumbo\apk finanzas` (con `datos-privados/` y `.local/` copiadas por el usuario). **Regla del usuario:** el espacio tiene tres carpetas (`apk finanzas` = esta app; `rea-main` = instrucciones para analizar Rumbo, que lanzará otro agente; `rumbo-main` = app de PC de referencia que posiblemente se integre). Hasta nuevo aviso se trabaja **solo** en `apk finanzas`. Se anuncian cambios grandes en inversión (posible rehacer desde cero con Rumbo como referencia).
+- **Peticiones del usuario (2026-10-27):**
+  1. Una notificación con estructura reconocida y comercio nuevo se registra con la estructura general. El comercio se puede configurar después en Ajustes → **T-067**.
+  2. Pulsación larga para seleccionar varios apuntes y agruparlos sobre un gasto principal (Bizums recibidos de terceros) → **T-068**.
+
+  Decisiones del usuario:
+  - Los `PENDIENTE_REGLA` antiguos siguen pendientes.
+  - Configurar un comercio solo afecta a los apuntes futuros.
+  - Un grupo computa como **gasto neto** en estadísticas y presupuestos; los saldos de las cuentas no cambian.
+  - En Movimientos, una fila con el neto y «+N» desplegable.
+
+  Rama `claude/notificaciones-y-agrupacion`. Al terminar, el usuario pidió subir el APK a GitHub e hibernar el PC.
+- Nota operativa: lanzar `delegate-codex.ps1` desde la herramienta PowerShell **sin** redirección `*>`. Con ella, PowerShell 5.1 convierte el stderr de git en error y el script aborta.
+- **Petición adicional del usuario (2026-10-27):** aviso push propio cuando llegue una notificación con estructura nueva o con un comercio nuevo («subestructura»); al pulsarlo se abre Ajustes → Automatización → **T-069** (después de T-067). Decisiones de Claude:
+  - una única notificación agregada que se actualiza, sin datos bancarios;
+  - solo avisa el primer registro de cada comercio;
+  - canal `automation_pending`;
+  - preferencia «Avisarme de automatizaciones pendientes», activada por defecto.
+- **Orden:** T-067 → T-069 → T-068.
+- **T-067 ACEPTADA e integrada (2026-10-27).** Comercio nuevo → apunte con la estructura general, pestaña «Comercios nuevos», «Configurar este comercio» desde el formulario. Ajuste de Claude: un test antiguo esperaba un cambio retroactivo, adaptado a la decisión «solo futuros». 527 tests × 3 en verde.
+- **T-069 ACEPTADA e integrada (2026-10-27).** Aviso push agregado de automatizaciones pendientes, que abre Automatización en la pestaña correcta. Ajustes de Claude: un import y la clave nueva en los datos de `BackupTest`. 536 tests × 3 en verde. **Lección:** el sandbox de Codex bloquea Gradle (sin red para descargar la distribución ni `android-all-instrumented`). Claude debe compilar siempre y esperar fallos de compilación triviales en los tests.
+- **T-068 lanzada (2026-10-27)** en `.local/worktrees/t-068`.
+- **Firma y releases (2026-10-27, petición del usuario):** clave de distribución creada por Claude.
+  - Keystore PKCS12 RSA 4096, alias `mipatrimonio`, en `C:\Users\Usuario\.mipatrimonio-firma\mipatrimonio-release.jks`, con copia en `datos-privados/firma/`.
+  - Contraseña en `keystore.properties` (raíz, ignorado).
+  - SHA-256 del certificado: `D3:9A:3B:E2:15:E4:EB:85:35:E2:78:0A:2A:C2:E9:97:FD:B3:48:F1:35:F9:C6:98:51:8E:1A:04:0C:05:CD:8E`.
+  - **Perder la clave impide actualizar la app instalada.**
+  - El usuario instalará y actualizará con **ObtainX** (fork de Obtainium) desde GitHub Releases, así que cada release debe subir `versionCode`.
+- **Corrección para poder compilar la release:** `lintVitalRelease` fallaba porque `MiPatrimonioApplication` implementaba `Configuration.Provider` sin quitar el inicializador de WorkManager. Se quitó el Provider (la configuración era la de por defecto y el inicializador automático ya actuaba).
+- **v1.0.0 publicada:** `main` + firma (rama `release/v1.0.0`), versionCode 1, APK de 3,5 MB minificado con R8. Prueba de humo en el emulador `mp_test`: arranque, pestañas y alta de cuenta.
+- **T-068 ACEPTADA e integrada (2026-10-27).** Agrupación con neto, Room v14. Ajustes de Claude:
+  - orden de los datos de `BackupTest`;
+  - **textos con doble codificación UTF-8** («Â¿Sobre quÃ©…»), detectados en el emulador; se corrigieron también un mensaje antiguo del importador de TR y otro de `BackupValidator`. Lección añadida a `COMMON.md`.
+  - 550 tests × 3 en verde.
+- **v1.1.0** (T-067 + T-068 + T-069), versionCode 2. Verificado en el emulador:
+  - actualización sobre v1.0.0 con datos (migración 13→14 y misma firma);
+  - el enlace del aviso abre la pestaña «Comercios nuevos» con la app abierta;
+  - agrupar 60 € con 2 × 20 € da una fila con −20 € y «+2», Inicio muestra 20 € de gasto y 0 € de ingresos, y el saldo de la cuenta no cambia (80 €).
+  - **Pendiente:** probarlo en el Pixel 9a. Para pasar de debug a release hace falta copia → desinstalar → instalar → restaurar.
+- **Nuevo bloque (2026-10-27): Rumbo (escritorio) + app + Supabase.** Plan aprobado en `C:\Users\Usuario\.claude\plans\se-vienen-cambios-muy-wise-lampson.md`. Rama `claude/cartera-supabase`.
+  - **T-070 aceptada:** `docs/arquitectura/ANALISIS_RUMBO.md` e `INVENTARIO_INVERSION_APP.md`.
+  - **ADR-001** (`docs/arquitectura/ADR-001-supabase.md`): esquema, RLS, quién escribe cada dato, efecto en caja, contrato de `resumen_cartera` y sincronización.
+  - **Decisión del usuario:** eliminar la inversión antigua **perdiendo los datos**, sin ajustar saldos.
+  - **T-074** (eliminación, Room v15) lanzada.
+  - Pendiente del usuario: proyecto Supabase (URL + clave anon) y autorizar el repositorio nuevo del fork de Rumbo.
+- **Estado al hibernar (2026-10-28):**
+  - **Hecho:**
+    - T-074 y T-075 aceptadas e integradas en `claude/cartera-supabase` (361 tests).
+    - Repositorio nuevo `JavierBerenguer/Rumbo-Patrimonio` (privado, en local en `rumbo-main/`, rama `claude/supabase`), con T-071, T-072 y T-073 aceptadas.
+    - Esquema aplicado en el Supabase real y prueba de humo superada por el usuario.
+    - Credenciales en `datos-privados/supabase/supabase.env` y en `rumbo-main/supabase.env` (ignorados).
+  - **Pendiente:**
+    - **T-076 entregada por Codex, SIN REVISAR.** Está commiteada como WIP en `codex/t-076` (13d19be, subida). Siguiente paso: `gradlew testDebugUnitTest assembleDebug` en `.local/worktrees/t-076`, revisar los puntos críticos (exclusión de `cuenta_app:*`, liquidez en los saldos y en `cuentas_app`, sin gasto/ingreso) e integrar.
+    - Después, T-077 (compras desde notificaciones) y la release v1.2.0 (versionCode 3) con una lista de pruebas para el usuario.
+- **Plan Rumbo + app COMPLETADO (2026-10-28):**
+  - Fichas aceptadas: T-070, T-071, T-072, T-073, T-074, T-075, T-076, T-077 y T-078.
+  - Releases publicadas: v1.2.0 (Cartera, sincronización y liquidez) y **v1.3.0** (compras desde notificaciones; Room v17; 382 tests).
+  - Rumbo: rama `claude/supabase` con 23 tests.
+  - **Próximo paso: el usuario pasa `docs/pruebas/PLAN_DE_PRUEBAS.md` (bloques 0, A, B, C, D y E).** Lo que falle se convierte en fichas de corrección.
+  - Pendiente menor: dar un motivo visible cuando una compra trae importe con «+».
+  - Ninguna rama está fusionada en `main` (necesita autorización del usuario): app `claude/cartera-supabase` (incluye `claude/notificaciones-y-agrupacion`), Rumbo `claude/supabase`.
+- **Cuentas compartidas (2026-10-29):**
+  - Diseño en ADR-002. T-084 (Rumbo + SQL, aplicado y verificado: 43/43 `true`) y T-085 (app, Room v18; 392 tests), aceptadas.
+  - **v1.4.0 publicada.**
+  - Rumbo (T-081, T-082 y T-083): estado de la nube, modo oscuro, sin promoción ni demo, marca «Mi Patrimonio», cabecera nueva. Corregido el bloqueo `Origin: null` (`Referrer-Policy: same-origin`).
+- **INICIO LIMPIO en curso** (decisiones del usuario, 2026-10-29):
+  - borrar los datos de inversión en Supabase y en Rumbo;
+  - la app se carga con una **copia de seguridad generada** que conserva las estructuras y reglas de notificaciones (y sus categorías);
+  - **los dividendos de TR van por Rumbo con cuenta TR** (liquidez), no como ingreso en la app;
+  - las inversiones solo en Rumbo con cuenta TR, que llegan a la app por la sincronización;
+  - Neverless es una cuenta sin uso en app, con saldo 0,08 €.
+  - `Primera Carga/primera_carga.xlsx`: 307 filas, dividendos con cuenta; se quitó la fila de saldo de Neverless.
+  - **T-086** (propuesta de categorías de Codex) en curso.
+  - **Pendiente del usuario:** copia de seguridad actual + contraseña temporal en `Primera Carga`, para generar la copia limpia (T-087).
+- **Integración de los movimientos de inversión (decidido con el usuario, 2026-11-01):**
+  - Alcance: movimientos de inversión (compra, venta, dividendo, comisión) con cuenta de liquidez en EUR.
+  - Subcategorías del usuario en Inversiones: «Comisión», «Compra», «Dividendo» y «Venta». Categoría fija según el tipo, reservada (no se elige en apuntes).
+  - Regla general nueva: **el tipo del apunte decide** si es ingreso o gasto, no la categoría raíz. Dividendo = ingreso; comisión = gasto; compra y venta = neutras (transferencia efectivo ↔ Cartera), con una línea «Invertido».
+  - Retención: campo opcional del dividendo y de la venta; el importe sigue siendo el neto y todo usa el neto, salvo el informe fiscal (bruto + retención). Una sola fila y una sola categoría.
+  - Los dividendos de TR deben ser dividendos de inversión (producto por ISIN + cuenta TR). Los intereses y FEE de TR siguen como apunte.
+  - Fichas (en orden, un Codex cada vez): **T-097** categoría automática (Room v20; ACEPTADA e integrada 2026-11-01, merge `1e9b31a`, 456 tests) → **T-098** estadísticas (ACEPTADA 2026-11-01, merge `b2e9179`, 464 tests; excepción: Claude corrigió un test de `BudgetsViewModelTest` que creaba categorías marcadas con `saveCategory`) → **T-099** crear/editar/borrar los 4 tipos desde el móvil (Room v21; ACEPTADA 2026-11-01, 485 tests; Claude borró el `21.json` con BOM y ajustó 2 aserciones `BigDecimal`) → **T-100** órdenes de inversión (Room v22; ACEPTADA 2026-11-01, 500 tests; Claude corrigió 1 error de compilación, 1 test no void y el `22.json` con el hash de v21) → **T-101** escritorio (ACEPTADA 2026-11-01, merge `2a6a07c` en `claude/supabase`, 109 tests; una vuelta de corrección: `plantilla.py` y `guardar` envía `null` al vaciar columnas, un fallo anterior que hacía que los borrados no llegaran a la nube; SQL `retencion` aplicado por el usuario y verificado por Claude el 2026-11-01: la columna existe y los 312 movimientos no tienen retención) → **T-102** retenciones en el móvil (Room v23; ACEPTADA 2026-11-01, 512 tests; una vuelta para la retención en órdenes; Claude ajustó 2 tests) → **T-103** dividendos TR (ACEPTADA 2026-11-01, sin ajustes) → **T-104** escritorio al día (ACEPTADA 2026-11-01, merge en `claude/supabase`, 115 tests). Codex se quedó sin cuota el 2026-11-01; el usuario la restableció ese mismo día. **v1.11.0 (versionCode 25)** compilada y firmada (aapt2 y apksigner verificados, 3,5 MB), **publicada** en GitHub Releases (`v1.11.0`, etiqueta en `6af2589`, asset `MiPatrimonio-1.11.0.apk`, SHA-256 `cf18f5f7…0ab6`). Plan de pruebas: bloque L. **T-105 original RECHAZADA por el usuario (2026-11-01):** los intereses de la cuenta remunerada siguen como apuntes del móvil (Ingresos › Intereses), no como dividendos. El número 105 queda libre: Claude propone usarlo para (1) que el escritorio no ofrezca «intereses» en las cuentas del móvil (`producto_id = cuenta_app:…` no es uuid) y (2) corregir la cuenta fantasma «null» que crea el móvil al bajar una cuenta borrada (vista en la copia del 2026-11-01, id `624f82c0…`, borrada). **T-106** (agrupar apuntes sin condiciones de tipo; neto con signo) y **T-105** (cuenta fantasma «null»; **implementada por Claude** a petición expresa del usuario, en paralelo y sin archivos compartidos) ACEPTADAS e integradas el 2026-11-01. La suite conjunta se verificó tras integrar las dos. Pendiente: release v1.11.1 si el usuario la pide órdenes permanentes de inversión (Room v22) → **T-101 en `rumbo-main/docs/tasks/`** (retenciones en escritorio + SQL `20261101000000_retenciones.sql`, que aplica el usuario) → T-102 retenciones en el móvil (Room v23) → T-103 importación TR: dividendos como movimiento de inversión (ISIN + cuenta TR, sin duplicar lo del escritorio) → **T-104 en `rumbo-main`** (el escritorio recarga de la nube al abrir/recargar la página si la copia tiene > 30 s y redibuja todo tras guardar; pedido por el usuario).
+  - **Invariante del usuario: los datos de la carga inicial (y los existentes) no se tocan;** si hace falta, los edita a mano.
+  - Color actual de la fila de inversión (modo oscuro): fondo `#20352E`, icono `#B5E8D5`.

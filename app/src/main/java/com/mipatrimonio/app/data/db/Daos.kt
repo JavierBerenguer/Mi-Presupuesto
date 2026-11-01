@@ -19,14 +19,43 @@ interface AccountDao {
     @Insert
     suspend fun insertAllForRestore(entities: List<AccountEntity>)
 
-    @Query("SELECT * FROM account ORDER BY archived, createdAt")
+    @Query("SELECT * FROM account WHERE deletedAt IS NULL ORDER BY archived, createdAt")
     fun observeAll(): Flow<List<AccountEntity>>
 
-    @Query("SELECT * FROM account WHERE id = :id")
+    @Query("SELECT * FROM account WHERE id = :id AND deletedAt IS NULL")
     suspend fun getById(id: String): AccountEntity?
 
     @Upsert
     suspend fun upsert(entity: AccountEntity)
+
+    @Query("DELETE FROM account WHERE id = :id")
+    suspend fun deleteById(id: String)
+}
+
+@Dao
+interface AccountBalanceDao {
+    @Query("SELECT * FROM account_balance ORDER BY accountId, epochDay, updatedAt")
+    suspend fun getAllForBackup(): List<AccountBalanceEntity>
+
+    @Query("SELECT * FROM account_balance WHERE deletedAt IS NULL ORDER BY epochDay DESC, updatedAt DESC")
+    fun observeAll(): Flow<List<AccountBalanceEntity>>
+
+    @Query("SELECT * FROM account_balance WHERE accountId = :accountId ORDER BY epochDay DESC, updatedAt DESC")
+    fun observeForAccount(accountId: String): Flow<List<AccountBalanceEntity>>
+
+    @Query("SELECT * FROM account_balance WHERE id = :id")
+    suspend fun getById(id: String): AccountBalanceEntity?
+
+    @Query("SELECT * FROM account_balance WHERE accountId = :accountId AND deletedAt IS NULL ORDER BY epochDay DESC, updatedAt DESC LIMIT 1")
+    suspend fun latest(accountId: String): AccountBalanceEntity?
+
+    @Query("SELECT * FROM account_balance WHERE accountId = :accountId AND epochDay = :epochDay AND deletedAt IS NULL ORDER BY updatedAt DESC LIMIT 1")
+    suspend fun liveOnDate(accountId: String, epochDay: Long): AccountBalanceEntity?
+
+    @Upsert suspend fun upsert(entity: AccountBalanceEntity)
+    @Query("SELECT COUNT(*) FROM account_balance WHERE accountId = :accountId") suspend fun countForAccount(accountId: String): Int
+    @Insert suspend fun insertAllForRestore(entities: List<AccountBalanceEntity>)
+    @Query("DELETE FROM account_balance") suspend fun deleteAllForRestore()
 }
 
 @Dao
@@ -81,6 +110,18 @@ interface TransactionDao {
 
     @Query("SELECT * FROM txn WHERE id = :id")
     suspend fun getById(id: String): TransactionEntity?
+
+    @Query("SELECT * FROM txn WHERE groupParentId = :parentId ORDER BY epochDay DESC, createdAt DESC")
+    suspend fun getChildren(parentId: String): List<TransactionEntity>
+
+    @Query("SELECT COUNT(*) FROM txn WHERE groupParentId = :parentId")
+    suspend fun countChildren(parentId: String): Int
+
+    @Query("UPDATE txn SET groupParentId = :parentId WHERE id IN (:ids)")
+    suspend fun setGroupParent(ids: List<String>, parentId: String?)
+
+    @Query("UPDATE txn SET groupParentId = NULL WHERE groupParentId = :parentId")
+    suspend fun clearGroup(parentId: String)
 
     @Upsert
     suspend fun upsert(entity: TransactionEntity)
@@ -207,135 +248,6 @@ interface BudgetDao {
 }
 
 @Dao
-interface InvestmentDao {
-    @Query("SELECT * FROM portfolio ORDER BY id")
-    suspend fun getAllPortfoliosForBackup(): List<PortfolioEntity>
-
-    @Query("SELECT * FROM asset ORDER BY id")
-    suspend fun getAllAssetsForBackup(): List<AssetEntity>
-
-    @Query("SELECT * FROM investment_operation ORDER BY id")
-    suspend fun getAllOperationsForBackup(): List<InvestmentOperationEntity>
-
-    @Query("SELECT * FROM asset_price ORDER BY id")
-    suspend fun getAllPricesForBackup(): List<AssetPriceEntity>
-
-    @Query("DELETE FROM asset_price")
-    suspend fun deleteAllPricesForRestore()
-
-    @Query("DELETE FROM investment_operation")
-    suspend fun deleteAllOperationsForRestore()
-
-    @Query("DELETE FROM asset")
-    suspend fun deleteAllAssetsForRestore()
-
-    @Query("DELETE FROM portfolio")
-    suspend fun deleteAllPortfoliosForRestore()
-
-    @Insert
-    suspend fun insertAllPortfoliosForRestore(entities: List<PortfolioEntity>)
-
-    @Insert
-    suspend fun insertAllAssetsForRestore(entities: List<AssetEntity>)
-
-    @Insert
-    suspend fun insertAllOperationsForRestore(entities: List<InvestmentOperationEntity>)
-
-    @Insert
-    suspend fun insertAllPricesForRestore(entities: List<AssetPriceEntity>)
-
-    @Query("SELECT * FROM portfolio ORDER BY createdAt")
-    fun observePortfolios(): Flow<List<PortfolioEntity>>
-
-    @Query("SELECT * FROM portfolio WHERE id = :id")
-    suspend fun getPortfolio(id: String): PortfolioEntity?
-
-    @Upsert
-    suspend fun upsertPortfolio(entity: PortfolioEntity)
-
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertPortfolioIfAbsent(entity: PortfolioEntity): Long
-
-    @Query("SELECT COUNT(*) FROM portfolio WHERE defaultAccountId = :accountId")
-    suspend fun countPortfoliosForAccount(accountId: String): Int
-
-    @Query("SELECT COUNT(*) FROM investment_operation WHERE portfolioId = :portfolioId")
-    suspend fun countOperationsForPortfolio(portfolioId: String): Int
-
-    @Query("DELETE FROM portfolio WHERE id = :portfolioId")
-    suspend fun deletePortfolio(portfolioId: String)
-
-    @Query("SELECT * FROM asset ORDER BY name")
-    fun observeAssets(): Flow<List<AssetEntity>>
-
-    @Query("SELECT * FROM asset WHERE id = :id")
-    suspend fun getAsset(id: String): AssetEntity?
-
-    @Query("SELECT * FROM asset WHERE UPPER(REPLACE(isin, ' ', '')) = :normalizedIsin LIMIT 1")
-    suspend fun getAssetByNormalizedIsin(normalizedIsin: String): AssetEntity?
-
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertAssetIfAbsent(entity: AssetEntity): Long
-
-    @Upsert
-    suspend fun upsertAsset(entity: AssetEntity)
-
-    @Query("SELECT * FROM investment_operation ORDER BY epochDay DESC, createdAt DESC")
-    fun observeOperations(): Flow<List<InvestmentOperationEntity>>
-
-    @Query("SELECT * FROM investment_operation WHERE portfolioId = :portfolioId AND assetId = :assetId")
-    suspend fun operationsFor(portfolioId: String, assetId: String): List<InvestmentOperationEntity>
-
-    @Query("SELECT * FROM investment_operation WHERE id = :id")
-    suspend fun getOperation(id: String): InvestmentOperationEntity?
-
-    @Query("SELECT * FROM investment_operation WHERE transferGroupId = :groupId ORDER BY id")
-    suspend fun operationsForTransfer(groupId: String): List<InvestmentOperationEntity>
-
-    @Query("SELECT * FROM investment_operation WHERE assetId = :assetId ORDER BY epochDay, secondOfDay, createdAt")
-    suspend fun orderedOperationsForAsset(assetId: String): List<InvestmentOperationEntity>
-
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insertOperationIfAbsent(entity: InvestmentOperationEntity): Long
-
-    @Upsert
-    suspend fun upsertOperation(entity: InvestmentOperationEntity)
-
-    @Query("DELETE FROM investment_operation WHERE id = :id")
-    suspend fun deleteOperation(id: String)
-
-    @Query("DELETE FROM investment_operation WHERE transferGroupId = :groupId")
-    suspend fun deleteTransfer(groupId: String)
-
-    @Query("SELECT COUNT(*) FROM investment_operation WHERE accountId = :accountId")
-    suspend fun countOperationsForAccount(accountId: String): Int
-
-    @Query("SELECT COUNT(*) FROM investment_operation WHERE assetId = :assetId")
-    suspend fun countOperationsForAsset(assetId: String): Int
-
-    @Query("SELECT * FROM asset WHERE archived = 0 AND quoteProvider IS NOT NULL")
-    suspend fun getQuoteCandidates(): List<AssetEntity>
-
-    @Query("SELECT * FROM asset WHERE archived = 0")
-    suspend fun getActiveAssets(): List<AssetEntity>
-
-    @Query("SELECT * FROM investment_operation WHERE assetId = :assetId")
-    suspend fun operationsForAsset(assetId: String): List<InvestmentOperationEntity>
-
-    @Query("SELECT * FROM asset_price ORDER BY asOfEpochMillis")
-    fun observePrices(): Flow<List<AssetPriceEntity>>
-
-    @Upsert
-    suspend fun upsertPrice(entity: AssetPriceEntity)
-
-    @Query("SELECT COUNT(*) FROM asset_price WHERE assetId = :assetId AND source = 'MANUAL'")
-    suspend fun countPricesForAsset(assetId: String): Int
-
-    @Query("SELECT COUNT(*) FROM asset_price WHERE assetId = :assetId")
-    suspend fun countAllPricesForAsset(assetId: String): Int
-}
-
-@Dao
 interface NotificationDao {
     @Query("SELECT * FROM notification_structure ORDER BY id")
     suspend fun getAllStructuresForBackup(): List<NotificationStructureEntity>
@@ -345,6 +257,9 @@ interface NotificationDao {
 
     @Query("SELECT * FROM notification_record ORDER BY id")
     suspend fun getAllRecordsForBackup(): List<NotificationRecordEntity>
+
+    @Query("SELECT * FROM notification_record ORDER BY postedAt, createdAt")
+    fun observeAllRecords(): Flow<List<NotificationRecordEntity>>
 
     @Insert suspend fun insertAllStructuresForRestore(rows: List<NotificationStructureEntity>)
     @Insert suspend fun insertAllRulesForRestore(rows: List<NotificationRuleEntity>)
@@ -374,17 +289,50 @@ interface NotificationDao {
     suspend fun getRuleForKey(structureId: String, variableKey: String): NotificationRuleEntity?
 
     @Query("SELECT * FROM notification_rule WHERE id = :id") suspend fun getRule(id: String): NotificationRuleEntity?
+    @Query("SELECT * FROM notification_rule WHERE enabled = 1 ORDER BY createdAt, id")
+    fun observeEnabledRules(): Flow<List<NotificationRuleEntity>>
     @Upsert suspend fun upsertRule(row: NotificationRuleEntity)
     @Query("DELETE FROM notification_rule WHERE id = :id") suspend fun deleteRule(id: String)
 
     @Query("SELECT * FROM notification_record WHERE status = :status ORDER BY postedAt DESC, createdAt DESC")
     fun observeRecordsByStatus(status: String): Flow<List<NotificationRecordEntity>>
 
+    @Query("""
+        SELECT * FROM notification_record
+        WHERE status = 'AUTOMATIZADA'
+          AND ruleId IS NULL
+          AND structureId IS NOT NULL
+          AND variableText IS NOT NULL
+          AND (transactionId IS NOT NULL OR syncMovementId IS NOT NULL)
+        ORDER BY postedAt DESC, createdAt DESC
+    """)
+    fun observeRecordsUsingStructureDefaults(): Flow<List<NotificationRecordEntity>>
+
+    @Query("""
+        SELECT * FROM notification_record
+        WHERE status = 'AUTOMATIZADA'
+          AND ruleId IS NULL
+          AND structureId IS NOT NULL
+          AND variableText IS NOT NULL
+          AND (transactionId IS NOT NULL OR syncMovementId IS NOT NULL)
+        ORDER BY postedAt DESC, createdAt DESC
+    """)
+    suspend fun getRecordsUsingStructureDefaults(): List<NotificationRecordEntity>
+
+    @Query("SELECT * FROM notification_rule WHERE enabled = 1 ORDER BY createdAt, id")
+    suspend fun getEnabledRules(): List<NotificationRuleEntity>
+
+    @Query("SELECT COUNT(*) FROM notification_record WHERE status = 'PENDIENTE_ESTRUCTURA'")
+    suspend fun countPendingStructures(): Int
+
     @Query("SELECT * FROM notification_record WHERE id = :id") suspend fun getRecord(id: String): NotificationRecordEntity?
     @Query("SELECT * FROM notification_record WHERE transactionId = :transactionId LIMIT 1")
     suspend fun getRecordForTransaction(transactionId: String): NotificationRecordEntity?
-    @Query("SELECT * FROM notification_record WHERE status IN ('PENDIENTE_ESTRUCTURA','PENDIENTE_REGLA','PENDIENTE_CUENTA') ORDER BY createdAt, id")
+    @Query("SELECT * FROM notification_record WHERE status IN ('PENDIENTE_ESTRUCTURA','PENDIENTE_REGLA','PENDIENTE_CUENTA','PENDIENTE_SINCRONIZACION') ORDER BY createdAt, id")
     suspend fun getPendingRecords(): List<NotificationRecordEntity>
+    @Query("SELECT * FROM notification_record WHERE structureId = :structureId AND transactionId IS NOT NULL AND postedAt BETWEEN :fromInclusive AND :toInclusive")
+    suspend fun getRecordsWithTransactionBetween(structureId: String, fromInclusive: Long, toInclusive: Long): List<NotificationRecordEntity>
+
     @Query("SELECT * FROM notification_record WHERE packageName = :packageName AND postedAt BETWEEN :fromInclusive AND :toInclusive")
     suspend fun getRecordsBetween(packageName: String, fromInclusive: Long, toInclusive: Long): List<NotificationRecordEntity>
     @Upsert suspend fun upsertRecord(row: NotificationRecordEntity)
@@ -427,6 +375,15 @@ interface NotificationDao {
 
     @Query("SELECT COUNT(*) FROM notification_authorization WHERE accountId = :accountId")
     suspend fun countAuthorizationsForAccount(accountId: String): Int
+
+    @Query("UPDATE notification_authorization SET accountId = NULL WHERE accountId = :accountId")
+    suspend fun clearAccountFromAuthorizations(accountId: String)
+
+    @Query("UPDATE pending_proposal SET accountId = NULL WHERE accountId = :accountId AND status = 'PENDIENTE'")
+    suspend fun clearAccountFromPendingProposals(accountId: String)
+
+    @Query("SELECT COUNT(*) FROM pending_proposal WHERE accountId = :accountId")
+    suspend fun countPendingProposalsForAccount(accountId: String): Int
 
     @Query("SELECT * FROM pending_proposal WHERE status = 'PENDIENTE' ORDER BY postedAt DESC, createdAt DESC")
     fun observePendingProposals(): Flow<List<PendingProposalEntity>>

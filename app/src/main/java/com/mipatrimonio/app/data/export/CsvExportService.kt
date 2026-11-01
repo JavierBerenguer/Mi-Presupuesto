@@ -1,15 +1,10 @@
 package com.mipatrimonio.app.data.export
 
 import com.mipatrimonio.app.domain.calc.BalanceCalculator
-import com.mipatrimonio.app.domain.model.AssetType
 import com.mipatrimonio.app.domain.model.BudgetPeriod
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.model.MoneyMath
 import com.mipatrimonio.app.domain.model.MovementStatus
-import com.mipatrimonio.app.domain.model.OperationType
-import com.mipatrimonio.app.domain.model.PriceQuality
-import com.mipatrimonio.app.domain.model.PriceSource
-import com.mipatrimonio.app.domain.model.QuoteProvider
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.model.movementStatus
@@ -31,24 +26,19 @@ class CsvExportService(
     suspend fun create(): CsvExportArchive = create(repository.load(), today(), zoneId)
 
     companion object {
-        private val dateTimeFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
-        private val timeFormat = DateTimeFormatter.ofPattern("HH:mm:ss")
         internal fun create(data: CsvExportData, today: LocalDate, zoneId: ZoneId): CsvExportArchive {
             val accounts = data.accounts.associateBy { it.id }
             val categories = data.categories.associateBy { it.id }
-            val portfolios = data.portfolios.associateBy { it.id }
-            val assets = data.assets.associateBy { it.id }
             val rows = linkedMapOf(
                 "cuentas.csv" to accountsRows(data, today, zoneId),
+                "saldos_cuenta.csv" to accountBalanceRows(data),
                 "categorias.csv" to categoryRows(data.categories, categories),
                 "movimientos.csv" to transactionRows(data, accounts, categories, today),
                 "transferencias.csv" to transferRows(data, accounts, categories, today),
                 "presupuestos.csv" to budgetRows(data, categories),
-                "carteras.csv" to portfolioRows(data, accounts, zoneId),
-                "activos.csv" to assetRows(data),
-                "operaciones.csv" to operationRows(data, portfolios, assets, accounts),
-                "dividendos.csv" to dividendRows(data, assets, accounts),
-                "precios.csv" to priceRows(data, assets, zoneId),
+                "estructuras_notificacion.csv" to notificationStructureRows(data),
+                "reglas_notificacion.csv" to notificationRuleRows(data),
+                "registros_notificacion.csv" to notificationRecordRows(data, zoneId),
             )
             val output = ByteArrayOutputStream()
             ZipOutputStream(output, StandardCharsets.UTF_8).use { zip ->
@@ -65,13 +55,27 @@ class CsvExportService(
         }
 
         private fun accountsRows(data: CsvExportData, today: LocalDate, zoneId: ZoneId): List<List<String>> =
-            rows(listOf("id", "nombre", "tipo", "divisa", "saldo_inicial", "saldo_actual", "archivada", "fecha_creacion")) {
+            rows(listOf("id", "nombre", "nombre_corto", "tipo", "entidad", "divisa", "color", "liquidez", "uso_en_app", "saldo_inicial", "saldo_actual", "archivada", "fecha_creacion")) {
                 data.accounts.map { account ->
                     listOf(
-                        account.id, account.name, account.type.name.toSpanishWords(), account.currency,
+                        account.id, account.name, account.shortName.orEmpty(), account.type.name.toSpanishWords(),
+                        account.institution.orEmpty(), account.currency, account.color?.toString().orEmpty(),
+                        yesNo(account.liquidity), yesNo(account.useInApp),
                         money(account.initialBalanceMinor, account.currency),
-                        money(BalanceCalculator.balance(account, data.transactions, data.transfers, data.operations, today), account.currency),
+                        money(BalanceCalculator.balance(account, data.transactions, data.transfers, today, balanceRecords = data.accountBalances), account.currency),
                         yesNo(account.archived), Instant.ofEpochMilli(account.createdAt).atZone(zoneId).toLocalDate().toString(),
+                    )
+                }
+            }
+
+        private fun accountBalanceRows(data: CsvExportData): List<List<String>> =
+            rows(listOf("id", "cuenta_id", "fecha", "saldo", "actualizado", "eliminado")) {
+                val currencies = data.accounts.associate { it.id to it.currency }
+                data.accountBalances.map { value ->
+                    listOf(
+                        value.id, value.accountId, value.date.toString(),
+                        money(value.balanceMinor, currencies[value.accountId] ?: "EUR"),
+                        value.updatedAt.toString(), value.deletedAt?.toString().orEmpty(),
                     )
                 }
             }
@@ -92,7 +96,7 @@ class CsvExportService(
             categories: Map<String, Category>,
             today: LocalDate,
         ): List<List<String>> = rows(
-            listOf("id", "fecha", "tipo", "importe", "divisa", "cuenta", "categoria", "subcategoria", "descripcion", "comercio", "notas", "origen", "estado"),
+            listOf("id", "fecha", "tipo", "importe", "divisa", "cuenta", "categoria", "subcategoria", "descripcion", "comercio", "notas", "origen", "estado", "grupo"),
         ) {
             data.transactions.map { transaction ->
                 val selected = transaction.categoryId?.let(categories::get)
@@ -103,6 +107,7 @@ class CsvExportService(
                     accounts[transaction.accountId]?.name.orEmpty(), parent?.name ?: selected?.name.orEmpty(),
                     if (parent == null) "" else selected?.name.orEmpty(), transaction.description, transaction.merchant,
                     transaction.notes, source(transaction.source), status(movementStatus(transaction.date, today)),
+                    transaction.groupParentId.orEmpty(),
                 )
             }
         }
@@ -141,71 +146,31 @@ class CsvExportService(
             }
         }
 
-        private fun portfolioRows(
-            data: CsvExportData,
-            accounts: Map<String, com.mipatrimonio.app.domain.model.Account>,
-            zoneId: ZoneId,
-        ): List<List<String>> = rows(listOf("id", "nombre", "cuenta_predeterminada", "fecha_creacion", "archivada")) {
-            data.portfolios.map {
-                listOf(
-                    it.id, it.name, it.defaultAccountId?.let(accounts::get)?.name.orEmpty(),
-                    Instant.ofEpochMilli(it.createdAt).atZone(zoneId).toLocalDate().toString(),
-                    yesNo(it.archived),
-                )
+        private fun notificationStructureRows(data: CsvExportData): List<List<String>> = rows(
+            listOf("id", "aplicacion", "nombre", "plantilla", "sentido", "titulo", "detalle", "categoria_id", "activa", "destino", "producto_por_defecto_id"),
+        ) {
+            data.notificationStructures.map { value ->
+                listOf(value.id, value.packageName, value.name, value.template, value.direction, value.defaultTitle.orEmpty(),
+                    value.defaultDetail.orEmpty(), value.defaultCategoryId.orEmpty(), yesNo(value.enabled), value.target, value.defaultProductId.orEmpty())
             }
         }
 
-        private fun assetRows(data: CsvExportData): List<List<String>> = rows(
-            listOf("id", "nombre", "ticker", "isin", "tipo", "mercado", "divisa", "proveedor_cotizacion", "simbolo_cotizacion", "archivado"),
+        private fun notificationRuleRows(data: CsvExportData): List<List<String>> = rows(
+            listOf("id", "estructura_id", "clave_variable", "texto_variable", "titulo", "detalle", "categoria_id", "activa", "producto_id"),
         ) {
-            data.assets.map {
-                listOf(it.id, it.name, it.ticker, it.isin, assetType(it.type), it.market, it.currency, provider(it.quoteProvider), it.quoteSymbol.orEmpty(), yesNo(it.archived))
+            data.notificationRules.map { value ->
+                listOf(value.id, value.structureId, value.variableKey, value.variableDisplay, value.title.orEmpty(),
+                    value.detail.orEmpty(), value.categoryId.orEmpty(), yesNo(value.enabled), value.productId.orEmpty())
             }
         }
 
-        private fun operationRows(
-            data: CsvExportData,
-            portfolios: Map<String, com.mipatrimonio.app.domain.model.Portfolio>,
-            assets: Map<String, com.mipatrimonio.app.domain.model.Asset>,
-            accounts: Map<String, com.mipatrimonio.app.domain.model.Account>,
-        ): List<List<String>> = rows(
-            listOf("id", "fecha", "hora", "cartera", "activo", "tipo", "cantidad", "precio_unitario", "comisiones", "divisa", "cuenta", "traspaso"),
+        private fun notificationRecordRows(data: CsvExportData, zoneId: ZoneId): List<List<String>> = rows(
+            listOf("id", "aplicacion", "fecha", "texto", "importe_minor", "divisa", "estructura_id", "regla_id", "texto_variable", "estado", "apunte_id", "movimiento_sync_id"),
         ) {
-            data.operations.map {
-                listOf(
-                    it.id, it.date.toString(), timeFormat.format(it.time), portfolios[it.portfolioId]?.name.orEmpty(),
-                    assets[it.assetId]?.name.orEmpty(), operationType(it.type), decimal(it.quantity), decimal(it.unitPrice),
-                    money(it.feesMinor, it.currency), it.currency, it.accountId?.let(accounts::get)?.name.orEmpty(),
-                    it.transferGroupId.orEmpty(),
-                )
-            }
-        }
-
-        private fun dividendRows(
-            data: CsvExportData,
-            assets: Map<String, com.mipatrimonio.app.domain.model.Asset>,
-            accounts: Map<String, com.mipatrimonio.app.domain.model.Account>,
-        ): List<List<String>> = rows(
-            listOf("fecha", "activo", "importe_bruto", "retencion", "importe_neto", "divisa", "cuenta"),
-        ) {
-            data.operations.filter { it.type == OperationType.DIVIDENDO }.map {
-                val gross = MoneyMath.toMinor(it.quantity.multiply(it.unitPrice, MoneyMath.CONTEXT), it.currency)
-                listOf(
-                    it.date.toString(), assets[it.assetId]?.name.orEmpty(), money(gross, it.currency),
-                    money(it.feesMinor, it.currency), money(Math.subtractExact(gross, it.feesMinor), it.currency),
-                    it.currency, it.accountId?.let(accounts::get)?.name.orEmpty(),
-                )
-            }
-        }
-
-        private fun priceRows(data: CsvExportData, assets: Map<String, com.mipatrimonio.app.domain.model.Asset>, zoneId: ZoneId): List<List<String>> = rows(
-            listOf("activo", "fecha_hora", "precio", "divisa", "origen", "calidad"),
-        ) {
-            data.prices.map {
-                listOf(
-                    assets[it.assetId]?.name.orEmpty(), dateTimeFormat.format(Instant.ofEpochMilli(it.asOfEpochMillis).atZone(zoneId)),
-                    decimal(it.price), it.currency, priceSource(it.source), priceQuality(it.quality),
-                )
+            data.notificationRecords.map { value ->
+                listOf(value.id, value.packageName, Instant.ofEpochMilli(value.postedAt).atZone(zoneId).toString(), value.text,
+                    value.amountMinor?.toString().orEmpty(), value.currency.orEmpty(), value.structureId.orEmpty(), value.ruleId.orEmpty(),
+                    value.variableText.orEmpty(), value.status, value.transactionId.orEmpty(), value.syncMovementId.orEmpty())
             }
         }
 
@@ -229,27 +194,6 @@ class CsvExportService(
             BudgetPeriod.ANUAL -> "Anual"
             BudgetPeriod.UNICO -> "Único"
         }
-        private fun operationType(value: OperationType) = when (value) {
-            OperationType.COMPRA -> "Compra"
-            OperationType.VENTA -> "Venta"
-            OperationType.DIVIDENDO -> "Dividendo"
-            OperationType.COMISION -> "Comisión"
-            OperationType.TRASPASO_SALIDA -> "Traspaso salida"
-            OperationType.TRASPASO_ENTRADA -> "Traspaso entrada"
-        }
-        private fun assetType(value: AssetType) = value.name.toSpanishWords()
-        private fun provider(value: QuoteProvider?) = when (value) {
-            QuoteProvider.TWELVE_DATA -> "Twelve Data"
-            QuoteProvider.COINGECKO -> "CoinGecko"
-            QuoteProvider.EODHD -> "EODHD"
-            null -> ""
-        }
-        private fun priceSource(value: PriceSource) = if (value == PriceSource.MANUAL) "Manual" else "Proveedor"
-        private fun priceQuality(value: PriceQuality?) = when (value) {
-            PriceQuality.RETRASADO -> "Retrasado"
-            PriceQuality.CIERRE -> "Cierre"
-            null -> ""
-        }
         private fun String.toSpanishWords() = lowercase().replace('_', ' ').replaceFirstChar { it.titlecase() }
 
         private fun readme(): String = """
@@ -259,19 +203,16 @@ class CsvExportService(
 
             Formato: UTF-8 con BOM, separador punto y coma, fin de línea CRLF, fechas AAAA-MM-DD,
             horas HH:MM:SS e importes con coma decimal y sin separador de miles.
+            En movimientos.csv, grupo contiene el id del apunte principal o queda vacio si no esta agrupado.
 
             cuentas.csv: id; nombre; tipo; divisa; saldo_inicial; saldo_actual (solo movimientos ejecutados a la fecha de exportación); archivada; fecha_creacion.
             categorias.csv: id; nombre; categoria_padre (nombre); icono (clave estable); archivada.
             movimientos.csv: id; fecha; tipo; importe positivo; divisa; cuenta; categoria raíz; subcategoria; descripcion; comercio; notas; origen; estado.
             transferencias.csv: id; fecha; cuenta_origen; importe_origen; divisa_origen; cuenta_destino; importe_destino; divisa_destino; categoria; descripcion; estado. Las divisas proceden de las cuentas relacionadas porque la transferencia solo guarda sus identificadores e importes.
             presupuestos.csv: id; nombre; periodo; importe_limite; divisa; fecha_inicio; fecha_fin; umbral_aviso (porcentaje entero); categorias (nombres separados por |); incluye_subcategorias (Sí/No alineados con categorias); archivado.
-            carteras.csv: id; nombre; cuenta_predeterminada; fecha_creacion.
-            activos.csv: id; nombre; ticker; isin; tipo; mercado; divisa; proveedor_cotizacion; simbolo_cotizacion; archivado. El modelo también conserva MIC de cotización, que no forma parte del formato solicitado.
-            operaciones.csv: id; fecha; hora; cartera; activo; tipo; cantidad; precio_unitario; comisiones (o retención en dividendos); divisa; cuenta; traspaso. Una cuenta vacía indica que la operación no tiene cuenta vinculada; traspaso identifica las dos patas del mismo traslado.
-            dividendos.csv: subconjunto de operaciones de tipo dividendo; fecha; activo; importe_bruto (cantidad × precio_unitario); retencion (campo de comisiones del modelo); importe_neto; divisa; cuenta.
-            precios.csv: activo; fecha_hora; precio; divisa; origen; calidad.
+            estructuras_notificacion.csv, reglas_notificacion.csv y registros_notificacion.csv: configuración y trazabilidad de automatizaciones, incluidos el destino, los productos de inversión y el movimiento sincronizado.
 
-            No se incluyen ajustes, secretos, claves, autorizaciones, diagnósticos ni propuestas de notificaciones.
+            No se incluyen ajustes, secretos, claves, autorizaciones, diagnósticos ni propuestas pendientes del motor antiguo de notificaciones.
         """.trimIndent() + "\r\n"
     }
 }

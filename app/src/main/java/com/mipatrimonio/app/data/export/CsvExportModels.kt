@@ -1,25 +1,25 @@
 package com.mipatrimonio.app.data.export
 
 import com.mipatrimonio.app.domain.model.Account
-import com.mipatrimonio.app.domain.model.Asset
-import com.mipatrimonio.app.domain.model.AssetPrice
+import com.mipatrimonio.app.domain.model.AccountBalanceRecord
 import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.InvestmentOperation
-import com.mipatrimonio.app.domain.model.Portfolio
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.Transfer
+import com.mipatrimonio.app.data.db.NotificationRecordEntity
+import com.mipatrimonio.app.data.db.NotificationRuleEntity
+import com.mipatrimonio.app.data.db.NotificationStructureEntity
 
 data class CsvExportData(
     val accounts: List<Account>,
+    val accountBalances: List<AccountBalanceRecord> = emptyList(),
     val categories: List<Category>,
     val transactions: List<Transaction>,
     val transfers: List<Transfer>,
     val budgets: List<Budget>,
-    val portfolios: List<Portfolio>,
-    val assets: List<Asset>,
-    val operations: List<InvestmentOperation>,
-    val prices: List<AssetPrice>,
+    val notificationStructures: List<NotificationStructureEntity> = emptyList(),
+    val notificationRules: List<NotificationRuleEntity> = emptyList(),
+    val notificationRecords: List<NotificationRecordEntity> = emptyList(),
 )
 
 data class CsvExportArchive(

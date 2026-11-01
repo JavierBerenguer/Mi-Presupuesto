@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.mipatrimonio.app.data.db.*
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.NotificationRepository
+import com.mipatrimonio.app.data.repository.PendingAutomationAlert
 import com.mipatrimonio.app.domain.model.*
 import com.mipatrimonio.app.domain.notifications.*
 import java.time.ZoneId
@@ -55,19 +56,46 @@ class NotificationRepositoryTest {
         assertEquals(NotificationRecordStatus.DUPLICADA.name, db.notificationDao().getAllRecordsForBackup().last().status)
     }
 
-    @Test fun `estructura sin regla y regla deshabilitada quedan pendientes`() = runTest {
+    @Test fun `comercio nuevo usa valores generales y regla deshabilitada tambien`() = runTest {
         authorizeWithAccount()
+        db.categoryDao().upsert(CategoryEntity("general", "General", "GASTO", null, 0, false, 0))
         val recordId = (repository.ingest(notification("Has pagado 1,60 € a CAFÉ")) as NotificationOutcome.Registrada).recordId
-        val structure = repository.createStructureFromRecord(recordId, "Pago", 0..9, 20..23, NotificationDirection.SEGUN_SIGNO)
+        val structure = repository.createStructureFromRecord(
+            recordId, "Pago", 0..9, 20..23, NotificationDirection.SEGUN_SIGNO,
+            NotificationDefaults("Título general", "Detalle general", "general"),
+        )
         val created = db.notificationDao().getRecord(recordId)!!
-        assertEquals(NotificationRecordStatus.AUTOMATIZADA.name, created.status)
-
         repository.setRuleEnabled(requireNotNull(created.ruleId), false)
+
         val next = repository.ingest(notification("Has pagado 2,00 € a CAFÉ", 500_000)) as NotificationOutcome.Registrada
-        assertEquals(NotificationRecordStatus.PENDIENTE_REGLA, next.status)
+        assertEquals(NotificationRecordStatus.AUTOMATIZADA, next.status)
+        val stored = db.notificationDao().getRecord(next.recordId)!!
+        assertNull(stored.ruleId)
+        val transaction = db.transactionDao().getById(requireNotNull(stored.transactionId))!!
+        assertEquals("general", transaction.categoryId)
+        assertEquals("Título general", transaction.description)
+        assertEquals("Detalle general", transaction.notes)
+        assertEquals("CAFÉ", transaction.merchant)
+
         repository.setStructureEnabled(structure.id, false)
         val disabled = repository.ingest(notification("Has pagado 3,00 € a CAFÉ", 900_000)) as NotificationOutcome.Registrada
         assertEquals(NotificationRecordStatus.PENDIENTE_ESTRUCTURA, disabled.status)
+    }
+
+    @Test fun `estructura sin valores usa texto variable titulo vacio notas y categoria`() = runTest {
+        authorizeWithAccount()
+        val seed = (repository.ingest(notification("Pago 1 EUR en Uno")) as NotificationOutcome.Registrada).recordId
+        repository.createStructureFromRecord(seed, "Pago", 0..3, 14..16, NotificationDirection.GASTO)
+
+        val recordId = (repository.ingest(notification("Pago 2 EUR en Dos", 500_000)) as NotificationOutcome.Registrada).recordId
+        val record = db.notificationDao().getRecord(recordId)!!
+        val transaction = db.transactionDao().getById(requireNotNull(record.transactionId))!!
+
+        assertEquals(NotificationRecordStatus.AUTOMATIZADA.name, record.status)
+        assertNull(record.ruleId)
+        assertEquals("Dos", transaction.description)
+        assertEquals("", transaction.notes)
+        assertNull(transaction.categoryId)
     }
 
     @Test fun `automatiza con prioridades signo fecha y como maximo un apunte`() = runTest {
@@ -99,23 +127,110 @@ class NotificationRepositoryTest {
         assertEquals(TransactionType.INGRESO.name, txn.type)
     }
 
-    @Test fun `crear regla reprocesa pendiente y borrar estructura conserva registro`() = runTest {
+    @Test fun `pendiente regla preexistente espera regla y entonces se automatiza`() = runTest {
         authorizeWithAccount()
         val seed = (repository.ingest(notification("Has pagado 1 EUR a Uno")) as NotificationOutcome.Registrada).recordId
         val structure = repository.createStructureFromRecord(seed, "Pago", 0..9, 19..21, NotificationDirection.GASTO)
-        val pending = (repository.ingest(notification("Has pagado 2 EUR a Dos", 500_000)) as NotificationOutcome.Registrada).recordId
-        assertEquals(NotificationRecordStatus.PENDIENTE_REGLA.name, db.notificationDao().getRecord(pending)?.status)
-        repository.createRuleForRecord(pending, NotificationRuleValues(title = "Dos"))
-        assertEquals(NotificationRecordStatus.AUTOMATIZADA.name, db.notificationDao().getRecord(pending)?.status)
-        repository.deleteStructure(structure.id)
-        val retained = db.notificationDao().getRecord(seed)!!
-        assertNull(retained.structureId); assertNull(retained.ruleId); assertNotNull(retained.transactionId)
+        val pending = NotificationRecordEntity(
+            "legacy", PACKAGE, 500_000, "Has pagado 2 EUR a Dos", 200, "EUR", structure.id, null, "Dos",
+            NotificationRecordStatus.PENDIENTE_REGLA.name, null, now++,
+        )
+        db.notificationDao().upsertRecord(pending)
+
+        repository.reprocessPending()
+        assertEquals(NotificationRecordStatus.PENDIENTE_REGLA.name, db.notificationDao().getRecord(pending.id)?.status)
+        assertNull(db.notificationDao().getRecord(pending.id)?.transactionId)
+        assertNull(repository.pendingAlertFor(pending.id))
+        repository.createRuleForRecord(pending.id, NotificationRuleValues(title = "Dos específico"))
+        val automated = db.notificationDao().getRecord(pending.id)!!
+        assertEquals(NotificationRecordStatus.AUTOMATIZADA.name, automated.status)
+        assertEquals("Dos específico", db.transactionDao().getById(requireNotNull(automated.transactionId))?.description)
+    }
+
+    @Test fun `crear regla tras usar general no cambia apunte previo y se aplica al siguiente`() = runTest {
+        authorizeWithAccount()
+        val seed = (repository.ingest(notification("Pago 1 EUR en Uno")) as NotificationOutcome.Registrada).recordId
+        repository.createStructureFromRecord(
+            seed, "Pago", 0..3, 14..16, NotificationDirection.GASTO,
+            NotificationDefaults("General", "Detalle general"),
+        )
+        val generalId = (repository.ingest(notification("Pago 2 EUR en Dos", 500_000)) as NotificationOutcome.Registrada).recordId
+        val generalRecord = db.notificationDao().getRecord(generalId)!!
+        val before = db.transactionDao().getById(requireNotNull(generalRecord.transactionId))!!
+
+        now = 2 * DAY   // al día siguiente: el apunte de ayer no se toca
+        repository.createRuleForRecord(generalId, NotificationRuleValues("Específico", "Detalle específico"))
+        val unchangedRecord = db.notificationDao().getRecord(generalId)!!
+        val unchanged = db.transactionDao().getById(requireNotNull(unchangedRecord.transactionId))!!
+        assertEquals(before.description, unchanged.description)
+        assertEquals(before.categoryId, unchanged.categoryId)
+        assertEquals(before.notes, unchanged.notes)
+        assertEquals(before.updatedAt, unchanged.updatedAt)
+        assertNull(unchangedRecord.ruleId)
+
+        val nextId = (repository.ingest(notification("Pago 3 EUR en Dos", 900_000)) as NotificationOutcome.Registrada).recordId
+        val next = db.notificationDao().getRecord(nextId)!!
+        assertNotNull(next.ruleId)
+        assertEquals("Específico", db.transactionDao().getById(requireNotNull(next.transactionId))?.description)
+    }
+
+    @Test fun `pendiente cuenta usa general al asignar cuenta`() = runTest {
+        repository.setAuthorized(PACKAGE, true, null)
+        val seed = (repository.ingest(notification("Pago 1 EUR en Uno")) as NotificationOutcome.Registrada).recordId
+        repository.createStructureFromRecord(seed, "Pago", 0..3, 14..16, NotificationDirection.GASTO)
+        val pendingId = (repository.ingest(notification("Pago 2 EUR en Dos", 500_000)) as NotificationOutcome.Registrada).recordId
+        assertEquals(NotificationRecordStatus.PENDIENTE_CUENTA.name, db.notificationDao().getRecord(pendingId)?.status)
+
+        saveAccount("account", "EUR")
+        repository.updateAccount(PACKAGE, "account")
+        val automated = db.notificationDao().getRecord(pendingId)!!
+        assertEquals(NotificationRecordStatus.AUTOMATIZADA.name, automated.status)
+        assertNull(automated.ruleId)
+        assertNotNull(automated.transactionId)
+    }
+
+    @Test fun `comercios generales agrupan normalizado separan estructura y excluyen regla habilitada`() = runTest {
+        authorizeWithAccount()
+        val firstSeed = (repository.ingest(notification("Pago 1 EUR en Semilla", 1_000)) as NotificationOutcome.Registrada).recordId
+        repository.createStructureFromRecord(firstSeed, "Pago", 0..3, 14..20, NotificationDirection.GASTO)
+        repository.ingest(notification("Pago 2 EUR en CAFÉ", 500_000))
+        val latestCafe = (repository.ingest(notification("Pago 3 EUR en cafe", 900_000)) as NotificationOutcome.Registrada).recordId
+        repository.ingest(notification("Pago 4 EUR en Otro", 1_300_000))
+        val secondSeed = (repository.ingest(notification("Compra 1 EUR a Semilla", 1_700_000)) as NotificationOutcome.Registrada).recordId
+        repository.createStructureFromRecord(secondSeed, "Compra", 0..5, 15..21, NotificationDirection.GASTO)
+        repository.ingest(notification("Compra 5 EUR a cafe", 2_100_000))
+
+        val grouped = repository.merchantsUsingStructureDefaults.first { it.size == 3 }
+        assertEquals(2, grouped.single { it.recordId == latestCafe }.transactionCount)
+        assertEquals(2, grouped.count { it.variableKey == normalizeVariable("café") })
+        assertEquals("cafe", grouped.first().variableText)
+
+        repository.createRuleForRecord(latestCafe, NotificationRuleValues())
+        val afterRule = repository.merchantsUsingStructureDefaults.first { it.size == 2 }
+        assertFalse(afterRule.any { it.structureName == "Pago" && it.variableKey == normalizeVariable("café") })
+    }
+
+    @Test fun `general cuyo apunte se borra no se lista ni se reprocesa`() = runTest {
+        authorizeWithAccount()
+        val seed = (repository.ingest(notification("Pago 1 EUR en Uno")) as NotificationOutcome.Registrada).recordId
+        repository.createStructureFromRecord(seed, "Pago", 0..3, 14..16, NotificationDirection.GASTO)
+        val generalId = (repository.ingest(notification("Pago 2 EUR en Dos", 500_000)) as NotificationOutcome.Registrada).recordId
+        val record = db.notificationDao().getRecord(generalId)!!
+        LedgerRepository(db).deleteTransaction(requireNotNull(record.transactionId))
+
+        val afterDelete = db.notificationDao().getRecord(generalId)!!
+        assertEquals(NotificationRecordStatus.AUTOMATIZADA.name, afterDelete.status)
+        assertNull(afterDelete.transactionId)
+        assertTrue(repository.merchantsUsingStructureDefaults.first().none { it.recordId == generalId })
+        repository.reprocessPending()
+        assertNull(db.notificationDao().getRecord(generalId)?.transactionId)
     }
 
     @Test fun `categoria eliminada produce apunte sin categoria`() = runTest {
         authorizeWithAccount(); db.categoryDao().upsert(CategoryEntity("cat", "Temporal", "GASTO", null, 0, false, 0))
         val seed = (repository.ingest(notification("Pago 1 EUR en Uno")) as NotificationOutcome.Registrada).recordId
         val structure = repository.createStructureFromRecord(seed, "Pago", 0..3, 14..16, NotificationDirection.GASTO)
+        now = 2 * DAY   // el apunte inicial es de otro día: no recibe la categoría de la regla
         val row = db.notificationDao().getAllRulesForBackup().single()
         repository.saveRule(NotificationRule(row.id, row.structureId, row.variableKey, row.variableDisplay,
             row.title, row.detail, "cat", row.enabled, row.createdAt, row.updatedAt))
@@ -145,9 +260,107 @@ class NotificationRepositoryTest {
         assertTrue(runCatching { repository.markRecordCreatedManually(manualRecord, transaction.id) }.exceptionOrNull() is IllegalStateException)
     }
 
+    @Test fun `avisa de estructura nueva con recuentos y excluye resultados no avisables`() = runTest {
+        val (unauthorized, unauthorizedAlert) = repository.ingestWithPendingAlert(notification("Formato nuevo 1 EUR"))
+        assertEquals(NotificationOutcome.AppNoAutorizada, unauthorized)
+        assertNull(unauthorizedAlert)
+        authorizeWithAccount()
+        val (firstOutcome, firstAlert) = repository.ingestWithPendingAlert(notification("Formato nuevo 1 EUR"))
+        val first = firstOutcome as NotificationOutcome.Registrada
+        assertEquals(PendingAutomationAlert(1, 0), firstAlert)
+
+        val (duplicate, duplicateAlert) = repository.ingestWithPendingAlert(notification("Formato nuevo 1 EUR", 1_001))
+        assertTrue(duplicate is NotificationOutcome.Duplicada)
+        assertNull(duplicateAlert)
+
+        val (sensitive, sensitiveAlert) = repository.ingestWithPendingAlert(notification("Código de verificación 123456", 500_000))
+        assertTrue(sensitive is NotificationOutcome.NoInterpretable)
+        assertNull(sensitiveAlert)
+
+        repository.setAuthorized("sin.cuenta", true, null)
+        val pendingAccount = repository.ingest(BankNotification("sin.cuenta", "", "Otro formato 2 EUR", 500_000)) as NotificationOutcome.Registrada
+        assertEquals(NotificationRecordStatus.PENDIENTE_CUENTA, pendingAccount.status)
+        assertNull(repository.pendingAlertFor(pendingAccount.recordId))
+    }
+
+    @Test fun `comercio general solo avisa la primera vez usando clave normalizada y cuenta grupos`() = runTest {
+        authorizeWithAccount()
+        val seed = (repository.ingest(notification("Pago 1 EUR en Semilla")) as NotificationOutcome.Registrada).recordId
+        repository.createStructureFromRecord(seed, "Pago", 0..3, 14..20, NotificationDirection.GASTO)
+
+        val first = (repository.ingest(notification("Pago 2 EUR en CAFÉ", 500_000)) as NotificationOutcome.Registrada).recordId
+        val firstAlert = repository.pendingAlertFor(first)
+        assertEquals(1, firstAlert?.newMerchantCount)
+        // El aviso nombra el comercio y la regla general (la estructura) que se le ha aplicado.
+        assertEquals("CAFÉ", firstAlert?.newMerchant?.merchant)
+        assertEquals("Pago", firstAlert?.newMerchant?.generalRuleName)
+        assertEquals(first, firstAlert?.newMerchant?.recordId)
+        val repeated = (repository.ingest(notification("Pago 3 EUR en cafe", 900_000)) as NotificationOutcome.Registrada).recordId
+        assertNull(repository.pendingAlertFor(repeated))
+        val second = (repository.ingest(notification("Pago 4 EUR en Otro", 1_300_000)) as NotificationOutcome.Registrada).recordId
+        assertEquals(2, repository.pendingAlertFor(second)?.newMerchantCount)
+
+        val (_, combinedAlert) = repository.ingestWithPendingAlert(notification("Estructura distinta 6 EUR", 1_500_000))
+        assertEquals(PendingAutomationAlert(1, 2), combinedAlert)   // sin comercio nuevo: aviso general
+
+        repository.createRuleForRecord(first, NotificationRuleValues())
+        val configured = (repository.ingest(notification("Pago 5 EUR en CAFE", 1_700_000)) as NotificationOutcome.Registrada).recordId
+        assertNotNull(db.notificationDao().getRecord(configured)?.ruleId)
+        assertNull(repository.pendingAlertFor(configured))
+    }
+
+    @Test fun `comercio puede volver a avisar si se borro el unico apunte general vivo`() = runTest {
+        authorizeWithAccount()
+        val seed = (repository.ingest(notification("Pago 1 EUR en Uno")) as NotificationOutcome.Registrada).recordId
+        repository.createStructureFromRecord(seed, "Pago", 0..3, 14..16, NotificationDirection.GASTO)
+        val first = (repository.ingest(notification("Pago 2 EUR en Dos", 500_000)) as NotificationOutcome.Registrada).recordId
+        assertNotNull(repository.pendingAlertFor(first))
+        LedgerRepository(db).deleteTransaction(requireNotNull(db.notificationDao().getRecord(first)?.transactionId))
+
+        val returned = (repository.ingest(notification("Pago 3 EUR en DÓS", 900_000)) as NotificationOutcome.Registrada).recordId
+        assertEquals(1, repository.pendingAlertFor(returned)?.newMerchantCount)
+    }
+
     private suspend fun authorizeWithAccount() { saveAccount("account", "EUR"); repository.setAuthorized(PACKAGE, true, "account") }
     private suspend fun saveAccount(id: String, currency: String, archived: Boolean = false) =
         LedgerRepository(db, clock = { now++ }).saveAccount(Account(id, id, AccountType.CORRIENTE, currency, 0, archived, now))
     private fun notification(text: String, postedAt: Long = 1_000) = BankNotification(PACKAGE, "", text, postedAt)
-    private companion object { const val PACKAGE = "app.bank" }
+    @Test fun `cambiar una regla actualiza los apuntes de hoy de ese comercio y respeta lo editado`() = runTest {
+        authorizeWithAccount()
+        db.categoryDao().upsert(CategoryEntity("cafe", "Cafés", "GASTO", null, 0, false, 0))
+        val seed = (repository.ingest(notification("Pago 1 EUR en Uno")) as NotificationOutcome.Registrada).recordId
+        repository.createStructureFromRecord(seed, "Pago", 0..3, 14..16, NotificationDirection.GASTO,
+            NotificationDefaults("General", "Detalle general"))
+        now = 10 * DAY + 5_000   // «hoy» es el día 10
+        val yesterday = (repository.ingest(notification("Pago 2 EUR en Bar", 9 * DAY + 1_000)) as NotificationOutcome.Registrada).recordId
+        val today1 = (repository.ingest(notification("Pago 3 EUR en Bar", 10 * DAY + 1_000)) as NotificationOutcome.Registrada).recordId
+        val today2 = (repository.ingest(notification("Pago 4 EUR en bar", 10 * DAY + 2_000)) as NotificationOutcome.Registrada).recordId
+        val other = (repository.ingest(notification("Pago 5 EUR en Otro", 10 * DAY + 3_000)) as NotificationOutcome.Registrada).recordId
+        fun tx(record: String) = kotlinx.coroutines.runBlocking {
+            db.transactionDao().getById(requireNotNull(db.notificationDao().getRecord(record)?.transactionId))!!
+        }
+        // Retoque manual del detalle en uno de los de hoy.
+        db.transactionDao().upsert(tx(today2).copy(notes = "Lo cambié yo"))
+
+        // Nueva regla de comercio sobre apuntes creados con la regla general.
+        repository.createRuleForRecord(today1, NotificationRuleValues("Bar de la esquina", "Café", "cafe"))
+        assertEquals("Bar de la esquina", tx(today1).description)
+        assertEquals("Café", tx(today1).notes)
+        assertEquals("cafe", tx(today1).categoryId)
+        assertEquals("Bar de la esquina", tx(today2).description)
+        assertEquals("Lo cambié yo", tx(today2).notes)        // lo editado a mano se respeta
+        assertEquals("General", tx(yesterday).description)     // otro día: no se toca
+        assertEquals("General", tx(other).description)         // otro comercio: no se toca
+        assertNotNull(db.notificationDao().getRecord(today2)?.ruleId)
+
+        // Cambiar la regla vuelve a actualizar los de hoy.
+        val rule = db.notificationDao().getAllRulesForBackup().single { it.variableKey == "bar" }
+        repository.saveRule(NotificationRule(rule.id, rule.structureId, rule.variableKey, rule.variableDisplay,
+            "Bar Pepe", rule.detail, rule.categoryId, true, rule.createdAt, rule.updatedAt))
+        assertEquals("Bar Pepe", tx(today1).description)
+        assertEquals("Bar Pepe", tx(today2).description)
+        assertEquals("General", tx(yesterday).description)
+    }
+
+    private companion object { const val PACKAGE = "app.bank"; const val DAY = 86_400_000L }
 }

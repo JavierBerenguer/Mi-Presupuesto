@@ -18,15 +18,11 @@ class ImportReviewRulesTest {
         assertFalse(canConvertToMovement(row("FREE_DELIVERY", 0)))
     }
 
-    @Test fun `TRADING ofrece operacion y CASH ofrece movimiento con estado de decision actual`() {
+    @Test fun `TRADING no se convierte y CASH ofrece movimiento con estado de decision actual`() {
         val trading = PlannedImportRow(row("BUY", -1_000).copy(category = "TRADING"), ImportRowStatus.REVIEW)
         val cash = PlannedImportRow(row("BONUS", 100), ImportRowStatus.REVIEW)
 
-        assertEquals(ImportReviewAction.IMPORT_OPERATION, importReviewItem(trading, null).action)
-        assertEquals(
-            ImportReviewDecisionState.IMPORT_OPERATION,
-            importReviewItem(trading.copy(status = ImportRowStatus.CREATE), ImportRowDecision.AcceptDefault).decisionState,
-        )
+        assertEquals(ImportReviewAction.NONE, importReviewItem(trading, null).action)
         assertEquals(ImportReviewAction.IMPORT_MOVEMENT, importReviewItem(cash, null).action)
         assertEquals(
             ImportReviewDecisionState.IMPORT_MOVEMENT,
@@ -35,6 +31,21 @@ class ImportReviewRulesTest {
         assertEquals(
             ImportReviewDecisionState.IGNORED,
             importReviewItem(cash.copy(status = ImportRowStatus.IGNORED), ImportRowDecision.Ignore).decisionState,
+        )
+    }
+
+    @Test fun `dividendo solo ofrece seleccionar producto`() {
+        val dividend = PlannedImportRow(
+            row("DIVIDEND", 100).copy(kind = ImportedKind.DIVIDENDO),
+            ImportRowStatus.REVIEW,
+        )
+        assertEquals(ImportReviewAction.SELECT_INVESTMENT, importReviewItem(dividend, null).action)
+        assertEquals(
+            ImportReviewDecisionState.IMPORT_INVESTMENT,
+            importReviewItem(
+                dividend.copy(status = ImportRowStatus.CREATE),
+                ImportRowDecision.AsInvestment("product"),
+            ).decisionState,
         )
     }
 

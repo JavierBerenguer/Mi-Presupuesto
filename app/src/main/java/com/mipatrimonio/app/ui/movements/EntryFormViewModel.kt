@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.NotificationRepository
 import com.mipatrimonio.app.domain.calc.BalanceCalculator
+import com.mipatrimonio.app.domain.calc.TransactionGroups
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.model.MoneyMath
@@ -56,6 +57,8 @@ data class OriginalNotificationUi(
     val text: String,
     val structureName: String?,
     val ruleName: String?,
+    val usesStructureDefaults: Boolean = false,
+    val configurableRecordId: String? = null,
 )
 
 data class EntryFormUiState(
@@ -71,10 +74,14 @@ data class EntryFormUiState(
     val error: EntryFormError? = null,
     val saveFailed: Boolean = false,
     val originalNotification: OriginalNotificationUi? = null,
+    val groupChildCount: Int = 0,
+    val groupNetMinor: Long? = null,
+    val groupCurrency: String? = null,
+    val groupParentTitle: String? = null,
 ) {
-    val activeAccounts: List<Account> get() = accounts.filterNot(Account::archived)
-    val selectedAccount: Account? get() = accounts.find { it.id == values.accountId }
-    val selectedDestinationAccount: Account? get() = accounts.find { it.id == values.destinationAccountId }
+    val activeAccounts: List<Account> get() = accounts.filter { !it.archived && it.useInApp }
+    val selectedAccount: Account? get() = activeAccounts.find { it.id == values.accountId }
+    val selectedDestinationAccount: Account? get() = activeAccounts.find { it.id == values.destinationAccountId }
     val selectedCategory: Category? get() = categories.find { it.id == values.categoryId }
     val selectedCategoryIsArchived: Boolean get() = selectedCategory?.archived == true
     val hasData: Boolean
@@ -152,7 +159,18 @@ class EntryFormViewModel(
                     notificationRepository?.recordForTransaction(transaction.id)?.let { record ->
                         val structure = notificationRepository.structures.first().find { it.id == record.structureId }
                         val rule = structure?.let { value -> notificationRepository.rules(value.id).first().find { it.id == record.ruleId } }
-                        OriginalNotificationUi(record.text, structure?.name, rule?.variableDisplay)
+                        val usesStructureDefaults = record.status == com.mipatrimonio.app.domain.notifications.NotificationRecordStatus.AUTOMATIZADA &&
+                            record.ruleId == null && record.structureId != null && record.variableText != null && record.transactionId != null
+                        val hasEnabledRule = if (usesStructureDefaults && structure != null) {
+                            notificationRepository.hasEnabledRule(structure.id, requireNotNull(record.variableText))
+                        } else false
+                        OriginalNotificationUi(
+                            text = record.text,
+                            structureName = structure?.name,
+                            ruleName = rule?.variableDisplay,
+                            usesStructureDefaults = usesStructureDefaults,
+                            configurableRecordId = record.id.takeIf { usesStructureDefaults && !hasEnabledRule },
+                        )
                     }
                 }.getOrNull()?.let { originalNotificationState.value = it }
             }
@@ -176,6 +194,13 @@ class EntryFormViewModel(
     ) { data, currentValues, initial, isInitialized, presentation ->
         val originalNotification = presentation.first
         val status = presentation.second
+        val transaction = originalTransaction
+        val groupChildren = transaction?.let { parent ->
+            data?.transactions.orEmpty().filter { it.groupParentId == parent.id }
+        }.orEmpty()
+        val groupParent = transaction?.groupParentId?.let { parentId ->
+            data?.transactions.orEmpty().find { it.id == parentId }
+        }
         EntryFormUiState(
             isLoading = data == null || currentValues == null || !isInitialized,
             isEditing = entryId != null,
@@ -194,6 +219,11 @@ class EntryFormViewModel(
             error = status.second,
             saveFailed = status.third,
             originalNotification = originalNotification,
+            groupChildCount = groupChildren.size,
+            groupNetMinor = transaction?.takeIf { groupChildren.isNotEmpty() }
+                ?.let { TransactionGroups.netAmountMinor(it, groupChildren) },
+            groupCurrency = transaction?.currency,
+            groupParentTitle = groupParent?.description?.ifBlank { groupParent.merchant },
         )
     }.stateIn(
         scope = viewModelScope,
@@ -202,13 +232,17 @@ class EntryFormViewModel(
     )
 
     fun setKind(kind: EntryKind) {
-        if (entryId != null) return
+        if (entryId != null) {
+            // Al editar solo se alterna gasto/ingreso: pasar a transferencia cambiaría de tabla y rompería el enlace con la notificación.
+            if (kind != EntryKind.TRANSFER) updateValues { current -> if (current.kind == EntryKind.TRANSFER) current else current.copy(kind = kind) }
+            return
+        }
         val accounts = sourceData.value?.accounts.orEmpty()
         updateValues { current ->
             val sourceId = current.accountId
             val destinationId = current.destinationAccountId
-                ?.takeIf { it != sourceId && accounts.any { account -> account.id == it && !account.archived } }
-                ?: accounts.firstOrNull { !it.archived && it.id != sourceId }?.id
+                ?.takeIf { it != sourceId && accounts.any { account -> account.id == it && !account.archived && account.useInApp } }
+                ?: accounts.firstOrNull { !it.archived && it.useInApp && it.id != sourceId }?.id
             current.copy(
                 kind = kind,
                 destinationAccountId = if (kind == EntryKind.TRANSFER) destinationId else current.destinationAccountId,
@@ -240,7 +274,7 @@ class EntryFormViewModel(
         updateValues { current ->
             val destinationId = current.destinationAccountId
                 ?.takeIf { it != accountId }
-                ?: accounts.firstOrNull { !it.archived && it.id != accountId }?.id
+                ?: accounts.firstOrNull { !it.archived && it.useInApp && it.id != accountId }?.id
             current.copy(
                 accountId = accountId,
                 destinationAccountId = destinationId,
@@ -303,7 +337,7 @@ class EntryFormViewModel(
     }
 
     private fun saveTransaction(current: EntryFormValues, data: SourceData, addAnother: Boolean) {
-        val account = current.accountId?.let { id -> data.accounts.find { it.id == id && !it.archived } }
+        val account = current.accountId?.let { id -> data.accounts.find { it.id == id && !it.archived && it.useInApp } }
         if (account == null) return fail(EntryFormError.ACCOUNT_REQUIRED)
         val amountMinor = current.amount.toPositiveMinorOrNull(account.currency)
             ?: return fail(EntryFormError.INVALID_AMOUNT)
@@ -324,14 +358,15 @@ class EntryFormViewModel(
                     source = previous?.source ?: TransactionSource.MANUAL,
                     createdAt = previous?.createdAt ?: clock(),
                     updatedAt = clock(),
+                    groupParentId = previous?.groupParentId,
                 ),
             )
         }
     }
 
     private fun saveTransfer(current: EntryFormValues, data: SourceData, addAnother: Boolean) {
-        val from = current.accountId?.let { id -> data.accounts.find { it.id == id && !it.archived } }
-        val to = current.destinationAccountId?.let { id -> data.accounts.find { it.id == id && !it.archived } }
+        val from = current.accountId?.let { id -> data.accounts.find { it.id == id && !it.archived && it.useInApp } }
+        val to = current.destinationAccountId?.let { id -> data.accounts.find { it.id == id && !it.archived && it.useInApp } }
         if (from == null || to == null) return fail(EntryFormError.ACCOUNT_REQUIRED)
         if (from.id == to.id) return fail(EntryFormError.ACCOUNTS_MUST_DIFFER)
         val fromMinor = current.amount.toPositiveMinorOrNull(from.currency)
@@ -388,7 +423,7 @@ class EntryFormViewModel(
     }
 
     private fun newEntryValues(data: SourceData, kind: EntryKind = EntryKind.EXPENSE): EntryFormValues {
-        val activeAccounts = data.accounts.filterNot(Account::archived)
+        val activeAccounts = data.accounts.filter { !it.archived && it.useInApp }
         val lastAccountId = (
             data.transactions.map { it.createdAt to it.accountId } +
                 data.transfers.map { it.createdAt to it.fromAccountId }

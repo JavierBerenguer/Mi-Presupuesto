@@ -5,9 +5,9 @@ import com.mipatrimonio.app.data.importer.ImportRowDecision
 import com.mipatrimonio.app.data.importer.ImportRowStatus
 import com.mipatrimonio.app.data.importer.PlannedImportRow
 
-enum class ImportReviewAction { IMPORT_OPERATION, IMPORT_MOVEMENT, NONE }
+enum class ImportReviewAction { IMPORT_MOVEMENT, SELECT_INVESTMENT, NONE }
 
-enum class ImportReviewDecisionState { PENDING, IGNORED, IMPORT_OPERATION, IMPORT_MOVEMENT }
+enum class ImportReviewDecisionState { PENDING, IGNORED, IMPORT_MOVEMENT, IMPORT_INVESTMENT }
 
 data class ImportReviewItem(
     val row: PlannedImportRow,
@@ -16,21 +16,21 @@ data class ImportReviewItem(
 )
 
 internal fun canConvertToMovement(row: ImportedMovement): Boolean =
-    runCatching { Math.addExact(Math.addExact(row.amountCents, row.feeCents), row.taxCents) != 0L }.getOrDefault(false)
+    row.category.equals("CASH", ignoreCase = true) &&
+        runCatching { Math.addExact(Math.addExact(row.amountCents, row.feeCents), row.taxCents) != 0L }.getOrDefault(false)
 
 internal fun importReviewItem(row: PlannedImportRow, decision: ImportRowDecision?): ImportReviewItem {
     val action = when {
-        row.source.category.equals("TRADING", ignoreCase = true) -> ImportReviewAction.IMPORT_OPERATION
+        row.source.kind == com.mipatrimonio.app.data.importer.ImportedKind.DIVIDENDO -> ImportReviewAction.SELECT_INVESTMENT
         canConvertToMovement(row.source) -> ImportReviewAction.IMPORT_MOVEMENT
         else -> ImportReviewAction.NONE
     }
     val state = when {
         row.status == ImportRowStatus.REVIEW -> ImportReviewDecisionState.PENDING
         decision == ImportRowDecision.Ignore -> ImportReviewDecisionState.IGNORED
-        decision == ImportRowDecision.AcceptDefault && action == ImportReviewAction.IMPORT_OPERATION ->
-            ImportReviewDecisionState.IMPORT_OPERATION
         decision == ImportRowDecision.AcceptDefault -> ImportReviewDecisionState.IMPORT_MOVEMENT
         decision is ImportRowDecision.AsTransaction -> ImportReviewDecisionState.IMPORT_MOVEMENT
+        decision is ImportRowDecision.AsInvestment -> ImportReviewDecisionState.IMPORT_INVESTMENT
         else -> ImportReviewDecisionState.PENDING
     }
     return ImportReviewItem(row, action, state)

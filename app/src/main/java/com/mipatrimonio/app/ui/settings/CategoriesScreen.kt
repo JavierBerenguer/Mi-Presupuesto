@@ -65,13 +65,15 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mipatrimonio.app.R
+import com.mipatrimonio.app.ui.movements.CategoryPickerField
 import com.mipatrimonio.app.domain.model.Category
+import com.mipatrimonio.app.domain.model.InvestmentKind
 import com.mipatrimonio.app.ui.common.ConfirmDialog
 import com.mipatrimonio.app.ui.common.CategoryIconBadge
 import com.mipatrimonio.app.ui.common.CategoryIconPickerViewModel
 import com.mipatrimonio.app.ui.common.CategoryIcons
-import com.mipatrimonio.app.ui.common.DropdownField
 import com.mipatrimonio.app.ui.common.EmptyState
+import com.mipatrimonio.app.ui.common.HexColorPicker
 import com.mipatrimonio.app.ui.common.LoadingBox
 import com.mipatrimonio.app.ui.common.appViewModel
 
@@ -90,7 +92,12 @@ private val categoryColorPalette = listOf(
     0xFF9EE493,
 )
 
-private data class DeleteTargetOption(val categoryId: String?, val label: String)
+private fun InvestmentKind.investmentNoteResource(): Int = when (this) {
+    InvestmentKind.COMPRA -> R.string.aj_investment_category_purchases
+    InvestmentKind.VENTA -> R.string.aj_investment_category_sales
+    InvestmentKind.DIVIDENDO -> R.string.aj_investment_category_dividends
+    InvestmentKind.COMISION -> R.string.aj_investment_category_fees
+}
 
 @Composable
 fun CategoriesScreen(
@@ -272,6 +279,8 @@ private fun CategoryRow(
     onArchive: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    val protected = category.investmentKind != null ||
+        categories.any { it.parentId == category.id && it.investmentKind != null }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -298,6 +307,13 @@ private fun CategoryRow(
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
+                    category.investmentKind?.let { kind ->
+                        Text(
+                            stringResource(kind.investmentNoteResource()),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
                 if (childCount > 0 && onToggleExpanded != null) {
                     IconButton(onClick = onToggleExpanded) {
@@ -315,20 +331,22 @@ private fun CategoryRow(
                         contentDescription = stringResource(R.string.aj_edit_category, category.name),
                     )
                 }
-                IconButton(onClick = onArchive) {
-                    Icon(
-                        if (category.archived) Icons.Default.Unarchive else Icons.Default.Archive,
-                        contentDescription = stringResource(
-                            if (category.archived) R.string.aj_restore_category else R.string.aj_archive_category,
-                            category.name,
-                        ),
-                    )
-                }
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = stringResource(R.string.aj_delete_category, category.name),
-                    )
+                if (!protected) {
+                    IconButton(onClick = onArchive) {
+                        Icon(
+                            if (category.archived) Icons.Default.Unarchive else Icons.Default.Archive,
+                            contentDescription = stringResource(
+                                if (category.archived) R.string.aj_restore_category else R.string.aj_archive_category,
+                                category.name,
+                            ),
+                        )
+                    }
+                    IconButton(onClick = onDelete) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = stringResource(R.string.aj_delete_category, category.name),
+                        )
+                    }
                 }
             }
         }
@@ -343,13 +361,6 @@ private fun CategoryDeleteDialog(
     onDismiss: () -> Unit,
 ) {
     val withoutCategoryLabel = stringResource(R.string.aj_without_category)
-    val targetOptions = buildList {
-        if (state.usage.budgets == 0) {
-            add(DeleteTargetOption(null, withoutCategoryLabel))
-        }
-        addAll(state.targets.map { DeleteTargetOption(it.category.id, it.label) })
-    }
-    val selected = targetOptions.firstOrNull { state.targetSelected && it.categoryId == state.targetId }
     AlertDialog(
         onDismissRequest = { if (!state.isDeleting) onDismiss() },
         title = { Text(stringResource(R.string.aj_delete_category_title)) },
@@ -382,12 +393,14 @@ private fun CategoryDeleteDialog(
                             state.usage.pendingProposals,
                         ),
                     )
-                    DropdownField(
+                    CategoryPickerField(
                         label = stringResource(R.string.aj_delete_category_target),
-                        options = targetOptions,
-                        selected = selected,
-                        optionLabel = { it.label },
-                        onSelected = { option -> option?.let { onTargetSelected(it.categoryId) } },
+                        categories = state.targets.map { it.category }.filter { it.investmentKind == null },
+                        selectedId = state.targetId.takeIf { state.targetSelected },
+                        onSelected = onTargetSelected,
+                        noneLabel = withoutCategoryLabel,
+                        allowNone = state.usage.budgets == 0,
+                        valueWhenNone = if (state.targetSelected) withoutCategoryLabel else "",
                         enabled = !state.isDeleting,
                     )
                     if (state.usage.budgets > 0) {
@@ -465,13 +478,13 @@ private fun CategoryFormDialog(
                     isError = error == CategoryFormError.BlankName,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                DropdownField(
+                CategoryPickerField(
                     label = stringResource(R.string.aj_parent_category),
-                    options = parentOptions,
-                    selected = selectedParent,
-                    optionLabel = { it.name },
-                    onSelected = { parentId = it?.id },
+                    categories = parentOptions,
+                    selectedId = selectedParent?.id,
+                    onSelected = { parentId = it },
                     noneLabel = stringResource(R.string.common_none),
+                    enabled = !hasChildren && category?.investmentKind == null,
                 )
                 if (hasChildren) {
                     Text(
@@ -529,7 +542,7 @@ private fun CategoryFormDialog(
                             val description = stringResource(R.string.aj_select_color, colorNumber)
                             Box(
                                 modifier = Modifier
-                                    .size(48.dp)
+                                    .size(40.dp)
                                     .clip(CircleShape)
                                     .background(Color(color.toInt()))
                                     .border(
@@ -559,6 +572,7 @@ private fun CategoryFormDialog(
                         }
                     }
                 }
+                HexColorPicker(colorArgb = colorArgb, onColorChange = { colorArgb = it })
                 errorText?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
         },

@@ -21,9 +21,38 @@ data class AccountEntity(
     val archived: Boolean,
     val createdAt: Long,
     val updatedAt: Long,
+    val shortName: String? = null,
+    val institution: String? = null,
+    val color: Int? = null,
+    @ColumnInfo(defaultValue = "1") val liquidity: Boolean = true,
+    @ColumnInfo(defaultValue = "1") val useInApp: Boolean = true,
+    val remoteUpdatedAt: String? = null,
+    val deletedAt: Long? = null,
+    @ColumnInfo(defaultValue = "0") val roundUpMultiplier: Int = 0,
+    val roundUpSettledAt: Long? = null,
+    val roundUpLastEstimatedMinor: Long? = null,
+    val roundUpLastRealMinor: Long? = null,
 )
 
-@Entity(tableName = "category", indices = [Index("parentId")])
+@Entity(
+    tableName = "account_balance",
+    foreignKeys = [ForeignKey(AccountEntity::class, ["id"], ["accountId"], onDelete = ForeignKey.RESTRICT)],
+    indices = [Index("accountId"), Index(value = ["accountId", "epochDay"])],
+)
+data class AccountBalanceEntity(
+    @PrimaryKey val id: String,
+    val accountId: String,
+    val epochDay: Long,
+    val balanceMinor: Long,
+    val updatedAt: Long,
+    val deletedAt: Long? = null,
+    val remoteUpdatedAt: String? = null,
+)
+
+@Entity(
+    tableName = "category",
+    indices = [Index("parentId"), Index(value = ["investmentKind"], unique = true)],
+)
 data class CategoryEntity(
     @PrimaryKey val id: String,
     val name: String,
@@ -34,6 +63,7 @@ data class CategoryEntity(
     val archived: Boolean,
     val sortOrder: Int,
     val icon: String? = null,
+    val investmentKind: String? = null,
 )
 
 @Entity(
@@ -42,7 +72,7 @@ data class CategoryEntity(
         ForeignKey(AccountEntity::class, ["id"], ["accountId"], onDelete = ForeignKey.RESTRICT),
         ForeignKey(CategoryEntity::class, ["id"], ["categoryId"], onDelete = ForeignKey.RESTRICT),
     ],
-    indices = [Index("accountId"), Index("categoryId"), Index("epochDay")],
+    indices = [Index("accountId"), Index("categoryId"), Index("epochDay"), Index("groupParentId")],
 )
 data class TransactionEntity(
     @PrimaryKey val id: String,
@@ -58,6 +88,7 @@ data class TransactionEntity(
     val source: String,
     val createdAt: Long,
     val updatedAt: Long,
+    val groupParentId: String? = null,
 )
 
 @Entity(
@@ -114,73 +145,6 @@ data class BudgetCategoryEntity(
     val budgetId: String,
     val categoryId: String,
     val includeSubcategories: Boolean,
-)
-
-@Entity(tableName = "portfolio")
-data class PortfolioEntity(
-    @PrimaryKey val id: String,
-    val name: String,
-    val createdAt: Long,
-    val defaultAccountId: String?,
-    @ColumnInfo(defaultValue = "0") val archived: Boolean = false,
-)
-
-@Entity(tableName = "asset", indices = [Index("isin")])
-data class AssetEntity(
-    @PrimaryKey val id: String,
-    val name: String,
-    val ticker: String,
-    val isin: String,
-    val type: String,
-    val market: String,
-    val currency: String,
-    val createdAt: Long,
-    @ColumnInfo(defaultValue = "0") val archived: Boolean,
-    val quoteProvider: String? = null,
-    val quoteSymbol: String? = null,
-    val quoteMic: String? = null,
-)
-
-@Entity(
-    tableName = "investment_operation",
-    foreignKeys = [
-        ForeignKey(PortfolioEntity::class, ["id"], ["portfolioId"], onDelete = ForeignKey.RESTRICT),
-        ForeignKey(AssetEntity::class, ["id"], ["assetId"], onDelete = ForeignKey.RESTRICT),
-        ForeignKey(AccountEntity::class, ["id"], ["accountId"], onDelete = ForeignKey.RESTRICT),
-    ],
-    indices = [Index("portfolioId"), Index("assetId"), Index("accountId"), Index("transferGroupId")],
-)
-data class InvestmentOperationEntity(
-    @PrimaryKey val id: String,
-    val portfolioId: String,
-    val assetId: String,
-    val type: String,
-    val epochDay: Long,
-    val quantity: String,
-    val unitPrice: String,
-    val feesMinor: Long,
-    val currency: String,
-    val note: String,
-    val createdAt: Long,
-    val accountId: String?,
-    @ColumnInfo(defaultValue = "0") val secondOfDay: Int,
-    val transferGroupId: String? = null,
-)
-
-/** Historial de precios: cada actualización añade una fila; el precio vigente es la de mayor `asOfEpochMillis`. */
-@Entity(
-    tableName = "asset_price",
-    foreignKeys = [ForeignKey(AssetEntity::class, ["id"], ["assetId"], onDelete = ForeignKey.CASCADE)],
-    indices = [Index("assetId")],
-)
-data class AssetPriceEntity(
-    @PrimaryKey val id: String,
-    val assetId: String,
-    val price: String,
-    val currency: String,
-    val asOfEpochMillis: Long,
-    val source: String,
-    val quality: String? = null,
 )
 
 @Entity(tableName = "notification_authorization")
@@ -251,6 +215,10 @@ data class NotificationStructureEntity(
     val enabled: Boolean,
     val createdAt: Long,
     val updatedAt: Long,
+    val target: String = "APUNTE",
+    val defaultProductId: String? = null,
+    @ColumnInfo(defaultValue = "0") val generatesRoundUp: Boolean = false,
+    @ColumnInfo(defaultValue = "0") val isRoundUpInvestment: Boolean = false,
 )
 
 @Entity(
@@ -272,6 +240,7 @@ data class NotificationRuleEntity(
     val enabled: Boolean,
     val createdAt: Long,
     val updatedAt: Long,
+    val productId: String? = null,
 )
 
 @Entity(
@@ -296,6 +265,7 @@ data class NotificationRecordEntity(
     val status: String,
     val transactionId: String?,
     val createdAt: Long,
+    val syncMovementId: String? = null,
 )
 
 @Entity(
@@ -327,4 +297,8 @@ data class RecurringRuleEntity(
     @ColumnInfo(defaultValue = "0") val archived: Boolean,
     val createdAt: Long,
     val updatedAt: Long,
+    val productId: String? = null,
+    val units: String? = null,
+    val commissionMinor: Long? = null,
+    val withholdingMinor: Long? = null,
 )

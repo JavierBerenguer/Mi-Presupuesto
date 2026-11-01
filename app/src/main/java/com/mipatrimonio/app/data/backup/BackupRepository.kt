@@ -19,15 +19,12 @@ class BackupRepository(
                 appVersion = appVersion,
                 settings = exportedSettings,
                 accounts = db.accountDao().getAllForBackup(),
+                accountBalances = db.accountBalanceDao().getAllForBackup(),
                 categories = db.categoryDao().getAllForBackup(),
                 transactions = db.transactionDao().getAllForBackup(),
                 transfers = db.transferDao().getAllForBackup(),
                 budgets = db.budgetDao().getAllForBackup(),
                 budgetCategories = db.budgetDao().getAllRulesForBackup(),
-                portfolios = db.investmentDao().getAllPortfoliosForBackup(),
-                assets = db.investmentDao().getAllAssetsForBackup(),
-                operations = db.investmentDao().getAllOperationsForBackup(),
-                prices = db.investmentDao().getAllPricesForBackup(),
                 recurringRules = db.recurringRuleDao().getAllForBackup(),
                 authorizations = db.notificationDao().getAllAuthorizationsForBackup(),
                 proposals = db.notificationDao().getAllProposalsForBackup(),
@@ -41,8 +38,15 @@ class BackupRepository(
     suspend fun restore(data: BackupData) {
         BackupValidator.validate(data)
         db.withTransaction {
+            val sync = db.syncDao()
+            sync.clearOutbox()
+            sync.clearResumen()
+            sync.clearMovimientos()
+            sync.clearProductos()
+            sync.clearPerfiles()
+            sync.clearCursors()
+            sync.clearFingerprints()
             val notification = db.notificationDao()
-            val investment = db.investmentDao()
             val budget = db.budgetDao()
             notification.deleteAllRecordsForRestore()
             notification.deleteAllRulesForRestore()
@@ -51,27 +55,21 @@ class BackupRepository(
             notification.deleteAllAuthorizationsForRestore()
             db.recurringRuleDao().deleteAllForRestore()
             budget.deleteAllRulesForRestore()
-            investment.deleteAllPricesForRestore()
-            investment.deleteAllOperationsForRestore()
             db.transferDao().deleteAllForRestore()
             db.transactionDao().deleteAllForRestore()
             budget.deleteAllForRestore()
-            investment.deleteAllAssetsForRestore()
-            investment.deleteAllPortfoliosForRestore()
             db.categoryDao().deleteAllForRestore()
+            db.accountBalanceDao().deleteAllForRestore()
             db.accountDao().deleteAllForRestore()
             restoreCheckpoint("deleted")
 
             db.accountDao().insertAllForRestore(data.accounts)
+            db.accountBalanceDao().insertAllForRestore(data.accountBalances)
             db.categoryDao().insertAllForRestore(data.categories)
             budget.insertAllForRestore(data.budgets)
             budget.insertAllRulesForRestore(data.budgetCategories)
-            investment.insertAllPortfoliosForRestore(data.portfolios)
-            investment.insertAllAssetsForRestore(data.assets)
             db.transactionDao().insertAllForRestore(data.transactions)
             db.transferDao().insertAllForRestore(data.transfers)
-            investment.insertAllOperationsForRestore(data.operations)
-            investment.insertAllPricesForRestore(data.prices)
             db.recurringRuleDao().insertAllForRestore(data.recurringRules)
             notification.insertAllAuthorizationsForRestore(data.authorizations)
             notification.insertAllStructuresForRestore(data.notificationStructures)

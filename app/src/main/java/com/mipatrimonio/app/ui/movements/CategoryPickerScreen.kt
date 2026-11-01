@@ -55,6 +55,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.mipatrimonio.app.R
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.ui.common.CategoryIconBadge
@@ -71,17 +77,26 @@ fun CategoryPickerScreen(
     onSelected: (String?) -> Unit,
     onBack: () -> Unit,
     onNewCategory: (() -> Unit)? = null,
+    unassignedLabel: String? = null,
+    showUnassigned: Boolean = true,
+    excludeReserved: Boolean = false,
 ) {
+    val visibleCategories = remember(categories, excludeReserved) {
+        selectableCategories(categories, excludeReserved)
+    }
+    val selectableFrequentCategories = remember(frequentCategories, excludeReserved) {
+        selectableCategories(frequentCategories, excludeReserved)
+    }
     var query by remember { mutableStateOf("") }
-    val tabs = if (frequentCategories.isEmpty()) {
+    val tabs = if (selectableFrequentCategories.isEmpty()) {
         listOf(CategoryTab.TREE, CategoryTab.ALPHABETICAL)
     } else {
         listOf(CategoryTab.FREQUENT, CategoryTab.TREE, CategoryTab.ALPHABETICAL)
     }
     var selectedTab by remember(tabs) { mutableStateOf(tabs.first()) }
     val expanded = remember { mutableStateListOf<String>() }
-    val matches = remember(categories, query) {
-        if (query.isBlank()) categories else categories.filter { category ->
+    val matches = remember(visibleCategories, query) {
+        if (query.isBlank()) visibleCategories else visibleCategories.filter { category ->
             categoryPath(category, categories).contains(query.trim(), ignoreCase = true)
         }
     }
@@ -92,10 +107,13 @@ fun CategoryPickerScreen(
             SecondaryTopBar(title = stringResource(R.string.mov_choose_category), onBack = onBack)
         },
         bottomBar = {
-            CategoryActionBar(
-                onUnassigned = { onSelected(null) },
-                onNewCategory = onNewCategory,
-            )
+            if (showUnassigned || onNewCategory != null) {
+                CategoryActionBar(
+                    onUnassigned = if (showUnassigned) { { onSelected(null) } } else null,
+                    onNewCategory = onNewCategory,
+                    unassignedLabel = unassignedLabel ?: stringResource(R.string.mov_category_unassigned),
+                )
+            }
         },
     ) { padding ->
         Column(
@@ -160,21 +178,21 @@ fun CategoryPickerScreen(
                         modifier = Modifier.fillMaxSize(),
                     )
                     selectedTab == CategoryTab.FREQUENT -> CategoryList(
-                        categories = frequentCategories,
+                        categories = selectableFrequentCategories,
                         allCategories = categories,
                         selectedId = selectedId,
                         onSelected = onSelected,
                         modifier = Modifier.fillMaxSize(),
                     )
                     selectedTab == CategoryTab.ALPHABETICAL -> CategoryList(
-                        categories = categories.sortedBy { categoryPath(it, categories).lowercase() },
+                        categories = visibleCategories.sortedBy { categoryPath(it, categories).lowercase() },
                         allCategories = categories,
                         selectedId = selectedId,
                         onSelected = onSelected,
                         modifier = Modifier.fillMaxSize(),
                     )
                     else -> CategoryTree(
-                        categories = categories,
+                        categories = visibleCategories,
                         selectedId = selectedId,
                         expanded = expanded,
                         onSelected = onSelected,
@@ -337,7 +355,7 @@ private fun UnderlineTabs(
 }
 
 @Composable
-private fun CategoryActionBar(onUnassigned: () -> Unit, onNewCategory: (() -> Unit)?) {
+private fun CategoryActionBar(onUnassigned: (() -> Unit)?, onNewCategory: (() -> Unit)?, unassignedLabel: String) {
     Surface(
         modifier = Modifier.fillMaxWidth().imePadding(),
         color = MaterialTheme.colorScheme.surface,
@@ -348,11 +366,13 @@ private fun CategoryActionBar(onUnassigned: () -> Unit, onNewCategory: (() -> Un
                 Modifier.fillMaxWidth().navigationBarsPadding().padding(20.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                OutlinedButton(
-                    onClick = onUnassigned,
-                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
-                ) {
-                    Text(stringResource(R.string.mov_category_unassigned), maxLines = 2, textAlign = TextAlign.Center)
+                if (onUnassigned != null) {
+                    OutlinedButton(
+                        onClick = onUnassigned,
+                        modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    ) {
+                        Text(unassignedLabel, maxLines = 2, textAlign = TextAlign.Center)
+                    }
                 }
                 if (onNewCategory != null) {
                     Button(
@@ -372,6 +392,69 @@ private fun CategoryActionBar(onUnassigned: () -> Unit, onNewCategory: (() -> Un
         }
     }
 }
+
+/**
+ * Campo de formulario que abre [CategoryPickerScreen] a pantalla completa.
+ * [noneLabel] se muestra cuando no hay categoría y es el botón inferior del selector, salvo si [allowNone] es falso.
+ */
+@Composable
+fun CategoryPickerField(
+    label: String,
+    categories: List<Category>,
+    selectedId: String?,
+    onSelected: (String?) -> Unit,
+    noneLabel: String,
+    modifier: Modifier = Modifier,
+    allowNone: Boolean = true,
+    valueWhenNone: String = noneLabel,
+    enabled: Boolean = true,
+    excludeReserved: Boolean = false,
+) {
+    var showPicker by rememberSaveable { mutableStateOf(false) }
+    val category = categories.find { it.id == selectedId }
+    Box(modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = category?.let { categoryPath(it, categories) } ?: valueWhenNone,
+            onValueChange = {},
+            readOnly = true,
+            enabled = enabled,
+            label = { Text(label) },
+            leadingIcon = category?.let { selected -> { CategoryIconBadge(selected, categories, size = 32.dp) } },
+            trailingIcon = { Icon(Icons.Outlined.ChevronRight, contentDescription = null) },
+            maxLines = 2,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Box(
+            Modifier.matchParentSize().clickable(enabled = enabled, role = Role.Button) { showPicker = true }
+                .semantics { contentDescription = label },
+        )
+    }
+    if (showPicker) {
+        Dialog(
+            onDismissRequest = { showPicker = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            Surface(Modifier.fillMaxSize()) {
+                CategoryPickerScreen(
+                    categories = categories,
+                    frequentCategories = emptyList(),
+                    selectedId = selectedId,
+                    onSelected = {
+                        onSelected(it)
+                        showPicker = false
+                    },
+                    onBack = { showPicker = false },
+                    unassignedLabel = noneLabel,
+                    showUnassigned = allowNone,
+                    excludeReserved = excludeReserved,
+                )
+            }
+        }
+    }
+}
+
+internal fun selectableCategories(categories: List<Category>, excludeReserved: Boolean): List<Category> =
+    categories.filter { !excludeReserved || it.investmentKind == null }
 
 internal fun categoryPath(category: Category, categories: List<Category>): String {
     val parent = category.parentId?.let { id -> categories.find { it.id == id } }

@@ -3,24 +3,25 @@ package com.mipatrimonio.app.ui.movements
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mipatrimonio.app.data.repository.LedgerRepository
-import com.mipatrimonio.app.data.repository.InvestmentRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
+import com.mipatrimonio.app.data.sync.SyncRepository
+import com.mipatrimonio.app.data.sync.mapLiquidityMovements
 import com.mipatrimonio.app.domain.calc.MovementsBalanceCalculator
 import com.mipatrimonio.app.domain.calc.MovementsCalculationMode
+import com.mipatrimonio.app.domain.calc.RoundUpCalculator
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.Asset
-import com.mipatrimonio.app.domain.model.InvestmentOperation
-import com.mipatrimonio.app.domain.model.Portfolio
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.MovementStatus
+import com.mipatrimonio.app.domain.model.InvestmentKind
 import com.mipatrimonio.app.domain.model.movementStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.YearMonth
@@ -44,15 +45,17 @@ data class MovementsUiState(
     val hideFuture: Boolean = false,
     val ignoreTransfers: Boolean = false,
     val includedAccountIds: Set<String> = emptySet(),
+    val selectedIds: Set<String> = emptySet(),
+    val roundUpPendingMinor: Long = 0L,
 ) {
-    val activeAccounts: List<Account> get() = accounts.filterNot(Account::archived)
+    val activeAccounts: List<Account> get() = accounts.filter { !it.archived && it.useInApp }
     val hasActiveFilters: Boolean get() = filters != MovementFilters()
 }
 
 class MovementsViewModel(
     private val ledger: LedgerRepository,
-    private val investments: InvestmentRepository,
     private val settings: SettingsRepository,
+    private val sync: SyncRepository? = null,
     private val today: () -> LocalDate = LocalDate::now,
 ) : ViewModel() {
     private data class SourceData(
@@ -63,13 +66,14 @@ class MovementsViewModel(
         val hideAmounts: Boolean,
         val transactions: List<com.mipatrimonio.app.domain.model.Transaction>,
         val transfers: List<com.mipatrimonio.app.domain.model.Transfer>,
-        val operations: List<InvestmentOperation>,
         val includedAccountIds: Set<String>,
         val allAccounts: Boolean,
         val calculationMode: MovementsCalculationMode,
         val dailyBalance: Boolean,
         val hideFuture: Boolean,
         val ignoreTransfers: Boolean,
+        val roundUpRecords: List<com.mipatrimonio.app.domain.notifications.NotificationRecord>,
+        val roundUpStructures: List<com.mipatrimonio.app.domain.notifications.NotificationStructure>,
     )
 
     private data class LedgerData(
@@ -79,15 +83,10 @@ class MovementsViewModel(
         val transfers: List<com.mipatrimonio.app.domain.model.Transfer>,
     )
 
-    private data class InvestmentData(
-        val operations: List<InvestmentOperation>,
-        val assets: List<Asset>,
-        val portfolios: List<Portfolio>,
-    )
-
     private val filters = MutableStateFlow(MovementFilters())
     private val error = MutableStateFlow<String?>(null)
     private val selectedMonth = MutableStateFlow(YearMonth.now())
+    private val selectedIds = MutableStateFlow<Set<String>>(emptySet())
 
     private val ledgerData = combine(
         ledger.accounts,
@@ -98,42 +97,52 @@ class MovementsViewModel(
         LedgerData(accounts, categories, transactions, transfers)
     }
 
-    private val investmentData = combine(
-        investments.operations,
-        investments.assets,
-        investments.portfolios,
-    ) { operations, assets, portfolios -> InvestmentData(operations, assets, portfolios) }
+    private val syncMovements = sync?.movimientos ?: flowOf(emptyList())
+    private val syncProducts = sync?.productos ?: flowOf(emptyList())
 
-    private val sourceData = combine(
-        ledgerData,
-        investmentData,
-        settings.settings,
-    ) { ledgerData, investmentData, currentSettings ->
-        val investmentItems = buildInvestmentMovementItems(
-            investmentData.operations, investmentData.assets, investmentData.portfolios,
-        )
+    private val roundUpData = combine(ledger.roundUpRecords, ledger.roundUpStructures) { records, structures -> records to structures }
+    private val baseSourceData = combine(
+        ledgerData, settings.settings, syncMovements, syncProducts,
+    ) { ledgerData, currentSettings, remoteMovements, remoteProducts ->
+        val existingTransactionIds = ledgerData.transactions.mapTo(hashSetOf(), Transaction::id)
+        val investmentCategories = ledgerData.categories.mapNotNull { category ->
+            category.investmentKind?.let { it to category.id }
+        }.toMap()
+        val retainedSelection = selectedIds.value.intersect(existingTransactionIds)
+        if (retainedSelection != selectedIds.value) selectedIds.value = retainedSelection
         SourceData(
             accounts = ledgerData.accounts,
             categories = ledgerData.categories,
-            items = ledgerData.transactions.map(MovementItem::Tx) +
-                ledgerData.transfers.map(MovementItem::Move) + investmentItems,
+            items = attachTransactionGroups(ledgerData.transactions) + ledgerData.transfers.map(MovementItem::Move) +
+                mapLiquidityMovements(remoteMovements, ledgerData.accounts).entries.mapNotNull { entry ->
+                    val movement = remoteMovements.firstOrNull { it.id == entry.id } ?: return@mapNotNull null
+                    MovementItem.Liquidity(
+                        movement, remoteProducts.firstOrNull { it.id == movement.productoId }?.nombre.orEmpty(),
+                        entry.accountId, entry.effectMinor,
+                        InvestmentKind.fromMovementType(movement.tipo)?.let(investmentCategories::get),
+                    )
+                },
             baseCurrency = currentSettings.baseCurrency,
             hideAmounts = currentSettings.hideAmounts,
             transactions = ledgerData.transactions,
             transfers = ledgerData.transfers,
-            operations = investmentData.operations,
             includedAccountIds = currentSettings.movementsIncludedAccountIds,
             allAccounts = currentSettings.movementsAllAccounts,
             calculationMode = currentSettings.movementsCalculationMode,
             dailyBalance = currentSettings.movementsDailyBalance,
             hideFuture = currentSettings.movementsHideFuture,
             ignoreTransfers = currentSettings.movementsIgnoreTransfers,
+            roundUpRecords = emptyList(),
+            roundUpStructures = emptyList(),
         )
+    }
+    private val sourceData = combine(baseSourceData, roundUpData) { data, roundUp ->
+        data.copy(roundUpRecords = roundUp.first, roundUpStructures = roundUp.second)
     }
 
     val uiState: StateFlow<MovementsUiState> = combine(
-        sourceData, filters, error, selectedMonth,
-    ) { data, currentFilters, currentError, month ->
+        sourceData, filters, error, selectedMonth, selectedIds,
+    ) { data, currentFilters, currentError, month, currentSelectedIds ->
         val currentDate = today()
         val monthFilters = currentFilters.copy(
             from = maxOf(currentFilters.from ?: month.atDay(1), month.atDay(1)),
@@ -146,10 +155,31 @@ class MovementsViewModel(
         }
         val visible = applyFilters(itemsAllowedByFutureSetting, monthFilters, data.accounts, data.categories)
         val includedAccounts = if (data.allAccounts) {
-            data.accounts.filterNot(Account::archived)
+            data.accounts.filter { !it.archived && it.useInApp }
         } else {
             data.accounts.filter { it.id in data.includedAccountIds }
         }
+        val pendingByAccount = RoundUpCalculator.pendingByAccount(
+            data.accounts, data.transactions, data.roundUpRecords, data.roundUpStructures,
+        )
+        val roundUpPending = if (data.baseCurrency == "EUR") includedAccounts.fold(0L) { total, account ->
+            Math.addExact(total, pendingByAccount[account.id] ?: 0L)
+        } else 0L
+        val rawBalance = MovementsBalanceCalculator.calculate(
+            includedAccounts = includedAccounts,
+            transactions = data.transactions,
+            transfers = data.transfers,
+            selectedMonth = month,
+            baseCurrency = data.baseCurrency,
+            mode = data.calculationMode,
+            dailyBalance = data.dailyBalance,
+            hideFuture = data.hideFuture,
+            ignoreTransfers = data.ignoreTransfers,
+            today = currentDate,
+            liquidityMovements = data.items.filterIsInstance<MovementItem.Liquidity>().map {
+                com.mipatrimonio.app.domain.calc.LiquidityMovement(it.movement.id, it.localAccountId, it.date, it.effectMinor)
+            },
+        )
         MovementsUiState(
             isLoading = false,
             accounts = data.accounts,
@@ -162,24 +192,15 @@ class MovementsViewModel(
             selectedMonth = month,
             dayGroups = groupMovementsByDay(visible, data.baseCurrency),
             hideAmounts = data.hideAmounts,
-            balanceMinor = MovementsBalanceCalculator.calculate(
-                includedAccounts = includedAccounts,
-                transactions = data.transactions,
-                transfers = data.transfers,
-                operations = data.operations,
-                selectedMonth = month,
-                baseCurrency = data.baseCurrency,
-                mode = data.calculationMode,
-                dailyBalance = data.dailyBalance,
-                hideFuture = data.hideFuture,
-                ignoreTransfers = data.ignoreTransfers,
-                today = currentDate,
-            ),
+            balanceMinor = if (data.calculationMode == MovementsCalculationMode.SALDO_ACTUAL)
+                Math.subtractExact(rawBalance, roundUpPending) else rawBalance,
             calculationMode = data.calculationMode,
             dailyBalance = data.dailyBalance,
             hideFuture = data.hideFuture,
             ignoreTransfers = data.ignoreTransfers,
             includedAccountIds = data.includedAccountIds,
+            selectedIds = currentSelectedIds.intersect(data.transactions.mapTo(hashSetOf(), Transaction::id)),
+            roundUpPendingMinor = if (data.calculationMode == MovementsCalculationMode.SALDO_ACTUAL) roundUpPending else 0L,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -223,6 +244,50 @@ class MovementsViewModel(
         error.value = null
     }
 
+    private val refreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = refreshing
+
+    /** Deslizar hacia abajo: sincroniza con Supabase (los movimientos de Rumbo llegan así). */
+    fun refresh() {
+        val repository = sync ?: return
+        viewModelScope.launch {
+            refreshing.value = true
+            runCatching { repository.synchronize() }.onFailure { error.value = it.message }
+            refreshing.value = false
+        }
+    }
+
+    fun startSelection(id: String) {
+        selectedIds.value = setOf(id)
+    }
+
+    fun toggleSelection(id: String) {
+        selectedIds.value = selectedIds.value.toMutableSet().apply {
+            if (!add(id)) remove(id)
+        }
+    }
+
+    fun clearSelection() {
+        selectedIds.value = emptySet()
+    }
+
+    fun groupSelected(parentId: String) {
+        val ids = selectedIds.value
+        viewModelScope.launch {
+            runCatching { ledger.groupTransactions(parentId, ids.filter { it != parentId }) }
+                .onSuccess { selectedIds.value = emptySet() }
+                .onFailure { error.value = it.message }
+        }
+    }
+
+    fun ungroup(parentId: String) = viewModelScope.launch {
+        runCatching { ledger.ungroup(parentId) }.onFailure { error.value = it.message }
+    }
+
+    fun removeFromGroup(childId: String) = viewModelScope.launch {
+        runCatching { ledger.removeFromGroup(childId) }.onFailure { error.value = it.message }
+    }
+
     fun setCalculationMode(mode: MovementsCalculationMode) = updateSetting {
         settings.setMovementsCalculationMode(mode)
     }
@@ -256,6 +321,7 @@ class MovementsViewModel(
                         source = TransactionSource.MANUAL,
                         createdAt = now,
                         updatedAt = now,
+                        groupParentId = null,
                     ),
                 )
             }.onFailure { error.value = it.message }
@@ -268,9 +334,19 @@ class MovementsViewModel(
                 when (item) {
                     is MovementItem.Tx -> ledger.deleteTransaction(item.transaction.id)
                     is MovementItem.Move -> ledger.deleteTransfer(item.transfer.id)
-                    is MovementItem.Investment -> Unit
+                    is MovementItem.Liquidity -> sync?.borrarMovimientoInversion(item.movement.id)
                 }
             }.onFailure { error.value = it.message }
         }
+    }
+}
+
+private fun attachTransactionGroups(transactions: List<Transaction>): List<MovementItem.Tx> {
+    val byId = transactions.associateBy(Transaction::id)
+    val childrenByParent = transactions.filter { it.groupParentId in byId }
+        .groupBy { requireNotNull(it.groupParentId) }
+    return transactions.mapNotNull { transaction ->
+        if (transaction.groupParentId in byId) null
+        else MovementItem.Tx(transaction, childrenByParent[transaction.id].orEmpty())
     }
 }

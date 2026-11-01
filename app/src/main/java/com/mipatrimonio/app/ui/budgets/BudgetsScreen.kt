@@ -70,7 +70,7 @@ private sealed interface BudgetPage {
 
 @Composable
 fun BudgetsScreen(
-    viewModel: BudgetsViewModel = appViewModel { c -> BudgetsViewModel(c.ledger, c.settings) },
+    viewModel: BudgetsViewModel = appViewModel { c -> BudgetsViewModel(c.ledger, c.settings, sync = c.sync) },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var page by remember { mutableStateOf<BudgetPage>(BudgetPage.List) }

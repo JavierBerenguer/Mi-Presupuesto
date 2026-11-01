@@ -34,6 +34,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mipatrimonio.app.R
+import com.mipatrimonio.app.ui.movements.CategoryPickerField
 import com.mipatrimonio.app.domain.notifications.Confidence
 import com.mipatrimonio.app.domain.notifications.PendingProposal
 import com.mipatrimonio.app.domain.notifications.ProposalKind
@@ -234,13 +235,13 @@ private fun ProposalReviewDialog(
                         noneLabel = stringResource(R.string.notif_select_destination_account),
                     )
                 } else {
-                    DropdownField(
+                    CategoryPickerField(
                         label = stringResource(R.string.notif_category),
-                        options = categories,
-                        selected = selectedCategory,
-                        optionLabel = { it.name },
-                        onSelected = { categoryId = it?.id },
+                        categories = categories,
+                        selectedId = selectedCategory?.id,
+                        onSelected = { categoryId = it },
                         noneLabel = stringResource(R.string.notif_no_category),
+                        excludeReserved = true,
                     )
                     OutlinedTextField(
                         value = merchant,

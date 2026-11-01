@@ -61,12 +61,10 @@ class MovementStatusTest {
         val range = today.withDayOfMonth(1)..today.withDayOfMonth(today.lengthOfMonth())
 
         val currentSnapshot = SnapshotBuilder.build(
-            "EUR", listOf(account), listOf(plannedExpense), emptyList(),
-            emptyList(), emptyList(), emptyList(), emptyMap(), today,
+            "EUR", listOf(account), listOf(plannedExpense), emptyList(), today,
         )
         val laterSnapshot = SnapshotBuilder.build(
-            "EUR", listOf(account), listOf(plannedExpense), emptyList(),
-            emptyList(), emptyList(), emptyList(), emptyMap(), tomorrow,
+            "EUR", listOf(account), listOf(plannedExpense), emptyList(), tomorrow,
         )
         assertEquals(1_000L, currentSnapshot.netWorth.totalMinor)
         assertEquals(750L, laterSnapshot.netWorth.totalMinor)
@@ -85,10 +83,10 @@ class MovementStatusTest {
         val dates = listOf(today, tomorrow)
 
         val current = HistoryCalculator.netWorthSeries(
-            "EUR", listOf(account), listOf(plannedIncome), emptyList(), emptyList(), emptyList(), dates, today,
+            "EUR", listOf(account), listOf(plannedIncome), emptyList(), dates, today,
         )
         val later = HistoryCalculator.netWorthSeries(
-            "EUR", listOf(account), listOf(plannedIncome), emptyList(), emptyList(), emptyList(), dates, tomorrow,
+            "EUR", listOf(account), listOf(plannedIncome), emptyList(), dates, tomorrow,
         )
 
         assertEquals(listOf(today), current.map { it.date })

@@ -4,8 +4,10 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.mipatrimonio.app.data.db.AppDatabase
+import com.mipatrimonio.app.data.db.NotificationRecordEntity
+import com.mipatrimonio.app.data.db.NotificationStructureEntity
+import com.mipatrimonio.app.data.db.toEntity
 import com.mipatrimonio.app.data.repository.LedgerRepository
-import com.mipatrimonio.app.data.repository.InvestmentRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
 import com.mipatrimonio.app.testutil.SettingsStoreRule
 import com.mipatrimonio.app.domain.model.Account
@@ -14,13 +16,11 @@ import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
 import com.mipatrimonio.app.domain.model.Transfer
-import com.mipatrimonio.app.domain.model.Asset
-import com.mipatrimonio.app.domain.model.AssetType
-import com.mipatrimonio.app.domain.model.InvestmentOperation
-import com.mipatrimonio.app.domain.model.OperationType
-import com.mipatrimonio.app.domain.model.Portfolio
-import java.math.BigDecimal
 import com.mipatrimonio.app.domain.calc.MovementsCalculationMode
+import com.mipatrimonio.app.domain.notifications.NotificationRecordStatus
+import com.mipatrimonio.app.domain.notifications.NotificationTemplate
+import com.mipatrimonio.app.domain.notifications.NotificationTemplateJson
+import com.mipatrimonio.app.domain.notifications.TemplateSegment
 import java.time.LocalDate
 import java.time.YearMonth
 import kotlinx.coroutines.flow.first
@@ -33,6 +33,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -51,7 +52,6 @@ class MovementsViewModelTest {
     private val dispatcher = UnconfinedTestDispatcher()
     private lateinit var db: AppDatabase
     private lateinit var ledger: LedgerRepository
-    private lateinit var investments: InvestmentRepository
     private lateinit var settings: SettingsRepository
 
     @Before
@@ -60,7 +60,6 @@ class MovementsViewModelTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
         ledger = LedgerRepository(db)
-        investments = InvestmentRepository(db)
         settings = settingsRule.repository
         settings.setHideAmounts(false)
         settings.setMovementsIncludedAccountIds(emptySet())
@@ -86,7 +85,7 @@ class MovementsViewModelTest {
         ledger.saveTransaction(tx("auto", TransactionType.GASTO, 30_00, today, TransactionSource.NOTIFICACION))
         ledger.saveTransfer(Transfer("move", "a", "b", 500_00, 500_00, today, "", 1))
         settings.setHideAmounts(true)
-        val viewModel = MovementsViewModel(ledger, investments, settings)
+        val viewModel = MovementsViewModel(ledger, settings)
 
         val all = viewModel.uiState.first { it.dayGroups.singleOrNull()?.items?.size == 3 }
         assertEquals(70_00L, all.dayGroups.single().balanceMinor)
@@ -111,7 +110,7 @@ class MovementsViewModelTest {
         val targetDate = targetMonth.atDay(10)
         ledger.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
         ledger.saveTransaction(tx("target", TransactionType.GASTO, 25_00, targetDate, TransactionSource.MANUAL))
-        val viewModel = MovementsViewModel(ledger, investments, settings)
+        val viewModel = MovementsViewModel(ledger, settings)
 
         viewModel.setMonth(targetMonth)
         val selected = viewModel.uiState.first {
@@ -130,12 +129,32 @@ class MovementsViewModelTest {
         assertEquals("target", (returned.visibleItems.single() as MovementItem.Tx).transaction.id)
     }
 
+    @Test fun `saldo actual resta pendiente sin anadir filas`() = runTest {
+        val today = LocalDate.now()
+        val account = Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 100_00, false, 1,
+            roundUpMultiplier = 2, roundUpSettledAt = 0)
+        db.accountDao().upsert(account.toEntity(updatedAt = 1))
+        val payment = tx("payment", TransactionType.GASTO, 17_80, today, TransactionSource.NOTIFICACION)
+        ledger.saveTransaction(payment)
+        val template = NotificationTemplate(listOf(TemplateSegment.Literal("Pago "), TemplateSegment.Amount, TemplateSegment.Variable))
+        db.notificationDao().upsertStructure(NotificationStructureEntity("s", "bank", "Pago",
+            NotificationTemplateJson.encode(template), "GASTO", null, null, null, true, 1, 1, generatesRoundUp = true))
+        db.notificationDao().upsertRecord(NotificationRecordEntity("r", "bank", 1, "", 17_80, "EUR", "s", null,
+            null, NotificationRecordStatus.AUTOMATIZADA.name, payment.id, 1))
+
+        val state = MovementsViewModel(ledger, settings, today = { today }).uiState.first { !it.isLoading }
+
+        assertEquals(40L, state.roundUpPendingMinor)
+        assertEquals(100_00L - 17_80L - 40L, state.balanceMinor)
+        assertEquals(1, state.allItems.size)
+    }
+
     @Test
     fun `expone la fecha de un apunte futuro en el estado`() = runTest {
         val futureDate = LocalDate.now().plusDays(1)
         ledger.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
         ledger.saveTransaction(tx("future", TransactionType.INGRESO, 40_00, futureDate, TransactionSource.RECURRENTE))
-        val viewModel = MovementsViewModel(ledger, investments, settings)
+        val viewModel = MovementsViewModel(ledger, settings)
 
         viewModel.setMonth(YearMonth.from(futureDate))
         val state = viewModel.uiState.first {
@@ -154,7 +173,7 @@ class MovementsViewModelTest {
         ledger.saveTransaction(tx("income", TransactionType.INGRESO, 500, today, TransactionSource.MANUAL))
         settings.setMovementsIncludedAccountIds(setOf("a"))
         settings.setMovementsAllAccounts(false)
-        val viewModel = MovementsViewModel(ledger, investments, settings)
+        val viewModel = MovementsViewModel(ledger, settings)
 
         val initial = viewModel.uiState.first { !it.isLoading && it.balanceMinor == 1_500L }
         assertEquals(setOf("a"), initial.includedAccountIds)
@@ -179,7 +198,7 @@ class MovementsViewModelTest {
         ledger.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
         ledger.saveTransaction(tx("today", TransactionType.INGRESO, 100, today, TransactionSource.MANUAL))
         ledger.saveTransaction(tx("future", TransactionType.INGRESO, 900, future, TransactionSource.RECURRENTE))
-        val viewModel = MovementsViewModel(ledger, investments, settings) { today }
+        val viewModel = MovementsViewModel(ledger, settings) { today }
         viewModel.setMonth(YearMonth.from(future))
         viewModel.setHideFuture(true)
 
@@ -188,28 +207,51 @@ class MovementsViewModelTest {
         assertEquals(100L, state.balanceMinor)
     }
 
-    @Test
-    fun `operacion con cuenta aparece como apunte derivado y afecta al saldo`() = runTest {
+    @Test fun `grupo oculta hijos muestra neto y seleccion permite agrupar y desagrupar`() = runTest {
         val today = LocalDate.now()
-        ledger.saveAccount(Account("a", "Banco", AccountType.CORRIENTE, "EUR", 500_00, false, 1))
-        investments.savePortfolio(Portfolio("portfolio", "Cartera principal", 1))
-        investments.saveAsset(Asset("asset", "Fondo global", "", "", AssetType.ETF, "", "EUR"))
-        investments.addOperation(
-            InvestmentOperation(
-                "buy", "portfolio", "asset", OperationType.COMPRA, today, BigDecimal.ONE,
-                BigDecimal("100.00"), 0, "EUR", "", 1, "a",
-            ),
+        ledger.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
+        ledger.saveTransaction(tx("p", TransactionType.GASTO, 6_000, today, TransactionSource.MANUAL))
+        ledger.saveTransaction(tx("c", TransactionType.INGRESO, 2_000, today, TransactionSource.MANUAL))
+        val viewModel = MovementsViewModel(ledger, settings)
+
+        viewModel.startSelection("p")
+        assertEquals(setOf("p"), viewModel.uiState.first { it.selectedIds.isNotEmpty() }.selectedIds)
+        viewModel.toggleSelection("c")
+        assertEquals(setOf("p", "c"), viewModel.uiState.first { it.selectedIds.size == 2 }.selectedIds)
+        viewModel.groupSelected("p")
+        val grouped = viewModel.uiState.first {
+            it.selectedIds.isEmpty() && (it.visibleItems.singleOrNull() as? MovementItem.Tx)?.groupChildren?.size == 1
+        }
+        val row = grouped.visibleItems.single() as MovementItem.Tx
+        assertEquals(4_000L, row.amountMinor)
+        assertEquals("c", row.groupChildren.single().id)
+
+        viewModel.duplicate(row.groupChildren.single())
+        val duplicate = ledger.transactions.first { it.size == 3 }.first { it.id !in setOf("p", "c") }
+        assertNull(duplicate.groupParentId)
+        viewModel.ungroup("p")
+        assertTrue(viewModel.uiState.first { it.visibleItems.size == 3 }.visibleItems.all { it is MovementItem.Tx })
+    }
+
+    @Test fun `seleccion sale al vaciar y conserva error al agrupar mal`() = runTest {
+        val today = LocalDate.now()
+        ledger.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
+        ledger.saveTransaction(tx("i1", TransactionType.INGRESO, 100, today, TransactionSource.MANUAL))
+        // T-106: agrupar ingresos ya es válido; el grupo inválido es el de divisas distintas.
+        ledger.saveAccount(Account("u", "Cuenta USD", AccountType.CORRIENTE, "USD", 0, false, 2))
+        ledger.saveTransaction(
+            Transaction("i2", TransactionType.INGRESO, 100, "USD", today, "u", null, "", "", "", TransactionSource.MANUAL, 1, 1),
         )
-        val viewModel = MovementsViewModel(ledger, investments, settings)
-
-        val state = viewModel.uiState.first { it.visibleItems.singleOrNull() is MovementItem.Investment }
-        val item = state.visibleItems.single() as MovementItem.Investment
-
-        assertEquals("Fondo global", item.assetName)
-        assertEquals("Cartera principal", item.portfolioName)
-        assertEquals(-100_00L, item.amountMinor)
-        assertEquals(400_00L, state.balanceMinor)
-        assertEquals(0L, state.dayGroups.single().balanceMinor)
+        val viewModel = MovementsViewModel(ledger, settings)
+        viewModel.startSelection("i1")
+        viewModel.toggleSelection("i1")
+        assertTrue(viewModel.uiState.first { !it.isLoading && it.selectedIds.isEmpty() }.selectedIds.isEmpty())
+        viewModel.startSelection("i1")
+        viewModel.toggleSelection("i2")
+        viewModel.groupSelected("i1")
+        val failed = viewModel.uiState.first { it.error != null }
+        assertEquals(2, failed.selectedIds.size)
+        assertEquals(2, failed.visibleItems.size)
     }
 
     private fun tx(id: String, type: TransactionType, amount: Long, date: LocalDate, source: TransactionSource) =

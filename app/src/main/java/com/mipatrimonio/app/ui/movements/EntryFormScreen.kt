@@ -72,6 +72,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mipatrimonio.app.R
+import com.mipatrimonio.app.domain.model.MoneyMath
 import com.mipatrimonio.app.ui.common.EmptyState
 import com.mipatrimonio.app.ui.common.CategoryIconBadge
 import com.mipatrimonio.app.ui.common.LoadingBox
@@ -90,11 +91,22 @@ fun EntryFormScreen(
     onDone: () -> Unit,
     onOpenAccounts: () -> Unit,
     onOpenCategories: () -> Unit,
+    onOpenProduct: (String) -> Unit = {},
+    onConfigureMerchant: (String) -> Unit = {},
     viewModel: EntryFormViewModel = appViewModel { container ->
-        EntryFormViewModel(container.ledger, entryId, notifications = container.notifications)
+        EntryFormViewModel(container.ledger, entryId?.takeUnless { it.startsWith(INVESTMENT_ENTRY_PREFIX) }, notifications = container.notifications)
+    },
+    investmentViewModel: InvestmentMovementFormViewModel = appViewModel { container ->
+        InvestmentMovementFormViewModel(
+            container.sync, container.ledger,
+            entryId?.takeIf { it.startsWith(INVESTMENT_ENTRY_PREFIX) }?.removePrefix(INVESTMENT_ENTRY_PREFIX),
+            requireAccount = true,
+        )
     },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val investmentState by investmentViewModel.uiState.collectAsStateWithLifecycle()
+    var investmentMode by rememberSaveable(entryId) { mutableStateOf(entryId?.startsWith(INVESTMENT_ENTRY_PREFIX) == true) }
     var showCategoryPicker by rememberSaveable { mutableStateOf(false) }
     var confirmDiscard by rememberSaveable { mutableStateOf(false) }
     var confirmClear by rememberSaveable { mutableStateOf(false) }
@@ -107,13 +119,24 @@ fun EntryFormScreen(
             if (event == EntrySavedEvent.CLOSE) onDone()
         }
     }
+    LaunchedEffect(investmentViewModel, onDone) {
+        investmentViewModel.completed.collect { onDone() }
+    }
     BackHandler(onBack = if (showCategoryPicker) {
         { showCategoryPicker = false }
     } else {
         requestBack
     })
 
-    if (showCategoryPicker) {
+    if (investmentMode) {
+        InvestmentEntryScaffold(
+            state = investmentState,
+            viewModel = investmentViewModel,
+            onBack = onDone,
+            onChooseStandard = { if (entryId == null) investmentMode = false },
+            onOpenProduct = onOpenProduct,
+        )
+    } else if (showCategoryPicker) {
         CategoryPickerScreen(
             categories = state.availableCategories,
             frequentCategories = state.frequentCategories,
@@ -124,6 +147,7 @@ fun EntryFormScreen(
             },
             onBack = { showCategoryPicker = false },
             onNewCategory = onOpenCategories,
+            excludeReserved = true,
         )
     } else {
         EntryFormScaffold(
@@ -132,9 +156,11 @@ fun EntryFormScreen(
             onBack = requestBack,
             onOpenAccounts = onOpenAccounts,
             onChooseCategory = { showCategoryPicker = true },
+            onConfigureMerchant = onConfigureMerchant,
             onRequestClear = {
                 if (state.hasData) confirmClear = true else viewModel.clear()
             },
+            onChooseInvestment = { if (entryId == null) investmentMode = true },
         )
     }
 
@@ -172,7 +198,9 @@ private fun EntryFormScaffold(
     onBack: () -> Unit,
     onOpenAccounts: () -> Unit,
     onChooseCategory: () -> Unit,
+    onConfigureMerchant: (String) -> Unit,
     onRequestClear: () -> Unit,
+    onChooseInvestment: () -> Unit,
 ) {
     Scaffold(
         contentWindowInsets = WindowInsets(0),
@@ -228,7 +256,9 @@ private fun EntryFormScaffold(
                 state = state,
                 viewModel = viewModel,
                 onChooseCategory = onChooseCategory,
+                onConfigureMerchant = onConfigureMerchant,
                 onRequestClear = onRequestClear,
+                onChooseInvestment = onChooseInvestment,
                 modifier = Modifier.padding(padding),
             )
         }
@@ -240,7 +270,9 @@ private fun EntryFormContent(
     state: EntryFormUiState,
     viewModel: EntryFormViewModel,
     onChooseCategory: () -> Unit,
+    onConfigureMerchant: (String) -> Unit,
     onRequestClear: () -> Unit,
+    onChooseInvestment: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val values = state.values
@@ -255,9 +287,10 @@ private fun EntryFormContent(
                 stringResource(R.string.common_kind_gasto),
                 stringResource(R.string.common_kind_ingreso),
                 stringResource(R.string.mov_transfer),
+                stringResource(R.string.mov_investment),
             ),
             selectedIndex = kinds.indexOf(values.kind),
-            onSelected = { if (!state.isEditing) viewModel.setKind(kinds[it]) },
+            onSelected = { index -> if (index == 3) onChooseInvestment() else viewModel.setKind(kinds[index]) },
             selectedContainerColor = when (values.kind) {
                 EntryKind.EXPENSE -> MaterialTheme.extras.expense.copy(alpha = 0.24f)
                 EntryKind.INCOME -> MaterialTheme.colorScheme.primaryContainer
@@ -274,6 +307,32 @@ private fun EntryFormContent(
                 stringResource(R.string.mov_type_locked),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (state.groupChildCount > 0 && state.groupNetMinor != null && state.groupCurrency != null) {
+            Text(
+                stringResource(
+                    when {
+                        state.groupNetMinor > 0L -> R.string.mov_group_parent_summary_expense
+                        state.groupNetMinor < 0L -> R.string.mov_group_parent_summary_income
+                        else -> R.string.mov_group_parent_summary
+                    },
+                    state.groupChildCount,
+                    // T-106: el neto lleva signo (gasto > 0, ingreso < 0); el texto ya dice cuál es.
+                    MoneyMath.format(Math.abs(state.groupNetMinor), state.groupCurrency),
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        state.groupParentTitle?.let { title ->
+            Text(
+                stringResource(
+                    R.string.mov_group_child_summary,
+                    title.ifBlank { stringResource(R.string.mov_no_description) },
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
             )
         }
         FormCard {
@@ -399,7 +458,20 @@ private fun EntryFormContent(
                     Text(stringResource(R.string.auto_original_notification), fontWeight = FontWeight.Bold)
                     Text(original.text)
                     original.structureName?.let { Text(stringResource(R.string.auto_applied_structure, it)) }
-                    original.ruleName?.let { Text(stringResource(R.string.auto_applied_rule, it)) }
+                    when {
+                        original.usesStructureDefaults -> Text(
+                            stringResource(R.string.auto_applied_rule, stringResource(R.string.auto_general_rule)),
+                        )
+                        original.ruleName != null -> Text(stringResource(R.string.auto_applied_rule, original.ruleName))
+                    }
+                    original.configurableRecordId?.let { recordId ->
+                        OutlinedButton(
+                            onClick = { onConfigureMerchant(recordId) },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                        ) {
+                            Text(stringResource(R.string.auto_configure_this_merchant))
+                        }
+                    }
                 }
             }
         }
@@ -417,6 +489,66 @@ private fun EntryFormContent(
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun InvestmentEntryScaffold(
+    state: InvestmentMovementFormState,
+    viewModel: InvestmentMovementFormViewModel,
+    onBack: () -> Unit,
+    onChooseStandard: () -> Unit,
+    onOpenProduct: (String) -> Unit,
+) {
+    Scaffold(
+        contentWindowInsets = WindowInsets(0),
+        topBar = {
+            SecondaryTopBar(
+                title = stringResource(if (state.editing) R.string.mov_investment_edit else R.string.mov_investment_new),
+                onBack = onBack,
+                actions = {
+                    IconButton(onClick = viewModel::save, enabled = !state.saving && !state.missing) {
+                        Icon(Icons.Outlined.Done, contentDescription = stringResource(R.string.common_save))
+                    }
+                },
+            )
+        },
+        bottomBar = {
+            if (!state.loading && !state.missing) {
+                Surface(color = MaterialTheme.colorScheme.surface) {
+                    Button(
+                        onClick = viewModel::save,
+                        enabled = !state.saving,
+                        modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(20.dp).heightIn(min = 48.dp),
+                    ) { Text(stringResource(R.string.common_save)) }
+                }
+            }
+        },
+    ) { padding ->
+        if (state.loading) LoadingBox(Modifier.padding(padding)) else Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(padding).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            SegmentedControl(
+                options = listOf(
+                    stringResource(R.string.common_kind_gasto), stringResource(R.string.common_kind_ingreso),
+                    stringResource(R.string.mov_transfer), stringResource(R.string.mov_investment),
+                ),
+                selectedIndex = 3,
+                onSelected = { if (it != 3 && !state.editing) onChooseStandard() },
+                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                selectedContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            InvestmentMovementFields(state, viewModel)
+            if (state.editing) state.values.productId?.let { productId ->
+                OutlinedButton(onClick = { onOpenProduct(productId) }, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.mov_investment_view_product))
+                }
+            }
+        }
+    }
+}
+
+private const val INVESTMENT_ENTRY_PREFIX = "investment:"
 
 @Composable
 private fun LabeledTextField(label: String, value: String, onValueChange: (String) -> Unit) {

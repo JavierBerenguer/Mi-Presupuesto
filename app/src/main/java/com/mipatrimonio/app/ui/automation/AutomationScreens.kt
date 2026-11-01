@@ -1,5 +1,10 @@
 package com.mipatrimonio.app.ui.automation
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -23,6 +28,7 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -33,6 +39,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,7 +47,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.Role
@@ -52,7 +61,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.core.content.ContextCompat
+import com.mipatrimonio.app.MainActivity
 import com.mipatrimonio.app.R
+import com.mipatrimonio.app.data.repository.MerchantUsingStructureDefaults
+import com.mipatrimonio.app.data.db.SyncProductoEntity
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.model.MoneyMath
 import com.mipatrimonio.app.domain.notifications.NotificationDefaults
@@ -63,6 +76,7 @@ import com.mipatrimonio.app.domain.notifications.NotificationRecordStatus
 import com.mipatrimonio.app.domain.notifications.NotificationRule
 import com.mipatrimonio.app.domain.notifications.NotificationRuleValues
 import com.mipatrimonio.app.domain.notifications.NotificationStructure
+import com.mipatrimonio.app.domain.notifications.NotificationTarget
 import com.mipatrimonio.app.domain.notifications.ProposalKind
 import com.mipatrimonio.app.ui.common.ConfirmDialog
 import com.mipatrimonio.app.ui.common.CategoryIconBadge
@@ -76,24 +90,72 @@ import com.mipatrimonio.app.ui.movements.CategoryPickerScreen
 import java.time.Instant
 import java.time.ZoneId
 
-private enum class AutomationTab { PENDING, STRUCTURES }
+private enum class AutomationTab { PENDING, NEW_MERCHANTS, STRUCTURES }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AutomationScreen(
+    initialTab: String? = null,
+    permissionAlreadyRequested: Boolean = false,
+    onPermissionRequested: () -> Unit = {},
     onTeach: (String) -> Unit,
     onConfigureRule: (String) -> Unit,
     onOpenNotificationSettings: () -> Unit,
-    viewModel: PendingAutomationViewModel = appViewModel { PendingAutomationViewModel(it.notifications) },
+    viewModel: PendingAutomationViewModel = appViewModel {
+        PendingAutomationViewModel(it.notifications, it.settings, it.pendingAutomationNotifier::cancel)
+    },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var tab by rememberSaveable { mutableStateOf(AutomationTab.PENDING) }
+    val context = LocalContext.current
+    var permissionGranted by remember {
+        mutableStateOf(
+            Build.VERSION.SDK_INT < 33 ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED,
+        )
+    }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        permissionGranted = it
+    }
+    LaunchedEffect(state.alertsEnabled, permissionAlreadyRequested, permissionGranted) {
+        if (!state.isLoading && Build.VERSION.SDK_INT >= 33 && state.alertsEnabled &&
+            !permissionGranted && !permissionAlreadyRequested
+        ) {
+            onPermissionRequested()
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+    val startingTab = if (initialTab == MainActivity.TAB_NEW_MERCHANTS) AutomationTab.NEW_MERCHANTS else AutomationTab.PENDING
+    var tab by rememberSaveable(initialTab) { mutableStateOf(startingTab) }
     var discardId by rememberSaveable { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(stringResource(R.string.auto_alert_preference), Modifier.weight(1f))
+            Switch(
+                checked = state.alertsEnabled,
+                onCheckedChange = viewModel::setAlertsEnabled,
+                enabled = !state.isLoading,
+            )
+        }
+        if (Build.VERSION.SDK_INT >= 33 && state.alertsEnabled && permissionAlreadyRequested && !permissionGranted) {
+            Text(
+                stringResource(R.string.auto_alert_permission_denied),
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        FlowRow(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(
                 selected = tab == AutomationTab.PENDING,
                 onClick = { tab = AutomationTab.PENDING },
                 label = { Text(stringResource(R.string.auto_pending_tab, state.count)) },
+            )
+            FilterChip(
+                selected = tab == AutomationTab.NEW_MERCHANTS,
+                onClick = { tab = AutomationTab.NEW_MERCHANTS },
+                label = { Text(stringResource(R.string.auto_new_merchants_tab, state.newMerchantCount)) },
             )
             FilterChip(
                 selected = tab == AutomationTab.STRUCTURES,
@@ -101,16 +163,20 @@ fun AutomationScreen(
                 label = { Text(stringResource(R.string.auto_structures_tab)) },
             )
         }
-        if (tab == AutomationTab.PENDING) {
-            PendingContent(
+        when (tab) {
+            AutomationTab.PENDING -> PendingContent(
                 state = state,
                 onTeach = onTeach,
                 onConfigureRule = onConfigureRule,
                 onOpenNotificationSettings = onOpenNotificationSettings,
                 onDiscard = { discardId = it },
             )
-        } else {
-            StructuresScreen()
+            AutomationTab.NEW_MERCHANTS -> NewMerchantsContent(
+                state = state,
+                onConfigureRule = onConfigureRule,
+                onAlwaysUseStructureDefaults = viewModel::alwaysUseStructureDefaults,
+            )
+            AutomationTab.STRUCTURES -> StructuresScreen()
         }
     }
     discardId?.let { id ->
@@ -121,6 +187,59 @@ fun AutomationScreen(
             onConfirm = { viewModel.discard(id); discardId = null },
             onDismiss = { discardId = null },
         )
+    }
+}
+
+@Composable
+private fun NewMerchantsContent(
+    state: PendingAutomationUiState,
+    onConfigureRule: (String) -> Unit,
+    onAlwaysUseStructureDefaults: (String) -> Unit,
+) {
+    if (state.isLoading) { LoadingBox(); return }
+    if (state.newMerchants.isEmpty()) {
+        EmptyState(Icons.Filled.Notifications, stringResource(R.string.auto_no_new_merchants))
+        return
+    }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 16.dp, top = 0.dp, end = 16.dp, bottom = 88.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        items(state.newMerchants, key = { "${it.structureId}:${it.variableKey}" }) { merchant ->
+            NewMerchantCard(merchant, onConfigureRule, onAlwaysUseStructureDefaults)
+        }
+        state.errorMessage?.let { item { ErrorText(it) } }
+    }
+}
+
+@Composable
+private fun NewMerchantCard(
+    merchant: MerchantUsingStructureDefaults,
+    onConfigureRule: (String) -> Unit,
+    onAlwaysUseStructureDefaults: (String) -> Unit,
+) {
+    Card(Modifier.fillMaxWidth(), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(merchant.variableText, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.auto_merchant_structure, merchant.structureName, merchant.packageName))
+            Text(pluralStringResource(R.plurals.auto_general_transaction_count, merchant.transactionCount, merchant.transactionCount))
+            Text(
+                stringResource(
+                    R.string.auto_latest_transaction,
+                    formatDate(Instant.ofEpochMilli(merchant.latestPostedAt).atZone(ZoneId.systemDefault()).toLocalDate()),
+                    MoneyMath.format(merchant.latestAmountMinor, merchant.currency),
+                ),
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { onConfigureRule(merchant.recordId) }, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.auto_configure_merchant))
+                }
+                OutlinedButton(onClick = { onAlwaysUseStructureDefaults(merchant.recordId) }, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.auto_always_use_general))
+                }
+            }
+        }
     }
 }
 
@@ -159,19 +278,25 @@ private fun PendingCard(
             Text(record.packageName, fontWeight = FontWeight.Bold)
             Text(formatDate(Instant.ofEpochMilli(record.postedAt).atZone(ZoneId.systemDefault()).toLocalDate()))
             Text(highlightAmount(record), style = MaterialTheme.typography.bodyMedium)
-            if (record.status == NotificationRecordStatus.PENDIENTE_CUENTA) {
-                Text(stringResource(R.string.auto_account_needed))
+            if (record.status == NotificationRecordStatus.PENDIENTE_CUENTA ||
+                record.status == NotificationRecordStatus.PENDIENTE_SINCRONIZACION
+            ) {
+                Text(stringResource(if (record.status == NotificationRecordStatus.PENDIENTE_CUENTA) R.string.auto_account_needed else R.string.auto_sync_needed))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = onOpenNotificationSettings) { Text(stringResource(R.string.aj_bank_notifications)) }
                     TextButton(onClick = { onDiscard(record.id) }) { Text(stringResource(R.string.notif_discard)) }
                 }
             } else {
+                if (record.status == NotificationRecordStatus.PENDIENTE_REGLA) {
+                    val positive = com.mipatrimonio.app.domain.notifications.NotificationAmountRecognizer.first(record.text)?.hasExplicitPlus == true
+                    Text(stringResource(if (positive) R.string.auto_purchase_positive else R.string.auto_purchase_choose_product))
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = {
                         if (record.status == NotificationRecordStatus.PENDIENTE_REGLA) onConfigureRule(record.id)
                         else onTeach(record.id)
                     }) {
-                        Text(stringResource(if (record.status == NotificationRecordStatus.PENDIENTE_REGLA) R.string.auto_configure_merchant else R.string.auto_teach))
+                        Text(stringResource(if (record.status == NotificationRecordStatus.PENDIENTE_REGLA) R.string.auto_choose_product else R.string.auto_teach))
                     }
                     TextButton(onClick = { onDiscard(record.id) }) { Text(stringResource(R.string.notif_discard)) }
                 }
@@ -191,7 +316,7 @@ private fun highlightAmount(record: NotificationRecord): AnnotatedString {
 fun TeachStructureScreen(
     recordId: String,
     onDone: () -> Unit,
-    viewModel: TeachStructureViewModel = appViewModel { TeachStructureViewModel(recordId, it.notifications, it.ledger) },
+    viewModel: TeachStructureViewModel = appViewModel { TeachStructureViewModel(recordId, it.notifications, it.ledger, it.sync) },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     if (state.isLoading) { LoadingBox(); return }
@@ -213,8 +338,38 @@ fun TeachStructureScreen(
                 state.suggestedNames.forEach { name -> TextButton(onClick = { viewModel.setName(name) }) { Text(name) } }
             }
         }
-        item { DirectionField(state.editor.direction, viewModel::setDirection) }
-        item {
+        item { TargetField(state.editor.target, viewModel::setTarget) }
+        if (state.editor.target == NotificationTarget.APUNTE) item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(state.editor.generatesRoundUp, viewModel::setGeneratesRoundUp)
+                Text(stringResource(R.string.auto_generates_round_up))
+            }
+        }
+        if (state.editor.target == NotificationTarget.COMPRA) item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(state.editor.isRoundUpInvestment, viewModel::setIsRoundUpInvestment)
+                Text(stringResource(R.string.auto_is_round_up_investment))
+            }
+        }
+        if (state.editor.target == NotificationTarget.APUNTE) item { DirectionField(state.editor.direction, viewModel::setDirection) }
+        if (state.editor.target == NotificationTarget.COMPRA) {
+            item {
+                ProductField(
+                    state.products,
+                    state.editor.defaults.defaultProductId,
+                    stringResource(R.string.auto_default_product),
+                    stringResource(R.string.auto_choose_product),
+                ) { productId -> viewModel.setDefaults(state.editor.defaults.copy(defaultProductId = productId)) }
+                ProductField(
+                    state.products,
+                    state.editor.ruleValues.productId,
+                    stringResource(R.string.auto_rule_product),
+                    stringResource(R.string.auto_use_default_product),
+                ) { productId -> viewModel.setRuleValues(state.editor.ruleValues.copy(productId = productId)) }
+                PurchaseAvailabilityText(state.purchaseAvailability)
+            }
+        }
+        if (state.editor.target == NotificationTarget.APUNTE) item {
             ValuesEditor(
                 title = stringResource(R.string.auto_structure_values),
                 explanation = stringResource(R.string.auto_structure_explanation, state.editor.name.ifBlank { stringResource(R.string.auto_this_operation) }),
@@ -225,7 +380,7 @@ fun TeachStructureScreen(
                 onChange = { title, detail, category -> viewModel.setDefaults(NotificationDefaults(title, detail, category)) },
             )
         }
-        item {
+        if (state.editor.target == NotificationTarget.APUNTE) item {
             ValuesEditor(
                 title = stringResource(R.string.auto_rule_values),
                 explanation = ruleExplanation(state.preview?.variableText.orEmpty()),
@@ -236,7 +391,7 @@ fun TeachStructureScreen(
                 onChange = { title, detail, category -> viewModel.setRuleValues(NotificationRuleValues(title, detail, category)) },
             )
         }
-        item { PreviewCard(state.preview, state.account?.name, state.date?.let(::formatDate), state.categories) }
+        item { PreviewCard(state.preview, state.account?.name, state.date?.let(::formatDate), state.categories, state.products) }
         state.validationError?.let { item { ErrorText(stringResource(it.messageResource())) } }
         state.errorMessage?.let { item { ErrorText(it) } }
         item {
@@ -295,7 +450,7 @@ private fun tokenDescription(word: String, mark: Int): String = stringResource(R
 fun ConfigureRuleScreen(
     recordId: String,
     onDone: () -> Unit,
-    viewModel: ConfigureRuleViewModel = appViewModel { ConfigureRuleViewModel(recordId, it.notifications, it.ledger) },
+    viewModel: ConfigureRuleViewModel = appViewModel { ConfigureRuleViewModel(recordId, it.notifications, it.ledger, it.sync) },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     if (state.isLoading) { LoadingBox(); return }
@@ -310,7 +465,8 @@ fun ConfigureRuleScreen(
                 Text(stringResource(R.string.auto_captured_variable, state.record?.variableText.orEmpty()))
             }
         }
-        item {
+        item { TargetField(state.structure?.target ?: NotificationTarget.APUNTE, {}, enabled = false) }
+        if (state.structure?.target == NotificationTarget.APUNTE) item {
             ValuesEditor(
                 title = stringResource(R.string.auto_rule_values),
                 explanation = ruleExplanation(state.record?.variableText.orEmpty()),
@@ -319,9 +475,18 @@ fun ConfigureRuleScreen(
                 onChange = { title, detail, category -> viewModel.setValues(NotificationRuleValues(title, detail, category)) },
             )
         }
-        item { PreviewCard(state.preview, state.account?.name, state.record?.postedAt?.let { formatDate(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()) }, state.categories) }
+        if (state.structure?.target == NotificationTarget.COMPRA) item {
+            ProductField(
+                state.products,
+                state.values.productId,
+                stringResource(R.string.auto_rule_product),
+                stringResource(R.string.auto_use_default_product),
+            ) { viewModel.setValues(state.values.copy(productId = it)) }
+            PurchaseAvailabilityText(state.purchaseAvailability)
+        }
+        item { PreviewCard(state.preview, state.account?.name, state.record?.postedAt?.let { formatDate(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()) }, state.categories, state.products) }
         state.errorMessage?.let { item { ErrorText(it) } }
-        item { Button(onClick = viewModel::save, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(stringResource(R.string.common_save)) } }
+        item { Button(onClick = viewModel::save, enabled = state.canSave, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(stringResource(R.string.common_save)) } }
         state.savedAdditionalCount?.let { count -> item {
             Text(stringResource(R.string.auto_saved_count, count))
             Button(onClick = onDone) { Text(stringResource(R.string.auto_done)) }
@@ -335,6 +500,44 @@ private fun DirectionField(selected: NotificationDirection, onSelected: (Notific
         label = stringResource(R.string.auto_direction), options = NotificationDirection.entries, selected = selected,
         optionLabel = { directionLabel(it) }, onSelected = { it?.let(onSelected) },
     )
+}
+
+@Composable
+private fun TargetField(selected: NotificationTarget, onSelected: (NotificationTarget) -> Unit, enabled: Boolean = true) {
+    DropdownField(
+        label = stringResource(R.string.auto_target), options = NotificationTarget.entries, selected = selected,
+        optionLabel = { if (it == NotificationTarget.APUNTE) stringResource(R.string.auto_target_entry) else stringResource(R.string.auto_target_purchase) },
+        onSelected = { it?.let(onSelected) }, enabled = enabled,
+    )
+}
+
+@Composable
+private fun ProductField(
+    products: List<SyncProductoEntity>,
+    productId: String?,
+    label: String,
+    noneLabel: String? = null,
+    onSelected: (String?) -> Unit,
+) {
+    DropdownField(
+        label = label,
+        options = products,
+        selected = products.find { it.id == productId },
+        optionLabel = { it.nombre },
+        onSelected = { onSelected(it?.id) },
+        noneLabel = noneLabel,
+    )
+}
+
+@Composable
+private fun PurchaseAvailabilityText(value: PurchaseAvailability) {
+    if (value == PurchaseAvailability.AVAILABLE) return
+    ErrorText(stringResource(when (value) {
+        PurchaseAvailability.NO_SESSION -> R.string.auto_purchase_no_session
+        PurchaseAvailability.NO_PRODUCTS -> R.string.auto_purchase_no_products
+        PurchaseAvailability.PRODUCT_REQUIRED -> R.string.auto_purchase_choose_product
+        PurchaseAvailability.AVAILABLE -> R.string.auto_purchase_choose_product
+    }))
 }
 
 @Composable
@@ -376,6 +579,7 @@ private fun ValuesEditor(
                     },
                     onBack = { showCategoryPicker = false },
                     onNewCategory = null,
+                    excludeReserved = true,
                 )
             }
         }
@@ -408,9 +612,20 @@ private fun AutomationCategoryField(categoryId: String?, categories: List<Catego
 }
 
 @Composable
-private fun PreviewCard(preview: NotificationPreview?, accountName: String?, date: String?, categories: List<Category>) {
+private fun PreviewCard(
+    preview: NotificationPreview?, accountName: String?, date: String?, categories: List<Category>,
+    products: List<SyncProductoEntity> = emptyList(),
+) {
     SectionCard(title = stringResource(R.string.auto_preview)) {
-        if (preview == null) Text(stringResource(R.string.auto_preview_waiting)) else {
+        if (preview == null) Text(stringResource(R.string.auto_preview_waiting)) else if (preview.target == NotificationTarget.COMPRA) {
+            Text(
+                stringResource(
+                    R.string.auto_purchase_preview,
+                    MoneyMath.format(preview.amountMinor, preview.currency),
+                    products.find { it.id == preview.productId }?.nombre ?: stringResource(R.string.auto_product_not_selected),
+                ),
+            )
+        } else {
             PreviewRow(stringResource(R.string.notif_type), stringResource(if (preview.kind == ProposalKind.INGRESO) R.string.notif_kind_income else R.string.notif_kind_expense))
             PreviewRow(stringResource(R.string.mov_amount), MoneyMath.format(preview.amountMinor, preview.currency))
             PreviewRow(stringResource(R.string.notif_account), accountName ?: stringResource(R.string.notif_no_linked_account))
@@ -428,7 +643,7 @@ private fun PreviewCard(preview: NotificationPreview?, accountName: String?, dat
 
 @Composable
 fun StructuresScreen(
-    viewModel: StructuresViewModel = appViewModel { StructuresViewModel(it.notifications, it.ledger) },
+    viewModel: StructuresViewModel = appViewModel { StructuresViewModel(it.notifications, it.ledger, it.sync) },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var expandedId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -444,7 +659,7 @@ fun StructuresScreen(
             item(group.packageName) { Text(group.packageName, style = MaterialTheme.typography.titleMedium) }
             items(group.structures, key = { it.structure.id }) { managed ->
                 StructureCard(
-                    managed, state.categories, expandedId == managed.structure.id,
+                    managed, state.categories, state.products, expandedId == managed.structure.id,
                     onExpand = { expandedId = if (expandedId == managed.structure.id) null else managed.structure.id },
                     onSave = viewModel::saveStructure, onEnabled = viewModel::setStructureEnabled,
                     onDelete = { deleteStructure = it }, onSaveRule = viewModel::saveRule,
@@ -468,7 +683,7 @@ fun StructuresScreen(
 
 @Composable
 private fun StructureCard(
-    managed: ManagedStructure, categories: List<Category>, expanded: Boolean, onExpand: () -> Unit,
+    managed: ManagedStructure, categories: List<Category>, products: List<SyncProductoEntity>, expanded: Boolean, onExpand: () -> Unit,
     onSave: (NotificationStructure) -> Unit, onEnabled: (String, Boolean) -> Unit, onDelete: (NotificationStructure) -> Unit,
     onSaveRule: (NotificationRule) -> Unit, onRuleEnabled: (String, Boolean) -> Unit, onDeleteRule: (NotificationRule) -> Unit,
 ) {
@@ -485,32 +700,52 @@ private fun StructureCard(
             if (expanded) {
                 var name by remember(structure.id, structure.name) { mutableStateOf(structure.name) }
                 var direction by remember(structure.id, structure.direction) { mutableStateOf(structure.direction) }
-                var defaults by remember(structure.id, structure.updatedAt) { mutableStateOf(NotificationDefaults(structure.defaultTitle, structure.defaultDetail, structure.defaultCategoryId)) }
+                var target by remember(structure.id, structure.target) { mutableStateOf(structure.target) }
+                var generatesRoundUp by remember(structure.id, structure.generatesRoundUp) { mutableStateOf(structure.generatesRoundUp) }
+                var isRoundUpInvestment by remember(structure.id, structure.isRoundUpInvestment) { mutableStateOf(structure.isRoundUpInvestment) }
+                var defaults by remember(structure.id, structure.updatedAt) { mutableStateOf(NotificationDefaults(structure.defaultTitle, structure.defaultDetail, structure.defaultCategoryId, structure.defaultProductId)) }
                 OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.auto_operation_type)) }, modifier = Modifier.fillMaxWidth())
-                DirectionField(direction) { direction = it }
-                ValuesEditor(stringResource(R.string.auto_structure_values), stringResource(R.string.auto_edit_defaults), defaults.title.orEmpty(), defaults.detail.orEmpty(), defaults.categoryId, categories) { a, b, c -> defaults = NotificationDefaults(a, b, c) }
+                TargetField(target, onSelected = { target = it })
+                if (target == NotificationTarget.APUNTE) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(generatesRoundUp, { generatesRoundUp = it })
+                        Text(stringResource(R.string.auto_generates_round_up))
+                    }
+                    DirectionField(direction) { direction = it }
+                    ValuesEditor(stringResource(R.string.auto_structure_values), stringResource(R.string.auto_edit_defaults), defaults.title.orEmpty(), defaults.detail.orEmpty(), defaults.categoryId, categories) { a, b, c -> defaults = defaults.copy(title = a, detail = b, categoryId = c) }
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(isRoundUpInvestment, { isRoundUpInvestment = it })
+                        Text(stringResource(R.string.auto_is_round_up_investment))
+                    }
+                    ProductField(products, defaults.defaultProductId, stringResource(R.string.auto_default_product), stringResource(R.string.auto_choose_product)) { defaults = defaults.copy(defaultProductId = it) }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { onSave(structure.copy(name = name, direction = direction, defaultTitle = defaults.title, defaultDetail = defaults.detail, defaultCategoryId = defaults.categoryId)) }, enabled = name.isNotBlank()) { Text(stringResource(R.string.common_save)) }
+                    Button(onClick = { onSave(structure.copy(name = name, direction = direction, defaultTitle = defaults.title, defaultDetail = defaults.detail, defaultCategoryId = defaults.categoryId, target = target, defaultProductId = defaults.defaultProductId, generatesRoundUp = target == NotificationTarget.APUNTE && generatesRoundUp, isRoundUpInvestment = target == NotificationTarget.COMPRA && isRoundUpInvestment)) }, enabled = name.isNotBlank()) { Text(stringResource(R.string.common_save)) }
                     TextButton(onClick = { onDelete(structure) }) { Text(stringResource(R.string.common_delete)) }
                 }
                 Text(stringResource(R.string.auto_specific_rules), style = MaterialTheme.typography.titleSmall)
-                managed.rules.forEach { rule -> RuleEditor(rule, categories, onSaveRule, onRuleEnabled, onDeleteRule) }
+                managed.rules.forEach { rule -> RuleEditor(rule, target, categories, products, onSaveRule, onRuleEnabled, onDeleteRule) }
             }
         }
     }
 }
 
 @Composable
-private fun RuleEditor(rule: NotificationRule, categories: List<Category>, onSave: (NotificationRule) -> Unit,
+private fun RuleEditor(rule: NotificationRule, target: NotificationTarget, categories: List<Category>, products: List<SyncProductoEntity>, onSave: (NotificationRule) -> Unit,
                        onEnabled: (String, Boolean) -> Unit, onDelete: (NotificationRule) -> Unit) {
-    var values by remember(rule.id, rule.updatedAt) { mutableStateOf(NotificationRuleValues(rule.title, rule.detail, rule.categoryId)) }
+    var values by remember(rule.id, rule.updatedAt) { mutableStateOf(NotificationRuleValues(rule.title, rule.detail, rule.categoryId, rule.productId)) }
     var variable by remember(rule.id, rule.updatedAt) { mutableStateOf(rule.variableDisplay) }
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) { Text(rule.variableDisplay, Modifier.weight(1f), fontWeight = FontWeight.Bold); Switch(rule.enabled, { onEnabled(rule.id, it) }) }
             OutlinedTextField(variable, { variable = it }, label = { Text(stringResource(R.string.auto_variable_text)) }, modifier = Modifier.fillMaxWidth())
-            ValuesEditor(stringResource(R.string.auto_rule_values), ruleExplanation(rule.variableDisplay), values.title.orEmpty(), values.detail.orEmpty(), values.categoryId, categories) { a, b, c -> values = NotificationRuleValues(a, b, c) }
-            Row { Button(onClick = { onSave(rule.copy(variableDisplay = variable, title = values.title, detail = values.detail, categoryId = values.categoryId)) }, enabled = variable.isNotBlank()) { Text(stringResource(R.string.common_save)) }; TextButton(onClick = { onDelete(rule) }) { Text(stringResource(R.string.common_delete)) } }
+            if (target == NotificationTarget.APUNTE) {
+                ValuesEditor(stringResource(R.string.auto_rule_values), ruleExplanation(rule.variableDisplay), values.title.orEmpty(), values.detail.orEmpty(), values.categoryId, categories) { a, b, c -> values = values.copy(title = a, detail = b, categoryId = c) }
+            } else {
+                ProductField(products, values.productId, stringResource(R.string.auto_rule_product), stringResource(R.string.auto_use_default_product)) { values = values.copy(productId = it) }
+            }
+            Row { Button(onClick = { onSave(rule.copy(variableDisplay = variable, title = values.title, detail = values.detail, categoryId = values.categoryId, productId = values.productId)) }, enabled = variable.isNotBlank()) { Text(stringResource(R.string.common_save)) }; TextButton(onClick = { onDelete(rule) }) { Text(stringResource(R.string.common_delete)) } }
         }
     }
 }

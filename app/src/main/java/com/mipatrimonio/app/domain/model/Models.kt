@@ -1,8 +1,6 @@
 package com.mipatrimonio.app.domain.model
 
-import java.math.BigDecimal
 import java.time.LocalDate
-import java.time.LocalTime
 
 enum class AccountType { CORRIENTE, AHORRO, EFECTIVO, INVERSION, CRIPTO, OTRA }
 
@@ -14,6 +12,24 @@ data class Account(
     val initialBalanceMinor: Long,
     val archived: Boolean,
     val createdAt: Long,
+    val shortName: String? = null,
+    val institution: String? = null,
+    val color: Int? = null,
+    val liquidity: Boolean = true,
+    val useInApp: Boolean = true,
+    val roundUpMultiplier: Int = 0,
+    val roundUpSettledAt: Long? = null,
+    val roundUpLastEstimatedMinor: Long? = null,
+    val roundUpLastRealMinor: Long? = null,
+)
+
+data class AccountBalanceRecord(
+    val id: String,
+    val accountId: String,
+    val date: LocalDate,
+    val balanceMinor: Long,
+    val updatedAt: Long,
+    val deletedAt: Long? = null,
 )
 
 data class Category(
@@ -23,13 +39,35 @@ data class Category(
     val colorArgb: Long,
     val archived: Boolean,
     val icon: String? = null,
+    val investmentKind: InvestmentKind? = null,
 )
+
+enum class InvestmentKind {
+    COMPRA,
+    VENTA,
+    DIVIDENDO,
+    COMISION;
+
+    companion object {
+        fun fromMovementType(tipo: String): InvestmentKind? = when (tipo) {
+            "compra" -> COMPRA
+            "venta" -> VENTA
+            "dividendo" -> DIVIDENDO
+            "comision" -> COMISION
+            else -> null
+        }
+    }
+}
 
 enum class TransactionType { INGRESO, GASTO }
 
 enum class TransactionSource { MANUAL, IMPORTACION, NOTIFICACION, RECURRENTE }
 
-enum class RecurringKind { GASTO, INGRESO, TRANSFERENCIA }
+enum class RecurringKind { GASTO, INGRESO, TRANSFERENCIA, COMPRA, VENTA, DIVIDENDO, COMISION }
+
+fun RecurringKind.isInvestment(): Boolean = this in setOf(
+    RecurringKind.COMPRA, RecurringKind.VENTA, RecurringKind.DIVIDENDO, RecurringKind.COMISION,
+)
 
 enum class RecurringPeriodUnit { DIA, MES, ANIO }
 
@@ -55,6 +93,10 @@ data class RecurringRule(
     val archived: Boolean,
     val createdAt: Long,
     val updatedAt: Long,
+    val productId: String? = null,
+    val units: java.math.BigDecimal? = null,
+    val commissionMinor: Long? = null,
+    val withholdingMinor: Long? = null,
 )
 
 /** Ingreso o gasto. El importe es siempre positivo; el signo lo da [type]. La divisa es la de la cuenta. */
@@ -72,6 +114,7 @@ data class Transaction(
     val source: TransactionSource,
     val createdAt: Long,
     val updatedAt: Long,
+    val groupParentId: String? = null,
 )
 
 /**
@@ -134,65 +177,3 @@ data class Budget(
         archived = archived,
     )
 }
-
-data class Portfolio(
-    val id: String,
-    val name: String,
-    val createdAt: Long,
-    val defaultAccountId: String? = null,
-    val archived: Boolean = false,
-)
-
-enum class AssetType { ACCION, ETF, FONDO_INDEXADO, FONDO_INVERSION, CRIPTO, PRESTAMO_P2P }
-enum class QuoteProvider { TWELVE_DATA, COINGECKO, EODHD }
-
-/** El ticker no es identificador universal: la identidad es [id] (más ISIN/mercado cuando existan). */
-data class Asset(
-    val id: String,
-    val name: String,
-    val ticker: String,
-    val isin: String,
-    val type: AssetType,
-    val market: String,
-    val currency: String,
-    val archived: Boolean = false,
-    val quoteProvider: QuoteProvider? = null,
-    val quoteSymbol: String? = null,
-    val quoteMic: String? = null,
-)
-
-enum class OperationType { COMPRA, VENTA, DIVIDENDO, COMISION, TRASPASO_SALIDA, TRASPASO_ENTRADA }
-
-/**
- * Operación de inversión. Importe bruto = [quantity] × [unitPrice] (en divisa del activo).
- * [feesMinor]: comisiones en compra/venta y retención en dividendos. En una COMISION,
- * el importe es el bruto ([quantity] × [unitPrice]) y [feesMinor] no forma parte del importe.
- */
-data class InvestmentOperation(
-    val id: String,
-    val portfolioId: String,
-    val assetId: String,
-    val type: OperationType,
-    val date: LocalDate,
-    val quantity: BigDecimal,
-    val unitPrice: BigDecimal,
-    val feesMinor: Long,
-    val currency: String,
-    val note: String,
-    val createdAt: Long,
-    val accountId: String? = null,
-    val time: LocalTime = LocalTime.MIDNIGHT,
-    val transferGroupId: String? = null,
-)
-
-enum class PriceSource { MANUAL, PROVEEDOR }
-enum class PriceQuality { RETRASADO, CIERRE }
-
-data class AssetPrice(
-    val assetId: String,
-    val price: BigDecimal,
-    val currency: String,
-    val asOfEpochMillis: Long,
-    val source: PriceSource,
-    val quality: PriceQuality? = null,
-)

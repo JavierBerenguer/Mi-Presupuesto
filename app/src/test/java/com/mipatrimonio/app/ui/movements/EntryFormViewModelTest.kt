@@ -180,6 +180,24 @@ class EntryFormViewModelTest {
     }
 
     @Test
+    fun `al editar un apunte de notificacion se puede cambiar gasto por ingreso conservando el origen`() = runTest {
+        ledger.saveAccount(account("a"))
+        ledger.saveTransaction(
+            transaction("tx", TransactionType.GASTO, 100, "a").copy(source = TransactionSource.NOTIFICACION),
+        )
+
+        val viewModel = viewModel("tx")
+        viewModel.ready()
+        viewModel.setKind(EntryKind.INCOME)
+        assertEquals(EntryKind.INCOME, viewModel.uiState.value.values.kind)
+        viewModel.save()
+
+        val saved = ledger.transactions.awaitValue { it.singleOrNull()?.type == TransactionType.INGRESO }.single()
+        assertEquals("tx", saved.id)
+        assertEquals(TransactionSource.NOTIFICACION, saved.source)
+    }
+
+    @Test
     fun `ofrece todas las categorias activas para cualquier tipo de apunte`() = runTest {
         ledger.saveAccount(account("a"))
         ledger.saveAccount(account("b"))
@@ -320,6 +338,27 @@ class EntryFormViewModelTest {
         assertEquals(EntryFormError.ACCOUNT_REQUIRED, viewModel.uiState.value.error)
     }
 
+    @Test fun `editar hijo o principal conserva el grupo`() = runTest {
+        ledger.saveAccount(account("a"))
+        ledger.saveTransaction(transaction("p", TransactionType.GASTO, 600, "a"))
+        ledger.saveTransaction(transaction("c", TransactionType.INGRESO, 200, "a"))
+        ledger.groupTransactions("p", listOf("c"))
+
+        val child = viewModel("c")
+        assertEquals("p", child.ready().groupParentTitle?.let { "p" })
+        child.setTitle("Bizum editado")
+        child.save()
+        assertEquals("p", ledger.transactions.awaitValue { it.firstOrNull { tx -> tx.id == "c" }?.description == "Bizum editado" }
+            .first { it.id == "c" }.groupParentId)
+
+        val parent = viewModel("p")
+        assertEquals(1, parent.ready().groupChildCount)
+        parent.setTitle("Cena editada")
+        parent.save()
+        val values = ledger.transactions.awaitValue { it.firstOrNull { tx -> tx.id == "p" }?.description == "Cena editada" }
+        assertEquals("p", values.first { it.id == "c" }.groupParentId)
+    }
+
     private fun viewModel(id: String? = null) = EntryFormViewModel(
         ledger = ledger,
         entryId = id,
@@ -328,6 +367,17 @@ class EntryFormViewModelTest {
     )
 
     private suspend fun EntryFormViewModel.ready(): EntryFormUiState = uiState.first { !it.isLoading }
+
+    @Test fun `selector excluye cuentas sin uso en app y trata seleccion previa como vacia`() {
+        val external = account("external").copy(useInApp = false)
+        val state = EntryFormUiState(
+            isLoading = false,
+            accounts = listOf(account("active"), external),
+            values = EntryFormValues(accountId = external.id),
+        )
+        assertEquals(listOf("active"), state.activeAccounts.map { it.id })
+        assertNull(state.selectedAccount)
+    }
 
     private fun account(id: String, currency: String = "EUR", archived: Boolean = false) = Account(
         id = id,

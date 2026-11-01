@@ -30,11 +30,8 @@ class DestinoTest {
         assertEquals(
             listOf(
                 Rutas.CUENTAS,
-                Rutas.CARTERAS,
-                Rutas.ACTIVOS,
                 Rutas.CATEGORIAS,
                 Rutas.RECURRENTES,
-                Rutas.PATRIMONIO,
                 Rutas.COPIAS,
                 Rutas.AJUSTES,
             ),
@@ -43,17 +40,9 @@ class DestinoTest {
     }
 
     @Test
-    fun `la gestion de carteras y activos sigue accesible desde mas`() {
-        val moreRoutes = SecondaryMenuDestination.at(MenuLocation.MAS).map { it.route }
-
-        assertEquals(true, Rutas.CARTERAS in moreRoutes)
-        assertEquals(true, Rutas.ACTIVOS in moreRoutes)
-    }
-
-    @Test
     fun `ajustes contiene solo los destinos de configuracion bancaria`() {
         assertEquals(
-            listOf(Rutas.NOTIFICACIONES, Rutas.AUTOMATIZACION_NOTIFICACIONES, Rutas.PROPUESTAS),
+            listOf(Rutas.NOTIFICACIONES, Rutas.AUTOMATIZACION_NOTIFICACIONES, Rutas.PROPUESTAS, Rutas.SINCRONIZACION),
             SecondaryMenuDestination.at(MenuLocation.AJUSTES).map { it.route },
         )
     }

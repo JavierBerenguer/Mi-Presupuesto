@@ -16,19 +16,26 @@ import com.mipatrimonio.app.data.db.migrations.MIGRATION_9_10
 import com.mipatrimonio.app.data.db.migrations.MIGRATION_10_11
 import com.mipatrimonio.app.data.db.migrations.MIGRATION_11_12
 import com.mipatrimonio.app.data.db.migrations.MIGRATION_12_13
+import com.mipatrimonio.app.data.db.migrations.MIGRATION_13_14
+import com.mipatrimonio.app.data.db.migrations.MIGRATION_14_15
+import com.mipatrimonio.app.data.db.migrations.MIGRATION_15_16
+import com.mipatrimonio.app.data.db.migrations.MIGRATION_16_17
+import com.mipatrimonio.app.data.db.migrations.MIGRATION_17_18
+import com.mipatrimonio.app.data.db.migrations.MIGRATION_18_19
+import com.mipatrimonio.app.data.db.migrations.MIGRATION_19_20
+import com.mipatrimonio.app.data.db.migrations.MIGRATION_20_21
+import com.mipatrimonio.app.data.db.migrations.MIGRATION_21_22
+import com.mipatrimonio.app.data.db.migrations.MIGRATION_22_23
 
 @Database(
     entities = [
         AccountEntity::class,
+        AccountBalanceEntity::class,
         CategoryEntity::class,
         TransactionEntity::class,
         TransferEntity::class,
         BudgetEntity::class,
         BudgetCategoryEntity::class,
-        PortfolioEntity::class,
-        AssetEntity::class,
-        InvestmentOperationEntity::class,
-        AssetPriceEntity::class,
         NotificationAuthorizationEntity::class,
         PendingProposalEntity::class,
         NotificationDiagnosticEntity::class,
@@ -36,19 +43,23 @@ import com.mipatrimonio.app.data.db.migrations.MIGRATION_12_13
         NotificationStructureEntity::class,
         NotificationRuleEntity::class,
         NotificationRecordEntity::class,
+        SyncPerfilEntity::class, SyncProductoEntity::class, SyncMovimientoEntity::class,
+        SyncResumenEntity::class, SyncOutboxEntity::class, SyncCursorEntity::class,
+        SyncAccountFingerprintEntity::class,
     ],
-    version = 13,
+    version = 23,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun accountDao(): AccountDao
+    abstract fun accountBalanceDao(): AccountBalanceDao
     abstract fun categoryDao(): CategoryDao
     abstract fun transactionDao(): TransactionDao
     abstract fun transferDao(): TransferDao
     abstract fun budgetDao(): BudgetDao
-    abstract fun investmentDao(): InvestmentDao
     abstract fun notificationDao(): NotificationDao
     abstract fun recurringRuleDao(): RecurringRuleDao
+    abstract fun syncDao(): SyncDao
 
     companion object {
         const val NAME = "mi_patrimonio.db"
@@ -69,6 +80,16 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_10_11,
                     MIGRATION_11_12,
                     MIGRATION_12_13,
+                    MIGRATION_13_14,
+                    MIGRATION_14_15,
+                    MIGRATION_15_16,
+                    MIGRATION_16_17,
+                    MIGRATION_17_18,
+                    MIGRATION_18_19,
+                    MIGRATION_19_20,
+                    MIGRATION_20_21,
+                    MIGRATION_21_22,
+                    MIGRATION_22_23,
                 )
                 .build()
     }

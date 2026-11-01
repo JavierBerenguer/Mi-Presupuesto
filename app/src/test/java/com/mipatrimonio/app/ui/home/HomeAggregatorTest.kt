@@ -1,23 +1,33 @@
 package com.mipatrimonio.app.ui.home
 
+import com.mipatrimonio.app.domain.calc.LiquidityMovement
+import com.mipatrimonio.app.domain.calc.InvestmentCashFlow
+import com.mipatrimonio.app.domain.calc.InvestmentStats
+import com.mipatrimonio.app.domain.calc.CategorySpend
+import com.mipatrimonio.app.domain.model.Category
+import com.mipatrimonio.app.data.sync.PortfolioClass
+import com.mipatrimonio.app.data.sync.PortfolioProduct
+import com.mipatrimonio.app.data.sync.PortfolioSummary
+import com.mipatrimonio.app.data.sync.PortfolioTotal
+import com.mipatrimonio.app.data.sync.PortfolioHistoryPoint
 import com.mipatrimonio.app.domain.TestData.account
 import com.mipatrimonio.app.domain.TestData.category
 import com.mipatrimonio.app.domain.TestData.tx
-import com.mipatrimonio.app.domain.TestData.op
-import com.mipatrimonio.app.domain.model.Asset
-import com.mipatrimonio.app.domain.model.AssetType
-import com.mipatrimonio.app.domain.model.AssetPrice
-import com.mipatrimonio.app.domain.model.PriceSource
+import com.mipatrimonio.app.domain.calc.AccountBalance
 import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.BudgetPeriod
 import com.mipatrimonio.app.domain.model.TransactionType.GASTO
 import com.mipatrimonio.app.domain.model.TransactionType.INGRESO
 import com.mipatrimonio.app.domain.model.TransactionSource
-import com.mipatrimonio.app.domain.model.OperationType
-import com.mipatrimonio.app.domain.model.Portfolio
+import com.mipatrimonio.app.domain.model.InvestmentKind
+import com.mipatrimonio.app.domain.notifications.NotificationDirection
+import com.mipatrimonio.app.domain.notifications.NotificationRecord
+import com.mipatrimonio.app.domain.notifications.NotificationRecordStatus
+import com.mipatrimonio.app.domain.notifications.NotificationStructure
+import com.mipatrimonio.app.domain.notifications.NotificationTemplate
 import com.mipatrimonio.app.domain.usecase.Period
-import java.time.LocalDate
 import java.math.BigDecimal
+import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -33,7 +43,13 @@ class HomeAggregatorTest {
         budgets: List<Budget> = emptyList(),
         accounts: List<com.mipatrimonio.app.domain.model.Account> = listOf(account("a1", initial = 100_00)),
         period: Period = Period.MES,
-    ) = buildHomeState("EUR", accounts, txs, emptyList(), cats, budgets, emptyList(), emptyList(), emptyList(), emptyMap(), today, period)
+        portfolio: PortfolioSummary? = null,
+        evolution: EvolutionSeries = EvolutionSeries.TOTAL,
+    ) = buildHomeState(
+        "EUR", accounts, txs, emptyList(), cats, budgets, today, period,
+        portfolioSummary = portfolio,
+        evolutionSeries = evolution,
+    )
 
     private fun budget(id: String, category: String?, limit: Long, period: BudgetPeriod = BudgetPeriod.MENSUAL, currency: String = "EUR") =
         Budget(id, category, period, limit, currency, false)
@@ -41,6 +57,25 @@ class HomeAggregatorTest {
     @Test
     fun `sin cuentas es primer uso`() {
         assertFalse(state(accounts = emptyList()).hasAccounts)
+    }
+
+    @Test fun `redondeo resta efectivo y patrimonio mostrados sin cambiar estadisticas ni evolucion`() {
+        val active = account("a1", initial = 100_00).copy(roundUpMultiplier = 2, roundUpSettledAt = 0)
+        val expense = tx(GASTO, 17_80, date = today).copy(source = TransactionSource.NOTIFICACION)
+        val record = NotificationRecord("r", "bank", 1, "", 17_80, "EUR", "s", null, null,
+            NotificationRecordStatus.AUTOMATIZADA, expense.id, 1)
+        val structure = NotificationStructure("s", "bank", "Pago", NotificationTemplate(emptyList()),
+            NotificationDirection.GASTO, createdAt = 1, updatedAt = 1, generatesRoundUp = true)
+        val result = buildHomeState(
+            "EUR", listOf(active), listOf(expense), emptyList(), cats, emptyList(), today, Period.MES,
+            roundUpRecords = listOf(record), roundUpStructures = listOf(structure),
+        )
+
+        assertEquals(40L, result.roundUpPendingMinor)
+        assertEquals(result.netWorth.cashMinor - 40L, result.displayedCashMinor)
+        assertEquals(result.netWorth.cashMinor - 40L, result.displayedNetWorthMinor)
+        assertEquals(17_80L, result.monthTotals.expenseMinor)
+        assertEquals(result.netWorth.cashMinor, result.netWorthSeries.last().totalMinor)
     }
 
     @Test
@@ -57,6 +92,44 @@ class HomeAggregatorTest {
         assertEquals(300_00L, s.monthTotals.expenseMinor)
         assertEquals(700_00L, s.monthTotals.balanceMinor)
         assertEquals(100_00L + 1000_00 - 999_00 - 300_00, s.netWorth.cashMinor)
+    }
+
+    @Test fun `mes con compra venta dividendo y comision separa estadisticas inversion y saldo`() {
+        val account = account("a1", initial = 1_000_00)
+        val investmentCategories = listOf(
+            Category("mp-inversiones", "Inversiones", null, 0, false),
+            Category("div", "Dividendo", "mp-inversiones", 0, false, investmentKind = InvestmentKind.DIVIDENDO),
+            Category("fee", "Comisión", "mp-inversiones", 0, false, investmentKind = InvestmentKind.COMISION),
+        )
+        val flows = listOf(
+            InvestmentCashFlow("buy", account.id, today, InvestmentKind.COMPRA, 500_00),
+            InvestmentCashFlow("sell", account.id, today, InvestmentKind.VENTA, 200_00),
+            InvestmentCashFlow("dividend", account.id, today, InvestmentKind.DIVIDENDO, 20_00),
+            InvestmentCashFlow("commission", account.id, today, InvestmentKind.COMISION, 1_00),
+        )
+        val liquidity = listOf(
+            LiquidityMovement("buy", account.id, today, -500_00),
+            LiquidityMovement("sell", account.id, today, 200_00),
+            LiquidityMovement("dividend", account.id, today, 20_00),
+            LiquidityMovement("commission", account.id, today, -1_00),
+        )
+        val withoutProjection = buildHomeState(
+            "EUR", listOf(account), emptyList(), emptyList(), investmentCategories, emptyList(), today, Period.MES,
+            liquidityMovements = liquidity,
+        )
+        val result = buildHomeState(
+            "EUR", listOf(account), emptyList(), emptyList(), investmentCategories, emptyList(), today, Period.MES,
+            liquidityMovements = liquidity, investmentCashFlows = flows,
+        )
+
+        assertEquals(20_00L, result.monthTotals.incomeMinor)
+        assertEquals(1_00L, result.monthTotals.expenseMinor)
+        assertEquals(300_00L, result.investedThisMonthMinor)
+        assertEquals(300_00L, result.investedInPeriodMinor)
+        assertEquals(71_900L, result.netWorth.cashMinor)
+        assertEquals(withoutProjection.netWorth, result.netWorth)
+        assertEquals(withoutProjection.netWorthSeries, result.netWorthSeries)
+        assertEquals(301_00L, expenseWithInvesting(result.expenseByCategory, result.investedInPeriodMinor, investmentCategories).single().amountMinor)
     }
 
     @Test
@@ -88,7 +161,7 @@ class HomeAggregatorTest {
                 tx(GASTO, 20_00, category = "super"),
                 tx(GASTO, 5_00, category = "ocio"),
                 tx(GASTO, 1_00),
-                tx(INGRESO, 900_00, category = "comida"),
+                tx(INGRESO, 4_00, category = "comida"),
             ),
         )
         val byId = s.expenseByCategory.associate { it.categoryId to it.amountMinor }
@@ -115,30 +188,6 @@ class HomeAggregatorTest {
     }
 
     @Test
-    fun `filtros de patrimonio seleccionan cuentas inversiones o ambos`() {
-        val asset = Asset("asset1", "Fondo", "F", "", AssetType.FONDO_INDEXADO, "", "EUR")
-        val operation = op(OperationType.COMPRA, "2", "50", date = today)
-        fun filtered(accounts: Boolean, investments: Boolean) = buildHomeState(
-            "EUR", listOf(account(initial = 40_00)), emptyList(), emptyList(), cats, emptyList(),
-            listOf(Portfolio("p1", "Principal", 0)), listOf(asset), listOf(operation),
-            mapOf("asset1" to AssetPrice("asset1", BigDecimal("50"), "EUR", 0, PriceSource.MANUAL)),
-            today, Period.MES, accounts, investments,
-        )
-
-        assertEquals(40_00L, filtered(true, false).displayedNetWorthMinor)
-        assertEquals(100_00L, filtered(false, true).displayedNetWorthMinor)
-        assertEquals(140_00L, filtered(true, true).displayedNetWorthMinor)
-        assertTrue(filtered(false, true).netWorthSeries.all { it.totalMinor >= 0L })
-        val investmentsOnly = buildHomeState(
-            "EUR", emptyList(), emptyList(), emptyList(), cats, emptyList(),
-            listOf(Portfolio("p1", "Principal", 0)), listOf(asset), listOf(operation), emptyMap(),
-            today, Period.MES,
-        )
-        assertFalse(investmentsOnly.hasAccounts)
-        assertTrue(investmentsOnly.hasFinancialData)
-    }
-
-    @Test
     fun `cuenta automaticos de siete dias y calcula porcentaje gastado`() {
         val income = tx(INGRESO, 1_000_00, date = today)
         val expense = tx(GASTO, 255_00, date = today.minusDays(2)).copy(source = TransactionSource.NOTIFICACION)
@@ -154,4 +203,267 @@ class HomeAggregatorTest {
     fun `sin ingresos no muestra porcentaje gastado`() {
         assertNull(state(listOf(tx(GASTO, 10_00, date = today))).spentIncomePercent)
     }
+
+    @Test
+    fun `inversiones suman ganancia y calculan rentabilidad sobre lo aportado`() {
+        val summary = portfolio(
+            products = listOf(product("uno", contributed = 400_00, gain = 40_00), product("dos", 600_00, 110_00)),
+        ).toInvestmentSummary()
+
+        assertEquals(150_00L, summary.gainMinor)
+        assertEquals(BigDecimal("0.1500000000"), summary.returnRate)
+    }
+
+    @Test
+    fun `inversiones sin aportado positivo no muestran rentabilidad`() {
+        val summary = portfolio(products = listOf(product("uno", contributed = 0L, gain = 25_00)))
+            .toInvestmentSummary()
+
+        assertEquals(25_00L, summary.gainMinor)
+        assertNull(summary.returnRate)
+    }
+
+    @Test
+    fun `reparto excluye efectivo sin distinguir tildes y recalcula pesos`() {
+        val classes = listOf(
+            PortfolioClass("Eféctivo", 900_00, BigDecimal("0.45")),
+            PortfolioClass("Renta fija", 600_00, BigDecimal("0.30")),
+            PortfolioClass("Acciones", 400_00, BigDecimal("0.20")),
+            PortfolioClass("Oro", 50_00, BigDecimal("0.025")),
+            PortfolioClass("Cripto", 40_00, BigDecimal("0.02")),
+            PortfolioClass("Otros", 10_00, BigDecimal("0.005")),
+        )
+
+        val result = portfolio(classes = classes).toInvestmentSummary().classes
+
+        assertEquals(listOf("Renta fija", "Acciones", "Oro", "Cripto"), result.map { it.name })
+        assertEquals(listOf(55, 36, 5, 4), result.map { it.weightPercent })
+    }
+
+    @Test
+    fun `colchon usa solo cuentas liquidas activas y en divisa base`() {
+        val liquid = account("liquid", initial = 1_200_00)
+        val accounts = listOf(
+            liquid,
+            account("blocked", initial = 900_00).copy(liquidity = false),
+            account("archived", initial = 800_00, archived = true),
+            account("usd", initial = 700_00, currency = "USD"),
+        )
+        val balances = accounts.map { AccountBalance(it, it.initialBalanceMinor) }
+        val expenses = (1..6).map { back ->
+            tx(GASTO, 100_00, date = today.minusMonths(back.toLong()), account = liquid.id)
+        }
+
+        val result = liquidityCushion("EUR", accounts, balances, expenses, cats, today)
+
+        assertEquals(1_200_00L, result?.liquidCashMinor)
+        assertEquals(100_00L, result?.averageLivingExpenseMinor)
+        assertEquals(BigDecimal("12.0"), result?.coveredMonthsWithoutInvesting)
+    }
+
+    @Test
+    fun `colchon toma seis meses completos y excluye el actual`() {
+        val account = account("a", initial = 1_200_00)
+        val transactions = buildList {
+            add(tx(GASTO, 100_00, date = LocalDate.of(2025, 8, 10)))
+            (9..12).forEach { month -> add(tx(GASTO, 200_00, date = LocalDate.of(2025, month, 10))) }
+            (1..2).forEach { month -> add(tx(GASTO, 200_00, date = LocalDate.of(2026, month, 10))) }
+            add(tx(GASTO, 999_00, date = today))
+        }
+
+        val result = liquidityCushion("EUR", listOf(account), listOf(AccountBalance(account, 1_200_00)), transactions, cats, today)
+
+        assertEquals(200_00L, result?.averageLivingExpenseMinor)
+        assertEquals(BigDecimal("6.0"), result?.coveredMonthsWithoutInvesting)
+    }
+
+    @Test
+    fun `colchon con historia corta usa los meses completos disponibles`() {
+        val account = account("a", initial = 300_00)
+        val transactions = listOf(
+            tx(GASTO, 100_00, date = LocalDate.of(2026, 1, 10)),
+            tx(GASTO, 200_00, date = LocalDate.of(2026, 2, 10)),
+        )
+
+        val result = liquidityCushion("EUR", listOf(account), listOf(AccountBalance(account, 300_00)), transactions, cats, today)
+
+        assertEquals(150_00L, result?.averageLivingExpenseMinor)
+        assertEquals(BigDecimal("2.0"), result?.coveredMonthsWithoutInvesting)
+    }
+
+    @Test
+    fun `colchon si sigues invirtiendo suma lo que sale hacia Rumbo`() {
+        val account = account("a", initial = 1_200_00)
+        val transactions = (9..12).map { tx(GASTO, 100_00, date = LocalDate.of(2025, it, 10)) } +
+            (1..2).map { tx(GASTO, 100_00, date = LocalDate.of(2026, it, 10)) }
+        // 600 € de compras en Rumbo en la ventana (100 €/mes) y una venta de 0 fuera de ella.
+        val flows = (1..6).map {
+            InvestmentCashFlow("m$it", account.id, LocalDate.of(2026, 2, it), InvestmentKind.COMPRA, 100_00)
+        } + InvestmentCashFlow("vieja", account.id, LocalDate.of(2025, 1, 5), InvestmentKind.COMPRA, 900_00)
+
+        val result = liquidityCushion(
+            "EUR", listOf(account), listOf(AccountBalance(account, 1_200_00)), transactions, cats, today, flows,
+        )
+
+        assertEquals(100_00L, result?.averageLivingExpenseMinor)
+        assertEquals(200_00L, result?.averageTotalExpenseMinor)
+        assertEquals(BigDecimal("12.0"), result?.coveredMonthsWithoutInvesting)
+        assertEquals(BigDecimal("6.0"), result?.coveredMonthsContinuingInvesting)
+    }
+
+    @Test fun `colchon excluye comisiones del gasto de vida y suma comisiones e inversion al total`() {
+        val account = account("a", initial = 1_200_00)
+        val categories = listOf(
+            Category("mp-inversiones", "Inversiones", null, 0, false),
+            Category("fee", "Comisión", "mp-inversiones", 0, false, investmentKind = InvestmentKind.COMISION),
+            Category("ocio", "Ocio", null, 0, false),
+        )
+        val expenses = (1..6).map { tx(GASTO, 100_00, date = today.minusMonths(it.toLong()), category = "ocio") }
+        val flows = (1..6).flatMap {
+            val date = today.minusMonths(it.toLong())
+            listOf(
+                InvestmentCashFlow("buy$it", account.id, date, InvestmentKind.COMPRA, 50_00),
+                InvestmentCashFlow("fee$it", account.id, date, InvestmentKind.COMISION, 1_00),
+            )
+        }
+        val statistics = expenses + InvestmentStats.statTransactions(flows, categories)
+        val result = liquidityCushion(
+            "EUR", listOf(account), listOf(AccountBalance(account, 1_200_00)), statistics, categories, today, flows,
+        )
+
+        assertEquals(100_00L, result?.averageLivingExpenseMinor)
+        assertEquals(151_00L, result?.averageTotalExpenseMinor)
+    }
+
+    @Test
+    fun `vista liquidez suma lo invertido en Rumbo a la porcion de Inversiones`() {
+        val categorias = listOf(Category("mp-inversiones", "Inversiones", null, 0xFF000000, false))
+        val base = listOf(CategorySpend("casa", 300_00), CategorySpend("mp-inversiones", 50_00))
+
+        val conPorcion = expenseWithInvesting(base, 500_00, categorias)
+        assertEquals(listOf("mp-inversiones" to 550_00L, "casa" to 300_00L), conPorcion.map { it.categoryId to it.amountMinor })
+
+        val sinPorcion = expenseWithInvesting(listOf(CategorySpend("casa", 300_00)), 100_00, categorias)
+        assertEquals(listOf("casa" to 300_00L, "mp-inversiones" to 100_00L), sinPorcion.map { it.categoryId to it.amountMinor })
+
+        assertEquals(base, expenseWithInvesting(base, 0L, categorias))
+    }
+
+    @Test
+    fun `colchon sin gasto medio devuelve nulo`() {
+        val account = account("a", initial = 300_00)
+        val income = tx(INGRESO, 100_00, date = LocalDate.of(2026, 2, 10))
+
+        assertNull(liquidityCushion("EUR", listOf(account), listOf(AccountBalance(account, 300_00)), listOf(income), cats, today))
+    }
+
+    @Test
+    fun `colchon sin meses completos devuelve nulo`() {
+        val account = account("a", initial = 300_00)
+        val currentExpense = tx(GASTO, 100_00, date = today)
+
+        assertNull(
+            liquidityCushion(
+                "EUR", listOf(account), listOf(AccountBalance(account, 300_00)), listOf(currentExpense), cats, today,
+            ),
+        )
+    }
+
+    @Test
+    fun `colchon separa gasto de vida y gasto total y sin inversiones deja un valor`() {
+        val account = account("a", initial = 1_200_00)
+        val categories = cats + com.mipatrimonio.app.domain.model.Category(
+            "custom-invest", "Invérsiones", null, 0xFF000000, false,
+        )
+        val transactions = (1..6).flatMap { back ->
+            listOf(
+                tx(GASTO, 100_00, date = today.minusMonths(back.toLong()), category = "ocio"),
+                tx(GASTO, 50_00, date = today.minusMonths(back.toLong()), category = "custom-invest"),
+            )
+        }
+
+        val result = liquidityCushion(
+            "EUR", listOf(account), listOf(AccountBalance(account, 1_200_00)), transactions, categories, today,
+        )
+        val withoutInvestments = liquidityCushion(
+            "EUR", listOf(account), listOf(AccountBalance(account, 1_200_00)),
+            transactions.filterNot { it.categoryId == "custom-invest" }, categories, today,
+        )
+
+        assertEquals(100_00L, result?.averageLivingExpenseMinor)
+        assertEquals(150_00L, result?.averageTotalExpenseMinor)
+        assertEquals(BigDecimal("12.0"), result?.coveredMonthsWithoutInvesting)
+        assertEquals(BigDecimal("8.0"), result?.coveredMonthsContinuingInvesting)
+        assertNull(withoutInvestments?.coveredMonthsContinuingInvesting)
+    }
+
+    @Test
+    fun `series de inversion y total alinean antes dentro y despues y cambian variacion`() {
+        val liquidity = listOf(
+            com.mipatrimonio.app.domain.usecase.NetWorthPoint(LocalDate.of(2026, 1, 1), 100L),
+            com.mipatrimonio.app.domain.usecase.NetWorthPoint(LocalDate.of(2026, 1, 5), 200L),
+            com.mipatrimonio.app.domain.usecase.NetWorthPoint(LocalDate.of(2026, 1, 10), 300L),
+        )
+        val history = listOf(
+            PortfolioHistoryPoint(LocalDate.of(2026, 1, 3), 10L),
+            PortfolioHistoryPoint(LocalDate.of(2026, 1, 7), 25L),
+        )
+
+        assertEquals(listOf(0L, 10L, 25L), buildEvolutionSeries(liquidity, history, EvolutionSeries.INVESTMENT).map { it.totalMinor })
+        assertEquals(listOf(100L, 210L, 325L), buildEvolutionSeries(liquidity, history, EvolutionSeries.TOTAL).map { it.totalMinor })
+
+        val summary = portfolio(
+            value = 25L,
+            history = history.map { it.copy(date = it.date.plusMonths(2)) },
+        )
+        assertEquals(25L, state(portfolio = summary, evolution = EvolutionSeries.INVESTMENT).displayedVariationMinor)
+        assertEquals(0L, state(portfolio = summary, evolution = EvolutionSeries.LIQUIDITY).displayedVariationMinor)
+    }
+
+    @Test
+    fun `tasa de ahorro y reparto apilado cubren denominadores invalidos`() {
+        assertEquals(BigDecimal("25.0"), savingRate(com.mipatrimonio.app.domain.calc.PeriodTotals(1_000_00, 750_00, 0)))
+        assertNull(savingRate(com.mipatrimonio.app.domain.calc.PeriodTotals(0L, 10_00, 0)))
+        assertEquals(AssetAllocation(60, 40), assetAllocation(600_00, 400_00))
+        assertNull(assetAllocation(-1L, 400_00))
+        assertNull(assetAllocation(600_00, -1L))
+        assertNull(assetAllocation(600_00, null))
+    }
+
+    @Test
+    fun `resumen de rumbo mantiene inicio aunque no haya cuentas ni valor`() {
+        val result = state(accounts = emptyList(), portfolio = portfolio(value = 0L))
+
+        assertTrue(result.hasFinancialData)
+        assertNull(result.allocation)
+    }
+
+    private fun portfolio(
+        value: Long = 1_000_00,
+        products: List<PortfolioProduct> = emptyList(),
+        classes: List<PortfolioClass> = emptyList(),
+        history: List<PortfolioHistoryPoint>? = null,
+    ) = PortfolioSummary(
+        generated = "2026-03-20",
+        currency = "EUR",
+        total = PortfolioTotal(value, 0L, 0L, BigDecimal.ZERO, BigDecimal("0.08"), 0L),
+        classes = classes,
+        products = products,
+        warnings = emptyList(),
+        history = history,
+    )
+
+    private fun product(id: String, contributed: Long, gain: Long) = PortfolioProduct(
+        id = id,
+        name = id,
+        type = "Fondo",
+        valueMinor = Math.addExact(contributed, gain),
+        contributedMinor = contributed,
+        gainMinor = gain,
+        returnRate = BigDecimal.ZERO,
+        irr = null,
+        units = BigDecimal.ONE,
+        priceMinor = null,
+        weight = BigDecimal.ZERO,
+    )
 }

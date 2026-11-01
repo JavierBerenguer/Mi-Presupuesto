@@ -22,8 +22,6 @@ data class Settings(
     val darkMode: Boolean,
     val hideAmounts: Boolean = false,
     val netWorthIncludeAccounts: Boolean = true,
-    val netWorthIncludeInvestments: Boolean = true,
-    val selectedPortfolioId: String? = null,
     val movementsIncludedAccountIds: Set<String> = emptySet(),
     val movementsAllAccounts: Boolean = true,
     val movementsCalculationMode: MovementsCalculationMode = MovementsCalculationMode.SALDO_ACTUAL,
@@ -31,10 +29,14 @@ data class Settings(
     val movementsHideFuture: Boolean = false,
     val movementsIgnoreTransfers: Boolean = false,
     val tradeRepublicAccountId: String? = null,
-    val tradeRepublicPortfolioId: String? = null,
-    val neverlessAccountId: String? = null,
-    val neverlessPortfolioId: String? = null,
     val categoryCatalogVersion: Int = 0,
+    val pendingAutomationAlertsEnabled: Boolean = true,
+    val syncProjectUrl: String = "",
+    val syncPublishableKey: String = "",
+    val syncProfileId: String? = null,
+    val syncLastSuccessAt: Long? = null,
+    val syncEmail: String? = null,
+    val syncAccountHistorySupported: Boolean = false,
 )
 
 class SettingsRepository(private val store: DataStore<Preferences>) {
@@ -44,8 +46,6 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
     private val darkModeKey = booleanPreferencesKey("dark_mode")
     private val hideAmountsKey = booleanPreferencesKey("hide_amounts")
     private val includeAccountsKey = booleanPreferencesKey("net_worth_include_accounts")
-    private val includeInvestmentsKey = booleanPreferencesKey("net_worth_include_investments")
-    private val selectedPortfolioIdKey = stringPreferencesKey("selected_portfolio_id")
     private val movementsIncludedAccountIdsKey = stringSetPreferencesKey("movements_included_account_ids")
     private val movementsAllAccountsKey = booleanPreferencesKey("movements_all_accounts")
     private val movementsCalculationModeKey = stringPreferencesKey("movements_calculation_mode")
@@ -53,10 +53,14 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
     private val movementsHideFutureKey = booleanPreferencesKey("movements_hide_future")
     private val movementsIgnoreTransfersKey = booleanPreferencesKey("movements_ignore_transfers")
     private val tradeRepublicAccountIdKey = stringPreferencesKey("trade_republic_account_id")
-    private val tradeRepublicPortfolioIdKey = stringPreferencesKey("trade_republic_portfolio_id")
-    private val neverlessAccountIdKey = stringPreferencesKey("neverless_account_id")
-    private val neverlessPortfolioIdKey = stringPreferencesKey("neverless_portfolio_id")
     private val categoryCatalogVersionKey = intPreferencesKey("category_catalog_version")
+    private val pendingAutomationAlertsEnabledKey = booleanPreferencesKey("pending_automation_alerts_enabled")
+    private val syncProjectUrlKey = stringPreferencesKey("sync_project_url")
+    private val syncPublishableKey = stringPreferencesKey("sync_publishable_key")
+    private val syncProfileIdKey = stringPreferencesKey("sync_profile_id")
+    private val syncLastSuccessAtKey = androidx.datastore.preferences.core.longPreferencesKey("sync_last_success_at")
+    private val syncEmailKey = stringPreferencesKey("sync_email")
+    private val syncAccountHistorySupportedKey = booleanPreferencesKey("sync_account_history_supported")
 
     /** Modo oscuro activado por defecto; divisa base EUR por defecto. */
     val settings: Flow<Settings> = store.data.map { p ->
@@ -65,8 +69,6 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
             darkMode = p[darkModeKey] ?: true,
             hideAmounts = p[hideAmountsKey] ?: false,
             netWorthIncludeAccounts = p[includeAccountsKey] ?: true,
-            netWorthIncludeInvestments = p[includeInvestmentsKey] ?: true,
-            selectedPortfolioId = p[selectedPortfolioIdKey]?.takeIf { it.isNotBlank() },
             movementsIncludedAccountIds = p[movementsIncludedAccountIdsKey].orEmpty(),
             movementsAllAccounts = p[movementsAllAccountsKey] ?: true,
             movementsCalculationMode = p[movementsCalculationModeKey]
@@ -76,10 +78,14 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
             movementsHideFuture = p[movementsHideFutureKey] ?: false,
             movementsIgnoreTransfers = p[movementsIgnoreTransfersKey] ?: false,
             tradeRepublicAccountId = p[tradeRepublicAccountIdKey]?.takeIf(String::isNotBlank),
-            tradeRepublicPortfolioId = p[tradeRepublicPortfolioIdKey]?.takeIf(String::isNotBlank),
-            neverlessAccountId = p[neverlessAccountIdKey]?.takeIf(String::isNotBlank),
-            neverlessPortfolioId = p[neverlessPortfolioIdKey]?.takeIf(String::isNotBlank),
             categoryCatalogVersion = p[categoryCatalogVersionKey] ?: 0,
+            pendingAutomationAlertsEnabled = p[pendingAutomationAlertsEnabledKey] ?: true,
+            syncProjectUrl = p[syncProjectUrlKey].orEmpty(),
+            syncPublishableKey = p[syncPublishableKey].orEmpty(),
+            syncProfileId = p[syncProfileIdKey]?.takeIf(String::isNotBlank),
+            syncLastSuccessAt = p[syncLastSuccessAtKey],
+            syncEmail = p[syncEmailKey]?.takeIf(String::isNotBlank),
+            syncAccountHistorySupported = p[syncAccountHistorySupportedKey] ?: false,
         )
     }
 
@@ -95,18 +101,8 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
         store.edit { it[hideAmountsKey] = enabled }
     }
 
-    suspend fun setNetWorthIncludes(accounts: Boolean, investments: Boolean) {
-        require(accounts || investments) { "Debe incluirse al menos un componente del patrimonio" }
-        store.edit {
-            it[includeAccountsKey] = accounts
-            it[includeInvestmentsKey] = investments
-        }
-    }
-
-    suspend fun setSelectedPortfolioId(portfolioId: String?) {
-        store.edit { preferences ->
-            preferences[selectedPortfolioIdKey] = portfolioId.orEmpty()
-        }
+    suspend fun setNetWorthIncludes(accounts: Boolean) {
+        store.edit { it[includeAccountsKey] = accounts }
     }
 
     suspend fun setMovementsIncludedAccountIds(accountIds: Set<String>) {
@@ -133,30 +129,37 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
         store.edit { it[movementsIgnoreTransfersKey] = enabled }
     }
 
-    suspend fun setTradeRepublicDestination(accountId: String, portfolioId: String) {
-        store.edit {
-            it[tradeRepublicAccountIdKey] = accountId
-            it[tradeRepublicPortfolioIdKey] = portfolioId
-        }
-    }
-
     suspend fun setTradeRepublicAccount(accountId: String) {
         store.edit { it[tradeRepublicAccountIdKey] = accountId }
     }
 
-    suspend fun setNeverlessAccount(accountId: String) {
-        store.edit { it[neverlessAccountIdKey] = accountId }
+    suspend fun setCategoryCatalogVersion(version: Int) {
+        store.edit { it[categoryCatalogVersionKey] = version }
     }
 
-    suspend fun setNeverlessDestination(accountId: String, portfolioId: String) {
+    suspend fun setPendingAutomationAlertsEnabled(enabled: Boolean) {
+        store.edit { it[pendingAutomationAlertsEnabledKey] = enabled }
+    }
+
+    suspend fun setSyncConfiguration(projectUrl: String, publishableKey: String) {
         store.edit {
-            it[neverlessAccountIdKey] = accountId
-            it[neverlessPortfolioIdKey] = portfolioId
+            val normalizedUrl = projectUrl.trim()
+            if (it[syncProjectUrlKey].orEmpty() != normalizedUrl) it[syncAccountHistorySupportedKey] = false
+            it[syncProjectUrlKey] = normalizedUrl
+            it[syncPublishableKey] = publishableKey.trim()
         }
     }
 
-    suspend fun setCategoryCatalogVersion(version: Int) {
-        store.edit { it[categoryCatalogVersionKey] = version }
+    suspend fun setSyncProfile(profileId: String?) {
+        store.edit { it[syncProfileIdKey] = profileId.orEmpty() }
+    }
+
+    suspend fun setSyncLastSuccessAt(value: Long) { store.edit { it[syncLastSuccessAtKey] = value } }
+
+    suspend fun setSyncEmail(value: String?) { store.edit { it[syncEmailKey] = value.orEmpty() } }
+
+    suspend fun setSyncAccountHistorySupported(supported: Boolean) {
+        store.edit { it[syncAccountHistorySupportedKey] = supported }
     }
 
     suspend fun exportForBackup(): Map<String, Any?> {
@@ -166,8 +169,6 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
             "dark_mode" to value.darkMode,
             "hide_amounts" to value.hideAmounts,
             "net_worth_include_accounts" to value.netWorthIncludeAccounts,
-            "net_worth_include_investments" to value.netWorthIncludeInvestments,
-            "selected_portfolio_id" to value.selectedPortfolioId,
             "movements_included_account_ids" to value.movementsIncludedAccountIds.sorted(),
             "movements_all_accounts" to value.movementsAllAccounts,
             "movements_calculation_mode" to value.movementsCalculationMode.name,
@@ -175,10 +176,8 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
             "movements_hide_future" to value.movementsHideFuture,
             "movements_ignore_transfers" to value.movementsIgnoreTransfers,
             "trade_republic_account_id" to value.tradeRepublicAccountId,
-            "trade_republic_portfolio_id" to value.tradeRepublicPortfolioId,
-            "neverless_account_id" to value.neverlessAccountId,
-            "neverless_portfolio_id" to value.neverlessPortfolioId,
             "category_catalog_version" to value.categoryCatalogVersion,
+            "pending_automation_alerts_enabled" to value.pendingAutomationAlertsEnabled,
         ).filterValues { it != null }
     }
 
@@ -188,10 +187,6 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
             (values["dark_mode"] as? Boolean)?.let { preferences[darkModeKey] = it }
             (values["hide_amounts"] as? Boolean)?.let { preferences[hideAmountsKey] = it }
             (values["net_worth_include_accounts"] as? Boolean)?.let { preferences[includeAccountsKey] = it }
-            (values["net_worth_include_investments"] as? Boolean)?.let { preferences[includeInvestmentsKey] = it }
-            if (values.containsKey("selected_portfolio_id")) {
-                preferences[selectedPortfolioIdKey] = (values["selected_portfolio_id"] as? String).orEmpty()
-            }
             @Suppress("UNCHECKED_CAST")
             (values["movements_included_account_ids"] as? Collection<String>)?.let {
                 preferences[movementsIncludedAccountIdsKey] = it.toSet()
@@ -204,17 +199,11 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
             if (values.containsKey("trade_republic_account_id")) {
                 preferences[tradeRepublicAccountIdKey] = (values["trade_republic_account_id"] as? String).orEmpty()
             }
-            if (values.containsKey("trade_republic_portfolio_id")) {
-                preferences[tradeRepublicPortfolioIdKey] = (values["trade_republic_portfolio_id"] as? String).orEmpty()
-            }
-            if (values.containsKey("neverless_account_id")) {
-                preferences[neverlessAccountIdKey] = (values["neverless_account_id"] as? String).orEmpty()
-            }
-            if (values.containsKey("neverless_portfolio_id")) {
-                preferences[neverlessPortfolioIdKey] = (values["neverless_portfolio_id"] as? String).orEmpty()
-            }
             preferences[categoryCatalogVersionKey] =
                 (values["category_catalog_version"] as? Number)?.toInt() ?: 0
+            (values["pending_automation_alerts_enabled"] as? Boolean)?.let {
+                preferences[pendingAutomationAlertsEnabledKey] = it
+            }
         }
     }
 }

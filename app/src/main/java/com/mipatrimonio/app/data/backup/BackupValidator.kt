@@ -3,15 +3,12 @@ package com.mipatrimonio.app.data.backup
 object BackupValidator {
     fun validate(data: BackupData) {
         unique("account", data.accounts.map { it.id })
+        unique("account_balance", data.accountBalances.map { it.id })
         unique("category", data.categories.map { it.id })
         unique("txn", data.transactions.map { it.id })
         unique("transfer", data.transfers.map { it.id })
         unique("budget", data.budgets.map { it.id })
         unique("budget_category", data.budgetCategories.map { "${it.budgetId}\u0000${it.categoryId}" })
-        unique("portfolio", data.portfolios.map { it.id })
-        unique("asset", data.assets.map { it.id })
-        unique("investment_operation", data.operations.map { it.id })
-        unique("asset_price", data.prices.map { it.id })
         unique("recurring_rule", data.recurringRules.map { it.id })
         unique("notification_authorization", data.authorizations.map { it.packageName })
         unique("pending_proposal", data.proposals.map { it.id })
@@ -20,17 +17,28 @@ object BackupValidator {
         unique("notification_record", data.notificationRecords.map { it.id })
 
         val accounts = data.accounts.mapTo(hashSetOf()) { it.id }
+        data.accountBalances.forEach { reference("account_balance.accountId", it.accountId, accounts) }
         val categories = data.categories.mapTo(hashSetOf()) { it.id }
         val budgets = data.budgets.mapTo(hashSetOf()) { it.id }
-        val portfolios = data.portfolios.mapTo(hashSetOf()) { it.id }
-        val assets = data.assets.mapTo(hashSetOf()) { it.id }
         val transactions = data.transactions.mapTo(hashSetOf()) { it.id }
+        val transactionsById = data.transactions.associateBy { it.id }
+        val groupParentIds = data.transactions.mapNotNullTo(hashSetOf()) { it.groupParentId }
         val structures = data.notificationStructures.mapTo(hashSetOf()) { it.id }
         val rules = data.notificationRules.mapTo(hashSetOf()) { it.id }
         data.categories.forEach { row -> row.parentId?.let { reference("category.parentId", it, categories) } }
         data.transactions.forEach { row ->
             reference("txn.accountId", row.accountId, accounts)
             row.categoryId?.let { reference("txn.categoryId", it, categories) }
+            row.groupParentId?.let { parentId ->
+                reference("txn.groupParentId", parentId, transactions)
+                val parent = transactionsById.getValue(parentId)
+                if (
+                    row.type != "INGRESO" || parent.type != "GASTO" ||
+                    row.currency != parent.currency || parent.groupParentId != null || row.id in groupParentIds
+                ) {
+                    throw BackupException.InvalidData("La copia contiene un grupo de apuntes no válido")
+                }
+            }
         }
         data.transfers.forEach { row ->
             reference("transfer.fromAccountId", row.fromAccountId, accounts)
@@ -42,13 +50,6 @@ object BackupValidator {
             reference("budget_category.budgetId", row.budgetId, budgets)
             reference("budget_category.categoryId", row.categoryId, categories)
         }
-        data.portfolios.forEach { it.defaultAccountId?.let { id -> reference("portfolio.defaultAccountId", id, accounts) } }
-        data.operations.forEach { row ->
-            reference("investment_operation.portfolioId", row.portfolioId, portfolios)
-            reference("investment_operation.assetId", row.assetId, assets)
-            row.accountId?.let { reference("investment_operation.accountId", it, accounts) }
-        }
-        data.prices.forEach { reference("asset_price.assetId", it.assetId, assets) }
         data.recurringRules.forEach { row ->
             reference("recurring_rule.accountId", row.accountId, accounts)
             row.destinationAccountId?.let { reference("recurring_rule.destinationAccountId", it, accounts) }

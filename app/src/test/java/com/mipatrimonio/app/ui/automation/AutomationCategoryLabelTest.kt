@@ -1,6 +1,7 @@
 package com.mipatrimonio.app.ui.automation
 
 import com.mipatrimonio.app.domain.model.Category
+import com.mipatrimonio.app.domain.model.InvestmentKind
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -28,8 +29,9 @@ class AutomationCategoryLabelTest {
 
     @Test fun `solo ofrece categorias activas en el selector`() {
         val archived = category(id = "old", name = "Antigua", archived = true)
+        val reserved = Category("reserved", "Compra", null, 0, false, investmentKind = InvestmentKind.COMPRA)
 
-        assertEquals(listOf(parent, child), selectableAutomationCategories(listOf(parent, archived, child)))
+        assertEquals(listOf(parent, child), selectableAutomationCategories(listOf(parent, archived, reserved, child)))
     }
 
     private fun category(

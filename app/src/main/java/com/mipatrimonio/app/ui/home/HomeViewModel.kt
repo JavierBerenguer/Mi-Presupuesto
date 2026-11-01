@@ -2,18 +2,21 @@ package com.mipatrimonio.app.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.mipatrimonio.app.data.repository.InvestmentRepository
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
+import com.mipatrimonio.app.data.sync.SyncRepository
+import com.mipatrimonio.app.data.sync.mapLiquidityMovements
+import com.mipatrimonio.app.data.sync.mapInvestmentCashFlows
+import com.mipatrimonio.app.data.sync.PortfolioSummaryParser
+import com.mipatrimonio.app.data.sync.PortfolioSummaryResult
 import com.mipatrimonio.app.domain.model.Account
-import com.mipatrimonio.app.domain.model.Asset
-import com.mipatrimonio.app.domain.model.AssetPrice
+import com.mipatrimonio.app.domain.model.AccountBalanceRecord
 import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.Category
-import com.mipatrimonio.app.domain.model.InvestmentOperation
-import com.mipatrimonio.app.domain.model.Portfolio
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.Transfer
+import com.mipatrimonio.app.domain.notifications.NotificationRecord
+import com.mipatrimonio.app.domain.notifications.NotificationStructure
 import com.mipatrimonio.app.domain.usecase.Period
 import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,8 +28,8 @@ import kotlinx.coroutines.launch
 
 class HomeViewModel(
     ledger: LedgerRepository,
-    investments: InvestmentRepository,
     private val settings: SettingsRepository,
+    private val sync: SyncRepository? = null,
 ) : ViewModel() {
     private data class LedgerData(
         val accounts: List<Account>,
@@ -34,29 +37,41 @@ class HomeViewModel(
         val transfers: List<Transfer>,
         val categories: List<Category>,
         val budgets: List<Budget>,
+        val accountBalances: List<AccountBalanceRecord>,
+        val roundUpRecords: List<NotificationRecord>,
+        val roundUpStructures: List<NotificationStructure>,
     )
-
-    private data class InvestmentData(
-        val portfolios: List<Portfolio>,
-        val assets: List<Asset>,
-        val operations: List<InvestmentOperation>,
-        val prices: Map<String, AssetPrice>,
+    private data class LedgerCore(
+        val accounts: List<Account>, val transactions: List<Transaction>, val transfers: List<Transfer>,
+        val categories: List<Category>, val budgets: List<Budget>,
     )
 
     private val selectedPeriod = MutableStateFlow(Period.MES)
     val period: StateFlow<Period> = selectedPeriod
+    private val selectedEvolutionSeries = MutableStateFlow(EvolutionSeries.TOTAL)
 
-    private val ledgerData = combine(
-        ledger.accounts, ledger.transactions, ledger.transfers, ledger.categories, ledger.budgets, ::LedgerData,
-    )
-    private val investmentData = combine(
-        investments.portfolios, investments.assets, investments.operations, investments.latestPrices, ::InvestmentData,
-    )
-
+    private val ledgerCoreData = combine(
+        ledger.accounts, ledger.transactions, ledger.transfers, ledger.categories, ledger.budgets, ::LedgerCore,
+    ).combine(ledger.accountBalances) { core, balances ->
+        core to balances
+    }
+    private val roundUpData = combine(ledger.roundUpRecords, ledger.roundUpStructures) { records, structures -> records to structures }
+    private val ledgerData = combine(ledgerCoreData, roundUpData) { (core, balances), (records, structures) ->
+        LedgerData(core.accounts, core.transactions, core.transfers, core.categories, core.budgets, balances, records, structures)
+    }
+    private val remoteMovements = sync?.movimientos ?: kotlinx.coroutines.flow.flowOf(emptyList())
+    private val remoteSummary = sync?.resumen ?: kotlinx.coroutines.flow.flowOf(null)
+    private val summarySelection = combine(remoteSummary, selectedEvolutionSeries) { summary, selection ->
+        summary to selection
+    }
     /** `null` mientras no llega el primer dato. */
     val state: StateFlow<HomeState?> = combine(
-        ledgerData, investmentData, settings.settings, selectedPeriod,
-    ) { l, inv, config, period ->
+        ledgerData, settings.settings, selectedPeriod, remoteMovements, summarySelection,
+    ) { l, config, period, movements, summaryAndSelection ->
+        val (rawSummary, evolutionSelection) = summaryAndSelection
+        val liquidity = mapLiquidityMovements(movements, l.accounts).entries
+        val investmentCashFlows = mapInvestmentCashFlows(movements, l.accounts)
+        val summary = rawSummary?.let { PortfolioSummaryParser.parse(it.datosJson) as? PortfolioSummaryResult.Success }?.summary
         buildHomeState(
             baseCurrency = config.baseCurrency,
             accounts = l.accounts,
@@ -64,15 +79,16 @@ class HomeViewModel(
             transfers = l.transfers,
             categories = l.categories,
             budgets = l.budgets,
-            portfolios = inv.portfolios,
-            assets = inv.assets,
-            operations = inv.operations,
-            prices = inv.prices,
             today = LocalDate.now(),
             period = period,
-            includeAccounts = config.netWorthIncludeAccounts,
-            includeInvestments = config.netWorthIncludeInvestments,
             hideAmounts = config.hideAmounts,
+            liquidityMovements = liquidity,
+            investmentCashFlows = investmentCashFlows,
+            portfolioSummary = summary,
+            accountBalanceRecords = l.accountBalances,
+            evolutionSeries = evolutionSelection,
+            roundUpRecords = l.roundUpRecords,
+            roundUpStructures = l.roundUpStructures,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -84,12 +100,24 @@ class HomeViewModel(
         selectedPeriod.value = period
     }
 
+    fun selectEvolutionSeries(series: EvolutionSeries) {
+        selectedEvolutionSeries.value = series
+    }
+
     fun setHideAmounts(hidden: Boolean) {
         viewModelScope.launch { settings.setHideAmounts(hidden) }
     }
 
-    fun setNetWorthIncludes(accounts: Boolean, investments: Boolean) {
-        if (!accounts && !investments) return
-        viewModelScope.launch { settings.setNetWorthIncludes(accounts, investments) }
+    private val refreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = refreshing
+
+    /** Deslizar hacia abajo: sincroniza con Supabase (los errores se ven en Ajustes › Sincronización). */
+    fun refresh() {
+        val repository = sync ?: return
+        viewModelScope.launch {
+            refreshing.value = true
+            runCatching { repository.synchronize() }
+            refreshing.value = false
+        }
     }
 }

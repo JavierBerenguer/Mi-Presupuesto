@@ -86,8 +86,8 @@ class PendingProposalsViewModel(
         PendingProposalsUiState(
             isLoading = false,
             proposals = currentCatalog.proposals,
-            activeAccounts = currentCatalog.accounts.filterNot { it.archived },
-            activeCategories = currentCatalog.categories.filterNot { it.archived },
+            activeAccounts = currentCatalog.accounts.filter { !it.archived && it.useInApp },
+            activeCategories = currentCatalog.categories.filter { !it.archived && it.investmentKind == null },
             reviewProposalId = reviewId?.takeIf { id -> currentCatalog.proposals.any { it.id == id } },
             processingIds = processing,
             error = currentError,

@@ -14,8 +14,11 @@ import com.mipatrimonio.app.domain.notifications.NotificationDirection
 import com.mipatrimonio.app.domain.notifications.NotificationEngine
 import com.mipatrimonio.app.domain.notifications.NotificationRecordStatus
 import com.mipatrimonio.app.domain.notifications.NotificationRuleValues
+import com.mipatrimonio.app.domain.notifications.NotificationTarget
+import com.mipatrimonio.app.data.db.SyncProductoEntity
 import com.mipatrimonio.app.domain.notifications.TemplateSegment
 import com.mipatrimonio.app.testutil.awaitValue
+import com.mipatrimonio.app.testutil.SettingsStoreRule
 import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -31,6 +34,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -40,6 +44,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class AutomationViewModelsTest {
+    @get:Rule val settingsRule = SettingsStoreRule()
     private lateinit var db: AppDatabase
     private lateinit var ledger: LedgerRepository
     private lateinit var notifications: NotificationRepository
@@ -65,7 +70,7 @@ class AutomationViewModelsTest {
         notifications.setAuthorized("app.unlinked", true, null)
         val newest = (notifications.ingest(BankNotification("app.unlinked", "", "Formato tres 3 EUR", 3_000)) as
             com.mipatrimonio.app.domain.notifications.NotificationOutcome.Registrada).recordId
-        val viewModel = PendingAutomationViewModel(notifications)
+        val viewModel = PendingAutomationViewModel(notifications, settingsRule.repository) {}
 
         val initial = viewModel.uiState.first { !it.isLoading && it.count == 3 }
         assertEquals(newest, initial.records.first().id)
@@ -75,6 +80,23 @@ class AutomationViewModelsTest {
         val final = viewModel.uiState.first { !it.isLoading && it.count == 2 }
         assertEquals(NotificationRecordStatus.DESCARTADA, notifications.records(NotificationRecordStatus.DESCARTADA).first().single().status)
         assertEquals(2, final.count)
+    }
+
+    @Test fun `comercios nuevos lista y usar siempre general lo quita`() = runTest {
+        authorize()
+        val seed = ingest("Pago 10 EUR en Uno", 1_000)
+        notifications.createStructureFromRecord(seed, "Pago", 0..3, 15..17, NotificationDirection.GASTO)
+        val general = ingest("Pago 20 EUR en Dos", 500_000)
+        val viewModel = PendingAutomationViewModel(notifications, settingsRule.repository) {}
+
+        val initial = viewModel.uiState.first { !it.isLoading && it.newMerchantCount == 1 }
+        assertEquals(general, initial.newMerchants.single().recordId)
+        assertEquals("Dos", initial.newMerchants.single().variableText)
+        viewModel.alwaysUseStructureDefaults(general)
+
+        val final = viewModel.uiState.first { !it.isLoading && it.newMerchants.isEmpty() }
+        assertEquals(0, final.newMerchantCount)
+        assertNotNull(notifications.rules(initial.newMerchants.single().structureId).first().find { it.variableDisplay == "Dos" })
     }
 
     @Test fun `ensenanza selecciona palabras valida previsualiza guarda y reprocesa`() = runTest {
@@ -141,6 +163,21 @@ class AutomationViewModelsTest {
         assertFalse(explanation.contains("solo a  y"))
     }
 
+    @Test fun `destino alterna campos de apunte y producto`() {
+        assertEquals(AutomationVisibleFields(entryFields = true, productField = false), automationVisibleFields(NotificationTarget.APUNTE))
+        assertEquals(AutomationVisibleFields(entryFields = false, productField = true), automationVisibleFields(NotificationTarget.COMPRA))
+    }
+
+    @Test fun `compra exige sesion producto valido y filtra tipos no invertibles`() {
+        val fund = SyncProductoEntity("fund", "profile", "Fondo", null, "fondo", "EUR", null, null, "now")
+        val cash = SyncProductoEntity("cash", "profile", "Efectivo", null, "efectivo", "EUR", null, null, "now")
+        val products = selectableInvestmentProducts(listOf(cash, fund))
+        assertEquals(listOf(fund), products)
+        assertEquals(PurchaseAvailability.NO_SESSION, purchaseAvailability(NotificationTarget.COMPRA, false, products, "fund"))
+        assertEquals(PurchaseAvailability.PRODUCT_REQUIRED, purchaseAvailability(NotificationTarget.COMPRA, true, products, null))
+        assertEquals(PurchaseAvailability.AVAILABLE, purchaseAvailability(NotificationTarget.COMPRA, true, products, "fund"))
+    }
+
     @Test fun `ensenanza impide solapamiento y no permite seleccionar importe`() = runTest {
         authorize()
         val seed = ingest("Pago 10 EUR en Uno", 1_000)
@@ -172,9 +209,12 @@ class AutomationViewModelsTest {
         viewModel.save()
 
         viewModel.uiState.first { it.savedAdditionalCount != null }
-        val transaction = ledger.transactions.awaitValue { rows -> rows.any { it.description == "Cafetería Dos" } }
-            .first { it.description == "Cafetería Dos" }
+        ingest("Pago 30 EUR en Dos", 200_000)
+        val rows = ledger.transactions.awaitValue { rows -> rows.any { it.description == "Cafetería Dos" } }
+        val transaction = rows.single { it.description == "Cafetería Dos" && it.amountMinor == 3000L }
         assertEquals("Desayuno", transaction.notes)
+        // El apunte de ese comercio del mismo día también toma la regla nueva.
+        assertEquals(1, rows.count { it.description == "Cafetería Dos" && it.amountMinor == 2000L })
     }
 
     @Test fun `gestiona edicion desactivacion y eliminacion de estructuras y reglas`() = runTest {

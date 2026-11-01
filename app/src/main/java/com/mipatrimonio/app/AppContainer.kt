@@ -2,7 +2,6 @@ package com.mipatrimonio.app
 
 import android.app.Application
 import android.content.Context
-import androidx.work.Configuration
 import com.mipatrimonio.app.data.db.AppDatabase
 import com.mipatrimonio.app.data.backup.BackupFileStore
 import com.mipatrimonio.app.data.backup.BackupRepository
@@ -12,31 +11,34 @@ import com.mipatrimonio.app.data.export.CsvExportRepository
 import com.mipatrimonio.app.data.export.CsvExportService
 import com.mipatrimonio.app.data.importer.ImportFileStore
 import com.mipatrimonio.app.data.importer.TradeRepublicImportRepository
-import com.mipatrimonio.app.data.repository.InvestmentRepository
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.NotificationRepository
 import com.mipatrimonio.app.data.repository.RecurringRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
 import com.mipatrimonio.app.data.work.RecurringReminderScheduler
-import com.mipatrimonio.app.data.work.QuoteRefreshWorker
-import com.mipatrimonio.app.data.quotes.CoinGeckoQuoteProvider
-import com.mipatrimonio.app.data.quotes.CoinGeckoSearchService
-import com.mipatrimonio.app.data.quotes.KeystoreSecretStore
-import com.mipatrimonio.app.data.quotes.QuoteRepository
-import com.mipatrimonio.app.data.quotes.TwelveDataQuoteProvider
-import com.mipatrimonio.app.data.quotes.TwelveDataAssetService
-import com.mipatrimonio.app.data.quotes.OpenFigiService
-import com.mipatrimonio.app.data.quotes.UrlConnectionHttpClient
-import com.mipatrimonio.app.data.quotes.EodhdQuoteProvider
-import com.mipatrimonio.app.data.quotes.EodhdSearchService
+import com.mipatrimonio.app.data.sync.AndroidKeystoreSessionStore
+import com.mipatrimonio.app.data.sync.SupabaseHttpTransport
+import com.mipatrimonio.app.data.sync.SyncAuthClient
+import com.mipatrimonio.app.data.sync.SyncRepository
+import com.mipatrimonio.app.data.sync.SyncScheduler
 import com.mipatrimonio.app.domain.notifications.GenericSpanishParser
 import com.mipatrimonio.app.domain.notifications.NotificationEngine
+import com.mipatrimonio.app.notifications.PendingAutomationNotifier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 
 /** Inyección de dependencias manual: suficiente para el tamaño actual y sin magia de generación de código. */
+@OptIn(FlowPreview::class)
 class AppContainer(context: Context) {
     private val database = AppDatabase.create(context)
     private val notificationPreferences = context.applicationContext.getSharedPreferences(
@@ -44,24 +46,35 @@ class AppContainer(context: Context) {
         Context.MODE_PRIVATE,
     )
     val ledger = LedgerRepository(database)
-    val investments = InvestmentRepository(database)
-    val quoteSecrets = KeystoreSecretStore(context.applicationContext)
-    private val quoteHttp = UrlConnectionHttpClient()
-    val openFigi = OpenFigiService(quoteHttp, quoteSecrets)
-    val coinGeckoSearch = CoinGeckoSearchService(quoteHttp, quoteSecrets)
-    val twelveDataAssets = TwelveDataAssetService(quoteHttp, quoteSecrets)
-    val eodhdSearch = EodhdSearchService(quoteHttp, quoteSecrets)
-    val quotes = QuoteRepository(
-        database,
-        investments,
-        listOf(
-            TwelveDataQuoteProvider(quoteHttp, quoteSecrets),
-            CoinGeckoQuoteProvider(quoteHttp, quoteSecrets),
-            EodhdQuoteProvider(quoteHttp, quoteSecrets),
-        ),
-    )
     val settings = SettingsRepository(context.applicationContext)
-    val recurring = RecurringRepository(database)
+    private val syncSessionStore = AndroidKeystoreSessionStore(context.applicationContext)
+    val sync = SyncRepository(
+        database, settings, ledger,
+        authFactory = { url, key -> SyncAuthClient(SupabaseHttpTransport(url, key), syncSessionStore) },
+        onOutboxEnqueued = { SyncScheduler.enqueueOutbox(context.applicationContext) },
+    )
+    val pendingAutomationNotifier = PendingAutomationNotifier(context.applicationContext, settings)
+    val recurring = RecurringRepository(
+        database,
+        createInvestmentMovement = { id, type, productId, date, amountMinor, units, commissionMinor, withholdingMinor, accountId, note ->
+            sync.crearMovimientoInversion(
+                tipo = type,
+                productoId = productId,
+                fecha = date,
+                importeMinor = amountMinor,
+                unidades = units,
+                comisionMinor = commissionMinor,
+                retencionMinor = withholdingMinor,
+                cuentaId = accountId,
+                nota = note,
+                origen = "movil",
+                id = id,
+            )
+        },
+        notifyInvestmentFailure = { rule, date, reason ->
+            RecurringReminderScheduler.notifyFailure(context.applicationContext, rule, date, reason)
+        },
+    )
     val recurringReminderScheduler = RecurringReminderScheduler(context.applicationContext, recurring)
     val backupFiles = BackupFileStore(context.applicationContext.contentResolver)
     val backup = BackupService(
@@ -73,6 +86,7 @@ class AppContainer(context: Context) {
         ),
         afterRestore = {
             ledger.updateDefaultCategoryCatalogIfNeeded(settings)
+            ledger.ensureInvestmentCategories()
             recurring.generatePending(RecurringRepository.generationLimit(java.time.LocalDate.now()))
             recurringReminderScheduler.scheduleAll()
         },
@@ -80,13 +94,46 @@ class AppContainer(context: Context) {
     val csvExportFiles = CsvExportFileStore(context.applicationContext.contentResolver)
     val csvExport = CsvExportService(CsvExportRepository(database))
     val importFiles = ImportFileStore(context.applicationContext.contentResolver)
-    val tradeRepublicImport = TradeRepublicImportRepository(database)
+    val tradeRepublicImport = TradeRepublicImportRepository(
+        db = database,
+        productsProvider = { sync.productos.first() },
+        investmentMovementsProvider = { database.syncDao().allMovimientos() },
+        hasSyncSession = sync::hasSession,
+        createInvestmentDividend = { dividend ->
+            sync.crearMovimientoInversion(
+                tipo = "dividendo",
+                productoId = dividend.productId,
+                fecha = dividend.date,
+                importeMinor = dividend.netMinor,
+                unidades = null,
+                comisionMinor = null,
+                retencionMinor = dividend.withholdingMinor,
+                cuentaId = dividend.accountId,
+                nota = dividend.note,
+                origen = "importacion",
+                id = dividend.id,
+            )
+        },
+    )
     val notifications = NotificationRepository(
         database,
         NotificationEngine(listOf(GenericSpanishParser())),
         initialDiagnosticTextEnabled = notificationPreferences.getBoolean(DIAGNOSTIC_TEXT_KEY, false),
         persistDiagnosticTextEnabled = { enabled ->
             notificationPreferences.edit().putBoolean(DIAGNOSTIC_TEXT_KEY, enabled).apply()
+        },
+        hasSyncSession = sync::hasSession,
+        createInvestmentPurchase = { productId, date, amountMinor, accountId, note ->
+            sync.crearCompra(
+                productoId = productId,
+                fecha = date,
+                importeMinor = amountMinor,
+                unidades = null,
+                comisionMinor = null,
+                cuentaId = accountId,
+                origen = "notificacion",
+                nota = note,
+            )
         },
     )
 
@@ -95,25 +142,55 @@ class AppContainer(context: Context) {
     init {
         scope.launch {
             ledger.updateDefaultCategoryCatalogIfNeeded(settings)
+            ledger.ensureInvestmentCategories()
+        }
+        scope.launch {
+            settings.settings.map { it.syncLastSuccessAt }.distinctUntilChanged().drop(1).collect { lastSuccess ->
+                if (lastSuccess != null) notifications.reprocessPending()
+            }
         }
         recurringReminderScheduler.createChannel()
+        pendingAutomationNotifier.createChannel()
         RecurringReminderScheduler.enqueuePeriodic(context.applicationContext)
-        QuoteRefreshWorker.enqueuePeriodic(context.applicationContext)
+        SyncScheduler.schedule(context.applicationContext)
+        scope.launch { runCatching { sync.removeGhostAccounts() } }
+        clearLegacyMarketSecrets(context.applicationContext)
         scope.launch {
             recurring.generatePending(
                 RecurringRepository.generationLimit(java.time.LocalDate.now()),
             )
             recurringReminderScheduler.scheduleAll()
         }
+        scope.launch {
+            combine(ledger.accounts, ledger.transactions, ledger.transfers) { _, _, _ -> Unit }
+                .drop(1).debounce(30_000).collect { SyncScheduler.enqueueAccountPublish(context.applicationContext) }
+        }
     }
 
     private companion object {
         const val DIAGNOSTIC_TEXT_KEY = "diagnostic_text_enabled"
+        const val LEGACY_MARKET_SECRETS_CLEANED_KEY = "legacy_market_secrets_cleaned"
+
+        fun clearLegacyMarketSecrets(context: Context) {
+            val cleanupPreferences = context.getSharedPreferences("app_cleanup", Context.MODE_PRIVATE)
+            if (cleanupPreferences.getBoolean(LEGACY_MARKET_SECRETS_CLEANED_KEY, false)) return
+            val preferences = context.getSharedPreferences("quote_secrets", Context.MODE_PRIVATE)
+            if (preferences.all.isNotEmpty()) preferences.edit().clear().apply()
+            runCatching {
+                java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+            }.getOrNull()?.let { keyStore ->
+                runCatching {
+                    if (keyStore.containsAlias("mi_patrimonio_quote_secrets")) {
+                        keyStore.deleteEntry("mi_patrimonio_quote_secrets")
+                    }
+                }
+            }
+            cleanupPreferences.edit().putBoolean(LEGACY_MARKET_SECRETS_CLEANED_KEY, true).apply()
+        }
     }
 }
 
-class MiPatrimonioApplication : Application(), Configuration.Provider {
-    override val workManagerConfiguration: Configuration = Configuration.Builder().build()
+class MiPatrimonioApplication : Application() {
 
     lateinit var container: AppContainer
         private set

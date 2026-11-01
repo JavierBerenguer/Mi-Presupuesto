@@ -2,6 +2,7 @@ package com.mipatrimonio.app.data.db
 
 import com.mipatrimonio.app.domain.model.Category
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class CategoryMapperTest {
@@ -20,5 +21,11 @@ class CategoryMapperTest {
 
         assertEquals("GASTO", entity.kind)
         assertEquals(7, entity.sortOrder)
+    }
+
+    @Test fun `marca desconocida se lee como null`() {
+        val entity = CategoryEntity("future", "Futura", "GASTO", null, 1, false, 0, null, "NUEVO")
+
+        assertNull(entity.toDomain().investmentKind)
     }
 }

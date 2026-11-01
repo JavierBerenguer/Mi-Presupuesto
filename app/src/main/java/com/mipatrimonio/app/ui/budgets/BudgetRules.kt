@@ -2,6 +2,7 @@ package com.mipatrimonio.app.ui.budgets
 
 import com.mipatrimonio.app.domain.calc.BudgetStatus
 import com.mipatrimonio.app.domain.calc.StatsCalculator
+import com.mipatrimonio.app.domain.calc.TransactionGroups
 import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.model.Transaction
@@ -61,7 +62,12 @@ fun monthlyStatistics(
     val expectedType = if (kind == StatisticsKind.GASTOS) TransactionType.GASTO else TransactionType.INGRESO
     val range = month.atDay(1)..month.atEndOfMonth()
     val byId = categories.associateBy(Category::id)
-    val matching = transactions.filter {
+    val statisticsTransactions = if (kind == StatisticsKind.INGRESOS) {
+        TransactionGroups.netForStatistics(transactions)
+    } else {
+        transactions
+    }
+    val matching = statisticsTransactions.filter {
         it.type == expectedType && it.date in range &&
             movementStatus(it.date, today) == MovementStatus.EJECUTADO
     }

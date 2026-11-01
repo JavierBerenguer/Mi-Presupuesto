@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -118,6 +119,23 @@ fun LineChart(
             }
         }
 
+        // Importes de las líneas guía (misma escala que el lienzo: de min(0, mínimo) a max(0, máximo)).
+        val maximum = maxOf(points.maxOf(ChartPoint::value), 0L)
+        val minimum = minOf(points.minOf(ChartPoint::value), 0L)
+        val chartHeight = LINE_CHART_HEIGHT - LINE_TOP_PADDING - AXIS_LABEL_HEIGHT
+        if (maximum != minimum) repeat(GUIDE_LINE_COUNT + 1) { index ->
+            val value = maximum - ((maximum.toBigInteger() - minimum.toBigInteger()) * index.toBigInteger() /
+                (GUIDE_LINE_COUNT + 1).toBigInteger()).toLong()
+            Text(
+                formatValue(value),
+                modifier = Modifier.align(Alignment.TopStart)
+                    .offset(y = LINE_TOP_PADDING + chartHeight * index / (GUIDE_LINE_COUNT + 1) - GUIDE_LABEL_LIFT),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+            )
+        }
+
         LineAxisLabels(points = points, modifier = Modifier.align(Alignment.BottomCenter))
     }
 }
@@ -171,5 +189,6 @@ private val GUIDE_STROKE = 1.dp
 private val MARKER_OUTER_RADIUS = 6.dp
 private val MARKER_INNER_RADIUS = 4.dp
 private const val GUIDE_LINE_COUNT = 3
+private val GUIDE_LABEL_LIFT = 16.dp
 private const val AREA_ALPHA = 0.18f
 private const val TOOLTIP_ALPHA = 0.94f
