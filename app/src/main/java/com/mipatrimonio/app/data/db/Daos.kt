@@ -27,6 +27,9 @@ interface AccountDao {
 
     @Upsert
     suspend fun upsert(entity: AccountEntity)
+
+    @Query("DELETE FROM account WHERE id = :id")
+    suspend fun deleteById(id: String)
 }
 
 @Dao
@@ -50,6 +53,7 @@ interface AccountBalanceDao {
     suspend fun liveOnDate(accountId: String, epochDay: Long): AccountBalanceEntity?
 
     @Upsert suspend fun upsert(entity: AccountBalanceEntity)
+    @Query("SELECT COUNT(*) FROM account_balance WHERE accountId = :accountId") suspend fun countForAccount(accountId: String): Int
     @Insert suspend fun insertAllForRestore(entities: List<AccountBalanceEntity>)
     @Query("DELETE FROM account_balance") suspend fun deleteAllForRestore()
 }
@@ -377,6 +381,9 @@ interface NotificationDao {
 
     @Query("UPDATE pending_proposal SET accountId = NULL WHERE accountId = :accountId AND status = 'PENDIENTE'")
     suspend fun clearAccountFromPendingProposals(accountId: String)
+
+    @Query("SELECT COUNT(*) FROM pending_proposal WHERE accountId = :accountId")
+    suspend fun countPendingProposalsForAccount(accountId: String): Int
 
     @Query("SELECT * FROM pending_proposal WHERE status = 'PENDIENTE' ORDER BY postedAt DESC, createdAt DESC")
     fun observePendingProposals(): Flow<List<PendingProposalEntity>>

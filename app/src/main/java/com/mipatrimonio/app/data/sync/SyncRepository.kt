@@ -480,12 +480,36 @@ class SyncRepository(
         }
     }
 
+    /**
+     * Elimina las cuentas fantasma que creaba [applyRemoteAccount] al bajar una cuenta borrada: borradas, con los
+     * textos "null"/"NULL" y sin nada que dependa de ellas. Cualquier otra cuenta queda intacta.
+     */
+    suspend fun removeGhostAccounts(): Int = db.withTransaction {
+        val ghosts = db.accountDao().getAllForBackup().filter { account ->
+            account.deletedAt != null && account.name == "null" && account.type == "NULL" && account.currency == "null" &&
+                db.transactionDao().countForAccount(account.id) == 0 &&
+                db.transferDao().countForAccount(account.id) == 0 &&
+                db.accountBalanceDao().countForAccount(account.id) == 0 &&
+                dao.countMovementsForAccount(accountIdToRemoteId(account.id)) == 0 &&
+                db.notificationDao().countAuthorizationsForAccount(account.id) == 0 &&
+                db.notificationDao().countPendingProposalsForAccount(account.id) == 0 &&
+                db.recurringRuleDao().countForAccount(account.id) == 0
+        }
+        ghosts.forEach { db.accountDao().deleteById(it.id) }
+        if (ghosts.isNotEmpty()) android.util.Log.i("SyncRepository", "Cuentas fantasma eliminadas: ${ghosts.size}")
+        ghosts.size
+    }
+
     private suspend fun applyRemoteAccount(row: JSONObject, deleted: String?, updated: String) {
         val id = row.getString("id")
         if (dao.pendingCount("cuentas_app", id) > 0) return
         val localId = remoteIdToAccountId(id, db.accountDao().getAllForBackup().map { it.id }) ?: id
         val local = db.accountDao().getById(localId)
         if (local?.remoteUpdatedAt != null && local.remoteUpdatedAt >= updated) return
+        // Una fila remota borrada sin cuenta viva en el móvil no crea nada: así nacía la cuenta fantasma «null».
+        if (local == null && deleted != null) return
+        val name = row.presentText("nombre") ?: local?.name ?: return
+        val currency = row.presentText("moneda") ?: local?.currency ?: "EUR"
         val hasHistory = local != null && (
             db.transactionDao().countForAccount(localId) + db.transferDao().countForAccount(localId) +
                 dao.countMovementsForAccount(id) > 0
@@ -494,10 +518,10 @@ class SyncRepository(
         db.accountDao().upsert(
             AccountEntity(
                 id = localId,
-                name = row.optString("nombre", local?.name.orEmpty()),
-                type = row.optString("tipo", local?.type ?: "otra").uppercase(),
-                currency = row.optString("moneda", local?.currency ?: "EUR"),
-                initialBalanceMinor = row.nullableDecimal("saldo_inicial")?.let { MoneyMath.toMinor(it, row.optString("moneda", "EUR")) }
+                name = name,
+                type = (row.presentText("tipo") ?: local?.type ?: "otra").uppercase(),
+                currency = currency,
+                initialBalanceMinor = row.nullableDecimal("saldo_inicial")?.let { MoneyMath.toMinor(it, currency) }
                     ?: local?.initialBalanceMinor ?: 0L,
                 archived = row.optBoolean("archivada", false) || (deletedAt != null && hasHistory),
                 createdAt = local?.createdAt ?: clock(),
@@ -569,4 +593,6 @@ class SyncRepository(
 }
 
 private fun JSONObject.nullableString(name: String): String? = if (!has(name) || isNull(name)) null else getString(name)
+/** Texto con contenido; un JSON `null` o un texto vacío cuentan como «no viene» (`optString` devolvería "null"). */
+private fun JSONObject.presentText(name: String): String? = nullableString(name)?.takeIf(String::isNotBlank)
 private fun JSONObject.nullableDecimal(name: String): BigDecimal? = if (!has(name) || isNull(name)) null else BigDecimal(get(name).toString())
