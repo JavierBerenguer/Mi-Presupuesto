@@ -5,6 +5,9 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.mipatrimonio.app.data.db.AppDatabase
 import com.mipatrimonio.app.data.db.SyncProductoEntity
+import com.mipatrimonio.app.data.db.NotificationRecordEntity
+import com.mipatrimonio.app.data.db.NotificationStructureEntity
+import com.mipatrimonio.app.data.db.toDomain
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.NotificationRepository
 import com.mipatrimonio.app.domain.model.Account
@@ -18,8 +21,16 @@ import com.mipatrimonio.app.domain.notifications.NotificationOutcome
 import com.mipatrimonio.app.domain.notifications.NotificationRecordStatus
 import com.mipatrimonio.app.domain.notifications.NotificationRuleValues
 import com.mipatrimonio.app.domain.notifications.NotificationTarget
+import com.mipatrimonio.app.domain.notifications.NotificationTemplate
+import com.mipatrimonio.app.domain.notifications.NotificationTemplateJson
+import com.mipatrimonio.app.domain.notifications.TemplateSegment
+import com.mipatrimonio.app.domain.calc.RoundUpCalculator
+import com.mipatrimonio.app.domain.model.Transaction
+import com.mipatrimonio.app.domain.model.TransactionSource
+import com.mipatrimonio.app.domain.model.TransactionType
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -128,6 +139,41 @@ class NotificationInvestmentRepositoryTest {
         prepare("USD", product = true)
         createPurchaseStructure(ruleProductId = PRODUCT)
         assertNull(purchases.single().accountId)
+    }
+
+    @Test fun `inversion de redondeo concilia estimado real y deja pagos posteriores`() = runTest {
+        prepare("EUR", product = true)
+        val account = db.accountDao().getById(ACCOUNT)!!
+        db.accountDao().upsert(account.copy(roundUpMultiplier = 2, roundUpSettledAt = 500))
+        val paymentTemplate = NotificationTemplate(listOf(TemplateSegment.Literal("Pago "), TemplateSegment.Amount, TemplateSegment.Variable))
+        db.notificationDao().upsertStructure(
+            NotificationStructureEntity("round-payment", PACKAGE, "Pago", NotificationTemplateJson.encode(paymentTemplate),
+                "GASTO", null, null, null, true, 1, 1, generatesRoundUp = true),
+        )
+        val ledger = LedgerRepository(db)
+        for ((id, postedAt) in listOf("before" to 900L, "after" to 1_100L)) {
+            ledger.saveTransaction(Transaction(id, TransactionType.GASTO, 1_780, "EUR", LocalDate.of(1970, 1, 1),
+                ACCOUNT, null, id, "", "", TransactionSource.NOTIFICACION, postedAt, postedAt))
+            db.notificationDao().upsertRecord(NotificationRecordEntity("record-$id", PACKAGE, postedAt, "", 1_780,
+                "EUR", "round-payment", null, null, NotificationRecordStatus.AUTOMATIZADA.name, id, postedAt))
+        }
+
+        val seed = ingest("Compra 10 EUR de Fondo")
+        repository.createStructureFromRecord(
+            seed, "Compra redondeo", 0..5, 17..21, NotificationDirection.GASTO,
+            ruleValues = NotificationRuleValues(productId = PRODUCT), target = NotificationTarget.COMPRA,
+            isRoundUpInvestment = true,
+        )
+
+        val reconciled = db.accountDao().getById(ACCOUNT)!!
+        assertEquals(1_000L, reconciled.roundUpSettledAt)
+        assertEquals(40L, reconciled.roundUpLastEstimatedMinor)
+        assertEquals(1_000L, reconciled.roundUpLastRealMinor)
+        val pending = RoundUpCalculator.pendingForAccount(
+            reconciled.toDomain(),
+            ledger.transactions.first(), ledger.roundUpRecords.first(), ledger.roundUpStructures.first(),
+        )
+        assertEquals(40L, pending)
     }
 
     private suspend fun prepare(currency: String, product: Boolean) {

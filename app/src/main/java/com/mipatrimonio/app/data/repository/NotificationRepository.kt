@@ -5,6 +5,7 @@ import com.mipatrimonio.app.data.db.*
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.TransactionType
+import com.mipatrimonio.app.domain.calc.RoundUpCalculator
 import com.mipatrimonio.app.domain.notifications.*
 import java.time.Instant
 import java.time.ZoneId
@@ -223,13 +224,14 @@ class NotificationRepository(
         recordId: String, name: String, keyRange: IntRange, variableRange: IntRange, direction: NotificationDirection,
         defaults: NotificationDefaults = NotificationDefaults(), ruleValues: NotificationRuleValues = NotificationRuleValues(),
         target: NotificationTarget = NotificationTarget.APUNTE,
+        generatesRoundUp: Boolean = false, isRoundUpInvestment: Boolean = false,
     ): NotificationStructure = db.withTransaction {
         val record = requireNotNull(dao.getRecord(recordId)) { "El registro no existe" }
         val result = preview(record, NotificationTemplateBuilder.build(record.text, keyRange, variableRange), direction, defaults, ruleValues, target)
         val now = clock()
         val structure = NotificationStructure(idFactory(), record.packageName, name.trim().also { require(it.isNotEmpty()) { "El nombre es obligatorio" } },
             result.template, direction, defaults.title.clean(), defaults.detail.clean(), defaults.categoryId.clean(), true, now, now,
-            target, defaults.defaultProductId.clean())
+            target, defaults.defaultProductId.clean(), generatesRoundUp, isRoundUpInvestment)
         dao.upsertStructure(structure.toEntity())
         val rule = NotificationRule(idFactory(), structure.id, normalizeVariable(result.variableText), result.variableText,
             ruleValues.title.clean(), ruleValues.detail.clean(), ruleValues.categoryId.clean(), true, now, now,
@@ -365,12 +367,32 @@ class NotificationRepository(
             accountId,
             match.variableText,
         )
+        if (structure.isRoundUpInvestment && accountId != null) {
+            val account = requireNotNull(db.accountDao().getById(accountId))
+            val estimated = roundUpPending(account.toDomain(), row.postedAt)
+            db.accountDao().upsert(
+                account.copy(
+                    roundUpSettledAt = row.postedAt,
+                    roundUpLastEstimatedMinor = estimated,
+                    roundUpLastRealMinor = match.amount.amountMinor,
+                    updatedAt = clock(),
+                ),
+            )
+        }
         return row.copy(
             status = NotificationRecordStatus.AUTOMATIZADA.name,
             transactionId = null,
             syncMovementId = movementId,
         )
     }
+
+    private suspend fun roundUpPending(account: com.mipatrimonio.app.domain.model.Account, through: Long): Long =
+        RoundUpCalculator.pendingForAccount(
+            account = account,
+            transactions = db.transactionDao().getAllForBackup().map { it.toDomain() },
+            records = dao.getAllRecordsForBackup().filter { it.postedAt <= through }.map { it.toDomain() },
+            structures = dao.getAllStructuresForBackup().mapNotNull { runCatching { it.toDomain() }.getOrNull() },
+        )
 
     private fun preview(record: NotificationRecordEntity, template: NotificationTemplate, direction: NotificationDirection,
                         defaults: NotificationDefaults, values: NotificationRuleValues,
@@ -439,8 +461,8 @@ private fun NotificationRecordEntity.toTransaction(id: String, accountId: String
 private fun NotificationAuthorizationEntity.toDomain() = AuthorizationRule(packageName, authorized, accountId, createdAt, runCatching { enumValueOf<AutoConfirmMode>(autoConfirmMode) }.getOrDefault(AutoConfirmMode.OFF))
 private fun PendingProposalEntity.toDomain() = PendingProposal(id, packageName, accountId, enumValueOf(kind), amountMinor, currency, merchant, enumValueOf(confidence), parserId, postedAt, enumValueOf(status), resultingTransactionId, createdAt)
 private fun NotificationDiagnosticEntity.toDomain() = NotificationDiagnostic(id, packageName, postedAt, enumValueOf(outcome), reason?.let { enumValueOf(it) }, NotificationFields(hadTitle, hadText, hadBigText, hadSubText, hadTextLines, hadMessages, hadTicker), amountFound, sampleText, createdAt)
-private fun NotificationStructureEntity.toDomain() = NotificationStructure(id, packageName, name, NotificationTemplateJson.decode(template), enumValueOf(direction), defaultTitle, defaultDetail, defaultCategoryId, enabled, createdAt, updatedAt, enumValueOf(target), defaultProductId)
-private fun NotificationStructure.toEntity() = NotificationStructureEntity(id, packageName, name, NotificationTemplateJson.encode(template), direction.name, defaultTitle, defaultDetail, defaultCategoryId, enabled, createdAt, updatedAt, target.name, defaultProductId)
+private fun NotificationStructureEntity.toDomain() = NotificationStructure(id, packageName, name, NotificationTemplateJson.decode(template), enumValueOf(direction), defaultTitle, defaultDetail, defaultCategoryId, enabled, createdAt, updatedAt, enumValueOf(target), defaultProductId, generatesRoundUp, isRoundUpInvestment)
+private fun NotificationStructure.toEntity() = NotificationStructureEntity(id, packageName, name, NotificationTemplateJson.encode(template), direction.name, defaultTitle, defaultDetail, defaultCategoryId, enabled, createdAt, updatedAt, target.name, defaultProductId, generatesRoundUp, isRoundUpInvestment)
 private fun NotificationRuleEntity.toDomain() = NotificationRule(id, structureId, variableKey, variableDisplay, title, detail, categoryId, enabled, createdAt, updatedAt, productId)
 private fun NotificationRule.toEntity() = NotificationRuleEntity(id, structureId, variableKey, variableDisplay, title, detail, categoryId, enabled, createdAt, updatedAt, productId)
 private fun NotificationRecordEntity.toDomain() = NotificationRecord(id, packageName, postedAt, text, amountMinor, currency, structureId, ruleId, variableText, enumValueOf(status), transactionId, createdAt, syncMovementId)

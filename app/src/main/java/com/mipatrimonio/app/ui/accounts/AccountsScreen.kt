@@ -123,8 +123,8 @@ fun AccountsScreen(
         dependencies = null,
         error = state.error,
         onDismiss = { creating = false },
-        onSave = { n, t, c, b, s, i, color, liquidity, useInApp ->
-            viewModel.save(null, n, t, c, b, s, i, color, liquidity, useInApp) { creating = false }
+        onSave = { n, t, c, b, s, i, color, liquidity, useInApp, roundUpMultiplier ->
+            viewModel.save(null, n, t, c, b, s, i, color, liquidity, useInApp, roundUpMultiplier) { creating = false }
         },
     )
     editing?.let { account ->
@@ -133,8 +133,8 @@ fun AccountsScreen(
             state.dependencies[account.id],
             state.error,
             { editing = null },
-            { n, t, c, b, s, i, color, liquidity, useInApp ->
-                viewModel.save(account, n, t, c, b, s, i, color, liquidity, useInApp) { editing = null }
+            { n, t, c, b, s, i, color, liquidity, useInApp, roundUpMultiplier ->
+                viewModel.save(account, n, t, c, b, s, i, color, liquidity, useInApp, roundUpMultiplier) { editing = null }
             },
             { editing = null; archiving = state.accounts.firstOrNull { it.account.id == account.id } },
             { deleting = account },
@@ -223,6 +223,20 @@ private fun AccountRow(item: ManagedAccount, hidden: Boolean, onClick: () -> Uni
                 Text(item.account.name, style = MaterialTheme.typography.titleMedium)
                 Text(stringResource(R.string.accounts_details, item.account.type.label(), item.account.currency))
                 Text(if (hidden) stringResource(R.string.common_hidden_amount) else MoneyMath.format(item.balanceMinor, item.account.currency))
+                if (item.roundUpPendingMinor > 0L) Text(
+                    if (hidden) stringResource(R.string.accounts_round_up_pending_hidden)
+                    else stringResource(R.string.accounts_round_up_pending, MoneyMath.format(item.roundUpPendingMinor, item.account.currency)),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                if (item.account.roundUpLastEstimatedMinor != null && item.account.roundUpLastRealMinor != null) Text(
+                    if (hidden) stringResource(R.string.accounts_round_up_last_hidden)
+                    else stringResource(
+                        R.string.accounts_round_up_last,
+                        MoneyMath.format(item.account.roundUpLastEstimatedMinor, item.account.currency),
+                        MoneyMath.format(item.account.roundUpLastRealMinor, item.account.currency),
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 Text(stringResource(if (item.account.archived) R.string.accounts_status_archived else R.string.accounts_status_active), style = MaterialTheme.typography.labelMedium)
                 if (!item.account.useInApp) Text(
                     stringResource(R.string.accounts_registered_balance, item.balanceDate?.toString().orEmpty()),
@@ -241,7 +255,7 @@ private fun AccountFormDialog(
     dependencies: AccountDependencies?,
     error: String?,
     onDismiss: () -> Unit,
-    onSave: (String, AccountType, String, String, String, String, Int?, Boolean, Boolean) -> Unit,
+    onSave: (String, AccountType, String, String, String, String, Int?, Boolean, Boolean, Int) -> Unit,
     onArchive: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
     balanceRecords: List<AccountBalanceRecord> = emptyList(),
@@ -257,6 +271,7 @@ private fun AccountFormDialog(
     var color by remember(account?.id) { mutableStateOf(account?.color) }
     var liquidity by remember(account?.id) { mutableStateOf(account?.liquidity ?: true) }
     var useInApp by remember(account?.id) { mutableStateOf(account?.useInApp ?: true) }
+    var roundUpMultiplier by remember(account?.id) { mutableStateOf(account?.roundUpMultiplier ?: 0) }
     val currencyEnabled = account == null || dependencies?.hasHistory == false
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -285,6 +300,14 @@ private fun AccountFormDialog(
                     Text(stringResource(R.string.accounts_use_in_app))
                 }
                 Text(stringResource(R.string.accounts_use_in_app_help), style = MaterialTheme.typography.bodySmall)
+                DropdownField(
+                    stringResource(R.string.accounts_round_up),
+                    listOf(0, 1, 2, 3, 5, 10),
+                    roundUpMultiplier,
+                    { if (it == 0) stringResource(R.string.accounts_round_up_disabled) else stringResource(R.string.accounts_round_up_multiplier, it) },
+                    { selected -> selected?.let { roundUpMultiplier = it } },
+                )
+                Text(stringResource(R.string.accounts_round_up_help), style = MaterialTheme.typography.bodySmall)
                 if (useInApp) AmountField(stringResource(R.string.accounts_initial_balance), balance, { balance = it }, suffix = currency)
                 if (account != null && !account.useInApp) {
                     TextButton({ onEditBalance?.invoke(null) }) { Text(stringResource(R.string.accounts_update_balance)) }
@@ -307,7 +330,7 @@ private fun AccountFormDialog(
             }
         },
         confirmButton = {
-            TextButton({ onSave(name, type, currency, balance, shortName, institution, color, liquidity, useInApp) }) {
+            TextButton({ onSave(name, type, currency, balance, shortName, institution, color, liquidity, useInApp, roundUpMultiplier) }) {
                 Text(stringResource(R.string.common_save))
             }
         },

@@ -418,6 +418,10 @@ class SyncRepository(
                 liquidity = row.optBoolean("liquidez", true),
                 useInApp = if (hasHistory) true else row.optBoolean("uso_app", true),
                 remoteUpdatedAt = updated, deletedAt = if (hasHistory) null else deletedAt,
+                roundUpMultiplier = local?.roundUpMultiplier ?: 0,
+                roundUpSettledAt = local?.roundUpSettledAt,
+                roundUpLastEstimatedMinor = local?.roundUpLastEstimatedMinor,
+                roundUpLastRealMinor = local?.roundUpLastRealMinor,
             ),
         )
     }

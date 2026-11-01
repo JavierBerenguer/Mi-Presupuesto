@@ -8,6 +8,7 @@ import com.mipatrimonio.app.data.repository.SettingsRepository
 import com.mipatrimonio.app.data.sync.SyncRepository
 import com.mipatrimonio.app.data.sync.mapLiquidityMovements
 import com.mipatrimonio.app.domain.calc.BalanceCalculator
+import com.mipatrimonio.app.domain.calc.RoundUpCalculator
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountBalanceRecord
 import com.mipatrimonio.app.domain.model.AccountType
@@ -37,6 +38,7 @@ data class ManagedAccount(
     val account: Account,
     val balanceMinor: Long,
     val balanceDate: LocalDate? = null,
+    val roundUpPendingMinor: Long = 0L,
 )
 
 data class CurrencyTotal(
@@ -69,7 +71,7 @@ class AccountsViewModel(
     private val dependencies = MutableStateFlow<Map<String, AccountDependencies>>(emptyMap())
     private val error = MutableStateFlow<String?>(null)
 
-    private val accountSnapshot = combine(
+    private val baseAccountSnapshot = combine(
         ledger.accounts,
         ledger.transactions,
         ledger.transfers,
@@ -100,6 +102,24 @@ class AccountsViewModel(
                     )
                 }
                 .sortedBy { it.currency },
+        )
+    }
+    private val roundUpData = combine(ledger.roundUpRecords, ledger.roundUpStructures) { records, structures ->
+        records to structures
+    }
+    private val accountSnapshot = combine(baseAccountSnapshot, roundUpData, ledger.transactions) { snapshot, roundUp, transactions ->
+        val pending = RoundUpCalculator.pendingByAccount(
+            snapshot.accounts.map(ManagedAccount::account), transactions, roundUp.first, roundUp.second,
+        )
+        val accounts = snapshot.accounts.map { item ->
+            val amount = pending[item.account.id] ?: 0L
+            item.copy(balanceMinor = Math.subtractExact(item.balanceMinor, amount), roundUpPendingMinor = amount)
+        }
+        snapshot.copy(
+            accounts = accounts,
+            totals = accounts.filterNot { it.account.archived }.groupBy { it.account.currency }.map { (currency, items) ->
+                CurrencyTotal(currency, items.fold(0L) { total, item -> Math.addExact(total, item.balanceMinor) })
+            }.sortedBy(CurrencyTotal::currency),
         )
     }
 
@@ -142,6 +162,7 @@ class AccountsViewModel(
         color: Int?,
         liquidity: Boolean,
         useInApp: Boolean,
+        roundUpMultiplier: Int,
         onSaved: () -> Unit,
     ) {
         if (name.isBlank()) {
@@ -167,6 +188,10 @@ class AccountsViewModel(
             color = color,
             liquidity = liquidity,
             useInApp = useInApp,
+            roundUpMultiplier = roundUpMultiplier,
+            roundUpSettledAt = existing?.roundUpSettledAt,
+            roundUpLastEstimatedMinor = existing?.roundUpLastEstimatedMinor,
+            roundUpLastRealMinor = existing?.roundUpLastRealMinor,
         )
         launchAction(onSaved) {
             ledger.saveAccount(account)

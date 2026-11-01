@@ -19,11 +19,13 @@ import java.time.LocalDate
 
 fun AccountEntity.toDomain() = Account(
     id, name, AccountType.valueOf(type), currency, initialBalanceMinor, archived, createdAt,
-    shortName, institution, color, liquidity, useInApp,
+    shortName, institution, color, liquidity, useInApp, roundUpMultiplier, roundUpSettledAt,
+    roundUpLastEstimatedMinor, roundUpLastRealMinor,
 )
 fun Account.toEntity(updatedAt: Long, remoteUpdatedAt: String? = null, deletedAt: Long? = null) = AccountEntity(
     id, name, type.name, currency, initialBalanceMinor, archived, createdAt, updatedAt,
     shortName, institution, color, liquidity, useInApp, remoteUpdatedAt, deletedAt,
+    roundUpMultiplier, roundUpSettledAt, roundUpLastEstimatedMinor, roundUpLastRealMinor,
 )
 
 fun AccountBalanceEntity.toDomain() = AccountBalanceRecord(

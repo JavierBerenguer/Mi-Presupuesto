@@ -17,6 +17,11 @@ import com.mipatrimonio.app.domain.model.BudgetPeriod
 import com.mipatrimonio.app.domain.model.TransactionType.GASTO
 import com.mipatrimonio.app.domain.model.TransactionType.INGRESO
 import com.mipatrimonio.app.domain.model.TransactionSource
+import com.mipatrimonio.app.domain.notifications.NotificationDirection
+import com.mipatrimonio.app.domain.notifications.NotificationRecord
+import com.mipatrimonio.app.domain.notifications.NotificationRecordStatus
+import com.mipatrimonio.app.domain.notifications.NotificationStructure
+import com.mipatrimonio.app.domain.notifications.NotificationTemplate
 import com.mipatrimonio.app.domain.usecase.Period
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -49,6 +54,25 @@ class HomeAggregatorTest {
     @Test
     fun `sin cuentas es primer uso`() {
         assertFalse(state(accounts = emptyList()).hasAccounts)
+    }
+
+    @Test fun `redondeo resta efectivo y patrimonio mostrados sin cambiar estadisticas ni evolucion`() {
+        val active = account("a1", initial = 100_00).copy(roundUpMultiplier = 2, roundUpSettledAt = 0)
+        val expense = tx(GASTO, 17_80, date = today).copy(source = TransactionSource.NOTIFICACION)
+        val record = NotificationRecord("r", "bank", 1, "", 17_80, "EUR", "s", null, null,
+            NotificationRecordStatus.AUTOMATIZADA, expense.id, 1)
+        val structure = NotificationStructure("s", "bank", "Pago", NotificationTemplate(emptyList()),
+            NotificationDirection.GASTO, createdAt = 1, updatedAt = 1, generatesRoundUp = true)
+        val result = buildHomeState(
+            "EUR", listOf(active), listOf(expense), emptyList(), cats, emptyList(), today, Period.MES,
+            roundUpRecords = listOf(record), roundUpStructures = listOf(structure),
+        )
+
+        assertEquals(40L, result.roundUpPendingMinor)
+        assertEquals(result.netWorth.cashMinor - 40L, result.displayedCashMinor)
+        assertEquals(result.netWorth.cashMinor - 40L, result.displayedNetWorthMinor)
+        assertEquals(17_80L, result.monthTotals.expenseMinor)
+        assertEquals(result.netWorth.cashMinor, result.netWorthSeries.last().totalMinor)
     }
 
     @Test

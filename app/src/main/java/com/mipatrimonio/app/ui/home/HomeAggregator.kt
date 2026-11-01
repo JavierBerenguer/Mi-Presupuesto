@@ -13,6 +13,7 @@ import com.mipatrimonio.app.domain.calc.NetWorth
 import com.mipatrimonio.app.domain.calc.NetWorthCalculator
 import com.mipatrimonio.app.domain.calc.PeriodTotals
 import com.mipatrimonio.app.domain.calc.StatsCalculator
+import com.mipatrimonio.app.domain.calc.RoundUpCalculator
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountBalanceRecord
 import com.mipatrimonio.app.domain.model.Budget
@@ -23,6 +24,8 @@ import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.TransactionSource
 import com.mipatrimonio.app.domain.model.Transfer
 import com.mipatrimonio.app.domain.model.movementStatus
+import com.mipatrimonio.app.domain.notifications.NotificationRecord
+import com.mipatrimonio.app.domain.notifications.NotificationStructure
 import com.mipatrimonio.app.domain.usecase.HistoryCalculator
 import com.mipatrimonio.app.domain.usecase.NetWorthPoint
 import com.mipatrimonio.app.domain.usecase.Period
@@ -86,6 +89,8 @@ data class HomeState(
     val liquidityCushion: LiquidityCushion?,
     /** Lo que pasó de las cuentas a inversiones en el periodo (compras de Rumbo menos ventas y dividendos). No es gasto. */
     val investedInPeriodMinor: Long = 0L,
+    val displayedCashMinor: Long = netWorth.cashMinor,
+    val roundUpPendingMinor: Long = 0L,
 )
 
 fun budgetRemaining(
@@ -120,6 +125,8 @@ fun buildHomeState(
     portfolioSummary: PortfolioSummary? = null,
     accountBalanceRecords: List<AccountBalanceRecord> = emptyList(),
     evolutionSeries: EvolutionSeries = EvolutionSeries.TOTAL,
+    roundUpRecords: List<NotificationRecord> = emptyList(),
+    roundUpStructures: List<NotificationStructure> = emptyList(),
 ): HomeState {
     val balances = accounts.map { account ->
         AccountBalance(
@@ -130,6 +137,12 @@ fun buildHomeState(
         )
     }
     val netWorth = NetWorthCalculator.compute(baseCurrency, balances)
+    val pendingByAccount = RoundUpCalculator.pendingByAccount(accounts, transactions, roundUpRecords, roundUpStructures)
+    val roundUpPending = if (baseCurrency == "EUR") accounts.asSequence()
+        .filter { !it.archived && it.useInApp && it.currency == baseCurrency }
+        .fold(0L) { total, account -> Math.addExact(total, pendingByAccount[account.id] ?: 0L) }
+    else 0L
+    val displayedCash = Math.subtractExact(netWorth.cashMinor, roundUpPending)
     val firstActivity = (
         transactions.map { it.date } + transfers.map { it.date } + liquidityMovements.map { it.date } +
             accountBalanceRecords.map { it.date }
@@ -192,16 +205,34 @@ fun buildHomeState(
                 movementStatus(it.date, today) == MovementStatus.EJECUTADO
         },
         spentIncomePercent = percentage(monthTotals.expenseMinor, monthTotals.incomeMinor),
-        displayedNetWorthMinor = Math.addExact(netWorth.cashMinor, investments?.valueMinor ?: 0L),
+        displayedNetWorthMinor = Math.addExact(displayedCash, investments?.valueMinor ?: 0L),
         displayedVariationMinor = if (displayedSeries.size < 2) 0L else
             Math.subtractExact(displayedSeries.last().totalMinor, displayedSeries.first().totalMinor),
         investments = investments,
-        allocation = assetAllocation(netWorth.cashMinor, investments?.valueMinor),
-        liquidityCushion = liquidityCushion(baseCurrency, accounts, balances, transactions, categories, today, liquidityMovements),
+        allocation = assetAllocation(displayedCash, investments?.valueMinor),
+        liquidityCushion = liquidityCushion(baseCurrency, accounts, balances, transactions, categories, today, liquidityMovements)
+            ?.withPendingRoundUp(roundUpPending),
         investedInPeriodMinor = period.range(today, firstActivity).let { range ->
             -liquidityMovements.filter { it.accountId in includedAccountIds && it.date in range }
                 .fold(0L) { sum, movement -> Math.addExact(sum, movement.effectMinor) }
         },
+        displayedCashMinor = displayedCash,
+        roundUpPendingMinor = roundUpPending,
+    )
+}
+
+private fun LiquidityCushion.withPendingRoundUp(pendingMinor: Long): LiquidityCushion {
+    if (pendingMinor == 0L) return this
+    val displayedCash = Math.subtractExact(liquidCashMinor, pendingMinor)
+    val withoutInvesting = BigDecimal.valueOf(displayedCash)
+        .divide(BigDecimal.valueOf(averageLivingExpenseMinor), 1, RoundingMode.HALF_UP)
+    val continuing = if (averageTotalExpenseMinor <= 0L) null else BigDecimal.valueOf(displayedCash)
+        .divide(BigDecimal.valueOf(averageTotalExpenseMinor), 1, RoundingMode.HALF_UP)
+        .takeIf { it.compareTo(withoutInvesting) != 0 }
+    return copy(
+        liquidCashMinor = displayedCash,
+        coveredMonthsWithoutInvesting = withoutInvesting,
+        coveredMonthsContinuingInvesting = continuing,
     )
 }
 

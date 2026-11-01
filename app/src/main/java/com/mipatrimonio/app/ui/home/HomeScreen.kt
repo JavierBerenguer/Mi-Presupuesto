@@ -188,7 +188,7 @@ private fun SummaryCards(
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         SectionCard(Modifier.weight(1f).clickable(onClick = onOpenAccounts)) {
             Text(stringResource(R.string.ini_cash), style = MaterialTheme.typography.titleMedium)
-            Text(format(state.netWorth.cashMinor), style = MaterialTheme.typography.titleLarge)
+            Text(format(state.displayedCashMinor), style = MaterialTheme.typography.titleLarge)
             Text(
                 pluralStringResource(R.plurals.ini_account_count, state.accountCount, state.accountCount),
                 style = MaterialTheme.typography.bodySmall,

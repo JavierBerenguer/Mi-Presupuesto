@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -338,6 +339,18 @@ fun TeachStructureScreen(
             }
         }
         item { TargetField(state.editor.target, viewModel::setTarget) }
+        if (state.editor.target == NotificationTarget.APUNTE) item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(state.editor.generatesRoundUp, viewModel::setGeneratesRoundUp)
+                Text(stringResource(R.string.auto_generates_round_up))
+            }
+        }
+        if (state.editor.target == NotificationTarget.COMPRA) item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(state.editor.isRoundUpInvestment, viewModel::setIsRoundUpInvestment)
+                Text(stringResource(R.string.auto_is_round_up_investment))
+            }
+        }
         if (state.editor.target == NotificationTarget.APUNTE) item { DirectionField(state.editor.direction, viewModel::setDirection) }
         if (state.editor.target == NotificationTarget.COMPRA) {
             item {
@@ -687,17 +700,27 @@ private fun StructureCard(
                 var name by remember(structure.id, structure.name) { mutableStateOf(structure.name) }
                 var direction by remember(structure.id, structure.direction) { mutableStateOf(structure.direction) }
                 var target by remember(structure.id, structure.target) { mutableStateOf(structure.target) }
+                var generatesRoundUp by remember(structure.id, structure.generatesRoundUp) { mutableStateOf(structure.generatesRoundUp) }
+                var isRoundUpInvestment by remember(structure.id, structure.isRoundUpInvestment) { mutableStateOf(structure.isRoundUpInvestment) }
                 var defaults by remember(structure.id, structure.updatedAt) { mutableStateOf(NotificationDefaults(structure.defaultTitle, structure.defaultDetail, structure.defaultCategoryId, structure.defaultProductId)) }
                 OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.auto_operation_type)) }, modifier = Modifier.fillMaxWidth())
                 TargetField(target, onSelected = { target = it })
                 if (target == NotificationTarget.APUNTE) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(generatesRoundUp, { generatesRoundUp = it })
+                        Text(stringResource(R.string.auto_generates_round_up))
+                    }
                     DirectionField(direction) { direction = it }
                     ValuesEditor(stringResource(R.string.auto_structure_values), stringResource(R.string.auto_edit_defaults), defaults.title.orEmpty(), defaults.detail.orEmpty(), defaults.categoryId, categories) { a, b, c -> defaults = defaults.copy(title = a, detail = b, categoryId = c) }
                 } else {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(isRoundUpInvestment, { isRoundUpInvestment = it })
+                        Text(stringResource(R.string.auto_is_round_up_investment))
+                    }
                     ProductField(products, defaults.defaultProductId, stringResource(R.string.auto_default_product), stringResource(R.string.auto_choose_product)) { defaults = defaults.copy(defaultProductId = it) }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { onSave(structure.copy(name = name, direction = direction, defaultTitle = defaults.title, defaultDetail = defaults.detail, defaultCategoryId = defaults.categoryId, target = target, defaultProductId = defaults.defaultProductId)) }, enabled = name.isNotBlank()) { Text(stringResource(R.string.common_save)) }
+                    Button(onClick = { onSave(structure.copy(name = name, direction = direction, defaultTitle = defaults.title, defaultDetail = defaults.detail, defaultCategoryId = defaults.categoryId, target = target, defaultProductId = defaults.defaultProductId, generatesRoundUp = target == NotificationTarget.APUNTE && generatesRoundUp, isRoundUpInvestment = target == NotificationTarget.COMPRA && isRoundUpInvestment)) }, enabled = name.isNotBlank()) { Text(stringResource(R.string.common_save)) }
                     TextButton(onClick = { onDelete(structure) }) { Text(stringResource(R.string.common_delete)) }
                 }
                 Text(stringResource(R.string.auto_specific_rules), style = MaterialTheme.typography.titleSmall)

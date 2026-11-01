@@ -17,6 +17,11 @@ import com.mipatrimonio.app.domain.model.Budget
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.model.Transaction
 import com.mipatrimonio.app.domain.model.Transfer
+import com.mipatrimonio.app.domain.calc.RoundUpCalculator
+import com.mipatrimonio.app.domain.notifications.NotificationRecord
+import com.mipatrimonio.app.domain.notifications.NotificationRecordStatus
+import com.mipatrimonio.app.domain.notifications.NotificationStructure
+import com.mipatrimonio.app.domain.notifications.NotificationTemplateJson
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
@@ -65,6 +70,27 @@ class LedgerRepository(
     val categories: Flow<List<Category>> = categoryDao.observeAll().map { l -> l.map { it.toDomain() } }
     val transactions: Flow<List<Transaction>> = transactionDao.observeAll().map { l -> l.map { it.toDomain() } }
     val transfers: Flow<List<Transfer>> = transferDao.observeAll().map { l -> l.map { it.toDomain() } }
+    val roundUpStructures: Flow<List<NotificationStructure>> = db.notificationDao().observeStructures().map { rows ->
+        rows.mapNotNull { row ->
+            runCatching {
+                NotificationStructure(
+                    row.id, row.packageName, row.name, NotificationTemplateJson.decode(row.template),
+                    enumValueOf(row.direction), row.defaultTitle, row.defaultDetail, row.defaultCategoryId,
+                    row.enabled, row.createdAt, row.updatedAt, enumValueOf(row.target), row.defaultProductId,
+                    row.generatesRoundUp, row.isRoundUpInvestment,
+                )
+            }.getOrNull()
+        }
+    }
+    val roundUpRecords: Flow<List<NotificationRecord>> = db.notificationDao().observeAllRecords().map { rows ->
+        rows.map { row ->
+            NotificationRecord(
+                row.id, row.packageName, row.postedAt, row.text, row.amountMinor, row.currency,
+                row.structureId, row.ruleId, row.variableText, enumValueOf<NotificationRecordStatus>(row.status),
+                row.transactionId, row.createdAt, row.syncMovementId,
+            )
+        }
+    }
     val budgets: Flow<List<Budget>> = combine(
         budgetDao.observeAllEntities(), budgetDao.observeAllRules(),
     ) { entities, rules ->
@@ -75,6 +101,7 @@ class LedgerRepository(
     suspend fun saveAccount(account: Account) = db.withTransaction {
         require(account.name.isNotBlank()) { "El nombre de la cuenta es obligatorio" }
         require(account.color == null || account.color in 1..12) { "El color de la cuenta no es válido" }
+        require(account.roundUpMultiplier in RoundUpCalculator.validMultipliers) { "El multiplicador de redondeo no es válido" }
         val existing = accountDao.getById(account.id)
         if (existing != null && existing.currency != account.currency) {
             require(!accountDependenciesUnchecked(account.id).hasHistory) {
@@ -82,6 +109,11 @@ class LedgerRepository(
             }
         }
         var value = account
+        if (account.roundUpMultiplier > 0 && (existing == null || existing.roundUpMultiplier == 0)) {
+            value = value.copy(roundUpSettledAt = clock())
+        } else if (account.roundUpMultiplier == 0) {
+            value = value.copy(roundUpSettledAt = existing?.roundUpSettledAt)
+        }
         if (existing != null && existing.useInApp != account.useInApp) {
             if (!account.useInApp) {
                 require(!accountDependenciesUnchecked(account.id).hasHistory) { "Archiva la cuenta o mueve sus apuntes" }

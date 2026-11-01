@@ -52,6 +52,7 @@ class AccountSyncRepositoryTest {
         val account = Account(
             "11111111-1111-1111-1111-111111111111", "Cuenta", AccountType.OTRA, "EUR", 500, false, 1,
             shortName = "C", institution = "Banco", color = 7, liquidity = false, useInApp = false,
+            roundUpMultiplier = 2,
         )
         ledger.saveAccount(account)
         ledger.saveAccountBalance(AccountBalanceRecord("balance", account.id, LocalDate.of(2026, 1, 1), 900, 1))
@@ -73,6 +74,35 @@ class AccountSyncRepositoryTest {
         assertEquals(9.0, accountJson.getDouble("saldo"), 0.0)
         assertEquals("saldos_cuenta", rows.first { it.filaId == "balance" }.tabla)
         assertFalse(accountJson.has("historial"))
+        assertFalse(accountJson.has("roundUpMultiplier"))
+        assertFalse(accountJson.has("roundUpSettledAt"))
+        assertEquals(5.0, accountJson.getDouble("saldo_inicial"), 0.0)
+    }
+
+    @Test fun `cambio remoto conserva configuracion local de redondeo`() = runBlocking {
+        val id = "22222222-2222-2222-2222-222222222222"
+        db.accountDao().upsert(
+            com.mipatrimonio.app.data.db.AccountEntity(
+                id, "Local", "CORRIENTE", "EUR", 0, false, 1, 1,
+                roundUpMultiplier = 2, roundUpSettledAt = 123, roundUpLastEstimatedMinor = 40,
+                roundUpLastRealMinor = 42,
+            ),
+        )
+        val row = """[{"id":"$id","nombre":"Servidor","tipo":"corriente","moneda":"EUR","saldo_inicial":0,"archivada":false,"deleted_at":null,"updated_at":"2026-01-01T00:00:00Z"}]"""
+        val client = SyncAuthClient(SyncTransport { request ->
+            if (request.pathAndQuery.startsWith("/auth/v1/token"))
+                SyncHttpResponse(200, """{"access_token":"a","refresh_token":"r","expires_in":3600}""")
+            else SyncHttpResponse(200, row)
+        }, MemorySessionStore(), now = { 0L })
+        client.signIn("a@b.es", "secret")
+
+        sync.pullTable("cuentas_app", client)
+
+        val account = db.accountDao().getById(id)!!
+        assertEquals(2, account.roundUpMultiplier)
+        assertEquals(123L, account.roundUpSettledAt)
+        assertEquals(40L, account.roundUpLastEstimatedMinor)
+        assertEquals(42L, account.roundUpLastRealMinor)
     }
 
     @Test fun `detectar historial al bajar cuentas reinicia huellas y republica`() = runBlocking {

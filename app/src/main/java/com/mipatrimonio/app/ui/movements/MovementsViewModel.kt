@@ -8,6 +8,7 @@ import com.mipatrimonio.app.data.sync.SyncRepository
 import com.mipatrimonio.app.data.sync.mapLiquidityMovements
 import com.mipatrimonio.app.domain.calc.MovementsBalanceCalculator
 import com.mipatrimonio.app.domain.calc.MovementsCalculationMode
+import com.mipatrimonio.app.domain.calc.RoundUpCalculator
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Category
 import com.mipatrimonio.app.domain.model.Transaction
@@ -44,6 +45,7 @@ data class MovementsUiState(
     val ignoreTransfers: Boolean = false,
     val includedAccountIds: Set<String> = emptySet(),
     val selectedIds: Set<String> = emptySet(),
+    val roundUpPendingMinor: Long = 0L,
 ) {
     val activeAccounts: List<Account> get() = accounts.filter { !it.archived && it.useInApp }
     val hasActiveFilters: Boolean get() = filters != MovementFilters()
@@ -69,6 +71,8 @@ class MovementsViewModel(
         val dailyBalance: Boolean,
         val hideFuture: Boolean,
         val ignoreTransfers: Boolean,
+        val roundUpRecords: List<com.mipatrimonio.app.domain.notifications.NotificationRecord>,
+        val roundUpStructures: List<com.mipatrimonio.app.domain.notifications.NotificationStructure>,
     )
 
     private data class LedgerData(
@@ -95,7 +99,8 @@ class MovementsViewModel(
     private val syncMovements = sync?.movimientos ?: flowOf(emptyList())
     private val syncProducts = sync?.productos ?: flowOf(emptyList())
 
-    private val sourceData = combine(
+    private val roundUpData = combine(ledger.roundUpRecords, ledger.roundUpStructures) { records, structures -> records to structures }
+    private val baseSourceData = combine(
         ledgerData, settings.settings, syncMovements, syncProducts,
     ) { ledgerData, currentSettings, remoteMovements, remoteProducts ->
         val existingTransactionIds = ledgerData.transactions.mapTo(hashSetOf(), Transaction::id)
@@ -122,7 +127,12 @@ class MovementsViewModel(
             dailyBalance = currentSettings.movementsDailyBalance,
             hideFuture = currentSettings.movementsHideFuture,
             ignoreTransfers = currentSettings.movementsIgnoreTransfers,
+            roundUpRecords = emptyList(),
+            roundUpStructures = emptyList(),
         )
+    }
+    private val sourceData = combine(baseSourceData, roundUpData) { data, roundUp ->
+        data.copy(roundUpRecords = roundUp.first, roundUpStructures = roundUp.second)
     }
 
     val uiState: StateFlow<MovementsUiState> = combine(
@@ -144,6 +154,27 @@ class MovementsViewModel(
         } else {
             data.accounts.filter { it.id in data.includedAccountIds }
         }
+        val pendingByAccount = RoundUpCalculator.pendingByAccount(
+            data.accounts, data.transactions, data.roundUpRecords, data.roundUpStructures,
+        )
+        val roundUpPending = if (data.baseCurrency == "EUR") includedAccounts.fold(0L) { total, account ->
+            Math.addExact(total, pendingByAccount[account.id] ?: 0L)
+        } else 0L
+        val rawBalance = MovementsBalanceCalculator.calculate(
+            includedAccounts = includedAccounts,
+            transactions = data.transactions,
+            transfers = data.transfers,
+            selectedMonth = month,
+            baseCurrency = data.baseCurrency,
+            mode = data.calculationMode,
+            dailyBalance = data.dailyBalance,
+            hideFuture = data.hideFuture,
+            ignoreTransfers = data.ignoreTransfers,
+            today = currentDate,
+            liquidityMovements = data.items.filterIsInstance<MovementItem.Liquidity>().map {
+                com.mipatrimonio.app.domain.calc.LiquidityMovement(it.movement.id, it.localAccountId, it.date, it.effectMinor)
+            },
+        )
         MovementsUiState(
             isLoading = false,
             accounts = data.accounts,
@@ -156,27 +187,15 @@ class MovementsViewModel(
             selectedMonth = month,
             dayGroups = groupMovementsByDay(visible, data.baseCurrency),
             hideAmounts = data.hideAmounts,
-            balanceMinor = MovementsBalanceCalculator.calculate(
-                includedAccounts = includedAccounts,
-                transactions = data.transactions,
-                transfers = data.transfers,
-                selectedMonth = month,
-                baseCurrency = data.baseCurrency,
-                mode = data.calculationMode,
-                dailyBalance = data.dailyBalance,
-                hideFuture = data.hideFuture,
-                ignoreTransfers = data.ignoreTransfers,
-                today = currentDate,
-                liquidityMovements = data.items.filterIsInstance<MovementItem.Liquidity>().map {
-                    com.mipatrimonio.app.domain.calc.LiquidityMovement(it.movement.id, it.localAccountId, it.date, it.effectMinor)
-                },
-            ),
+            balanceMinor = if (data.calculationMode == MovementsCalculationMode.SALDO_ACTUAL)
+                Math.subtractExact(rawBalance, roundUpPending) else rawBalance,
             calculationMode = data.calculationMode,
             dailyBalance = data.dailyBalance,
             hideFuture = data.hideFuture,
             ignoreTransfers = data.ignoreTransfers,
             includedAccountIds = data.includedAccountIds,
             selectedIds = currentSelectedIds.intersect(data.transactions.mapTo(hashSetOf(), Transaction::id)),
+            roundUpPendingMinor = if (data.calculationMode == MovementsCalculationMode.SALDO_ACTUAL) roundUpPending else 0L,
         )
     }.stateIn(
         scope = viewModelScope,
