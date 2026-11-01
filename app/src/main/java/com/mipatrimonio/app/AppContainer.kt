@@ -53,7 +53,26 @@ class AppContainer(context: Context) {
         onOutboxEnqueued = { SyncScheduler.enqueueOutbox(context.applicationContext) },
     )
     val pendingAutomationNotifier = PendingAutomationNotifier(context.applicationContext, settings)
-    val recurring = RecurringRepository(database)
+    val recurring = RecurringRepository(
+        database,
+        createInvestmentMovement = { id, type, productId, date, amountMinor, units, commissionMinor, accountId, note ->
+            sync.crearMovimientoInversion(
+                tipo = type,
+                productoId = productId,
+                fecha = date,
+                importeMinor = amountMinor,
+                unidades = units,
+                comisionMinor = commissionMinor,
+                cuentaId = accountId,
+                nota = note,
+                origen = "movil",
+                id = id,
+            )
+        },
+        notifyInvestmentFailure = { rule, date, reason ->
+            RecurringReminderScheduler.notifyFailure(context.applicationContext, rule, date, reason)
+        },
+    )
     val recurringReminderScheduler = RecurringReminderScheduler(context.applicationContext, recurring)
     val backupFiles = BackupFileStore(context.applicationContext.contentResolver)
     val backup = BackupService(

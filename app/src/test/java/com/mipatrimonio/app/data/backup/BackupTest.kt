@@ -10,6 +10,7 @@ import com.mipatrimonio.app.data.db.CategoryEntity
 import com.mipatrimonio.app.data.db.NotificationRecordEntity
 import com.mipatrimonio.app.data.db.NotificationRuleEntity
 import com.mipatrimonio.app.data.db.NotificationStructureEntity
+import com.mipatrimonio.app.data.db.RecurringRuleEntity
 import com.mipatrimonio.app.data.db.SyncPerfilEntity
 import com.mipatrimonio.app.testutil.SettingsStoreRule
 import com.mipatrimonio.app.data.repository.LedgerRepository
@@ -199,6 +200,44 @@ class BackupTest {
         repository.restore(BackupJson().decode(BackupJson().encode(repository.export())))
 
         assertEquals("COMPRA", db.categoryDao().getAllForBackup().single().investmentKind)
+    }
+
+    @Test fun `copia v21 restaura campos recurrentes de inversion como nulos`() = runBlocking {
+        val root = JSONObject(legacyV14()).put("dbVersion", 21)
+        val tables = root.getJSONObject("tables")
+        tables.put("recurring_rule", org.json.JSONArray().put(JSONObject().apply {
+            put("id", "r"); put("kind", "GASTO"); put("amountMinor", 100); put("currency", "EUR")
+            put("accountId", "a"); put("destinationAccountId", JSONObject.NULL); put("categoryId", JSONObject.NULL)
+            put("description", "Alquiler"); put("merchant", ""); put("startEpochDay", 1)
+            put("periodQuantity", 1); put("periodUnit", "MES"); put("endEpochDay", JSONObject.NULL)
+            put("reminder", "NO"); put("reminderCustomDays", JSONObject.NULL)
+            put("lastGeneratedEpochDay", 1); put("archived", false); put("createdAt", 1); put("updatedAt", 1)
+        }))
+        root.getJSONObject("counts").put("recurring_rule", 1)
+
+        val decoded = BackupJson().decode(root.toString().toByteArray(Charsets.UTF_8))
+        BackupRepository(db, settingsRule.repository, "test").restore(decoded)
+
+        val rule = db.recurringRuleDao().getAllForBackup().single()
+        assertNull(rule.productId)
+        assertNull(rule.units)
+        assertNull(rule.commissionMinor)
+    }
+
+    @Test fun `ida y vuelta v22 conserva campos recurrentes de inversion`() = runBlocking {
+        db.accountDao().insertAllForRestore(listOf(AccountEntity("a", "Cuenta", "CORRIENTE", "EUR", 0, false, 1, 1)))
+        db.recurringRuleDao().insertAllForRestore(listOf(RecurringRuleEntity(
+            "r", "COMPRA", 10_000, "EUR", "a", null, null, "Fondo", "", 1, 1, "MES",
+            null, "NO", null, 1, false, 1, 1, "p", "1.25", 25,
+        )))
+        val repository = BackupRepository(db, settingsRule.repository, "test")
+
+        repository.restore(BackupJson().decode(BackupJson().encode(repository.export())))
+
+        val rule = db.recurringRuleDao().getAllForBackup().single()
+        assertEquals("p", rule.productId)
+        assertEquals("1.25", rule.units)
+        assertEquals(25L, rule.commissionMinor)
     }
 
     private fun legacyV14() = """{

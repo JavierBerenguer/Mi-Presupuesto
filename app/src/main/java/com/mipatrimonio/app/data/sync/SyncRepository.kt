@@ -197,18 +197,21 @@ class SyncRepository(
 
     suspend fun crearMovimientoInversion(
         tipo: String, productoId: String, fecha: LocalDate, importeMinor: Long, unidades: BigDecimal?,
-        comisionMinor: Long?, cuentaId: String?, nota: String?, origen: String = "movil",
+        comisionMinor: Long?, cuentaId: String?, nota: String?, origen: String = "movil", id: String? = null,
     ): String {
+        if (id != null && dao.movimiento(id) != null) return id
         val product = dao.producto(productoId)
         val account = cuentaId?.let { id -> ledger.accounts.first().firstOrNull { it.id == id } }
+        val movementType = InvestmentMovementType.fromWireName(tipo)
         val values = InvestmentMovementRules.validate(
-            type = InvestmentMovementType.fromWireName(tipo), product = product, date = fecha,
+            type = movementType, product = product, date = fecha,
             amountMinor = importeMinor, units = unidades, commissionMinor = comisionMinor,
             accountId = cuentaId, account = account, movements = dao.allMovimientos(), today = today(), note = nota,
+            allowMissingPurchaseUnits = id != null && movementType == InvestmentMovementType.PURCHASE,
         )
-        val id = UUID.randomUUID().toString()
+        val movementId = id ?: UUID.randomUUID().toString()
         val entity = SyncMovimientoEntity(
-            id = id, perfilId = values.product.perfilId, productoId = values.product.id,
+            id = movementId, perfilId = values.product.perfilId, productoId = values.product.id,
             fecha = values.date.toEpochDay(), tipo = tipo,
             unidades = values.units?.stripTrailingZeros()?.toPlainString() ?: "0",
             importeMinor = values.amountMinor, comisionMinor = values.commissionMinor,
@@ -218,7 +221,7 @@ class SyncRepository(
         db.withTransaction { dao.upsertMovimiento(entity); enqueueMovement(entity) }
         onOutboxEnqueued()
         if (entity.cuentaId != null) publishAccounts()
-        return id
+        return movementId
     }
 
     suspend fun editarMovimientoInversion(

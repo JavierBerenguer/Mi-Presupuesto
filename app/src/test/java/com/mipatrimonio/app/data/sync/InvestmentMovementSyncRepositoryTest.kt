@@ -86,6 +86,30 @@ class InvestmentMovementSyncRepositoryTest {
         assertFalse(JSONObject(db.syncDao().outboxFor("movimientos").single().json).isNull("deleted_at"))
     }
 
+    @Test fun `id proporcionado no resucita una fila borrada`() = runBlocking {
+        val deleted = movement("deterministic", "movil", null).copy(deletedAt = "2026-01-01T00:00:00Z")
+        db.syncDao().upsertMovimiento(deleted)
+
+        val id = sync.crearMovimientoInversion(
+            "compra", "p", date, 100, null, null, "a", "recurrente", id = "deterministic",
+        )
+
+        assertEquals("deterministic", id)
+        assertEquals(deleted, db.syncDao().movimiento(id))
+        assertTrue(db.syncDao().outboxFor("movimientos").isEmpty())
+    }
+
+    @Test fun `compra recurrente cotizada admite participaciones pendientes`() = runBlocking {
+        db.syncDao().upsertProducto(db.syncDao().producto("p")!!.copy(fuente = "morningstar"))
+
+        sync.crearMovimientoInversion(
+            "compra", "p", date, 100, null, null, "a", "recurrente", id = "deterministic",
+        )
+
+        assertEquals("0", db.syncDao().movimiento("deterministic")?.unidades)
+        assertEquals(1, db.syncDao().pendingCount("movimientos", "deterministic"))
+    }
+
     @Test fun `descarga fuente destino y unidades destino`() = runBlocking {
         val rows = """[{"id":"p2","perfil_id":"profile","nombre":"Producto","tipo":"fondo","moneda":"EUR","fuente":"yahoo","deleted_at":null,"updated_at":"2026-01-01T00:00:00Z"}]"""
         val movementRows = """[{"id":"m2","perfil_id":"profile","producto_id":"p2","fecha":"2026-01-01","tipo":"traspaso","unidades":1,"importe":10,"comision":null,"cuenta_id":null,"origen":"escritorio","nota":null,"destino_id":"p","unidades_destino":2.5,"deleted_at":null,"updated_at":"2026-01-01T00:00:00Z"}]"""

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.mipatrimonio.app.data.db.AppDatabase
+import com.mipatrimonio.app.data.db.SyncProductoEntity
 import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.repository.RecurringRepository
 import com.mipatrimonio.app.data.repository.SettingsRepository
@@ -20,6 +21,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -133,6 +135,49 @@ class RecurringViewModelsTest {
 
         assertEquals(futureStart, state.items.single().nextDate)
         assertEquals(listOf(futureStart), ledger.transactions.first().map { it.date })
+    }
+
+    @Test
+    fun `formulario muestra campos segun tipo de inversion`() = runTest {
+        ledger.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
+        val products = flowOf(listOf(SyncProductoEntity(
+            "p", "profile", "Fondo", "Fondo X", "fondo", "EUR", null, null,
+            "2026-09-28T00:00:00Z", "morningstar",
+        )))
+        val viewModel = RecurringFormViewModel(recurring, ledger, null, { today }, products = products)
+        viewModel.uiState.first { !it.isLoading && it.products.isNotEmpty() }
+
+        viewModel.setKind(RecurringKind.COMPRA)
+        var state = viewModel.uiState.first { it.values.kind == RecurringKind.COMPRA }
+        assertTrue(state.isInvestment)
+        assertTrue(state.showUnits)
+        assertTrue(state.showCommission)
+        assertFalse(state.showCategory)
+        assertFalse(state.showMerchant)
+        assertFalse(state.showDestinationAccount)
+
+        viewModel.setKind(RecurringKind.DIVIDENDO)
+        state = viewModel.uiState.first { it.values.kind == RecurringKind.DIVIDENDO }
+        assertTrue(state.isInvestment)
+        assertFalse(state.showUnits)
+        assertFalse(state.showCommission)
+
+        viewModel.setKind(RecurringKind.VENTA)
+        state = viewModel.uiState.first { it.values.kind == RecurringKind.VENTA }
+        assertTrue(state.showUnits)
+        assertTrue(state.showCommission)
+
+        viewModel.setKind(RecurringKind.COMISION)
+        state = viewModel.uiState.first { it.values.kind == RecurringKind.COMISION }
+        assertFalse(state.showUnits)
+        assertFalse(state.showCommission)
+
+        viewModel.setKind(RecurringKind.TRANSFERENCIA)
+        state = viewModel.uiState.first { it.values.kind == RecurringKind.TRANSFERENCIA }
+        assertFalse(state.isInvestment)
+        assertTrue(state.showCategory)
+        assertTrue(state.showMerchant)
+        assertTrue(state.showDestinationAccount)
     }
 
     private fun rule() = RecurringRule(

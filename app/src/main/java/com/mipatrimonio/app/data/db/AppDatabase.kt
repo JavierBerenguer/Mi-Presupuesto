@@ -24,6 +24,7 @@ import com.mipatrimonio.app.data.db.migrations.MIGRATION_17_18
 import com.mipatrimonio.app.data.db.migrations.MIGRATION_18_19
 import com.mipatrimonio.app.data.db.migrations.MIGRATION_19_20
 import com.mipatrimonio.app.data.db.migrations.MIGRATION_20_21
+import com.mipatrimonio.app.data.db.migrations.MIGRATION_21_22
 
 @Database(
     entities = [
@@ -45,7 +46,7 @@ import com.mipatrimonio.app.data.db.migrations.MIGRATION_20_21
         SyncResumenEntity::class, SyncOutboxEntity::class, SyncCursorEntity::class,
         SyncAccountFingerprintEntity::class,
     ],
-    version = 21,
+    version = 22,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -86,6 +87,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_18_19,
                     MIGRATION_19_20,
                     MIGRATION_20_21,
+                    MIGRATION_21_22,
                 )
                 .build()
     }
