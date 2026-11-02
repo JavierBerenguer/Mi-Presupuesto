@@ -40,12 +40,21 @@ data class ExistingInvestmentDividend(
     val netMinor: Long,
 )
 
+/** Apunte de la cuenta que no viene de un CSV (manual, notificación o recurrente). */
+data class ExistingCashMovement(
+    val id: String,
+    val date: LocalDate,
+    val signedMinor: Long,
+    val description: String,
+)
+
 data class PlannedImportRow(
     val source: ImportedMovement,
     val status: ImportRowStatus,
     val record: ImportRecord? = null,
     val reason: String? = null,
     val cashEffectMinor: Long = 0,
+    val matchedMovement: ExistingCashMovement? = null,
 ) {
     val records: List<ImportRecord> get() = listOfNotNull(record)
 }
@@ -76,6 +85,7 @@ data class TradeRepublicPlanningContext(
     val existingDividends: List<ExistingInvestmentDividend> = emptyList(),
     val hasSyncSession: Boolean = false,
     val investmentAccountId: String = accountId,
+    val existingCashMovements: List<ExistingCashMovement> = emptyList(),
 )
 
 object TradeRepublicImportPlanner {
@@ -83,8 +93,44 @@ object TradeRepublicImportPlanner {
 
     fun plan(preview: ImportPreview, context: TradeRepublicPlanningContext): TradeRepublicImportPlan {
         require(context.accountId.isNotBlank()) { "Selecciona una cuenta de efectivo" }
-        val rows = preview.movements.map { row -> planRow(row, context) }
+        val rows = withRecordedMovements(preview.movements.map { row -> planRow(row, context) }, context)
         return TradeRepublicImportPlan(rows, preview.issues, preview.duplicateIdsInFile)
+    }
+
+    /**
+     * Las filas que ya se apuntaron a mano o por notificación no se crean otra vez. Empareja uno a uno
+     * por importe exacto (con signo) y fecha cercana: Trade Republic contabiliza las tarjetas uno o
+     * dos días después de la compra. Se asignan primero las parejas de fechas más próximas.
+     */
+    private fun withRecordedMovements(
+        rows: List<PlannedImportRow>,
+        context: TradeRepublicPlanningContext,
+    ): List<PlannedImportRow> {
+        if (context.existingCashMovements.isEmpty()) return rows
+        val candidates = rows.indices
+            .filter { rows[it].status == ImportRowStatus.CREATE && rows[it].record is ImportRecord.Movement }
+            .filter { context.decisions[rows[it].source.externalId] == null }
+        val pairs = candidates.flatMap { index ->
+            val row = rows[index]
+            context.existingCashMovements.mapNotNull { existing ->
+                val distance = kotlin.math.abs(existing.date.toEpochDay() - row.source.date.toEpochDay())
+                if (existing.signedMinor != row.cashEffectMinor || distance > RECORDED_DAY_RANGE) null
+                else Triple(index, existing, distance)
+            }
+        }.sortedWith(compareBy<Triple<Int, ExistingCashMovement, Long>> { it.third }
+            .thenBy { rows[it.first].source.date }.thenBy { it.first }.thenBy { it.second.date }.thenBy { it.second.id })
+        val result = rows.toMutableList()
+        val usedRows = mutableSetOf<Int>()
+        val usedMovements = mutableSetOf<String>()
+        pairs.forEach { (index, existing, _) ->
+            if (index in usedRows || existing.id in usedMovements) return@forEach
+            usedRows += index
+            usedMovements += existing.id
+            result[index] = PlannedImportRow(
+                rows[index].source, ImportRowStatus.ALREADY_IMPORTED, reason = REASON_ALREADY_RECORDED, matchedMovement = existing,
+            )
+        }
+        return result
     }
 
     private fun planRow(row: ImportedMovement, context: TradeRepublicPlanningContext): PlannedImportRow {
@@ -261,6 +307,8 @@ object TradeRepublicImportPlanner {
     const val REASON_FOREIGN_CURRENCY = "Divisa distinta de la cuenta"
     const val REASON_ALREADY_IN_PORTFOLIO = "Ya está en la cartera"
     const val REASON_SYNC_SESSION = "Inicia sesión en la sincronización para importar los dividendos"
+    const val REASON_ALREADY_RECORDED = "Ya está apuntado a mano o por notificación"
     private const val DUPLICATE_DAY_RANGE = 3L
+    private const val RECORDED_DAY_RANGE = 3L
     private const val DUPLICATE_AMOUNT_RANGE = 1L
 }

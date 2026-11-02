@@ -82,9 +82,9 @@ class InvestmentMovementRulesTest {
 
     @Test fun `cuenta valida y obligatoriedad se comprueban`() {
         assertFails { validate(InvestmentMovementType.DIVIDEND, quoted, units = null, requireAccount = true, accountId = null) }
+        validate(InvestmentMovementType.DIVIDEND, quoted, units = null, accountId = "a", account = account.copy(useInApp = false))
         assertFails { validate(InvestmentMovementType.DIVIDEND, quoted, units = null, accountId = "a", account = account.copy(currency = "USD")) }
         assertFails { validate(InvestmentMovementType.DIVIDEND, quoted, units = null, accountId = "a", account = account.copy(archived = true)) }
-        assertFails { validate(InvestmentMovementType.DIVIDEND, quoted, units = null, accountId = "a", account = account.copy(useInApp = false)) }
     }
 
     @Test fun `tolerancia ajusta a todas`() {

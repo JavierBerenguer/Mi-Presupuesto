@@ -317,7 +317,7 @@ private fun EntryFormContent(
                         state.groupNetMinor < 0L -> R.string.mov_group_parent_summary_income
                         else -> R.string.mov_group_parent_summary
                     },
-                    state.groupChildCount,
+                    state.groupChildCount + 1, // el principal también es uno de los apuntes agrupados
                     // T-106: el neto lleva signo (gasto > 0, ingreso < 0); el texto ya dice cuál es.
                     MoneyMath.format(Math.abs(state.groupNetMinor), state.groupCurrency),
                 ),

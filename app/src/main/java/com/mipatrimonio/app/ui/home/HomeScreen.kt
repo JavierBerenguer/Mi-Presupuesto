@@ -323,7 +323,7 @@ private fun MonthCard(state: HomeState, format: (Long) -> String, hiddenAmount: 
                     state.baseCurrency,
                     state.hideAmounts,
                     hiddenAmount,
-                    if (state.monthTotals.balanceMinor >= 0) "+" else "−",
+                    "+",
                 ),
                 if (state.monthTotals.balanceMinor >= 0) MoneyColors.positive else MoneyColors.negative,
             )

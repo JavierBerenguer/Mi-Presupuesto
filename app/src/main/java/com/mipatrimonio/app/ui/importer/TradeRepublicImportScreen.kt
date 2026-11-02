@@ -79,6 +79,17 @@ fun TradeRepublicImportScreen(
                     plan.duplicateIdsInFile.forEach { id ->
                         Text(stringResource(R.string.import_tr_duplicate, id))
                     }
+                    plan.rows.forEach { row ->
+                        row.matchedMovement?.let { match ->
+                            Text(stringResource(
+                                R.string.import_tr_already_recorded,
+                                row.source.description.ifBlank { row.source.rawType },
+                                MoneyMath.format(row.cashEffectMinor, currency),
+                                match.description,
+                                match.date.toString(),
+                            ))
+                        }
+                    }
                     plan.rows.mapNotNull { it.record as? ImportRecord.InvestmentDividend }.forEach { dividend ->
                         state.products.firstOrNull { it.id == dividend.productId }?.let { product ->
                             Text(stringResource(R.string.import_tr_dividend_product, product.nombre))

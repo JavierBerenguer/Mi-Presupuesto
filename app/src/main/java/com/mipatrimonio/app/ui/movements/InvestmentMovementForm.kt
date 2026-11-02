@@ -116,7 +116,7 @@ class InvestmentMovementFormViewModel(
             requireAccount = requireAccount,
             values = current,
             products = data.products.filter { it.deletedAt == null },
-            accounts = data.accounts.filter { !it.archived && it.useInApp && it.currency == "EUR" },
+            accounts = data.accounts.filter { !it.archived && it.currency == "EUR" },
             availableUnits = current.productId?.let {
                 InvestmentMovementRules.unitsAt(it, current.date, data.movements, movementId)
             } ?: BigDecimal.ZERO,

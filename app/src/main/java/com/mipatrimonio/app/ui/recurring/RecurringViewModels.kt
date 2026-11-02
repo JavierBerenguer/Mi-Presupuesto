@@ -110,8 +110,7 @@ data class RecurringFormUiState(
     val error: RecurringFormError? = null,
 ) {
     val activeAccounts get() = accounts.filter { account ->
-        !account.archived && account.useInApp &&
-            (!values.kind.isInvestment() || account.currency == "EUR")
+        !account.archived && (if (values.kind.isInvestment()) account.currency == "EUR" else account.useInApp)
     }
     val destinationAccounts get() = activeAccounts.filter { it.id != values.accountId }
     val isInvestment get() = values.kind.isInvestment()
@@ -157,7 +156,7 @@ class RecurringFormViewModel(
                 val rule = original
                 if (rule == null) notFound.value = true else values.value = rule.toFormValues()
             } else {
-                val accounts = ledger.accounts.first().filterNot(Account::archived)
+                val accounts = ledger.accounts.first().filter { !it.archived && it.useInApp }
                 values.update { current ->
                     current.copy(
                         accountId = accounts.firstOrNull()?.id,
@@ -193,8 +192,7 @@ class RecurringFormViewModel(
 
     fun setKind(value: RecurringKind) = update { current ->
         val eligibleAccounts = uiState.value.accounts.filter { account ->
-            !account.archived && account.useInApp &&
-                (!value.isInvestment() || account.currency == "EUR")
+            !account.archived && (if (value.isInvestment()) account.currency == "EUR" else account.useInApp)
         }
         current.copy(
             kind = value,

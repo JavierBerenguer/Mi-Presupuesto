@@ -4,7 +4,10 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.mipatrimonio.app.data.db.AppDatabase
+import com.mipatrimonio.app.data.db.SyncMovimientoEntity
 import com.mipatrimonio.app.data.repository.LedgerRepository
+import com.mipatrimonio.app.data.sync.SyncRepository
+import com.mipatrimonio.app.domain.model.AccountBalanceRecord
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountType
 import com.mipatrimonio.app.domain.model.Transaction
@@ -56,6 +59,22 @@ class AccountUseInAppRepositoryTest {
         assertEquals(1_250L, recorded.balanceMinor)
         repository.saveAccount(account.copy(useInApp = true, initialBalanceMinor = 0))
         assertEquals(1_250L, repository.accounts.first().single().initialBalanceMinor)
+    }
+
+    @Test fun `quitar uso con movimientos de inversion respeta los saldos anotados`() = runBlocking {
+        // Caso Neverless: sin apuntes, con compras importadas y saldos anotados desde el escritorio.
+        val account = account("a", 0)
+        repository.saveAccount(account.copy(useInApp = false))
+        repository.saveAccountBalance(AccountBalanceRecord("s", "a", LocalDate.of(2026, 10, 31), 9, 1))
+        repository.saveAccount(account.copy(useInApp = true))
+        db.syncDao().upsertMovimiento(SyncMovimientoEntity(
+            "m", "p", "btc", LocalDate.of(2026, 10, 1).toEpochDay(), "compra", "0.001", 71_00, null,
+            SyncRepository.accountIdToRemoteId("a"), "importacion", null, null, "2026-11-02T00:00:00Z",
+        ))
+        repository.saveAccount(account.copy(useInApp = false))
+        assertEquals(false, repository.accounts.first().single().useInApp)
+        val records = repository.accountBalances.first()
+        assertEquals(listOf(9L), records.map { it.balanceMinor })
     }
 
     private fun account(id: String, initial: Long) =

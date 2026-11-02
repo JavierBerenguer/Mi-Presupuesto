@@ -24,8 +24,8 @@ android {
         applicationId = "com.mipatrimonio.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 26
-        versionName = "1.11.1"
+        versionCode = 30
+        versionName = "1.12.3"
     }
 
     signingConfigs {

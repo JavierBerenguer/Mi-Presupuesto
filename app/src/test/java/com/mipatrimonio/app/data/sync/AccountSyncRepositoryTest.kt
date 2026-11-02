@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.mipatrimonio.app.data.db.AppDatabase
 import com.mipatrimonio.app.data.repository.LedgerRepository
+import com.mipatrimonio.app.domain.calc.BalanceCalculator
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountBalanceRecord
 import com.mipatrimonio.app.domain.model.AccountType
@@ -79,6 +80,130 @@ class AccountSyncRepositoryTest {
         assertEquals(5.0, accountJson.getDouble("saldo_inicial"), 0.0)
     }
 
+    @Test fun `publica liquidez posterior al saldo anotado de cuenta sin uso`() = runBlocking {
+        settingsRule.repository.setSyncProfile("profile")
+        val account = Account("a", "Neverless", AccountType.OTRA, "EUR", 100_00, false, 1, useInApp = false)
+        ledger.saveAccount(account)
+        ledger.saveAccountBalance(AccountBalanceRecord("record", "a", LocalDate.of(2026, 1, 1), 80_00, 1))
+        db.syncDao().upsertMovimiento(
+            com.mipatrimonio.app.data.db.SyncMovimientoEntity(
+                "before", "profile", "product", LocalDate.of(2025, 12, 31).toEpochDay(), "compra", "1",
+                10_00, null, SyncRepository.accountIdToRemoteId("a"), "escritorio", null, null, "now",
+            ),
+        )
+        db.syncDao().upsertMovimiento(
+            com.mipatrimonio.app.data.db.SyncMovimientoEntity(
+                "after", "profile", "product", LocalDate.of(2026, 1, 2).toEpochDay(), "compra", "1",
+                20_00, null, SyncRepository.accountIdToRemoteId("a"), "movil", null, null, "now",
+            ),
+        )
+
+        sync.publishAccounts()
+
+        val json = JSONObject(db.syncDao().outboxFor("cuentas_app").single().json)
+        assertEquals(60.0, json.getDouble("saldo"), 0.0)
+        assertTrue(json.has("saldo_fecha"))
+    }
+
+    @Test fun `cambiar cuenta de liquidez recalcula las dos cuentas sin uso`() = runBlocking {
+        settingsRule.repository.setSyncProfile("profile")
+        val first = Account("a", "Neverless", AccountType.OTRA, "EUR", 100_00, false, 1, useInApp = false)
+        val second = Account("b", "Trade Republic", AccountType.OTRA, "EUR", 50_00, false, 1, useInApp = false)
+        ledger.saveAccount(first)
+        ledger.saveAccount(second)
+        val movement = com.mipatrimonio.app.data.db.SyncMovimientoEntity(
+            "purchase", "profile", "product", LocalDate.of(2026, 1, 2).toEpochDay(), "compra", "1",
+            20_00, null, SyncRepository.accountIdToRemoteId("a"), "movil", null, null, "now",
+        )
+        db.syncDao().upsertMovimiento(movement)
+        sync.publishAccounts()
+        suspend fun balances() = db.syncDao().outboxFor("cuentas_app").associate { row ->
+            row.filaId to JSONObject(row.json).getDouble("saldo")
+        }
+        assertEquals(80.0, balances().getValue(SyncRepository.accountIdToRemoteId("a")), 0.0)
+        assertEquals(50.0, balances().getValue(SyncRepository.accountIdToRemoteId("b")), 0.0)
+
+        db.syncDao().upsertMovimiento(movement.copy(cuentaId = SyncRepository.accountIdToRemoteId("b")))
+        sync.publishAccounts()
+
+        assertEquals(100.0, balances().getValue(SyncRepository.accountIdToRemoteId("a")), 0.0)
+        assertEquals(30.0, balances().getValue(SyncRepository.accountIdToRemoteId("b")), 0.0)
+    }
+
+    @Test fun `saldo bajado de la nube no se vuelve a subir`() = runBlocking {
+        ledger.saveAccount(Account("a", "Neverless cash", AccountType.OTRA, "EUR", 0, false, 1, useInApp = false))
+        db.accountBalanceDao().upsert(com.mipatrimonio.app.data.db.AccountBalanceEntity(
+            "remoto", "a", LocalDate.of(2026, 8, 31).toEpochDay(), 10, 1, null, "2026-11-02T08:00:00Z",
+        ))
+
+        sync.publishAccountBalances()
+
+        assertTrue(db.syncDao().outboxFor("saldos_cuenta").isEmpty())
+    }
+
+    @Test fun `saldo borrado en el movil se sube borrado`() = runBlocking {
+        ledger.saveAccount(Account("a", "Neverless cash", AccountType.OTRA, "EUR", 0, false, 1, useInApp = false))
+        db.accountBalanceDao().upsert(com.mipatrimonio.app.data.db.AccountBalanceEntity(
+            "remoto", "a", LocalDate.of(2026, 8, 31).toEpochDay(), 10, 1, null, "2026-11-02T08:00:00Z",
+        ))
+
+        ledger.deleteAccountBalance("remoto")
+        sync.publishAccountBalances()
+
+        val json = JSONObject(db.syncDao().outboxFor("saldos_cuenta").single().json)
+        assertEquals("remoto", json.getString("id"))
+        assertFalse(json.isNull("deleted_at"))
+    }
+
+    @Test fun `borrado remoto se aplica aunque quede en la cola un saldo bajado`() = runBlocking {
+        // Lo que pasó con Neverless: el saldo esperaba en la cola como vivo y el borrado de la nube se ignoraba.
+        val cuenta = "33333333-3333-3333-3333-333333333333"
+        db.accountDao().upsert(com.mipatrimonio.app.data.db.AccountEntity(cuenta, "Neverless cash", "OTRA", "EUR", 0, false, 1, 1, useInApp = false))
+        db.accountBalanceDao().upsert(com.mipatrimonio.app.data.db.AccountBalanceEntity(
+            "saldo", cuenta, LocalDate.of(2026, 8, 31).toEpochDay(), 10, 1, null, "2026-11-02T07:00:00Z",
+        ))
+        db.syncDao().upsertOutbox(com.mipatrimonio.app.data.db.SyncOutboxEntity(
+            tabla = "saldos_cuenta", filaId = "saldo", json = """{"id":"saldo","deleted_at":null}""", creadoAt = 1,
+        ))
+        val row = """[{"id":"saldo","cuenta_id":"$cuenta","fecha":"2026-08-31","saldo":0.1,"deleted_at":"2026-11-02T08:27:00Z","updated_at":"2026-11-02T08:27:01Z"}]"""
+        val client = SyncAuthClient(SyncTransport { request ->
+            if (request.pathAndQuery.startsWith("/auth/v1/token"))
+                SyncHttpResponse(200, """{"access_token":"a","refresh_token":"r","expires_in":3600}""")
+            else SyncHttpResponse(200, row)
+        }, MemorySessionStore(), now = { 0L })
+        client.signIn("a@b.es", "secret")
+
+        sync.pullTable("saldos_cuenta", client)
+
+        assertTrue(db.accountBalanceDao().getById("saldo")!!.deletedAt != null)
+        assertTrue(db.syncDao().outboxFor("saldos_cuenta").isEmpty())
+        sync.publishAccountBalances()
+        assertTrue(db.syncDao().outboxFor("saldos_cuenta").isEmpty())
+    }
+
+    @Test fun `cuenta remota sin uso con movimientos de inversion sigue sin uso`() = runBlocking {
+        // Caso Neverless: importar sus compras no debe activar «Uso en app» en el móvil.
+        val id = "33333333-3333-3333-3333-333333333333"
+        db.accountDao().upsert(com.mipatrimonio.app.data.db.AccountEntity(id, "Neverless cash", "OTRA", "EUR", 0, false, 1, 1))
+        db.syncDao().upsertMovimiento(
+            com.mipatrimonio.app.data.db.SyncMovimientoEntity(
+                "m", "profile", "product", LocalDate.of(2026, 10, 1).toEpochDay(), "compra", "0.001",
+                71_00, null, id, "importacion", null, null, "now",
+            ),
+        )
+        val row = """[{"id":"$id","nombre":"Neverless cash","tipo":"otra","moneda":"EUR","saldo_inicial":0,"archivada":false,"uso_app":false,"deleted_at":null,"updated_at":"2026-11-02T00:00:00Z"}]"""
+        val client = SyncAuthClient(SyncTransport { request ->
+            if (request.pathAndQuery.startsWith("/auth/v1/token"))
+                SyncHttpResponse(200, """{"access_token":"a","refresh_token":"r","expires_in":3600}""")
+            else SyncHttpResponse(200, row)
+        }, MemorySessionStore(), now = { 0L })
+        client.signIn("a@b.es", "secret")
+
+        sync.pullTable("cuentas_app", client)
+
+        assertFalse(db.accountDao().getById(id)!!.useInApp)
+    }
+
     @Test fun `cambio remoto conserva configuracion local de redondeo`() = runBlocking {
         val id = "22222222-2222-2222-2222-222222222222"
         db.accountDao().upsert(
@@ -128,7 +253,9 @@ class AccountSyncRepositoryTest {
         assertTrue(settingsRule.repository.settings.first().syncAccountHistorySupported)
         val queued = db.syncDao().observeOutbox().first().single { it.tabla == "cuentas_app" }
         assertTrue(JSONObject(queued.json).has("historial"))
-        assertEquals("2025-12-31", JSONObject(queued.json).getJSONArray("historial").getJSONObject(0).getString("fecha"))
+        val history = JSONObject(queued.json).getJSONArray("historial")
+        assertEquals("2025-12-09", history.getJSONObject(0).getString("fecha"))
+        assertEquals("2025-12-31", history.getJSONObject(1).getString("fecha"))
     }
 
     @Test fun `sincronizar pregunta si existe la columna historial aunque ninguna cuenta haya cambiado`() = runBlocking {
@@ -178,15 +305,118 @@ class AccountSyncRepositoryTest {
         val rows = db.syncDao().observeOutbox().first().filter { it.tabla == "cuentas_app" }
         val rawHistory = rows.single { it.filaId == SyncRepository.accountIdToRemoteId(account.id) }.json
         val history = JSONObject(rawHistory).getJSONArray("historial")
-        assertEquals(3, history.length())
-        assertEquals("2025-10-31", history.getJSONObject(0).getString("fecha"))
+        assertEquals(4, history.length())
+        assertEquals("2025-10-04", history.getJSONObject(0).getString("fecha"))
         assertFalse(rawHistory, rawHistory.contains("\"saldo\":\""))
-        assertEquals(120.0, history.getJSONObject(0).getDouble("saldo"), 0.0)
-        assertEquals(150.0, history.getJSONObject(1).getDouble("saldo"), 0.0)
-        assertEquals(110.0, history.getJSONObject(2).getDouble("saldo"), 0.0)
+        assertEquals(100.0, history.getJSONObject(0).getDouble("saldo"), 0.0)
+        assertEquals(120.0, history.getJSONObject(1).getDouble("saldo"), 0.0)
+        assertEquals(150.0, history.getJSONObject(2).getDouble("saldo"), 0.0)
+        assertEquals(110.0, history.getJSONObject(3).getDouble("saldo"), 0.0)
         val externalHistory = JSONObject(rows.single { it.filaId == SyncRepository.accountIdToRemoteId(external.id) }.json)
             .getJSONArray("historial")
         assertEquals(0, externalHistory.length())
+    }
+
+    @Test fun `actividad el dia uno publica apertura del mes anterior una sola vez`() = runBlocking {
+        settingsRule.repository.setSyncProfile("profile")
+        settingsRule.repository.setSyncAccountHistorySupported(true)
+        val account = Account("a", "Cuenta", AccountType.OTRA, "EUR", 25_00, false, 1)
+        ledger.saveAccount(account)
+        ledger.saveTransaction(transaction("t", account.id, LocalDate.of(2025, 5, 1), 10_00))
+
+        sync.publishAccounts()
+
+        val history = publishedHistory(account.id)
+        val dates = (0 until history.length()).map { history.getJSONObject(it).getString("fecha") }
+        assertEquals("2025-04-30", dates.first())
+        assertEquals(dates.size, dates.toSet().size)
+        assertEquals(25.0, history.getJSONObject(0).getDouble("saldo"), 0.0)
+    }
+
+    @Test fun `actividad a mitad de mes publica apertura y conserva los cierres mensuales`() = runBlocking {
+        settingsRule.repository.setSyncProfile("profile")
+        settingsRule.repository.setSyncAccountHistorySupported(true)
+        val account = Account("a", "Cuenta", AccountType.OTRA, "EUR", 10_00, false, 1)
+        val first = transaction("first", account.id, LocalDate.of(2025, 5, 15), 5_00)
+        val later = transaction("later", account.id, LocalDate.of(2025, 7, 2), 3_00)
+        ledger.saveAccount(account)
+        ledger.saveTransaction(first)
+        ledger.saveTransaction(later)
+
+        sync.publishAccounts()
+
+        val history = publishedHistory(account.id)
+        assertEquals("2025-05-14", history.getJSONObject(0).getString("fecha"))
+        val expectedOpening = BalanceCalculator.balance(
+            account, listOf(first, later), emptyList(), LocalDate.of(2025, 5, 14),
+        )
+        assertEquals(expectedOpening / 100.0, history.getJSONObject(0).getDouble("saldo"), 0.0)
+        val closingDates = (1 until history.length()).map { history.getJSONObject(it).getString("fecha") }
+        assertEquals(
+            listOf(
+                "2025-05-31", "2025-06-30", "2025-07-31", "2025-08-31",
+                "2025-09-30", "2025-10-31", "2025-11-30", "2025-12-31",
+            ),
+            closingDates,
+        )
+        assertEquals(15.0, history.getJSONObject(1).getDouble("saldo"), 0.0)
+        assertEquals(18.0, history.getJSONObject(3).getDouble("saldo"), 0.0)
+        assertEquals(18.0, history.getJSONObject(history.length() - 1).getDouble("saldo"), 0.0)
+    }
+
+    @Test fun `primera actividad del mes actual publica solo la apertura`() = runBlocking {
+        settingsRule.repository.setSyncProfile("profile")
+        settingsRule.repository.setSyncAccountHistorySupported(true)
+        val account = Account("a", "Cuenta", AccountType.OTRA, "EUR", 40_00, false, 1)
+        ledger.saveAccount(account)
+        ledger.saveTransaction(transaction("today", account.id, LocalDate.of(2026, 1, 2), 7_00))
+
+        sync.publishAccounts()
+
+        val history = publishedHistory(account.id)
+        assertEquals(1, history.length())
+        assertEquals("2026-01-01", history.getJSONObject(0).getString("fecha"))
+        assertEquals(40.0, history.getJSONObject(0).getDouble("saldo"), 0.0)
+    }
+
+    @Test fun `saldo inicial sin actividad mantiene historial vacio`() = runBlocking {
+        settingsRule.repository.setSyncProfile("profile")
+        settingsRule.repository.setSyncAccountHistorySupported(true)
+        val account = Account("a", "Cuenta", AccountType.OTRA, "EUR", 40_00, false, 1)
+        ledger.saveAccount(account)
+
+        sync.publishAccounts()
+
+        assertEquals(0, publishedHistory(account.id).length())
+    }
+
+    // Una cuenta sin uso en app no admite apuntes: su historial va siempre vacío (lo publica saldos_cuenta).
+    @Test fun `cuenta sin uso mantiene historial vacio`() = runBlocking {
+        settingsRule.repository.setSyncProfile("profile")
+        settingsRule.repository.setSyncAccountHistorySupported(true)
+        val account = Account(
+            "a", "Cuenta externa", AccountType.OTRA, "EUR", 40_00, false, 1, useInApp = false,
+        )
+        ledger.saveAccount(account)
+
+        sync.publishAccounts()
+
+        assertEquals(0, publishedHistory(account.id).length())
+    }
+
+    @Test fun `historial con apertura encola cada cuenta solo una vez`() = runBlocking {
+        settingsRule.repository.setSyncProfile("profile")
+        settingsRule.repository.setSyncAccountHistorySupported(true)
+        val account = Account("a", "Cuenta", AccountType.OTRA, "EUR", 40_00, false, 1)
+        ledger.saveAccount(account)
+        ledger.saveTransaction(transaction("t", account.id, LocalDate.of(2025, 5, 15), 7_00))
+
+        sync.publishAccounts()
+        val firstOutbox = db.syncDao().observeOutbox().first().single()
+        sync.publishAccounts()
+        val secondOutbox = db.syncDao().observeOutbox().first().single()
+
+        assertEquals(firstOutbox, secondOutbox)
     }
 
     @Test fun `cambiar un apunte pasado cambia huella y vuelve a encolar`() = runBlocking {
@@ -204,8 +434,8 @@ class AccountSyncRepositoryTest {
         val second = db.syncDao().observeOutbox().first().single().json
         assertTrue(first != second)
         assertEquals(JSONObject(first).getString("saldo"), JSONObject(second).getString("saldo"))
-        assertEquals(1, JSONObject(first).getJSONArray("historial").length())
-        assertEquals(2, JSONObject(second).getJSONArray("historial").length())
+        assertEquals(2, JSONObject(first).getJSONArray("historial").length())
+        assertEquals(3, JSONObject(second).getJSONArray("historial").length())
     }
 
     @Test fun `cuenta y saldo creados en servidor aparecen con el mismo id`() = runBlocking {
@@ -351,6 +581,12 @@ class AccountSyncRepositoryTest {
         override suspend fun writeRefreshToken(token: String) = Unit
         override suspend fun clear() = Unit
     }
+
+    private suspend fun publishedHistory(accountId: String) = JSONObject(
+        db.syncDao().observeOutbox().first().single {
+            it.tabla == "cuentas_app" && it.filaId == SyncRepository.accountIdToRemoteId(accountId)
+        }.json,
+    ).getJSONArray("historial")
 
     private fun transaction(id: String, accountId: String, date: LocalDate, amount: Long) = Transaction(
         id, TransactionType.INGRESO, amount, "EUR", date, accountId, null, "", "", "",

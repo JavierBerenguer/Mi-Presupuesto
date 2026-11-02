@@ -24,6 +24,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -103,6 +104,20 @@ class InvestmentMovementFormViewModelTest {
         viewModel.completed.first()
 
         assertEquals(250L, db.syncDao().allMovimientos().single().retencionMinor)
+    }
+
+    @Test fun `selector admite cuenta eur sin uso y excluye archivada y no eur`() = runTest {
+        ledger.saveAccount(Account("external", "Neverless", AccountType.OTRA, "EUR", 0, false, 1, useInApp = false))
+        ledger.saveAccount(Account("archived", "Archivada", AccountType.OTRA, "EUR", 0, true, 1, useInApp = false))
+        ledger.saveAccount(Account("usd", "Dólares", AccountType.OTRA, "USD", 0, false, 1, useInApp = false))
+
+        val viewModel = viewModel(requireAccount = true)
+        val ids = viewModel.uiState.first { it.accounts.size >= 2 }.accounts.map { it.id }
+
+        assertTrue("external" in ids)
+        assertTrue("a" in ids)
+        assertTrue("archived" !in ids)
+        assertTrue("usd" !in ids)
     }
 
     private suspend fun viewModel(requireAccount: Boolean) = InvestmentMovementFormViewModel(

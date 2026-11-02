@@ -22,6 +22,7 @@
     <string name="import_tr_outgoing">Salidas: %1$s</string>
     <string name="import_tr_issue">Línea %1$d: %2$s</string>
     <string name="import_tr_duplicate">Identificador duplicado en el fichero: %1$s</string>
+    <string name="import_tr_already_recorded">Ya apuntado: %1$s (%2$s) es «%3$s» del %4$s</string>
     <string name="import_tr_ignore">Ignorar</string>
     <string name="import_tr_ignore_all">Ignorar todo</string>
     <string name="import_tr_accept_all">Aceptar todo</string>

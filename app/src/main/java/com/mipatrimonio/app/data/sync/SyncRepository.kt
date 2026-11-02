@@ -98,6 +98,7 @@ class SyncRepository(
         pullTable("movimientos", client)
         pullTable("resumen_cartera", client)
         pullTable("cuentas_app", client)
+        dropStaleBalanceOutbox()
         pullTable("saldos_cuenta", client)
         probeAccountHistorySupport(client)
         val profiles = perfiles.first()
@@ -362,33 +363,54 @@ class SyncRepository(
         liquidityMovements.forEach {
             if (it.accountId == account.id) activityDates.add(it.date)
         }
-        val firstMonth = activityDates.minOrNull()?.let { YearMonth.from(it) } ?: return JSONArray()
-        val lastClosedMonth = YearMonth.from(today()).minusMonths(1)
-        if (firstMonth.isAfter(lastClosedMonth)) return JSONArray()
+        val firstActivityDate = activityDates.minOrNull() ?: return JSONArray()
+        val firstMonth = YearMonth.from(firstActivityDate)
+        val currentDate = today()
+        val lastClosedMonth = YearMonth.from(currentDate).minusMonths(1)
         val history = JSONArray()
-        var month = firstMonth
-        while (!month.isAfter(lastClosedMonth)) {
-            val date = month.atEndOfMonth()
-            val balance = BalanceCalculator.balance(
-                account, transactions, transfers, date, liquidityMovements, balanceRecords,
+        val includedDates = mutableSetOf<LocalDate>()
+        val openingDate = firstActivityDate.minusDays(1)
+        if (openingDate.isBefore(currentDate)) {
+            val openingBalance = BalanceCalculator.balance(
+                account, transactions, transfers, openingDate, liquidityMovements, balanceRecords,
             )
             history.put(
                 JSONObject()
-                    .put("fecha", date.toString())
-                    .put("saldo", MoneyMath.toDecimal(balance, account.currency)),
+                    .put("fecha", openingDate.toString())
+                    .put("saldo", MoneyMath.toDecimal(openingBalance, account.currency)),
             )
+            includedDates.add(openingDate)
+        }
+        var month = firstMonth
+        while (!month.isAfter(lastClosedMonth)) {
+            val date = month.atEndOfMonth()
+            if (includedDates.add(date)) {
+                val balance = BalanceCalculator.balance(
+                    account, transactions, transfers, date, liquidityMovements, balanceRecords,
+                )
+                history.put(
+                    JSONObject()
+                        .put("fecha", date.toString())
+                        .put("saldo", MoneyMath.toDecimal(balance, account.currency)),
+                )
+            }
             month = month.plusMonths(1)
         }
         return history
     }
 
+    /**
+     * Sube los saldos anotados o borrados en el móvil, también los borrados. Un saldo bajado de la nube y
+     * no tocado aquí (remoteUpdatedAt no nulo) no se sube: si se borró en la nube, reenviarlo lo resucitaba.
+     */
     suspend fun publishAccountBalances() {
         var enqueued = false
-        ledger.accountBalances.first().forEach { balance ->
+        val accounts = ledger.accounts.first()
+        db.accountBalanceDao().getAllForBackup().filter { it.remoteUpdatedAt == null }.forEach { balance ->
             val json = JSONObject().put("id", balance.id)
                 .put("cuenta_id", accountIdToRemoteId(balance.accountId))
-                .put("fecha", balance.date.toString())
-                .put("saldo", MoneyMath.toDecimal(balance.balanceMinor, ledger.accounts.first().firstOrNull { it.id == balance.accountId }?.currency ?: "EUR"))
+                .put("fecha", LocalDate.ofEpochDay(balance.epochDay).toString())
+                .put("saldo", MoneyMath.toDecimal(balance.balanceMinor, accounts.firstOrNull { it.id == balance.accountId }?.currency ?: "EUR"))
                 .put("deleted_at", balance.deletedAt?.let { instantIso(it) } ?: JSONObject.NULL)
             val key = "balance:${balance.id}"
             val fingerprint = sha256(json.toString())
@@ -429,7 +451,6 @@ class SyncRepository(
         if (id == null) return
         val account = ledger.accounts.first().firstOrNull { it.id == id }
             ?: throw IllegalArgumentException("La cuenta no existe")
-        require(account.useInApp) { "La cuenta de liquidez no tiene uso en app" }
         require(account.currency == "EUR") { "La cuenta de liquidez debe estar en EUR" }
         require(!account.archived) { "La cuenta de liquidez está archivada" }
     }
@@ -510,10 +531,12 @@ class SyncRepository(
         if (local == null && deleted != null) return
         val name = row.presentText("nombre") ?: local?.name ?: return
         val currency = row.presentText("moneda") ?: local?.currency ?: "EUR"
-        val hasHistory = local != null && (
-            db.transactionDao().countForAccount(localId) + db.transferDao().countForAccount(localId) +
-                dao.countMovementsForAccount(id) > 0
-            )
+        val entries = if (local == null) 0 else
+            db.transactionDao().countForAccount(localId) + db.transferDao().countForAccount(localId)
+        val hasHistory = local != null && entries + dao.countMovementsForAccount(id) > 0
+        // Solo los apuntes y transferencias obligan a «Uso en app»; los movimientos de inversión, no
+        // (ADR-002, enmienda del 2026-11-02). Antes, importar Neverless lo activaba solo.
+        val hasEntries = entries > 0
         val deletedAt = deleted?.let(::isoToMillis)
         db.accountDao().upsert(
             AccountEntity(
@@ -529,7 +552,7 @@ class SyncRepository(
                 shortName = row.nullableString("corto"), institution = row.nullableString("entidad"),
                 color = if (!row.has("color") || row.isNull("color")) null else row.getInt("color"),
                 liquidity = row.optBoolean("liquidez", true),
-                useInApp = if (hasHistory) true else row.optBoolean("uso_app", true),
+                useInApp = if (hasEntries) true else row.optBoolean("uso_app", true),
                 remoteUpdatedAt = updated, deletedAt = if (hasHistory) null else deletedAt,
                 roundUpMultiplier = local?.roundUpMultiplier ?: 0,
                 roundUpSettledAt = local?.roundUpSettledAt,
@@ -539,10 +562,25 @@ class SyncRepository(
         )
     }
 
+    /**
+     * Las versiones anteriores encolaban también saldos bajados de la nube. Si siguen en la cola, se quitan
+     * y se vuelven a bajar todos los saldos, para aplicar los borrados que se ignoraron mientras esperaban.
+     */
+    private suspend fun dropStaleBalanceOutbox() {
+        val stale = dao.outboxFor("saldos_cuenta").filter { db.accountBalanceDao().getById(it.filaId)?.remoteUpdatedAt != null }
+        if (stale.isEmpty()) return
+        stale.forEach { dao.deletePendingFor("saldos_cuenta", it.filaId) }
+        dao.deleteCursor("saldos_cuenta")
+    }
+
     private suspend fun applyRemoteBalance(row: JSONObject, deleted: String?, updated: String) {
         val id = row.getString("id")
-        if (dao.pendingCount("saldos_cuenta", id) > 0) return
         val local = db.accountBalanceDao().getById(id)
+        if (dao.pendingCount("saldos_cuenta", id) > 0) {
+            // Un cambio del móvil pendiente de subir manda; uno bajado de la nube que quedó en la cola, no.
+            if (local?.remoteUpdatedAt == null) return
+            dao.deletePendingFor("saldos_cuenta", id)
+        }
         if (local?.remoteUpdatedAt != null && local.remoteUpdatedAt >= updated) return
         val accountId = row.getString("cuenta_id")
         val localAccountId = remoteIdToAccountId(accountId, db.accountDao().getAllForBackup().map { it.id }) ?: accountId

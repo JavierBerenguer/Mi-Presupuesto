@@ -8,6 +8,10 @@ import com.mipatrimonio.app.data.repository.LedgerRepository
 import com.mipatrimonio.app.data.db.SyncProductoEntity
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.AccountType
+import com.mipatrimonio.app.domain.model.Transaction
+import com.mipatrimonio.app.domain.model.TransactionSource
+import com.mipatrimonio.app.domain.model.TransactionType
+import com.mipatrimonio.app.data.db.toEntity
 import java.time.LocalDate
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -45,6 +49,27 @@ class TradeRepublicImportRepositoryTest {
         val preview = ImportPreview(listOf(movement), emptyList(), emptyList())
         assertEquals(1, repository.execute(repository.plan(preview, "a")).transactions)
         assertEquals(0, repository.execute(repository.plan(preview, "a")).transactions)
+    }
+
+    @Test fun `no duplica lo apuntado a mano y si lo importado`() = runBlocking {
+        val day = LocalDate.of(2026, 10, 31)
+        fun txn(id: String, source: TransactionSource) = Transaction(
+            id, TransactionType.GASTO, 7_600, "EUR", day, "a", null, "Cena", "", "", source, 1, 1,
+        )
+        db.transactionDao().upsert(txn("manual", TransactionSource.NOTIFICACION).toEntity())
+        db.transactionDao().upsert(txn("import:tr:otro", TransactionSource.IMPORTACION).toEntity())
+        val card = ImportedMovement(
+            "card", day.plusDays(1), kind = ImportedKind.GASTO, amountCents = -7_600,
+            currency = "EUR", description = "Restaurante", counterparty = null, isin = null, assetName = null,
+            shares = null, price = null, feeCents = 0, taxCents = 0, originalAmountCents = null,
+            originalCurrency = null, fxRate = null, mccCode = null, needsReview = false, reviewReason = null,
+            rawType = "CARD_TRANSACTION", category = "CASH",
+        )
+        val preview = ImportPreview(listOf(card, card.copy(externalId = "card2")), emptyList(), emptyList())
+        val plan = repository.plan(preview, "a")
+        assertEquals("manual", plan.rows[0].matchedMovement?.id)
+        assertEquals(ImportRowStatus.CREATE, plan.rows[1].status)
+        assertEquals(1, repository.execute(plan).transactions)
     }
 
     @Test fun `rechaza cuenta sin uso en app`() {
