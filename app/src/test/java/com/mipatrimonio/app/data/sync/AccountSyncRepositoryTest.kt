@@ -130,6 +130,57 @@ class AccountSyncRepositoryTest {
         assertEquals(30.0, balances().getValue(SyncRepository.accountIdToRemoteId("b")), 0.0)
     }
 
+    @Test fun `saldo bajado de la nube no se vuelve a subir`() = runBlocking {
+        ledger.saveAccount(Account("a", "Neverless cash", AccountType.OTRA, "EUR", 0, false, 1, useInApp = false))
+        db.accountBalanceDao().upsert(com.mipatrimonio.app.data.db.AccountBalanceEntity(
+            "remoto", "a", LocalDate.of(2026, 8, 31).toEpochDay(), 10, 1, null, "2026-11-02T08:00:00Z",
+        ))
+
+        sync.publishAccountBalances()
+
+        assertTrue(db.syncDao().outboxFor("saldos_cuenta").isEmpty())
+    }
+
+    @Test fun `saldo borrado en el movil se sube borrado`() = runBlocking {
+        ledger.saveAccount(Account("a", "Neverless cash", AccountType.OTRA, "EUR", 0, false, 1, useInApp = false))
+        db.accountBalanceDao().upsert(com.mipatrimonio.app.data.db.AccountBalanceEntity(
+            "remoto", "a", LocalDate.of(2026, 8, 31).toEpochDay(), 10, 1, null, "2026-11-02T08:00:00Z",
+        ))
+
+        ledger.deleteAccountBalance("remoto")
+        sync.publishAccountBalances()
+
+        val json = JSONObject(db.syncDao().outboxFor("saldos_cuenta").single().json)
+        assertEquals("remoto", json.getString("id"))
+        assertFalse(json.isNull("deleted_at"))
+    }
+
+    @Test fun `borrado remoto se aplica aunque quede en la cola un saldo bajado`() = runBlocking {
+        // Lo que pasó con Neverless: el saldo esperaba en la cola como vivo y el borrado de la nube se ignoraba.
+        val cuenta = "33333333-3333-3333-3333-333333333333"
+        db.accountDao().upsert(com.mipatrimonio.app.data.db.AccountEntity(cuenta, "Neverless cash", "OTRA", "EUR", 0, false, 1, 1, useInApp = false))
+        db.accountBalanceDao().upsert(com.mipatrimonio.app.data.db.AccountBalanceEntity(
+            "saldo", cuenta, LocalDate.of(2026, 8, 31).toEpochDay(), 10, 1, null, "2026-11-02T07:00:00Z",
+        ))
+        db.syncDao().upsertOutbox(com.mipatrimonio.app.data.db.SyncOutboxEntity(
+            tabla = "saldos_cuenta", filaId = "saldo", json = """{"id":"saldo","deleted_at":null}""", creadoAt = 1,
+        ))
+        val row = """[{"id":"saldo","cuenta_id":"$cuenta","fecha":"2026-08-31","saldo":0.1,"deleted_at":"2026-11-02T08:27:00Z","updated_at":"2026-11-02T08:27:01Z"}]"""
+        val client = SyncAuthClient(SyncTransport { request ->
+            if (request.pathAndQuery.startsWith("/auth/v1/token"))
+                SyncHttpResponse(200, """{"access_token":"a","refresh_token":"r","expires_in":3600}""")
+            else SyncHttpResponse(200, row)
+        }, MemorySessionStore(), now = { 0L })
+        client.signIn("a@b.es", "secret")
+
+        sync.pullTable("saldos_cuenta", client)
+
+        assertTrue(db.accountBalanceDao().getById("saldo")!!.deletedAt != null)
+        assertTrue(db.syncDao().outboxFor("saldos_cuenta").isEmpty())
+        sync.publishAccountBalances()
+        assertTrue(db.syncDao().outboxFor("saldos_cuenta").isEmpty())
+    }
+
     @Test fun `cuenta remota sin uso con movimientos de inversion sigue sin uso`() = runBlocking {
         // Caso Neverless: importar sus compras no debe activar «Uso en app» en el móvil.
         val id = "33333333-3333-3333-3333-333333333333"

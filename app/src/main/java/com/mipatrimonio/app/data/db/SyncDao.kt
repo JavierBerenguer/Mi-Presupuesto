@@ -55,5 +55,6 @@ interface SyncDao {
     @Query("DELETE FROM sync_resumen") suspend fun clearResumen()
     @Query("DELETE FROM sync_outbox") suspend fun clearOutbox()
     @Query("DELETE FROM sync_cursor") suspend fun clearCursors()
+    @Query("DELETE FROM sync_cursor WHERE tabla = :tabla") suspend fun deleteCursor(tabla: String)
     @Query("DELETE FROM sync_account_fingerprint") suspend fun clearFingerprints()
 }

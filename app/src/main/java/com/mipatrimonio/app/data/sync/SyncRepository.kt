@@ -98,6 +98,7 @@ class SyncRepository(
         pullTable("movimientos", client)
         pullTable("resumen_cartera", client)
         pullTable("cuentas_app", client)
+        dropStaleBalanceOutbox()
         pullTable("saldos_cuenta", client)
         probeAccountHistorySupport(client)
         val profiles = perfiles.first()
@@ -398,13 +399,18 @@ class SyncRepository(
         return history
     }
 
+    /**
+     * Sube los saldos anotados o borrados en el móvil, también los borrados. Un saldo bajado de la nube y
+     * no tocado aquí (remoteUpdatedAt no nulo) no se sube: si se borró en la nube, reenviarlo lo resucitaba.
+     */
     suspend fun publishAccountBalances() {
         var enqueued = false
-        ledger.accountBalances.first().forEach { balance ->
+        val accounts = ledger.accounts.first()
+        db.accountBalanceDao().getAllForBackup().filter { it.remoteUpdatedAt == null }.forEach { balance ->
             val json = JSONObject().put("id", balance.id)
                 .put("cuenta_id", accountIdToRemoteId(balance.accountId))
-                .put("fecha", balance.date.toString())
-                .put("saldo", MoneyMath.toDecimal(balance.balanceMinor, ledger.accounts.first().firstOrNull { it.id == balance.accountId }?.currency ?: "EUR"))
+                .put("fecha", LocalDate.ofEpochDay(balance.epochDay).toString())
+                .put("saldo", MoneyMath.toDecimal(balance.balanceMinor, accounts.firstOrNull { it.id == balance.accountId }?.currency ?: "EUR"))
                 .put("deleted_at", balance.deletedAt?.let { instantIso(it) } ?: JSONObject.NULL)
             val key = "balance:${balance.id}"
             val fingerprint = sha256(json.toString())
@@ -556,10 +562,25 @@ class SyncRepository(
         )
     }
 
+    /**
+     * Las versiones anteriores encolaban también saldos bajados de la nube. Si siguen en la cola, se quitan
+     * y se vuelven a bajar todos los saldos, para aplicar los borrados que se ignoraron mientras esperaban.
+     */
+    private suspend fun dropStaleBalanceOutbox() {
+        val stale = dao.outboxFor("saldos_cuenta").filter { db.accountBalanceDao().getById(it.filaId)?.remoteUpdatedAt != null }
+        if (stale.isEmpty()) return
+        stale.forEach { dao.deletePendingFor("saldos_cuenta", it.filaId) }
+        dao.deleteCursor("saldos_cuenta")
+    }
+
     private suspend fun applyRemoteBalance(row: JSONObject, deleted: String?, updated: String) {
         val id = row.getString("id")
-        if (dao.pendingCount("saldos_cuenta", id) > 0) return
         val local = db.accountBalanceDao().getById(id)
+        if (dao.pendingCount("saldos_cuenta", id) > 0) {
+            // Un cambio del móvil pendiente de subir manda; uno bajado de la nube que quedó en la cola, no.
+            if (local?.remoteUpdatedAt == null) return
+            dao.deletePendingFor("saldos_cuenta", id)
+        }
         if (local?.remoteUpdatedAt != null && local.remoteUpdatedAt >= updated) return
         val accountId = row.getString("cuenta_id")
         val localAccountId = remoteIdToAccountId(accountId, db.accountDao().getAllForBackup().map { it.id }) ?: accountId

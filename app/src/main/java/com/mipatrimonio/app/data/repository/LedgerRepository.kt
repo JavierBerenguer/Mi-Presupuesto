@@ -163,7 +163,8 @@ class LedgerRepository(
     suspend fun deleteAccountBalance(id: String) = db.withTransaction {
         val existing = db.accountBalanceDao().getById(id) ?: return@withTransaction
         val timestamp = clock()
-        db.accountBalanceDao().upsert(existing.copy(updatedAt = timestamp, deletedAt = timestamp))
+        // remoteUpdatedAt nulo: es un cambio del móvil y hay que subirlo.
+        db.accountBalanceDao().upsert(existing.copy(updatedAt = timestamp, deletedAt = timestamp, remoteUpdatedAt = null))
     }
 
     suspend fun setAccountArchived(id: String, archived: Boolean) = db.withTransaction {
