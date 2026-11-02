@@ -143,6 +143,11 @@ Antes de empezar, **reinicia Rumbo con `Iniciar.bat`**, para que cargue el motor
 - [ ] M15. Oculta todos los componentes menos uno con los filtros: la peor caída cambia y es la de ese producto.
 - [ ] M16. **Ayuda:** están las preguntas «¿Qué diferencia hay entre Ahorraste e Invertiste?» y «¿Cómo se calcula la peor caída?».
 
+## N. Saldo de apertura de las cuentas (T-110, en la próxima versión de la app)
+*Requisito:* instalar la versión de la app que incluya T-110, sincronizar y reiniciar Rumbo.
+- [ ] N1. **Escritorio › El mes › mayo de 2026:** la cuenta **Equito** entra con su saldo de apertura del **30/04** (normalmente 0), y el dividendo del 01/05 va en «Mercado».
+- [ ] N2. **Trade Republic** empieza un día antes de su primera actividad de agosto de 2024, no el 31/08, y su saldo de hoy no cambia.
+
 ---
 
 ## Resultados y problemas encontrados
