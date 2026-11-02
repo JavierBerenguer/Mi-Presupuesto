@@ -80,6 +80,56 @@ class AccountSyncRepositoryTest {
         assertEquals(5.0, accountJson.getDouble("saldo_inicial"), 0.0)
     }
 
+    @Test fun `publica liquidez posterior al saldo anotado de cuenta sin uso`() = runBlocking {
+        settingsRule.repository.setSyncProfile("profile")
+        val account = Account("a", "Neverless", AccountType.OTRA, "EUR", 100_00, false, 1, useInApp = false)
+        ledger.saveAccount(account)
+        ledger.saveAccountBalance(AccountBalanceRecord("record", "a", LocalDate.of(2026, 1, 1), 80_00, 1))
+        db.syncDao().upsertMovimiento(
+            com.mipatrimonio.app.data.db.SyncMovimientoEntity(
+                "before", "profile", "product", LocalDate.of(2025, 12, 31).toEpochDay(), "compra", "1",
+                10_00, null, SyncRepository.accountIdToRemoteId("a"), "escritorio", null, null, "now",
+            ),
+        )
+        db.syncDao().upsertMovimiento(
+            com.mipatrimonio.app.data.db.SyncMovimientoEntity(
+                "after", "profile", "product", LocalDate.of(2026, 1, 2).toEpochDay(), "compra", "1",
+                20_00, null, SyncRepository.accountIdToRemoteId("a"), "movil", null, null, "now",
+            ),
+        )
+
+        sync.publishAccounts()
+
+        val json = JSONObject(db.syncDao().outboxFor("cuentas_app").single().json)
+        assertEquals(60.0, json.getDouble("saldo"), 0.0)
+        assertTrue(json.has("saldo_fecha"))
+    }
+
+    @Test fun `cambiar cuenta de liquidez recalcula las dos cuentas sin uso`() = runBlocking {
+        settingsRule.repository.setSyncProfile("profile")
+        val first = Account("a", "Neverless", AccountType.OTRA, "EUR", 100_00, false, 1, useInApp = false)
+        val second = Account("b", "Trade Republic", AccountType.OTRA, "EUR", 50_00, false, 1, useInApp = false)
+        ledger.saveAccount(first)
+        ledger.saveAccount(second)
+        val movement = com.mipatrimonio.app.data.db.SyncMovimientoEntity(
+            "purchase", "profile", "product", LocalDate.of(2026, 1, 2).toEpochDay(), "compra", "1",
+            20_00, null, SyncRepository.accountIdToRemoteId("a"), "movil", null, null, "now",
+        )
+        db.syncDao().upsertMovimiento(movement)
+        sync.publishAccounts()
+        suspend fun balances() = db.syncDao().outboxFor("cuentas_app").associate { row ->
+            row.filaId to JSONObject(row.json).getDouble("saldo")
+        }
+        assertEquals(80.0, balances().getValue(SyncRepository.accountIdToRemoteId("a")), 0.0)
+        assertEquals(50.0, balances().getValue(SyncRepository.accountIdToRemoteId("b")), 0.0)
+
+        db.syncDao().upsertMovimiento(movement.copy(cuentaId = SyncRepository.accountIdToRemoteId("b")))
+        sync.publishAccounts()
+
+        assertEquals(100.0, balances().getValue(SyncRepository.accountIdToRemoteId("a")), 0.0)
+        assertEquals(30.0, balances().getValue(SyncRepository.accountIdToRemoteId("b")), 0.0)
+    }
+
     @Test fun `cambio remoto conserva configuracion local de redondeo`() = runBlocking {
         val id = "22222222-2222-2222-2222-222222222222"
         db.accountDao().upsert(

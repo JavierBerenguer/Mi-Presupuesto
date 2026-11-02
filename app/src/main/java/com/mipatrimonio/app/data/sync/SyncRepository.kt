@@ -445,7 +445,6 @@ class SyncRepository(
         if (id == null) return
         val account = ledger.accounts.first().firstOrNull { it.id == id }
             ?: throw IllegalArgumentException("La cuenta no existe")
-        require(account.useInApp) { "La cuenta de liquidez no tiene uso en app" }
         require(account.currency == "EUR") { "La cuenta de liquidez debe estar en EUR" }
         require(!account.archived) { "La cuenta de liquidez está archivada" }
     }

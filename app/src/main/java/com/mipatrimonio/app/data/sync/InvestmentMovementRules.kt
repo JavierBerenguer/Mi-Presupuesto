@@ -72,7 +72,6 @@ object InvestmentMovementRules {
         if (requireAccount) require(accountId != null) { "Selecciona una cuenta de liquidez" }
         if (accountId != null) {
             require(account != null) { "La cuenta no existe" }
-            require(account.useInApp) { "La cuenta de liquidez no tiene uso en app" }
             require(account.currency == "EUR") { "La cuenta de liquidez debe estar en EUR" }
             require(!account.archived) { "La cuenta de liquidez está archivada" }
         }

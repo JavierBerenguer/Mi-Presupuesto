@@ -75,6 +75,19 @@ class LiquidityBalanceTest {
         assertEquals(12_000L, mapInvestmentCashFlows(listOf(dividend), listOf(account)).single().amountMinor)
     }
 
+    @Test fun `compra y comision restan y venta y dividendo suman`() {
+        val movements = listOf(
+            movement("purchase", "compra", 1_000),
+            movement("fee", "comision", 100),
+            movement("sale", "venta", 400),
+            movement("dividend", "dividendo", 50),
+        )
+
+        val effects = mapLiquidityMovements(movements, listOf(account)).entries.associate { it.id to it.effectMinor }
+
+        assertEquals(mapOf("purchase" to -1_000L, "fee" to -100L, "sale" to 400L, "dividend" to 50L), effects)
+    }
+
     private fun movement(id: String, type: String, amount: Long, accountId: String = account.id) = SyncMovimientoEntity(
         id, "profile", "product", today.toEpochDay(), type, "1", amount, null,
         SyncRepository.accountIdToRemoteId(accountId), "escritorio", null, null, "2026-10-27T00:00:00Z",

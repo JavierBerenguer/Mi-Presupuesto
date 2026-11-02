@@ -13,7 +13,7 @@
     <string name="accounts_no_color">Sin color</string>
     <string name="accounts_liquidity">Cuenta como liquidez</string>
     <string name="accounts_use_in_app">Uso en app</string>
-    <string name="accounts_use_in_app_help">Si está marcada, la cuenta aparece al crear apuntes y se calcula con ellos. Si no, se registra su saldo cuando quieras</string>
+    <string name="accounts_use_in_app_help">Si está marcada, la cuenta admite apuntes y transferencias y aparece en las notificaciones bancarias. Si no, puedes registrar su saldo cuando quieras</string>
     <string name="accounts_registered_balance">Sin apuntes · saldo registrado · %1$s</string>
     <string name="accounts_update_balance">Actualizar saldo</string>
     <string name="accounts_balance_history">Historial de saldos</string>

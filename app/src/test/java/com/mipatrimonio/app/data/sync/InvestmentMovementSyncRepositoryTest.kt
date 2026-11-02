@@ -45,6 +45,7 @@ class InvestmentMovementSyncRepositoryTest {
         db.syncDao().upsertProducto(SyncProductoEntity("p", "profile", "Fondo", null, "fondo", "EUR", null, null, "now", "manual"))
         ledger.saveAccount(Account("a", "A", AccountType.CORRIENTE, "EUR", 0, false, 1))
         ledger.saveAccount(Account("b", "B", AccountType.CORRIENTE, "EUR", 0, false, 1))
+        ledger.saveAccount(Account("external", "Neverless", AccountType.OTRA, "EUR", 0, false, 1, useInApp = false))
     }
 
     @After fun tearDown() = db.close()
@@ -90,6 +91,66 @@ class InvestmentMovementSyncRepositoryTest {
         val movementJson = JSONObject(db.syncDao().outboxFor("movimientos").single().json)
         assertEquals("escritorio", movementJson.getString("origen"))
         assertTrue(db.syncDao().outboxFor("cuentas_app").isNotEmpty())
+    }
+
+    @Test fun `crea y edita con cuenta eur sin uso en app`() = runBlocking {
+        val id = sync.crearMovimientoInversion(
+            "compra", "p", date, 100, BigDecimal.ONE, null, "external", null,
+        )
+
+        sync.editarMovimientoInversion(id, date, 250, BigDecimal("2"), null, "external", "editado")
+
+        val saved = db.syncDao().movimiento(id)!!
+        assertEquals(250L, saved.importeMinor)
+        assertEquals(SyncRepository.accountIdToRemoteId("external"), saved.cuentaId)
+    }
+
+    @Test fun `upsert parcial de edicion conserva extra remoto`() = runBlocking {
+        val remote = JSONObject()
+            .put("id", "remote")
+            .put("perfil_id", "profile")
+            .put("producto_id", "p")
+            .put("fecha", date.toString())
+            .put("tipo", "compra")
+            .put("unidades", 1)
+            .put("importe", 1)
+            .put("comision", JSONObject.NULL)
+            .put("cuenta_id", SyncRepository.accountIdToRemoteId("external"))
+            .put("origen", "escritorio")
+            .put("nota", JSONObject.NULL)
+            .put("extra", JSONObject().put("neverlessId", "nl-42"))
+            .put("deleted_at", JSONObject.NULL)
+            .put("updated_at", "2026-01-01T00:00:00Z")
+        val transport = SyncTransport { request ->
+            when {
+                request.pathAndQuery.startsWith("/auth/v1/token") -> SyncHttpResponse(
+                    200, """{"access_token":"a","refresh_token":"r","expires_in":3600}""",
+                )
+                request.method == "GET" && request.pathAndQuery.startsWith("/rest/v1/movimientos?") ->
+                    SyncHttpResponse(200, "[$remote]")
+                request.method == "GET" -> SyncHttpResponse(200, "[]")
+                request.method == "POST" && request.pathAndQuery.startsWith("/rest/v1/movimientos?") -> {
+                    val patch = JSONObject(request.body!!)
+                    patch.keys().forEachRemaining { key -> remote.put(key, patch.get(key)) }
+                    SyncHttpResponse(201, "")
+                }
+                request.method == "POST" -> SyncHttpResponse(201, "")
+                else -> SyncHttpResponse(200, "[]")
+            }
+        }
+        val client = SyncAuthClient(transport, MemoryStore(), now = { 0L })
+        client.signIn("a@b.es", "secret")
+        settingsRule.repository.setSyncConfiguration("https://example.supabase.co", "sb_publishable_test")
+        val connected = SyncRepository(
+            db, settingsRule.repository, ledger, { _, _ -> client }, clock = { 1_000L }, today = { date },
+        )
+
+        connected.pullTable("movimientos", client)
+        connected.editarMovimientoInversion("remote", date, 250, BigDecimal("2"), null, "external", "editado")
+        while (db.syncDao().observeOutbox().first().isNotEmpty()) connected.processNextOutbox()
+
+        assertEquals("nl-42", remote.getJSONObject("extra").getString("neverlessId"))
+        assertEquals(2.5, remote.getDouble("importe"), 0.0)
     }
 
     @Test fun `borrar marca deleted at y lo encola`() = runBlocking {

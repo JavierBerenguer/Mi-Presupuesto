@@ -19,10 +19,16 @@ object BalanceCalculator {
         balanceRecords: List<AccountBalanceRecord> = emptyList(),
     ): Long {
         if (!account.useInApp) {
-            return balanceRecords.asSequence()
+            val latestRecord = balanceRecords.asSequence()
                 .filter { it.accountId == account.id && it.deletedAt == null && !it.date.isAfter(today) }
                 .maxWithOrNull(compareBy<AccountBalanceRecord> { it.date }.thenBy { it.updatedAt })
-                ?.balanceMinor ?: 0L
+            return addLiquidityEffect(
+                latestRecord?.balanceMinor ?: account.initialBalanceMinor,
+                liquidityMovements,
+                setOf(account.id),
+            ) { movement ->
+                !movement.date.isAfter(today) && (latestRecord == null || movement.date.isAfter(latestRecord.date))
+            }
         }
         var total = account.initialBalanceMinor
         transactions.filter { it.accountId == account.id && movementStatus(it.date, today) == MovementStatus.EJECUTADO }
