@@ -9,6 +9,7 @@ import com.mipatrimonio.app.data.db.toEntity
 import com.mipatrimonio.app.data.db.SyncMovimientoEntity
 import com.mipatrimonio.app.data.db.SyncProductoEntity
 import com.mipatrimonio.app.data.sync.SyncRepository
+import com.mipatrimonio.app.domain.model.TransactionType
 import java.nio.charset.StandardCharsets
 import java.time.LocalDate
 
@@ -56,6 +57,12 @@ class TradeRepublicImportRepository(
         val products = if (hasDividends) productsProvider() else emptyList()
         val investmentMovements = if (hasDividends) investmentMovementsProvider() else emptyList()
         val remoteAccountId = SyncRepository.accountIdToRemoteId(accountId)
+        val recorded = db.transactionDao().getNotImportedForAccount(accountId, LocalDate.now().toEpochDay())
+            .map { it.toDomain() }
+            .map {
+                val signed = if (it.type == TransactionType.INGRESO) it.amountMinor else -it.amountMinor
+                ExistingCashMovement(it.id, it.date, signed, it.description)
+            }
         return withoutUnavailableCategories(
             TradeRepublicImportPlanner.plan(
                 preview,
@@ -73,6 +80,7 @@ class TradeRepublicImportRepository(
                     },
                     hasSyncSession = hasDividends && hasSyncSession(),
                     investmentAccountId = remoteAccountId,
+                    existingCashMovements = recorded,
                 ),
             ),
         )

@@ -138,6 +138,9 @@ interface TransactionDao {
     @Query("SELECT COUNT(*) FROM txn WHERE accountId = :accountId")
     suspend fun countForAccount(accountId: String): Int
 
+    @Query("SELECT * FROM txn WHERE accountId = :accountId AND source != 'IMPORTACION' AND epochDay <= :untilEpochDay")
+    suspend fun getNotImportedForAccount(accountId: String, untilEpochDay: Long): List<TransactionEntity>
+
     @Query("SELECT COUNT(*) FROM txn WHERE categoryId IN (:categoryIds)")
     suspend fun countForCategories(categoryIds: List<String>): Int
 

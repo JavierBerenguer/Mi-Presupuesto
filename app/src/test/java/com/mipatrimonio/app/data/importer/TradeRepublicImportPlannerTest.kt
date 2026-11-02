@@ -121,6 +121,51 @@ class TradeRepublicImportPlannerTest {
         assertTrue(plan.rows.all { it.reason == TradeRepublicImportPlanner.REASON_INVESTMENT })
     }
 
+    @Test fun `lo apuntado a mano o por notificacion no se duplica`() {
+        val card = row("card", "CARD_TRANSACTION", -7_600).copy(kind = ImportedKind.GASTO, date = LocalDate.of(2026, 11, 1))
+        val plan = TradeRepublicImportPlanner.plan(
+            preview(card),
+            context.copy(existingCashMovements = listOf(ExistingCashMovement("manual", LocalDate.of(2026, 10, 31), -7_600, "Cena"))),
+        )
+        val planned = plan.rows.single()
+        assertEquals(ImportRowStatus.ALREADY_IMPORTED, planned.status)
+        assertEquals(TradeRepublicImportPlanner.REASON_ALREADY_RECORDED, planned.reason)
+        assertEquals("manual", planned.matchedMovement?.id)
+        assertEquals(0, plan.toCreate)
+    }
+
+    @Test fun `el emparejamiento es uno a uno y exige importe, signo y fecha cercana`() {
+        val day = LocalDate.of(2026, 10, 10)
+        val coffee1 = row("c1", "CARD_TRANSACTION", -500).copy(kind = ImportedKind.GASTO, date = day)
+        val coffee2 = row("c2", "CARD_TRANSACTION", -500).copy(kind = ImportedKind.GASTO, date = day.plusDays(1))
+        val refund = row("in", "TRANSFER_INSTANT_INBOUND", 500).copy(kind = ImportedKind.TRANSFERENCIA, date = day)
+        val far = row("far", "CARD_TRANSACTION", -900).copy(kind = ImportedKind.GASTO, date = day)
+        val plan = TradeRepublicImportPlanner.plan(
+            preview(coffee1, coffee2, refund, far),
+            context.copy(existingCashMovements = listOf(
+                ExistingCashMovement("m1", day.plusDays(1), -500, "Café"),
+                ExistingCashMovement("m2", day.minusDays(4), -900, "Lejano"),
+            )),
+        )
+        val byId = plan.rows.associateBy { it.source.externalId }
+        assertEquals(ImportRowStatus.CREATE, byId.getValue("c1").status)
+        assertEquals("m1", byId.getValue("c2").matchedMovement?.id)
+        assertEquals(ImportRowStatus.CREATE, byId.getValue("in").status)
+        assertEquals(ImportRowStatus.CREATE, byId.getValue("far").status)
+    }
+
+    @Test fun `una decision explicita crea la fila aunque haya un apunte parecido`() {
+        val card = row("card", "CARD_TRANSACTION", -500).copy(kind = ImportedKind.GASTO)
+        val planned = TradeRepublicImportPlanner.plan(
+            preview(card),
+            context.copy(
+                existingCashMovements = listOf(ExistingCashMovement("m", card.date, -500, "Café")),
+                decisions = mapOf("card" to ImportRowDecision.AsTransaction()),
+            ),
+        ).rows.single()
+        assertEquals(ImportRowStatus.CREATE, planned.status)
+    }
+
     private fun planDividend(row: ImportedMovement, customContext: TradeRepublicPlanningContext = dividendContext) =
         TradeRepublicImportPlanner.plan(preview(row), customContext).rows.single()
 
