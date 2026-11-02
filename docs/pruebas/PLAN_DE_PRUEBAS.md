@@ -161,6 +161,14 @@ Antes de empezar, **reinicia Rumbo con `Iniciar.bat`**, para que cargue el motor
 - [ ] O9. **App:** una compra nueva con la cuenta Neverless cash, con fecha posterior al 31/10, baja su saldo en la app y en el escritorio.
 - [ ] O10. **Pendiente de hacer a mano:** el traspaso de 0,001456 BTC de TR a Neverless del 16/04 no se anota. Las unidades ya están en Bitcoin, por las compras de TR.
 
+## P. Escritorio: guardar en «Mis datos» ya no recarga la página (02/11)
+*Requisito:* pulsa F5 en el escritorio para cargar la versión nueva (no hace falta reiniciar).
+- [ ] P1. **Mis datos › Movimientos:** baja por la lista, añade, edita y borra un movimiento. La página no parpadea, no vuelve arriba y la lista sale al día.
+- [ ] P2. Lo mismo en **Productos**, **Cuentas** (incluido un saldo) y **Saldos y valores**. Cambiar entre estas subpestañas tampoco recarga.
+- [ ] P3. **Mi objetivo**, el fondo de emergencia y el reparto: guardar y «Quitar…» cierran la ventana y no recargan.
+- [ ] P4. Después de cambiar algo, pasa a **Patrimonio**: se recarga una vez y las cifras ya incluyen el cambio. Sin cambios, cambiar de pestaña no recarga.
+- [ ] P5. **Actualizar precios** sigue recargando y te deja en la pestaña en la que estabas.
+
 ---
 
 ## Resultados y problemas encontrados
