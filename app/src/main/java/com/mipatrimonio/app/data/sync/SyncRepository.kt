@@ -362,21 +362,37 @@ class SyncRepository(
         liquidityMovements.forEach {
             if (it.accountId == account.id) activityDates.add(it.date)
         }
-        val firstMonth = activityDates.minOrNull()?.let { YearMonth.from(it) } ?: return JSONArray()
-        val lastClosedMonth = YearMonth.from(today()).minusMonths(1)
-        if (firstMonth.isAfter(lastClosedMonth)) return JSONArray()
+        val firstActivityDate = activityDates.minOrNull() ?: return JSONArray()
+        val firstMonth = YearMonth.from(firstActivityDate)
+        val currentDate = today()
+        val lastClosedMonth = YearMonth.from(currentDate).minusMonths(1)
         val history = JSONArray()
-        var month = firstMonth
-        while (!month.isAfter(lastClosedMonth)) {
-            val date = month.atEndOfMonth()
-            val balance = BalanceCalculator.balance(
-                account, transactions, transfers, date, liquidityMovements, balanceRecords,
+        val includedDates = mutableSetOf<LocalDate>()
+        val openingDate = firstActivityDate.minusDays(1)
+        if (openingDate.isBefore(currentDate)) {
+            val openingBalance = BalanceCalculator.balance(
+                account, transactions, transfers, openingDate, liquidityMovements, balanceRecords,
             )
             history.put(
                 JSONObject()
-                    .put("fecha", date.toString())
-                    .put("saldo", MoneyMath.toDecimal(balance, account.currency)),
+                    .put("fecha", openingDate.toString())
+                    .put("saldo", MoneyMath.toDecimal(openingBalance, account.currency)),
             )
+            includedDates.add(openingDate)
+        }
+        var month = firstMonth
+        while (!month.isAfter(lastClosedMonth)) {
+            val date = month.atEndOfMonth()
+            if (includedDates.add(date)) {
+                val balance = BalanceCalculator.balance(
+                    account, transactions, transfers, date, liquidityMovements, balanceRecords,
+                )
+                history.put(
+                    JSONObject()
+                        .put("fecha", date.toString())
+                        .put("saldo", MoneyMath.toDecimal(balance, account.currency)),
+                )
+            }
             month = month.plusMonths(1)
         }
         return history
