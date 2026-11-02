@@ -200,6 +200,31 @@ Este documento lo mantiene Claude. Cada bloque indica en qué versión se prueba
 - [ ] L26. Abre el apunte principal de un grupo de ingresos: debajo pone «Agrupa N apuntes · ingreso de X», sin signo menos.
 - [ ] L27. Tras instalar la v1.11.1 y abrir la app, no aparece ninguna cuenta llamada «null» en ningún selector de cuentas, y los saldos son los de antes.
 
+## M. Escritorio: valor de los manuales y nuevo «El mes» (T-107 y T-108, 02/11)
+Antes de empezar, **reinicia Rumbo con `Iniciar.bat`**, para que cargue el motor nuevo, y pulsa **↻ Actualizar precios** una vez.
+
+**Productos con precio manual (T-107)**
+- [ ] M1. **Productos › Apollo:** aparece desde el **02/02/2026**, no desde el 29/10. Su gráfica sube en cada compra semanal. Ahora muestra participaciones y la vista de precio.
+- [ ] M2. **Productos › EQT:** aparece desde el **02/04/2026**.
+- [ ] M3. **Productos › EQT-0127:** ya tiene **aportado (100 €)** y **TIR**. Antes salían vacíos.
+- [ ] M4. **El patrimonio de hoy y la TIR total** son los mismos que antes de actualizar.
+- [ ] M5. Anota una **compra** en EQT o Apollo con fecha de hoy, sin anotar una valoración nueva. El valor del producto y el patrimonio suben ese importe enseguida. Luego borra la compra de prueba.
+
+**«El mes» nuevo (T-108)**
+- [ ] M6. Las tarjetas son **Ahorraste**, **Lo puso el mercado** e **Invertiste** (esta última, con «de tus cuentas a la cartera · no suma»). La cifra grande = Ahorraste + Lo puso el mercado.
+- [ ] M7. **Abril de 2026:** el mercado ya no sale con una pérdida grande por las compras de Apollo. **Octubre:** ya no sale una ganancia grande del mercado por la valoración de Apollo y EQT.
+- [ ] M8. **Tabla del mes:** cada fila cuadra: Al empezar + Ahorraste + Invertiste + Mercado (+ Entra al panel) = Al cerrar. En la fila de **Trade Republic**, Invertiste sale en negativo el mes que compras con esa cuenta.
+- [ ] M9. **Junio a septiembre de 2026:** aparece la fila **«Fuera de tus cuentas»**, con las compras que no llevan cuenta.
+- [ ] M10. **Mayo de 2026, cuenta Equito:** aparece desde el **01/05**, y el dividendo de EQT-0127 de ese día va en «Mercado», no en «Ahorraste».
+- [ ] M11. **Compartir mi mes:** dice «Ahorraste» y «Lo puso el mercado» (también cuando el mercado es negativo).
+
+**Gráfico y peor caída (T-108)**
+- [ ] M12. **Patrimonio › vista «dinero»:** tres bandas, **Lo que invertiste**, **En tus cuentas** y **Lo que puso el mercado**, que juntas suman tu patrimonio.
+- [ ] M13. **Vista «total»:** la línea se llama **«Lo que ahorraste»**.
+- [ ] M14. **Cifras de Patrimonio:** «**Peor caída de la cartera**», alrededor del **−44 %** el 09/04/2025, con la nota de que los productos valorados a mano se interpolan.
+- [ ] M15. Oculta todos los componentes menos uno con los filtros: la peor caída cambia y es la de ese producto.
+- [ ] M16. **Ayuda:** están las preguntas «¿Qué diferencia hay entre Ahorraste e Invertiste?» y «¿Cómo se calcula la peor caída?».
+
 ---
 
 ## Resultados y problemas encontrados
