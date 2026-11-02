@@ -525,10 +525,12 @@ class SyncRepository(
         if (local == null && deleted != null) return
         val name = row.presentText("nombre") ?: local?.name ?: return
         val currency = row.presentText("moneda") ?: local?.currency ?: "EUR"
-        val hasHistory = local != null && (
-            db.transactionDao().countForAccount(localId) + db.transferDao().countForAccount(localId) +
-                dao.countMovementsForAccount(id) > 0
-            )
+        val entries = if (local == null) 0 else
+            db.transactionDao().countForAccount(localId) + db.transferDao().countForAccount(localId)
+        val hasHistory = local != null && entries + dao.countMovementsForAccount(id) > 0
+        // Solo los apuntes y transferencias obligan a «Uso en app»; los movimientos de inversión, no
+        // (ADR-002, enmienda del 2026-11-02). Antes, importar Neverless lo activaba solo.
+        val hasEntries = entries > 0
         val deletedAt = deleted?.let(::isoToMillis)
         db.accountDao().upsert(
             AccountEntity(
@@ -544,7 +546,7 @@ class SyncRepository(
                 shortName = row.nullableString("corto"), institution = row.nullableString("entidad"),
                 color = if (!row.has("color") || row.isNull("color")) null else row.getInt("color"),
                 liquidity = row.optBoolean("liquidez", true),
-                useInApp = if (hasHistory) true else row.optBoolean("uso_app", true),
+                useInApp = if (hasEntries) true else row.optBoolean("uso_app", true),
                 remoteUpdatedAt = updated, deletedAt = if (hasHistory) null else deletedAt,
                 roundUpMultiplier = local?.roundUpMultiplier ?: 0,
                 roundUpSettledAt = local?.roundUpSettledAt,

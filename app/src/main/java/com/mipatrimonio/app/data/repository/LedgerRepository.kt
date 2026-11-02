@@ -39,6 +39,8 @@ data class AccountDependencies(
     val liquidityMovements: Int = 0,
 ) {
     val hasHistory: Boolean get() = transactions + transfers + liquidityMovements > 0
+    /** Apuntes o transferencias: lo único que obliga a seguir con «Uso en app» (ADR-002, enmienda del 2026-11-02). */
+    val hasEntries: Boolean get() = transactions + transfers > 0
     val canDelete: Boolean
         get() = transactions + transfers + notificationApps + liquidityMovements == 0
 }
@@ -119,25 +121,29 @@ class LedgerRepository(
         }
         if (existing != null && existing.useInApp != account.useInApp) {
             if (!account.useInApp) {
-                require(!accountDependenciesUnchecked(account.id).hasHistory) { "Archiva la cuenta o mueve sus apuntes" }
-                val existingAccount = existing.toDomain()
-                val currentBalance = BalanceCalculator.balance(
-                    existingAccount,
-                    transactionDao.getAllForBackup().map { it.toDomain() },
-                    transferDao.getAllForBackup().map { it.toDomain() },
-                    LocalDate.now(),
-                    mapLiquidityMovements(
-                        db.syncDao().movementsForAccount(SyncRepository.accountIdToRemoteId(account.id)),
-                        listOf(existingAccount),
-                    ).entries,
-                )
-                db.accountBalanceDao().upsert(
-                    AccountBalanceRecord(
-                        db.accountBalanceDao().liveOnDate(account.id, LocalDate.now().toEpochDay())?.id
-                            ?: UUID.randomUUID().toString(),
-                        account.id, LocalDate.now(), currentBalance, clock(),
-                    ).toEntity(),
-                )
+                // Los movimientos de inversión no impiden quitar «Uso en app»: solo los apuntes y transferencias.
+                require(!accountDependenciesUnchecked(account.id).hasEntries) { "Archiva la cuenta o mueve sus apuntes" }
+                // Si ya tiene saldos anotados, mandan ellos: no se anota el saldo calculado por la app.
+                if (db.accountBalanceDao().latest(account.id) == null) {
+                    val existingAccount = existing.toDomain()
+                    val currentBalance = BalanceCalculator.balance(
+                        existingAccount,
+                        transactionDao.getAllForBackup().map { it.toDomain() },
+                        transferDao.getAllForBackup().map { it.toDomain() },
+                        LocalDate.now(),
+                        mapLiquidityMovements(
+                            db.syncDao().movementsForAccount(SyncRepository.accountIdToRemoteId(account.id)),
+                            listOf(existingAccount),
+                        ).entries,
+                    )
+                    db.accountBalanceDao().upsert(
+                        AccountBalanceRecord(
+                            db.accountBalanceDao().liveOnDate(account.id, LocalDate.now().toEpochDay())?.id
+                                ?: UUID.randomUUID().toString(),
+                            account.id, LocalDate.now(), currentBalance, clock(),
+                        ).toEntity(),
+                    )
+                }
                 db.notificationDao().clearAccountFromAuthorizations(account.id)
                 db.notificationDao().clearAccountFromPendingProposals(account.id)
             } else {

@@ -130,6 +130,29 @@ class AccountSyncRepositoryTest {
         assertEquals(30.0, balances().getValue(SyncRepository.accountIdToRemoteId("b")), 0.0)
     }
 
+    @Test fun `cuenta remota sin uso con movimientos de inversion sigue sin uso`() = runBlocking {
+        // Caso Neverless: importar sus compras no debe activar «Uso en app» en el móvil.
+        val id = "33333333-3333-3333-3333-333333333333"
+        db.accountDao().upsert(com.mipatrimonio.app.data.db.AccountEntity(id, "Neverless cash", "OTRA", "EUR", 0, false, 1, 1))
+        db.syncDao().upsertMovimiento(
+            com.mipatrimonio.app.data.db.SyncMovimientoEntity(
+                "m", "profile", "product", LocalDate.of(2026, 10, 1).toEpochDay(), "compra", "0.001",
+                71_00, null, id, "importacion", null, null, "now",
+            ),
+        )
+        val row = """[{"id":"$id","nombre":"Neverless cash","tipo":"otra","moneda":"EUR","saldo_inicial":0,"archivada":false,"uso_app":false,"deleted_at":null,"updated_at":"2026-11-02T00:00:00Z"}]"""
+        val client = SyncAuthClient(SyncTransport { request ->
+            if (request.pathAndQuery.startsWith("/auth/v1/token"))
+                SyncHttpResponse(200, """{"access_token":"a","refresh_token":"r","expires_in":3600}""")
+            else SyncHttpResponse(200, row)
+        }, MemorySessionStore(), now = { 0L })
+        client.signIn("a@b.es", "secret")
+
+        sync.pullTable("cuentas_app", client)
+
+        assertFalse(db.accountDao().getById(id)!!.useInApp)
+    }
+
     @Test fun `cambio remoto conserva configuracion local de redondeo`() = runBlocking {
         val id = "22222222-2222-2222-2222-222222222222"
         db.accountDao().upsert(
