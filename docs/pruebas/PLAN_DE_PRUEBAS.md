@@ -148,6 +148,19 @@ Antes de empezar, **reinicia Rumbo con `Iniciar.bat`**, para que cargue el motor
 - [ ] N1. **Escritorio › El mes › mayo de 2026:** la cuenta **Equito** entra con su saldo de apertura del **30/04** (normalmente 0), y el dividendo del 01/05 va en «Mercado».
 - [ ] N2. **Trade Republic** empieza un día antes de su primera actividad de agosto de 2024, no el 31/08, y su saldo de hoy no cambia.
 
+## O. Importar Neverless y cuenta de liquidez sin «Uso en app» (T-111 escritorio y T-112 app, 02/11)
+*Hecho por Claude el 02/11:* se borraron con copia los movimientos de Neverless de la primera carga y se importó `2026-11-02 Neverless.csv`: 141 movimientos con la cuenta «Neverless cash» y 7 saldos de fin de mes (último: 0,09 € el 31/10). *Requisito:* cerrar y volver a abrir el escritorio para que cargue la versión nueva.
+- [ ] O1. **Escritorio › Bitcoin:** 0,00835725 BTC, lo mismo que la app de Neverless.
+- [ ] O2. **Escritorio › Cuentas › Neverless cash:** los saldos de fin de mes de abril a octubre, y 0,09 € hoy.
+- [ ] O3. **El mes de julio de 2026:** en la fila de Neverless cash salen el ingreso de 71 € (Ahorraste) y la compra (Invertiste en negativo); ya no está en «Fuera de tus cuentas».
+- [ ] O4. **Trade Republic:** su saldo ya no baja 70,98 € por la compra del 21/04, que antes estaba mal cargada a esa cuenta.
+- [ ] O5. **Mis datos › Importar › Neverless:** vuelve a importar el mismo CSV. Sale «0 nuevos · 141 ya estaban» y no anota saldos.
+- [ ] O6. Edita una compra importada (cambia la nota), borra un interés y vuelve a importar: la compra sigue como la dejaste y el interés vuelve.
+- [ ] O7. **Editor de movimientos del escritorio:** «Neverless cash» aparece en «Cuenta de liquidez».
+- [ ] O8. **App, con la versión que incluya T-112:** edita una compra de Neverless sin tocar la cuenta: se guarda y conserva «Neverless cash».
+- [ ] O9. **App:** una compra nueva con la cuenta Neverless cash, con fecha posterior al 31/10, baja su saldo en la app y en el escritorio.
+- [ ] O10. **Pendiente de hacer a mano:** el traspaso de 0,001456 BTC de TR a Neverless del 16/04 no se anota. Las unidades ya están en Bitcoin, por las compras de TR.
+
 ---
 
 ## Resultados y problemas encontrados
