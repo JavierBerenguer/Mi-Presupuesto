@@ -27,6 +27,11 @@ class PurchaseValidationTest {
         assertEquals("nota", value.note)
     }
 
+    @Test fun `admite cuenta eur activa sin uso en app`() {
+        assertTrue(validate("100", "", account.copy(useInApp = false)).isSuccess)
+        assertTrue(validate("100", "", account.copy(archived = true)).isFailure)
+    }
+
     private fun validate(amount: String, commission: String, selectedAccount: Account) =
         validatePurchase("p1", today, amount, "", commission, selectedAccount.id, "", listOf(product), listOf(selectedAccount), today)
 }

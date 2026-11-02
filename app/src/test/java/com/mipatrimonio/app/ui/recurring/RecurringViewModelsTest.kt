@@ -140,6 +140,8 @@ class RecurringViewModelsTest {
     @Test
     fun `formulario muestra campos segun tipo de inversion`() = runTest {
         ledger.saveAccount(Account("a", "Cuenta", AccountType.CORRIENTE, "EUR", 0, false, 1))
+        ledger.saveAccount(Account("external", "Neverless", AccountType.OTRA, "EUR", 0, false, 1, useInApp = false))
+        ledger.saveAccount(Account("usd", "Dólares", AccountType.OTRA, "USD", 0, false, 1, useInApp = false))
         val products = flowOf(listOf(SyncProductoEntity(
             "p", "profile", "Fondo", "Fondo X", "fondo", "EUR", null, null,
             "2026-09-28T00:00:00Z", "morningstar",
@@ -156,6 +158,7 @@ class RecurringViewModelsTest {
         assertFalse(state.showCategory)
         assertFalse(state.showMerchant)
         assertFalse(state.showDestinationAccount)
+        assertEquals(setOf("a", "external"), state.activeAccounts.map { it.id }.toSet())
 
         viewModel.setKind(RecurringKind.DIVIDENDO)
         state = viewModel.uiState.first { it.values.kind == RecurringKind.DIVIDENDO }
@@ -183,6 +186,7 @@ class RecurringViewModelsTest {
         assertTrue(state.showMerchant)
         assertTrue(state.showDestinationAccount)
         assertFalse(state.showWithholding)
+        assertEquals(listOf("a"), state.activeAccounts.map { it.id })
     }
 
     @Test
