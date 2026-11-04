@@ -96,7 +96,7 @@ Este documento lo mantiene Claude y solo recoge lo que **queda por probar**: lo 
 - [ ] P2. **Mis datos › Cuentas** (incluido anotar un saldo): guardar no recarga la página. Productos y Saldos y valores ya se comprobaron.
 
 ## Q. Notificaciones con varios importes y dividendos (T-115, 04/11)
-*Requisito:* versión que incluya T-115 y sesión de sincronización activa. Usa una notificación de dividendo de TR («… dividendo de 1,88 € por acción. Has recibido 0,01 €.»).
+*Requisito:* **v1.12.4** y sesión de sincronización activa. Antes, borra la estructura de dividendos de TR que ya tenías y vuelve a enseñarla; deja vacío «Producto por defecto» y elige solo «Producto para este comercio o activo». Usa una notificación de dividendo de TR («… dividendo de 1,88 € por acción. Has recibido 0,01 €.»).
 - [ ] Q1. **Enseñar:** los dos importes aparecen; el primero en rojo y el segundo con borde. Al pulsar «0,01 €» pasa a rojo y la vista previa muestra 0,01 €.
 - [ ] Q2. **Destino › Dividendo:** se pueden elegir productos de la cartera y también de efectivo (no los de deuda). La vista previa dice «Se registrará un dividendo de 0,01 € en …».
 - [ ] Q3. Guarda: en la cartera (app y escritorio) aparece un dividendo de 0,01 € del producto elegido, con la cuenta de liquidez asociada a la app del banco.
