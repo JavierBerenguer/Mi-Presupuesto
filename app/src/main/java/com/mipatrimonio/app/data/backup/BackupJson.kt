@@ -153,6 +153,7 @@ class BackupJson {
         "defaultCategoryId" to v.defaultCategoryId, "enabled" to v.enabled, "createdAt" to v.createdAt, "updatedAt" to v.updatedAt,
         "target" to v.target, "defaultProductId" to v.defaultProductId,
         "generatesRoundUp" to v.generatesRoundUp, "isRoundUpInvestment" to v.isRoundUpInvestment,
+        "reinvestsDividend" to v.reinvestsDividend,
     )
     private fun notificationRule(v: NotificationRuleEntity) = row(
         "id" to v.id, "structureId" to v.structureId, "variableKey" to v.variableKey, "variableDisplay" to v.variableDisplay,
@@ -186,7 +187,7 @@ class BackupJson {
     private fun readRecurring(j: JSONObject) = RecurringRuleEntity(j.s("id"), j.s("kind"), j.l("amountMinor"), j.s("currency"), j.s("accountId"), j.ns("destinationAccountId"), j.ns("categoryId"), j.s("description"), j.s("merchant"), j.l("startEpochDay"), j.i("periodQuantity"), j.s("periodUnit"), j.nl("endEpochDay"), j.s("reminder"), j.ni("reminderCustomDays"), j.nl("lastGeneratedEpochDay"), j.ob("archived", false), j.l("createdAt"), j.l("updatedAt"), j.ns("productId"), j.ns("units"), j.nl("commissionMinor"), j.nl("withholdingMinor"))
     private fun readAuthorization(j: JSONObject) = NotificationAuthorizationEntity(j.s("packageName"), j.b("authorized"), j.ns("accountId"), j.l("createdAt"), j.os("autoConfirmMode", "OFF"))
     private fun readProposal(j: JSONObject) = PendingProposalEntity(j.s("id"), j.s("packageName"), j.ns("accountId"), j.s("kind"), j.l("amountMinor"), j.s("currency"), j.ns("merchant"), j.s("confidence"), j.s("parserId"), j.l("postedAt"), j.s("status"), j.ns("resultingTransactionId"), j.l("createdAt"))
-    private fun readNotificationStructure(j: JSONObject) = NotificationStructureEntity(j.s("id"), j.s("packageName"), j.s("name"), j.s("template"), j.s("direction"), j.ns("defaultTitle"), j.ns("defaultDetail"), j.ns("defaultCategoryId"), j.b("enabled"), j.l("createdAt"), j.l("updatedAt"), j.os("target", "APUNTE"), j.ns("defaultProductId"), j.ob("generatesRoundUp", false), j.ob("isRoundUpInvestment", false))
+    private fun readNotificationStructure(j: JSONObject) = NotificationStructureEntity(j.s("id"), j.s("packageName"), j.s("name"), j.s("template"), j.s("direction"), j.ns("defaultTitle"), j.ns("defaultDetail"), j.ns("defaultCategoryId"), j.b("enabled"), j.l("createdAt"), j.l("updatedAt"), j.os("target", "APUNTE"), j.ns("defaultProductId"), j.ob("generatesRoundUp", false), j.ob("isRoundUpInvestment", false), j.ob("reinvestsDividend", false))
     private fun readNotificationRule(j: JSONObject) = NotificationRuleEntity(j.s("id"), j.s("structureId"), j.s("variableKey"), j.s("variableDisplay"), j.ns("title"), j.ns("detail"), j.ns("categoryId"), j.b("enabled"), j.l("createdAt"), j.l("updatedAt"), j.ns("productId"))
     private fun readNotificationRecord(j: JSONObject) = NotificationRecordEntity(j.s("id"), j.s("packageName"), j.l("postedAt"), j.s("text"), j.nl("amountMinor"), j.ns("currency"), j.ns("structureId"), j.ns("ruleId"), j.ns("variableText"), j.s("status"), j.ns("transactionId"), j.l("createdAt"), j.ns("syncMovementId"))
 }

@@ -72,6 +72,7 @@
     <string name="auto_purchase_positive">Una compra no puede tener importe positivo.</string>
     <string name="auto_purchase_preview">Se registrará una compra de %1$s en %2$s</string>
     <string name="auto_dividend_preview">Se registrará un dividendo de %1$s en %2$s</string>
+    <string name="auto_reinvested_dividend_preview">Se registrará un dividendo de %1$s en %2$s y una compra del mismo importe (reinversión)</string>
     <string name="auto_product_not_selected">producto sin seleccionar</string>
     <string name="auto_structure_values">Valores de la estructura</string>
     <string name="auto_structure_explanation">Se aplican a todos los apuntes de %1$s.</string>
@@ -104,4 +105,6 @@
     <string name="auto_configure_this_merchant">Configurar este comercio</string>
     <string name="auto_generates_round_up">Genera redondeo</string>
     <string name="auto_is_round_up_investment">Es la inversión del redondeo</string>
+    <string name="auto_reinvests_dividend">Reinvertir el dividendo</string>
+    <string name="auto_reinvests_dividend_help">Registra también una compra del mismo importe en el mismo producto. Úsalo si tu banco reinvierte los dividendos automáticamente.</string>
 </resources>

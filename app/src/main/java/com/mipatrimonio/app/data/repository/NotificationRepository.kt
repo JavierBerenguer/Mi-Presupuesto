@@ -228,6 +228,7 @@ class NotificationRepository(
         defaults: NotificationDefaults = NotificationDefaults(), ruleValues: NotificationRuleValues = NotificationRuleValues(),
         target: NotificationTarget = NotificationTarget.APUNTE,
         generatesRoundUp: Boolean = false, isRoundUpInvestment: Boolean = false,
+        reinvestsDividend: Boolean = false,
         amountRange: IntRange? = null,
     ): NotificationStructure = db.withTransaction {
         val record = requireNotNull(dao.getRecord(recordId)) { "El registro no existe" }
@@ -236,7 +237,8 @@ class NotificationRepository(
         val structure = NotificationStructure(idFactory(), record.packageName, name.trim().also { require(it.isNotEmpty()) { "El nombre es obligatorio" } },
             result.template, direction, defaults.title.clean(), defaults.detail.clean(), defaults.categoryId.clean(), true, now, now,
             target, defaults.defaultProductId.clean(), generatesRoundUp && target == NotificationTarget.APUNTE,
-            isRoundUpInvestment && target == NotificationTarget.COMPRA)
+            isRoundUpInvestment && target == NotificationTarget.COMPRA,
+            reinvestsDividend && target == NotificationTarget.DIVIDENDO)
         dao.upsertStructure(structure.toEntity())
         val rule = NotificationRule(idFactory(), structure.id, normalizeVariable(result.variableText), result.variableText,
             ruleValues.title.clean(), ruleValues.detail.clean(), ruleValues.categoryId.clean(), true, now, now,
@@ -260,7 +262,17 @@ class NotificationRepository(
         dao.upsertRule(rule.toEntity()); refreshTodayTransactions(existing?.toDomain(), rule); reprocessPendingLocked(); rule
     }
 
-    suspend fun saveStructure(value: NotificationStructure) = db.withTransaction { dao.upsertStructure(value.copy(updatedAt = clock()).toEntity()); reprocessPendingLocked() }
+    suspend fun saveStructure(value: NotificationStructure) = db.withTransaction {
+        dao.upsertStructure(
+            value.copy(
+                generatesRoundUp = value.generatesRoundUp && value.target == NotificationTarget.APUNTE,
+                isRoundUpInvestment = value.isRoundUpInvestment && value.target == NotificationTarget.COMPRA,
+                reinvestsDividend = value.reinvestsDividend && value.target == NotificationTarget.DIVIDENDO,
+                updatedAt = clock(),
+            ).toEntity(),
+        )
+        reprocessPendingLocked()
+    }
     suspend fun saveRule(value: NotificationRule) = db.withTransaction {
         val previous = dao.getRule(value.id)?.toDomain()
         val saved = value.copy(variableKey = normalizeVariable(value.variableDisplay), updatedAt = clock())
@@ -360,20 +372,27 @@ class NotificationRepository(
         if (product == null || product.deletedAt != null || !structure.target.acceptsProductType(product.tipo)) {
             return row.copy(status = NotificationRecordStatus.PENDIENTE_REGLA.name)
         }
+        val reinvestsDividend = structure.target == NotificationTarget.DIVIDENDO && structure.reinvestsDividend
+        if (reinvestsDividend && !NotificationTarget.COMPRA.acceptsProductType(product.tipo)) {
+            return row.copy(status = NotificationRecordStatus.PENDIENTE_REGLA.name)
+        }
         if (!hasSyncSession()) {
             return row.copy(status = NotificationRecordStatus.PENDIENTE_SINCRONIZACION.name)
         }
         val accountId = authorization.accountId?.let { db.accountDao().getById(it) }
             ?.takeIf { !it.archived && it.currency == "EUR" }
             ?.id
-        val create = if (structure.target == NotificationTarget.DIVIDENDO) createInvestmentDividend else createInvestmentPurchase
-        val movementId = create(
+        val date = Instant.ofEpochMilli(row.postedAt).atZone(zoneId).toLocalDate()
+        val movementId = (if (structure.target == NotificationTarget.DIVIDENDO) createInvestmentDividend else createInvestmentPurchase)(
             product.id,
-            Instant.ofEpochMilli(row.postedAt).atZone(zoneId).toLocalDate(),
+            date,
             match.amount.amountMinor,
             accountId,
             match.variableText,
         )
+        if (reinvestsDividend) {
+            createInvestmentPurchase(product.id, date, match.amount.amountMinor, accountId, match.variableText)
+        }
         if (structure.target == NotificationTarget.COMPRA && structure.isRoundUpInvestment && accountId != null) {
             val account = requireNotNull(db.accountDao().getById(accountId))
             val estimated = roundUpPending(account.toDomain(), row.postedAt)
@@ -469,8 +488,8 @@ private fun NotificationRecordEntity.toTransaction(id: String, accountId: String
 private fun NotificationAuthorizationEntity.toDomain() = AuthorizationRule(packageName, authorized, accountId, createdAt, runCatching { enumValueOf<AutoConfirmMode>(autoConfirmMode) }.getOrDefault(AutoConfirmMode.OFF))
 private fun PendingProposalEntity.toDomain() = PendingProposal(id, packageName, accountId, enumValueOf(kind), amountMinor, currency, merchant, enumValueOf(confidence), parserId, postedAt, enumValueOf(status), resultingTransactionId, createdAt)
 private fun NotificationDiagnosticEntity.toDomain() = NotificationDiagnostic(id, packageName, postedAt, enumValueOf(outcome), reason?.let { enumValueOf(it) }, NotificationFields(hadTitle, hadText, hadBigText, hadSubText, hadTextLines, hadMessages, hadTicker), amountFound, sampleText, createdAt)
-private fun NotificationStructureEntity.toDomain() = NotificationStructure(id, packageName, name, NotificationTemplateJson.decode(template), enumValueOf(direction), defaultTitle, defaultDetail, defaultCategoryId, enabled, createdAt, updatedAt, enumValueOf(target), defaultProductId, generatesRoundUp, isRoundUpInvestment)
-private fun NotificationStructure.toEntity() = NotificationStructureEntity(id, packageName, name, NotificationTemplateJson.encode(template), direction.name, defaultTitle, defaultDetail, defaultCategoryId, enabled, createdAt, updatedAt, target.name, defaultProductId, generatesRoundUp, isRoundUpInvestment)
+private fun NotificationStructureEntity.toDomain() = NotificationStructure(id, packageName, name, NotificationTemplateJson.decode(template), enumValueOf(direction), defaultTitle, defaultDetail, defaultCategoryId, enabled, createdAt, updatedAt, enumValueOf(target), defaultProductId, generatesRoundUp, isRoundUpInvestment, reinvestsDividend)
+private fun NotificationStructure.toEntity() = NotificationStructureEntity(id, packageName, name, NotificationTemplateJson.encode(template), direction.name, defaultTitle, defaultDetail, defaultCategoryId, enabled, createdAt, updatedAt, target.name, defaultProductId, generatesRoundUp, isRoundUpInvestment, reinvestsDividend)
 private fun NotificationRuleEntity.toDomain() = NotificationRule(id, structureId, variableKey, variableDisplay, title, detail, categoryId, enabled, createdAt, updatedAt, productId)
 private fun NotificationRule.toEntity() = NotificationRuleEntity(id, structureId, variableKey, variableDisplay, title, detail, categoryId, enabled, createdAt, updatedAt, productId)
 private fun NotificationRecordEntity.toDomain() = NotificationRecord(id, packageName, postedAt, text, amountMinor, currency, structureId, ruleId, variableText, enumValueOf(status), transactionId, createdAt, syncMovementId)

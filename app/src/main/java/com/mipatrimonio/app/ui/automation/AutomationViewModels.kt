@@ -124,8 +124,12 @@ private fun pendingRecords(repository: NotificationRepository): Flow<List<Notifi
 internal fun selectableInvestmentProducts(
     products: List<SyncProductoEntity>,
     target: NotificationTarget = NotificationTarget.COMPRA,
+    reinvestsDividend: Boolean = false,
 ): List<SyncProductoEntity> = products
-    .filter { it.deletedAt == null && target.acceptsProductType(it.tipo) }
+    .filter {
+        it.deletedAt == null && target.acceptsProductType(it.tipo) &&
+            (!reinvestsDividend || NotificationTarget.COMPRA.acceptsProductType(it.tipo))
+    }
     .sortedBy { it.nombre.lowercase() }
 
 /** El importe que se usará: el que ha elegido la persona o, si no ha elegido ninguno, el primero. */
@@ -146,11 +150,12 @@ internal fun purchaseAvailability(
     hasSession: Boolean,
     products: List<SyncProductoEntity>,
     productId: String?,
+    reinvestsDividend: Boolean = false,
 ): PurchaseAvailability = when {
     target == NotificationTarget.APUNTE -> PurchaseAvailability.AVAILABLE
     !hasSession -> PurchaseAvailability.NO_SESSION
-    selectableInvestmentProducts(products, target).isEmpty() -> PurchaseAvailability.NO_PRODUCTS
-    productId == null || selectableInvestmentProducts(products, target).none { it.id == productId } -> PurchaseAvailability.PRODUCT_REQUIRED
+    selectableInvestmentProducts(products, target, reinvestsDividend).isEmpty() -> PurchaseAvailability.NO_PRODUCTS
+    productId == null || selectableInvestmentProducts(products, target, reinvestsDividend).none { it.id == productId } -> PurchaseAvailability.PRODUCT_REQUIRED
     else -> PurchaseAvailability.AVAILABLE
 }
 
@@ -175,6 +180,7 @@ data class TeachEditor(
     val target: NotificationTarget = NotificationTarget.APUNTE,
     val generatesRoundUp: Boolean = false,
     val isRoundUpInvestment: Boolean = false,
+    val reinvestsDividend: Boolean = false,
 )
 
 data class TeachStructureUiState(
@@ -199,9 +205,11 @@ data class TeachStructureUiState(
     val variableRange: IntRange? get() = selectedRange(tokens, editor.variableFirst, editor.variableLast)
     val purchaseAvailability: PurchaseAvailability get() = purchaseAvailability(
         editor.target, hasSyncSession, products, editor.ruleValues.productId ?: editor.defaults.defaultProductId,
+        editor.reinvestsDividend,
     )
     private val hasRequiredProduct: Boolean get() = editor.target == NotificationTarget.APUNTE ||
-        selectableInvestmentProducts(products, editor.target).any { it.id == (editor.ruleValues.productId ?: editor.defaults.defaultProductId) }
+        selectableInvestmentProducts(products, editor.target, editor.reinvestsDividend)
+            .any { it.id == (editor.ruleValues.productId ?: editor.defaults.defaultProductId) }
     val canSave: Boolean get() = !isLoading && validationError == null && preview != null &&
         editor.name.isNotBlank() && hasRequiredProduct
     val date: LocalDate? get() = record?.let { Instant.ofEpochMilli(it.postedAt).atZone(ZoneId.systemDefault()).toLocalDate() }
@@ -296,6 +304,7 @@ class TeachStructureViewModel(
     fun setTarget(value: NotificationTarget) { editor.update { it.copy(target = value) }; refreshPreview(editor.value) }
     fun setGeneratesRoundUp(value: Boolean) { editor.update { it.copy(generatesRoundUp = value) } }
     fun setIsRoundUpInvestment(value: Boolean) { editor.update { it.copy(isRoundUpInvestment = value) } }
+    fun setReinvestsDividend(value: Boolean) { editor.update { it.copy(reinvestsDividend = value) } }
 
     fun save() {
         val state = uiState.value
@@ -307,7 +316,8 @@ class TeachStructureViewModel(
                 val before = notifications.records(NotificationRecordStatus.AUTOMATIZADA).first().size
                 notifications.createStructureFromRecord(recordId, state.editor.name, key, variable, state.editor.direction,
                     state.editor.defaults, state.editor.ruleValues, state.editor.target,
-                    state.editor.generatesRoundUp, state.editor.isRoundUpInvestment, state.amountRange)
+                    state.editor.generatesRoundUp, state.editor.isRoundUpInvestment,
+                    state.editor.reinvestsDividend, state.amountRange)
                 val after = notifications.records(NotificationRecordStatus.AUTOMATIZADA).first().size
                 (after - before - 1).coerceAtLeast(0)
             }
@@ -356,13 +366,14 @@ data class ConfigureRuleUiState(
         hasSyncSession,
         products,
         values.productId ?: structure?.defaultProductId,
+        structure?.reinvestsDividend == true,
     )
     val canSave: Boolean get() {
         if (isLoading) return false
         val current = structure ?: return true
         if (!current.target.isInvestment) return true
         val productId = values.productId ?: current.defaultProductId
-        return selectableInvestmentProducts(products, current.target).any { it.id == productId }
+        return selectableInvestmentProducts(products, current.target, current.reinvestsDividend).any { it.id == productId }
     }
 }
 

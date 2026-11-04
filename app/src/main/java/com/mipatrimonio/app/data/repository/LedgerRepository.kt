@@ -82,7 +82,7 @@ class LedgerRepository(
                     row.id, row.packageName, row.name, NotificationTemplateJson.decode(row.template),
                     enumValueOf(row.direction), row.defaultTitle, row.defaultDetail, row.defaultCategoryId,
                     row.enabled, row.createdAt, row.updatedAt, enumValueOf(row.target), row.defaultProductId,
-                    row.generatesRoundUp, row.isRoundUpInvestment,
+                    row.generatesRoundUp, row.isRoundUpInvestment, row.reinvestsDividend,
                 )
             }.getOrNull()
         }
