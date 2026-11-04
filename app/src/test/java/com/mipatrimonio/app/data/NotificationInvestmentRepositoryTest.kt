@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.mipatrimonio.app.data.db.AppDatabase
 import com.mipatrimonio.app.data.db.SyncProductoEntity
+import com.mipatrimonio.app.data.db.SyncMovimientoEntity
 import com.mipatrimonio.app.data.db.NotificationRecordEntity
 import com.mipatrimonio.app.data.db.NotificationStructureEntity
 import com.mipatrimonio.app.data.db.toDomain
@@ -223,6 +224,132 @@ class NotificationInvestmentRepositoryTest {
         assertEquals("cash", dividends.single().productId)
     }
 
+    @Test fun `dividendo reinvertido crea dividendo y compra equivalentes y conserva id del dividendo`() = runTest {
+        prepare("EUR", product = true)
+        val seed = createDividendStructure(reinvests = true)
+
+        val stored = db.notificationDao().getRecord(seed)!!
+        assertEquals(NotificationRecordStatus.AUTOMATIZADA.name, stored.status)
+        assertEquals("dividend-1", stored.syncMovementId)
+        assertEquals(dividends.single(), purchases.single())
+        assertEquals(ACCOUNT, purchases.single().accountId)
+    }
+
+    @Test fun `dividendo sin reinversion solo crea dividendo`() = runTest {
+        prepare("EUR", product = true)
+        createDividendStructure(reinvests = false)
+
+        assertEquals(1, dividends.size)
+        assertTrue(purchases.isEmpty())
+    }
+
+    @Test fun `reinversion con efectivo queda pendiente sin crear movimientos`() = runTest {
+        prepare("EUR", product = false)
+        db.syncDao().upsertProducto(SyncProductoEntity("cash", "profile", "Efectivo", null, "efectivo", "EUR", null, null, "now"))
+        val seed = ingest("Dividendo 10 EUR de Efectivo")
+        repository.createStructureFromRecord(
+            seed, "Dividendo", 0..8, 20..27, NotificationDirection.INGRESO,
+            ruleValues = NotificationRuleValues(productId = "cash"), target = NotificationTarget.DIVIDENDO,
+            reinvestsDividend = true,
+        )
+
+        assertEquals(NotificationRecordStatus.PENDIENTE_REGLA.name, db.notificationDao().getRecord(seed)?.status)
+        assertTrue(dividends.isEmpty())
+        assertTrue(purchases.isEmpty())
+
+        db.syncDao().upsertProducto(SyncProductoEntity(PRODUCT, "profile", "Fondo", null, "fondo", "EUR", null, null, "now"))
+        repository.createRuleForRecord(seed, NotificationRuleValues(productId = PRODUCT))
+        assertEquals(NotificationRecordStatus.AUTOMATIZADA.name, db.notificationDao().getRecord(seed)?.status)
+        assertEquals(1, dividends.size)
+        assertEquals(1, purchases.size)
+    }
+
+    @Test fun `reinversion sin sesion no crea movimientos`() = runTest {
+        session = false
+        prepare("EUR", product = true)
+        val seed = createDividendStructure(reinvests = true)
+
+        assertEquals(NotificationRecordStatus.PENDIENTE_SINCRONIZACION.name, db.notificationDao().getRecord(seed)?.status)
+        assertTrue(dividends.isEmpty())
+        assertTrue(purchases.isEmpty())
+    }
+
+    @Test fun `reinversion con cuenta no eur crea ambos movimientos sin cuenta`() = runTest {
+        prepare("USD", product = true)
+        createDividendStructure(reinvests = true)
+
+        assertNull(dividends.single().accountId)
+        assertNull(purchases.single().accountId)
+    }
+
+    @Test fun `campo reinversion manipulado en compra no crea movimiento adicional`() = runTest {
+        prepare("EUR", product = true)
+        val seed = createPurchaseStructure(ruleProductId = PRODUCT)
+        val structure = db.notificationDao().getStructure(db.notificationDao().getRecord(seed)!!.structureId!!)!!
+        db.notificationDao().upsertStructure(structure.copy(reinvestsDividend = true))
+        repository.ingest(BankNotification(PACKAGE, "", "Compra 20 EUR de Fondo", 90_000_000))
+
+        assertEquals(2, purchases.size)
+        assertTrue(dividends.isEmpty())
+    }
+
+    @Test fun `reprocesar dividendo reinvertido no duplica`() = runTest {
+        prepare("EUR", product = true)
+        createDividendStructure(reinvests = true)
+        repository.reprocessPending()
+        repository.reprocessPending()
+
+        assertEquals(1, dividends.size)
+        assertEquals(1, purchases.size)
+    }
+
+    @Test fun `si falla la compra la transaccion revierte el dividendo`() = runTest {
+        prepare("EUR", product = true)
+        repository = NotificationRepository(
+            db,
+            NotificationEngine(listOf(GenericSpanishParser())),
+            clock = { 20_000L + id },
+            idFactory = { "id-${++id}" },
+            zoneId = ZoneId.of("UTC"),
+            hasSyncSession = { true },
+            createInvestmentDividend = { productId, date, amount, accountId, note ->
+                db.syncDao().upsertMovimiento(SyncMovimientoEntity(
+                    "dividend-local", "profile", productId, date.toEpochDay(), "dividendo", "0", amount,
+                    null, accountId, "notificacion", note, null, "now",
+                ))
+                "dividend-local"
+            },
+            createInvestmentPurchase = { _, _, _, _, _ -> error("fallo de compra") },
+        )
+        val seed = ingest("Dividendo 10 EUR de Fondo")
+
+        val failure = runCatching {
+            repository.createStructureFromRecord(
+                seed, "Dividendo", 0..8, 20..24, NotificationDirection.INGRESO,
+                ruleValues = NotificationRuleValues(productId = PRODUCT), target = NotificationTarget.DIVIDENDO,
+                reinvestsDividend = true,
+            )
+        }
+
+        assertTrue(failure.isFailure)
+        assertTrue(db.syncDao().allMovimientos().isEmpty())
+        assertNull(db.notificationDao().getRecord(seed)?.syncMovementId)
+    }
+
+    @Test fun `crear y guardar normalizan reinversion fuera de dividendos`() = runTest {
+        prepare("EUR", product = true)
+        val seed = ingest("Compra 10 EUR de Fondo")
+        val created = repository.createStructureFromRecord(
+            seed, "Compra", 0..5, 17..21, NotificationDirection.GASTO,
+            ruleValues = NotificationRuleValues(productId = PRODUCT), target = NotificationTarget.COMPRA,
+            reinvestsDividend = true,
+        )
+        assertTrue(!db.notificationDao().getStructure(created.id)!!.reinvestsDividend)
+
+        repository.saveStructure(created.copy(reinvestsDividend = true))
+        assertTrue(!db.notificationDao().getStructure(created.id)!!.reinvestsDividend)
+    }
+
     private suspend fun prepare(currency: String, product: Boolean) {
         LedgerRepository(db).saveAccount(Account(ACCOUNT, "Cuenta", AccountType.CORRIENTE, currency, 0, false, 1))
         repository.setAuthorized(PACKAGE, true, ACCOUNT)
@@ -235,6 +362,16 @@ class NotificationInvestmentRepositoryTest {
             seed, "Compra", 0..5, 17..21, NotificationDirection.GASTO,
             defaults = NotificationDefaults(), ruleValues = NotificationRuleValues(productId = ruleProductId),
             target = NotificationTarget.COMPRA,
+        )
+        return seed
+    }
+
+    private suspend fun createDividendStructure(reinvests: Boolean): String {
+        val seed = ingest("Dividendo 10 EUR de Fondo")
+        repository.createStructureFromRecord(
+            seed, "Dividendo", 0..8, 20..24, NotificationDirection.INGRESO,
+            ruleValues = NotificationRuleValues(productId = PRODUCT), target = NotificationTarget.DIVIDENDO,
+            reinvestsDividend = reinvests,
         )
         return seed
     }

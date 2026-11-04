@@ -360,10 +360,21 @@ fun TeachStructureScreen(
                 Text(stringResource(R.string.auto_is_round_up_investment))
             }
         }
+        if (state.editor.target == NotificationTarget.DIVIDENDO) item {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(state.editor.reinvestsDividend, viewModel::setReinvestsDividend)
+                    Text(stringResource(R.string.auto_reinvests_dividend))
+                }
+                Text(stringResource(R.string.auto_reinvests_dividend_help), style = MaterialTheme.typography.bodySmall)
+            }
+        }
         if (state.editor.target == NotificationTarget.APUNTE) item { DirectionField(state.editor.direction, viewModel::setDirection) }
         if (state.editor.target.isInvestment) {
             item {
-                val products = selectableInvestmentProducts(state.products, state.editor.target)
+                val products = selectableInvestmentProducts(
+                    state.products, state.editor.target, state.editor.reinvestsDividend,
+                )
                 ProductField(
                     products,
                     state.editor.defaults.defaultProductId,
@@ -401,7 +412,7 @@ fun TeachStructureScreen(
                 onChange = { title, detail, category -> viewModel.setRuleValues(NotificationRuleValues(title, detail, category)) },
             )
         }
-        item { PreviewCard(state.preview, state.account?.name, state.date?.let(::formatDate), state.categories, state.products) }
+        item { PreviewCard(state.preview, state.account?.name, state.date?.let(::formatDate), state.categories, state.products, state.editor.reinvestsDividend) }
         state.validationError?.let { item { ErrorText(stringResource(it.messageResource())) } }
         state.errorMessage?.let { item { ErrorText(it) } }
         item {
@@ -495,14 +506,14 @@ fun ConfigureRuleScreen(
         val target = state.structure?.target ?: NotificationTarget.APUNTE
         if (target.isInvestment) item {
             ProductField(
-                selectableInvestmentProducts(state.products, target),
+                selectableInvestmentProducts(state.products, target, state.structure?.reinvestsDividend == true),
                 state.values.productId,
                 stringResource(R.string.auto_rule_product),
                 stringResource(R.string.auto_use_default_product),
             ) { viewModel.setValues(state.values.copy(productId = it)) }
             PurchaseAvailabilityText(state.purchaseAvailability)
         }
-        item { PreviewCard(state.preview, state.account?.name, state.record?.postedAt?.let { formatDate(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()) }, state.categories, state.products) }
+        item { PreviewCard(state.preview, state.account?.name, state.record?.postedAt?.let { formatDate(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()) }, state.categories, state.products, state.structure?.reinvestsDividend == true) }
         state.errorMessage?.let { item { ErrorText(it) } }
         item { Button(onClick = viewModel::save, enabled = state.canSave, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(stringResource(R.string.common_save)) } }
         state.savedAdditionalCount?.let { count -> item {
@@ -637,12 +648,15 @@ private fun AutomationCategoryField(categoryId: String?, categories: List<Catego
 private fun PreviewCard(
     preview: NotificationPreview?, accountName: String?, date: String?, categories: List<Category>,
     products: List<SyncProductoEntity> = emptyList(),
+    reinvestsDividend: Boolean = false,
 ) {
     SectionCard(title = stringResource(R.string.auto_preview)) {
         if (preview == null) Text(stringResource(R.string.auto_preview_waiting)) else if (preview.target.isInvestment) {
             Text(
                 stringResource(
-                    if (preview.target == NotificationTarget.DIVIDENDO) R.string.auto_dividend_preview else R.string.auto_purchase_preview,
+                    if (preview.target == NotificationTarget.DIVIDENDO && reinvestsDividend) R.string.auto_reinvested_dividend_preview
+                    else if (preview.target == NotificationTarget.DIVIDENDO) R.string.auto_dividend_preview
+                    else R.string.auto_purchase_preview,
                     MoneyMath.format(preview.amountMinor, preview.currency),
                     products.find { it.id == preview.productId }?.nombre ?: stringResource(R.string.auto_product_not_selected),
                 ),
@@ -725,6 +739,7 @@ private fun StructureCard(
                 var target by remember(structure.id, structure.target) { mutableStateOf(structure.target) }
                 var generatesRoundUp by remember(structure.id, structure.generatesRoundUp) { mutableStateOf(structure.generatesRoundUp) }
                 var isRoundUpInvestment by remember(structure.id, structure.isRoundUpInvestment) { mutableStateOf(structure.isRoundUpInvestment) }
+                var reinvestsDividend by remember(structure.id, structure.reinvestsDividend) { mutableStateOf(structure.reinvestsDividend) }
                 var defaults by remember(structure.id, structure.updatedAt) { mutableStateOf(NotificationDefaults(structure.defaultTitle, structure.defaultDetail, structure.defaultCategoryId, structure.defaultProductId)) }
                 OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.auto_operation_type)) }, modifier = Modifier.fillMaxWidth())
                 TargetField(target, onSelected = { target = it })
@@ -740,21 +755,28 @@ private fun StructureCard(
                         Checkbox(isRoundUpInvestment, { isRoundUpInvestment = it })
                         Text(stringResource(R.string.auto_is_round_up_investment))
                     }
-                    ProductField(selectableInvestmentProducts(products, target), defaults.defaultProductId, stringResource(R.string.auto_default_product), stringResource(R.string.auto_choose_product)) { defaults = defaults.copy(defaultProductId = it) }
+                    if (target == NotificationTarget.DIVIDENDO) Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(reinvestsDividend, { reinvestsDividend = it })
+                            Text(stringResource(R.string.auto_reinvests_dividend))
+                        }
+                        Text(stringResource(R.string.auto_reinvests_dividend_help), style = MaterialTheme.typography.bodySmall)
+                    }
+                    ProductField(selectableInvestmentProducts(products, target, reinvestsDividend), defaults.defaultProductId, stringResource(R.string.auto_default_product), stringResource(R.string.auto_choose_product)) { defaults = defaults.copy(defaultProductId = it) }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { onSave(structure.copy(name = name, direction = direction, defaultTitle = defaults.title, defaultDetail = defaults.detail, defaultCategoryId = defaults.categoryId, target = target, defaultProductId = defaults.defaultProductId, generatesRoundUp = target == NotificationTarget.APUNTE && generatesRoundUp, isRoundUpInvestment = target == NotificationTarget.COMPRA && isRoundUpInvestment)) }, enabled = name.isNotBlank()) { Text(stringResource(R.string.common_save)) }
+                    Button(onClick = { onSave(structure.copy(name = name, direction = direction, defaultTitle = defaults.title, defaultDetail = defaults.detail, defaultCategoryId = defaults.categoryId, target = target, defaultProductId = defaults.defaultProductId, generatesRoundUp = target == NotificationTarget.APUNTE && generatesRoundUp, isRoundUpInvestment = target == NotificationTarget.COMPRA && isRoundUpInvestment, reinvestsDividend = target == NotificationTarget.DIVIDENDO && reinvestsDividend)) }, enabled = name.isNotBlank()) { Text(stringResource(R.string.common_save)) }
                     TextButton(onClick = { onDelete(structure) }) { Text(stringResource(R.string.common_delete)) }
                 }
                 Text(stringResource(R.string.auto_specific_rules), style = MaterialTheme.typography.titleSmall)
-                managed.rules.forEach { rule -> RuleEditor(rule, target, categories, products, onSaveRule, onRuleEnabled, onDeleteRule) }
+                managed.rules.forEach { rule -> RuleEditor(rule, target, reinvestsDividend, categories, products, onSaveRule, onRuleEnabled, onDeleteRule) }
             }
         }
     }
 }
 
 @Composable
-private fun RuleEditor(rule: NotificationRule, target: NotificationTarget, categories: List<Category>, products: List<SyncProductoEntity>, onSave: (NotificationRule) -> Unit,
+private fun RuleEditor(rule: NotificationRule, target: NotificationTarget, reinvestsDividend: Boolean, categories: List<Category>, products: List<SyncProductoEntity>, onSave: (NotificationRule) -> Unit,
                        onEnabled: (String, Boolean) -> Unit, onDelete: (NotificationRule) -> Unit) {
     var values by remember(rule.id, rule.updatedAt) { mutableStateOf(NotificationRuleValues(rule.title, rule.detail, rule.categoryId, rule.productId)) }
     var variable by remember(rule.id, rule.updatedAt) { mutableStateOf(rule.variableDisplay) }
@@ -765,7 +787,7 @@ private fun RuleEditor(rule: NotificationRule, target: NotificationTarget, categ
             if (target == NotificationTarget.APUNTE) {
                 ValuesEditor(stringResource(R.string.auto_rule_values), ruleExplanation(rule.variableDisplay), values.title.orEmpty(), values.detail.orEmpty(), values.categoryId, categories) { a, b, c -> values = values.copy(title = a, detail = b, categoryId = c) }
             } else {
-                ProductField(selectableInvestmentProducts(products, target), values.productId, stringResource(R.string.auto_rule_product), stringResource(R.string.auto_use_default_product)) { values = values.copy(productId = it) }
+                ProductField(selectableInvestmentProducts(products, target, reinvestsDividend), values.productId, stringResource(R.string.auto_rule_product), stringResource(R.string.auto_use_default_product)) { values = values.copy(productId = it) }
             }
             Row { Button(onClick = { onSave(rule.copy(variableDisplay = variable, title = values.title, detail = values.detail, categoryId = values.categoryId, productId = values.productId)) }, enabled = variable.isNotBlank()) { Text(stringResource(R.string.common_save)) }; TextButton(onClick = { onDelete(rule) }) { Text(stringResource(R.string.common_delete)) } }
         }

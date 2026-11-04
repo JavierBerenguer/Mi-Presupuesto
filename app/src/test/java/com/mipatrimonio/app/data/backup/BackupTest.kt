@@ -261,6 +261,21 @@ class BackupTest {
         assertEquals(300L, rule.withholdingMinor)
     }
 
+    @Test fun `copia conserva reinversion y restaura copias antiguas como false`() = runBlocking {
+        db.notificationDao().upsertStructure(NotificationStructureEntity(
+            "s", "pkg", "Dividendo", "{}", "INGRESO", null, null, null, true, 1, 1,
+            target = "DIVIDENDO", reinvestsDividend = true,
+        ))
+        val repository = BackupRepository(db, settingsRule.repository, "test")
+        val encoded = BackupJson().encode(repository.export())
+        assertTrue(BackupJson().decode(encoded).notificationStructures.single().reinvestsDividend)
+
+        val root = JSONObject(encoded.toString(Charsets.UTF_8))
+        root.getJSONObject("tables").getJSONArray("notification_structure").getJSONObject(0).remove("reinvestsDividend")
+        val decoded = BackupJson().decode(root.toString().toByteArray(Charsets.UTF_8))
+        assertFalse(decoded.notificationStructures.single().reinvestsDividend)
+    }
+
     private fun legacyV14() = """{
       "format":"mipatrimonio-backup","formatVersion":1,"dbVersion":14,"createdAt":1,"appVersion":"old",
       "counts":{"account":1,"category":0,"txn":0,"transfer":0,"budget":0,"budget_category":0,"recurring_rule":0,"notification_authorization":0,"pending_proposal":0,"notification_structure":0,"notification_rule":0,"notification_record":0,"portfolio":1,"asset":1,"investment_operation":1,"asset_price":1},

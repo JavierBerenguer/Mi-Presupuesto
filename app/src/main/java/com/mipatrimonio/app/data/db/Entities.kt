@@ -219,6 +219,7 @@ data class NotificationStructureEntity(
     val defaultProductId: String? = null,
     @ColumnInfo(defaultValue = "0") val generatesRoundUp: Boolean = false,
     @ColumnInfo(defaultValue = "0") val isRoundUpInvestment: Boolean = false,
+    @ColumnInfo(defaultValue = "0") val reinvestsDividend: Boolean = false,
 )
 
 @Entity(

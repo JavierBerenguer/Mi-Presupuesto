@@ -12,9 +12,12 @@ import com.mipatrimonio.app.domain.notifications.BankNotification
 import com.mipatrimonio.app.domain.notifications.GenericSpanishParser
 import com.mipatrimonio.app.domain.notifications.NotificationDirection
 import com.mipatrimonio.app.domain.notifications.NotificationEngine
+import com.mipatrimonio.app.domain.notifications.NotificationPreview
 import com.mipatrimonio.app.domain.notifications.NotificationRecordStatus
 import com.mipatrimonio.app.domain.notifications.NotificationRuleValues
 import com.mipatrimonio.app.domain.notifications.NotificationTarget
+import com.mipatrimonio.app.domain.notifications.NotificationTemplate
+import com.mipatrimonio.app.domain.notifications.ProposalKind
 import com.mipatrimonio.app.data.db.SyncProductoEntity
 import com.mipatrimonio.app.domain.notifications.TemplateSegment
 import com.mipatrimonio.app.testutil.awaitValue
@@ -176,6 +179,28 @@ class AutomationViewModelsTest {
         assertEquals(PurchaseAvailability.NO_SESSION, purchaseAvailability(NotificationTarget.COMPRA, false, products, "fund"))
         assertEquals(PurchaseAvailability.PRODUCT_REQUIRED, purchaseAvailability(NotificationTarget.COMPRA, true, products, null))
         assertEquals(PurchaseAvailability.AVAILABLE, purchaseAvailability(NotificationTarget.COMPRA, true, products, "fund"))
+    }
+
+    @Test fun `reinversion exige producto que admita compra`() {
+        val fund = SyncProductoEntity("fund", "profile", "Fondo", null, "fondo", "EUR", null, null, "now")
+        val cash = SyncProductoEntity("cash", "profile", "Efectivo", null, "efectivo", "EUR", null, null, "now")
+        val preview = NotificationPreview(
+            NotificationTemplate(emptyList()), "Activo", 1_000, "EUR", ProposalKind.INGRESO,
+            "Activo", "", null, NotificationTarget.DIVIDENDO, "cash",
+        )
+        fun state(productId: String) = TeachStructureUiState(
+            isLoading = false,
+            editor = TeachEditor(
+                name = "Dividendo", target = NotificationTarget.DIVIDENDO, reinvestsDividend = true,
+                ruleValues = NotificationRuleValues(productId = productId),
+            ),
+            preview = preview,
+            products = listOf(cash, fund),
+        )
+
+        assertFalse(state("cash").canSave)
+        assertTrue(state("fund").canSave)
+        assertEquals(listOf(fund), selectableInvestmentProducts(listOf(cash, fund), NotificationTarget.DIVIDENDO, true))
     }
 
     @Test fun `ensenanza impide solapamiento y no permite seleccionar importe`() = runTest {
