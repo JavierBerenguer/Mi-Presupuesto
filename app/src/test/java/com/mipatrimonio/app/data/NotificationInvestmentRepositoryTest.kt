@@ -51,6 +51,7 @@ class NotificationInvestmentRepositoryTest {
     private var session = true
     private var id = 0
     private val purchases = mutableListOf<PurchaseCall>()
+    private val dividends = mutableListOf<PurchaseCall>()
 
     @Before fun setUp() {
         db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext<Context>(), AppDatabase::class.java)
@@ -65,6 +66,10 @@ class NotificationInvestmentRepositoryTest {
             createInvestmentPurchase = { productId, date, amount, accountId, note ->
                 purchases += PurchaseCall(productId, date, amount, accountId, note)
                 "movement-${purchases.size}"
+            },
+            createInvestmentDividend = { productId, date, amount, accountId, note ->
+                dividends += PurchaseCall(productId, date, amount, accountId, note)
+                "dividend-${dividends.size}"
             },
         )
     }
@@ -174,6 +179,48 @@ class NotificationInvestmentRepositoryTest {
             ledger.transactions.first(), ledger.roundUpRecords.first(), ledger.roundUpStructures.first(),
         )
         assertEquals(40L, pending)
+    }
+
+    @Test fun `dividendo con varios importes registra el elegido aunque lleve mas`() = runTest {
+        prepare("EUR", product = true)
+        val text = "Dividendo recibido Fondo ha pagado un dividendo de 1,88 € por acción. Has recibido +0,01 €."
+        val seed = ingest(text)
+        val received = text.indexOf("+0,01")
+        repository.createStructureFromRecord(
+            seed, "Dividendo", 0..17, text.indexOf("Fondo")..text.indexOf("Fondo") + 4, NotificationDirection.INGRESO,
+            ruleValues = NotificationRuleValues(productId = PRODUCT), target = NotificationTarget.DIVIDENDO,
+            amountRange = received..received + 4,
+        )
+
+        val stored = db.notificationDao().getRecord(seed)!!
+        assertEquals(NotificationRecordStatus.AUTOMATIZADA.name, stored.status)
+        assertEquals("dividend-1", stored.syncMovementId)
+        assertEquals(1L, stored.amountMinor)
+        assertEquals(PurchaseCall(PRODUCT, LocalDate.of(1970, 1, 1), 1, ACCOUNT, "Fondo"), dividends.single())
+        assertTrue(purchases.isEmpty())
+
+        val next = (repository.ingest(BankNotification(PACKAGE, "",
+            "Dividendo recibido Fondo ha pagado un dividendo de 0,40 € por acción. Has recibido 12,30 €.", 90_000_000))
+            as NotificationOutcome.Registrada).recordId
+        assertEquals(NotificationRecordStatus.AUTOMATIZADA.name, db.notificationDao().getRecord(next)?.status)
+        assertEquals(1_230L, dividends.last().amount)
+    }
+
+    @Test fun `dividendo admite efectivo pero no deuda`() = runTest {
+        prepare("EUR", product = false)
+        db.syncDao().upsertProducto(SyncProductoEntity("cash", "profile", "Cuenta TR", null, "efectivo", "EUR", null, null, "now"))
+        db.syncDao().upsertProducto(SyncProductoEntity("debt", "profile", "Préstamo", null, "deuda", "EUR", null, null, "now"))
+        val seed = ingest("Interés 10 EUR de Cuenta")
+        repository.createStructureFromRecord(
+            seed, "Interés", 0..7, 18..23, NotificationDirection.INGRESO,
+            ruleValues = NotificationRuleValues(productId = "debt"), target = NotificationTarget.DIVIDENDO,
+        )
+        assertEquals(NotificationRecordStatus.PENDIENTE_REGLA.name, db.notificationDao().getRecord(seed)?.status)
+        assertNotNull(repository.pendingAlertFor(seed))
+
+        repository.createRuleForRecord(seed, NotificationRuleValues(productId = "cash"))
+        assertEquals(NotificationRecordStatus.AUTOMATIZADA.name, db.notificationDao().getRecord(seed)?.status)
+        assertEquals("cash", dividends.single().productId)
     }
 
     private suspend fun prepare(currency: String, product: Boolean) {

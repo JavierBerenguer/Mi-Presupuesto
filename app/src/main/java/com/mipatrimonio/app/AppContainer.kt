@@ -135,6 +135,19 @@ class AppContainer(context: Context) {
                 nota = note,
             )
         },
+        createInvestmentDividend = { productId, date, amountMinor, accountId, note ->
+            sync.crearMovimientoInversion(
+                tipo = "dividendo",
+                productoId = productId,
+                fecha = date,
+                importeMinor = amountMinor,
+                unidades = null,
+                comisionMinor = null,
+                cuentaId = accountId,
+                nota = note,
+                origen = "notificacion",
+            )
+        },
     )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)

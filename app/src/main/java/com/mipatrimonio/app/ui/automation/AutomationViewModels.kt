@@ -10,6 +10,7 @@ import com.mipatrimonio.app.data.db.SyncProductoEntity
 import com.mipatrimonio.app.data.sync.SyncRepository
 import com.mipatrimonio.app.domain.model.Account
 import com.mipatrimonio.app.domain.model.Category
+import com.mipatrimonio.app.domain.notifications.NotificationAmountRecognizer
 import com.mipatrimonio.app.domain.notifications.NotificationDefaults
 import com.mipatrimonio.app.domain.notifications.NotificationDirection
 import com.mipatrimonio.app.domain.notifications.NotificationPreview
@@ -19,8 +20,11 @@ import com.mipatrimonio.app.domain.notifications.NotificationRule
 import com.mipatrimonio.app.domain.notifications.NotificationRuleValues
 import com.mipatrimonio.app.domain.notifications.NotificationStructure
 import com.mipatrimonio.app.domain.notifications.NotificationTarget
-import com.mipatrimonio.app.domain.notifications.ProposalKind
+import com.mipatrimonio.app.domain.notifications.NotificationTemplateMatcher
+import com.mipatrimonio.app.domain.notifications.acceptsProductType
+import com.mipatrimonio.app.domain.notifications.isInvestment
 import com.mipatrimonio.app.domain.notifications.kindFor
+import com.mipatrimonio.app.domain.notifications.ProposalKind
 import java.time.Instant
 import java.time.ZoneId
 import java.time.LocalDate
@@ -60,6 +64,7 @@ fun rangesOverlap(first: IntRange?, second: IntRange?): Boolean =
 data class PendingAutomationUiState(
     val isLoading: Boolean = true,
     val records: List<NotificationRecord> = emptyList(),
+    val structures: Map<String, NotificationStructure> = emptyMap(),
     val newMerchants: List<MerchantUsingStructureDefaults> = emptyList(),
     val alertsEnabled: Boolean = true,
     val errorMessage: String? = null,
@@ -79,10 +84,12 @@ class PendingAutomationViewModel(
     }
     val uiState: StateFlow<PendingAutomationUiState> = combine(
         pendingRecords(notifications), notifications.merchantsUsingStructureDefaults, settings.settings, error,
-    ) { records, merchants, currentSettings, message ->
+        notifications.structures,
+    ) { records, merchants, currentSettings, message, structures ->
         PendingAutomationUiState(
             false,
             records.sortedByDescending(NotificationRecord::postedAt),
+            structures.associateBy(NotificationStructure::id),
             merchants,
             currentSettings.pendingAutomationAlertsEnabled,
             message,
@@ -113,9 +120,17 @@ private fun pendingRecords(repository: NotificationRepository): Flow<List<Notifi
     repository.records(NotificationRecordStatus.PENDIENTE_SINCRONIZACION),
 ) { structure, rule, account, sync -> structure + rule + account + sync }
 
-internal fun selectableInvestmentProducts(products: List<SyncProductoEntity>): List<SyncProductoEntity> = products
-    .filter { it.deletedAt == null && it.tipo.lowercase() !in setOf("efectivo", "deuda", "inmueble") }
+/** Productos que se pueden elegir para [target]. Las pantallas guardan los del dividendo (el conjunto más amplio) y filtran. */
+internal fun selectableInvestmentProducts(
+    products: List<SyncProductoEntity>,
+    target: NotificationTarget = NotificationTarget.COMPRA,
+): List<SyncProductoEntity> = products
+    .filter { it.deletedAt == null && target.acceptsProductType(it.tipo) }
     .sortedBy { it.nombre.lowercase() }
+
+/** El importe que se usará: el que ha elegido la persona o, si no ha elegido ninguno, el primero. */
+internal fun chosenAmountRange(amounts: List<IntRange>, amountStart: Int?): IntRange? =
+    amounts.firstOrNull { it.first == amountStart } ?: amounts.firstOrNull()
 
 enum class PurchaseAvailability { AVAILABLE, NO_SESSION, NO_PRODUCTS, PRODUCT_REQUIRED }
 data class AutomationVisibleFields(val entryFields: Boolean, val productField: Boolean)
@@ -123,7 +138,7 @@ data class AutomationVisibleFields(val entryFields: Boolean, val productField: B
 internal fun automationVisibleFields(target: NotificationTarget): AutomationVisibleFields =
     AutomationVisibleFields(
         entryFields = target == NotificationTarget.APUNTE,
-        productField = target == NotificationTarget.COMPRA,
+        productField = target.isInvestment,
     )
 
 internal fun purchaseAvailability(
@@ -134,8 +149,8 @@ internal fun purchaseAvailability(
 ): PurchaseAvailability = when {
     target == NotificationTarget.APUNTE -> PurchaseAvailability.AVAILABLE
     !hasSession -> PurchaseAvailability.NO_SESSION
-    products.isEmpty() -> PurchaseAvailability.NO_PRODUCTS
-    productId == null || products.none { it.id == productId } -> PurchaseAvailability.PRODUCT_REQUIRED
+    selectableInvestmentProducts(products, target).isEmpty() -> PurchaseAvailability.NO_PRODUCTS
+    productId == null || selectableInvestmentProducts(products, target).none { it.id == productId } -> PurchaseAvailability.PRODUCT_REQUIRED
     else -> PurchaseAvailability.AVAILABLE
 }
 
@@ -151,6 +166,8 @@ data class TeachEditor(
     val keyLast: Int? = null,
     val variableFirst: Int? = null,
     val variableLast: Int? = null,
+    /** Inicio del importe elegido cuando la notificación trae varios; nulo = el primero. */
+    val amountStart: Int? = null,
     val name: String = "",
     val direction: NotificationDirection = NotificationDirection.SEGUN_SIGNO,
     val defaults: NotificationDefaults = NotificationDefaults(),
@@ -164,7 +181,7 @@ data class TeachStructureUiState(
     val isLoading: Boolean = true,
     val record: NotificationRecord? = null,
     val tokens: List<WordToken> = emptyList(),
-    val amountRange: IntRange? = null,
+    val amounts: List<IntRange> = emptyList(),
     val editor: TeachEditor = TeachEditor(),
     val preview: NotificationPreview? = null,
     val account: Account? = null,
@@ -176,13 +193,15 @@ data class TeachStructureUiState(
     val products: List<SyncProductoEntity> = emptyList(),
     val hasSyncSession: Boolean = false,
 ) {
+    val amountRange: IntRange? get() = chosenAmountRange(amounts, editor.amountStart)
+    val hasSeveralAmounts: Boolean get() = amounts.size > 1
     val keyRange: IntRange? get() = selectedRange(tokens, editor.keyFirst, editor.keyLast)
     val variableRange: IntRange? get() = selectedRange(tokens, editor.variableFirst, editor.variableLast)
     val purchaseAvailability: PurchaseAvailability get() = purchaseAvailability(
         editor.target, hasSyncSession, products, editor.ruleValues.productId ?: editor.defaults.defaultProductId,
     )
     private val hasRequiredProduct: Boolean get() = editor.target == NotificationTarget.APUNTE ||
-        products.any { it.id == (editor.ruleValues.productId ?: editor.defaults.defaultProductId) }
+        selectableInvestmentProducts(products, editor.target).any { it.id == (editor.ruleValues.productId ?: editor.defaults.defaultProductId) }
     val canSave: Boolean get() = !isLoading && validationError == null && preview != null &&
         editor.name.isNotBlank() && hasRequiredProduct
     val date: LocalDate? get() = record?.let { Instant.ofEpochMilli(it.postedAt).atZone(ZoneId.systemDefault()).toLocalDate() }
@@ -213,7 +232,7 @@ class TeachStructureViewModel(
         Sources(record, accounts, categories, structures, authorizations.find { it.packageName == record?.packageName }?.accountId)
     }
     private val sourcesWithProducts = combine(sources, sync?.productos ?: flowOf(emptyList())) { source, products ->
-        source to selectableInvestmentProducts(products)
+        source to selectableInvestmentProducts(products, NotificationTarget.DIVIDENDO)
     }
 
     init {
@@ -231,7 +250,7 @@ class TeachStructureViewModel(
             isLoading = source.record == null,
             record = source.record,
             tokens = tokens,
-            amountRange = source.record?.text?.let { com.mipatrimonio.app.domain.notifications.NotificationAmountRecognizer.first(it)?.range },
+            amounts = source.record?.text?.let { text -> NotificationAmountRecognizer.findAll(text).map { it.range } }.orEmpty(),
             editor = edit,
             preview = currentPreview,
             account = source.accounts.find { it.id == source.linkedAccountId },
@@ -249,7 +268,11 @@ class TeachStructureViewModel(
     fun selectWord(index: Int) {
         val state = uiState.value
         val token = state.tokens.getOrNull(index) ?: return
-        if (state.amountRange?.let { rangesOverlap(it, token.range) } == true) return
+        state.amounts.firstOrNull { rangesOverlap(it, token.range) }?.let { amount ->
+            editor.update { it.copy(amountStart = amount.first) }
+            refreshPreview(editor.value)
+            return
+        }
         editor.update { current ->
             if (current.mode == SelectionMode.KEY) {
                 if (current.keyFirst == null || current.keyLast != null) current.copy(keyFirst = index, keyLast = null)
@@ -284,7 +307,7 @@ class TeachStructureViewModel(
                 val before = notifications.records(NotificationRecordStatus.AUTOMATIZADA).first().size
                 notifications.createStructureFromRecord(recordId, state.editor.name, key, variable, state.editor.direction,
                     state.editor.defaults, state.editor.ruleValues, state.editor.target,
-                    state.editor.generatesRoundUp, state.editor.isRoundUpInvestment)
+                    state.editor.generatesRoundUp, state.editor.isRoundUpInvestment, state.amountRange)
                 val after = notifications.records(NotificationRecordStatus.AUTOMATIZADA).first().size
                 (after - before - 1).coerceAtLeast(0)
             }
@@ -299,7 +322,8 @@ class TeachStructureViewModel(
         val variable = selectedRange(state.tokens, edit.variableFirst, edit.variableLast) ?: run { preview.value = null; return }
         if (validateSelection(key, variable, edit.name) != null) { preview.value = null; return }
         viewModelScope.launch {
-            runCatching { notifications.previewFromRecord(recordId, key, variable, edit.direction, edit.defaults, edit.ruleValues, edit.target) }
+            val amount = chosenAmountRange(state.amounts, edit.amountStart)
+            runCatching { notifications.previewFromRecord(recordId, key, variable, edit.direction, edit.defaults, edit.ruleValues, edit.target, amount) }
                 .onSuccess { preview.value = it; error.value = null }
                 .onFailure { preview.value = null; error.value = it.message }
         }
@@ -333,11 +357,13 @@ data class ConfigureRuleUiState(
         products,
         values.productId ?: structure?.defaultProductId,
     )
-    val canSave: Boolean get() = !isLoading && (
-        structure?.target != NotificationTarget.COMPRA || products.any {
-            it.id == (values.productId ?: structure.defaultProductId)
-        }
-    )
+    val canSave: Boolean get() {
+        if (isLoading) return false
+        val current = structure ?: return true
+        if (!current.target.isInvestment) return true
+        val productId = values.productId ?: current.defaultProductId
+        return selectableInvestmentProducts(products, current.target).any { it.id == productId }
+    }
 }
 
 class ConfigureRuleViewModel(
@@ -364,7 +390,7 @@ class ConfigureRuleViewModel(
         Sources(records, structures, authorizations, accounts, categories)
     }
     private val sourcesWithProducts = combine(sources, sync?.productos ?: flowOf(emptyList())) { source, products ->
-        source to selectableInvestmentProducts(products)
+        source to products
     }
     init {
         viewModelScope.launch { hasSyncSession.value = runCatching { sync?.hasSession() == true }.getOrDefault(false) }
@@ -373,7 +399,7 @@ class ConfigureRuleViewModel(
     val uiState: StateFlow<ConfigureRuleUiState> = combine(
         sourcesWithProducts, valuesWithSession, error, savedCount,
     ) { (source, rawProducts), (current, session), message, count ->
-        val products = selectableInvestmentProducts(rawProducts)
+        val products = selectableInvestmentProducts(rawProducts, NotificationTarget.DIVIDENDO)
         val record = source.records.find { it.id == recordId }
         val structure = source.structures.find { it.id == record?.structureId }
         val amount = record?.amountMinor
@@ -381,8 +407,9 @@ class ConfigureRuleViewModel(
         val variable = record?.variableText
         val result = if (structure != null && amount != null && currency != null && variable != null) NotificationPreview(
             structure.template, variable, amount, currency,
-            com.mipatrimonio.app.domain.notifications.NotificationAmountRecognizer.first(record.text)
-                ?.let(structure.direction::kindFor) ?: ProposalKind.GASTO,
+            (NotificationTemplateMatcher.match(structure.template, record.text)?.amount
+                ?: NotificationAmountRecognizer.first(record.text))
+                ?.let { structure.direction.kindFor(it) } ?: ProposalKind.GASTO,
             current.title?.takeIf(String::isNotBlank) ?: structure.defaultTitle?.takeIf(String::isNotBlank) ?: variable,
             current.detail?.takeIf(String::isNotBlank) ?: structure.defaultDetail.orEmpty(),
             current.categoryId ?: structure.defaultCategoryId,
@@ -432,7 +459,7 @@ class StructuresViewModel(
         managed, ledger.categories, sync?.productos ?: flowOf(emptyList()), error,
     ) { values, categories, products, message ->
         StructuresUiState(false, values.groupBy { it.structure.packageName }.map { StructureGroup(it.key, it.value) },
-            categories, message, selectableInvestmentProducts(products))
+            categories, message, selectableInvestmentProducts(products, NotificationTarget.DIVIDENDO))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StructuresUiState())
 
     fun saveStructure(value: NotificationStructure) = operate { notifications.saveStructure(value) }
