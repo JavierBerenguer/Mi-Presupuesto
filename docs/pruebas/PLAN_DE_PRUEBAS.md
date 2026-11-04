@@ -110,6 +110,16 @@ Este documento lo mantiene Claude y solo recoge lo que **queda por probar**: lo 
 - [ ] R3. Con el siguiente dividendo reinvertido de TR: en la cartera (app y escritorio) aparecen un **dividendo** y una **compra** del mismo importe, producto y fecha, con la cuenta de TR. La liquidez de TR no cambia y la compra sale con unidades estimadas en el escritorio.
 - [ ] R4. **Estructuras** › editar una de dividendo: la casilla se puede marcar y desmarcar, y se conserva al guardar.
 
+## S. Nuevo diseño de Estructuras (T-117, 04/11)
+*Requisito:* **v1.12.6**. Revisa también que todo se lee bien en modo oscuro.
+- [ ] S1. **Automatización › Estructuras**: buscador arriba; las estructuras salen agrupadas por el nombre de la app («Trade Republic», no `de.traderepublic…`), en tarjetas compactas con icono de destino, número de reglas e interruptor.
+- [ ] S2. El buscador encuentra por nombre de estructura, por app y por el texto de una regla (p. ej. un comercio), sin importar mayúsculas ni acentos.
+- [ ] S3. Al pulsar una estructura se abre su pantalla con las pestañas **Configuración** y **Reglas (N)**. La flecha atrás vuelve a la lista.
+- [ ] S4. **Reglas**: buscador propio; al pulsar una regla se abre su edición; guardar, desactivar y borrar funcionan.
+- [ ] S5. **Selector de productos** (Enseñar, Configurar regla y estructuras): buscador, pestañas «Frecuentes» y «Por tipo», y nunca ofrece productos no admitidos (p. ej. efectivo en una compra).
+- [ ] S6. Destino y dirección se eligen con botones visibles, no con desplegables.
+- [ ] S7. Borrar una estructura desde su pantalla vuelve a la lista de estructuras (no sale de Automatización).
+
 ---
 
 ## Resultados y problemas encontrados
