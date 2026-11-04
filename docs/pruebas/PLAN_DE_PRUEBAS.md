@@ -103,6 +103,13 @@ Este documento lo mantiene Claude y solo recoge lo que **queda por probar**: lo 
 - [ ] Q4. Con el siguiente dividendo de otra empresa (otro importe por acción), la estructura lo reconoce y registra lo recibido, no el importe por acción.
 - [ ] Q5. Las estructuras de compra que ya tenías siguen funcionando igual.
 
+## R. Reinversión de dividendos (T-116, 04/11)
+*Requisito:* **v1.12.5** y sesión de sincronización activa. La app actualiza su base de datos al abrirse (versión 24): comprueba que todo sigue en su sitio.
+- [ ] R1. **Enseñar** con destino **Dividendo**: aparece la casilla «Reinvertir el dividendo» con su explicación. Con otro destino no aparece.
+- [ ] R2. Con la casilla marcada, los selectores de producto no ofrecen productos de efectivo ni inmuebles. La vista previa dice «… y una compra del mismo importe (reinversión)».
+- [ ] R3. Con el siguiente dividendo reinvertido de TR: en la cartera (app y escritorio) aparecen un **dividendo** y una **compra** del mismo importe, producto y fecha, con la cuenta de TR. La liquidez de TR no cambia y la compra sale con unidades estimadas en el escritorio.
+- [ ] R4. **Estructuras** › editar una de dividendo: la casilla se puede marcar y desmarcar, y se conserva al guardar.
+
 ---
 
 ## Resultados y problemas encontrados
