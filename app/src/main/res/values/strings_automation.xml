@@ -107,4 +107,34 @@
     <string name="auto_is_round_up_investment">Es la inversión del redondeo</string>
     <string name="auto_reinvests_dividend">Reinvertir el dividendo</string>
     <string name="auto_reinvests_dividend_help">Registra también una compra del mismo importe en el mismo producto. Úsalo si tu banco reinvierte los dividendos automáticamente.</string>
+    <string name="auto_search_structures">Buscar estructuras</string>
+    <string name="auto_search_rules">Buscar reglas</string>
+    <string name="auto_clear_search">Borrar búsqueda</string>
+    <string name="auto_no_matching_structures">No hay estructuras que coincidan</string>
+    <string name="auto_no_matching_rules">No hay reglas que coincidan</string>
+    <string name="auto_no_rules">Esta estructura todavía no tiene reglas específicas.</string>
+    <string name="auto_configuration_tab">Configuración</string>
+    <string name="auto_rules_tab">Reglas (%1$d)</string>
+    <string name="auto_edit_rule">Editar regla</string>
+    <string name="auto_uses_structure_defaults">Usa los valores de la estructura</string>
+    <plurals name="auto_rule_count">
+        <item quantity="one">%1$d regla</item>
+        <item quantity="other">%1$d reglas</item>
+    </plurals>
+    <string name="auto_choose_product_title">Elegir producto</string>
+    <string name="auto_search_products">Buscar productos</string>
+    <string name="auto_no_products_found">No hay productos que coincidan.</string>
+    <string name="auto_products_frequent">Frecuentes</string>
+    <string name="auto_products_by_type">Por tipo</string>
+    <string name="auto_product_type_funds">Fondos</string>
+    <string name="auto_product_type_etf">ETF</string>
+    <string name="auto_product_type_stocks">Acciones</string>
+    <string name="auto_product_type_crypto">Cripto</string>
+    <string name="auto_product_type_commodities">Materias primas</string>
+    <string name="auto_product_type_bonds">Bonos</string>
+    <string name="auto_product_type_pensions">Planes de pensiones</string>
+    <string name="auto_product_type_cash">Efectivo</string>
+    <string name="auto_product_type_real_estate">Inmuebles</string>
+    <string name="auto_product_type_p2p">P2P</string>
+    <string name="auto_product_type_other">Otros</string>
 </resources>

@@ -48,6 +48,7 @@ import com.mipatrimonio.app.ui.importer.TradeRepublicImportScreen
 import com.mipatrimonio.app.ui.automation.AutomationScreen
 import com.mipatrimonio.app.ui.automation.ConfigureRuleScreen
 import com.mipatrimonio.app.ui.automation.TeachStructureScreen
+import com.mipatrimonio.app.ui.automation.StructureDetailScreen
 import com.mipatrimonio.app.ui.sync.SyncScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,7 +72,7 @@ fun MiPatrimonioApp(
     val route = entry?.destination?.route
     val destino = Destino.entries.firstOrNull { it.ruta == route }
     val isMain = destino != null && destino in Destino.principales
-    val hasOwnTopBar = route == Rutas.APUNTE || destino == Destino.Inicio || destino == Destino.Movimientos ||
+    val hasOwnTopBar = route == Rutas.APUNTE || route == Rutas.ESTRUCTURA || destino == Destino.Inicio || destino == Destino.Movimientos ||
         destino == Destino.Presupuesto || destino == Destino.Cartera
 
     Scaffold(
@@ -214,6 +215,7 @@ private fun AppNavHost(
                 onPermissionRequested = onAutomationPermissionRequested,
                 onTeach = { navController.navigate(Rutas.ensenarNotificacion(it)) },
                 onConfigureRule = { navController.navigate(Rutas.configurarRegla(it)) },
+                onOpenStructure = { navController.navigate(Rutas.estructura(it)) },
                 onOpenNotificationSettings = { navController.navigate(Rutas.NOTIFICACIONES) },
             )
         }
@@ -222,6 +224,9 @@ private fun AppNavHost(
         }
         composable(Rutas.CONFIGURAR_REGLA, idArg) { entry ->
             ConfigureRuleScreen(entry.arguments?.getString("id").orEmpty(), onDone = { navController.popBackStack() })
+        }
+        composable(Rutas.ESTRUCTURA, idArg) { entry ->
+            StructureDetailScreen(entry.arguments?.getString("id").orEmpty(), onBack = { navController.popBackStack() })
         }
         composable(Rutas.RECURRENTES) {
             RecurringListScreen(

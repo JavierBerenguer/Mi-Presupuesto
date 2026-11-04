@@ -45,6 +45,7 @@ object Rutas {
     const val AUTOMATIZACION_NOTIFICACIONES_ROUTE = "$AUTOMATIZACION_NOTIFICACIONES?tab={tab}"
     const val ENSENAR_NOTIFICACION = "automatizacion-notificaciones/ensenar/{id}"
     const val CONFIGURAR_REGLA = "automatizacion-notificaciones/regla/{id}"
+    const val ESTRUCTURA = "automatizacion-notificaciones/estructura/{id}"
     const val AJUSTES = "ajustes"
     const val DIAGNOSTICO_NOTIFICACIONES = "diagnostico-notificaciones"
     const val RECURRENTES = "ordenes-permanentes"
@@ -60,6 +61,7 @@ object Rutas {
     fun recurrente(id: String?) = "orden-permanente/${id ?: NUEVO}"
     fun ensenarNotificacion(id: String) = "automatizacion-notificaciones/ensenar/$id"
     fun configurarRegla(id: String) = "automatizacion-notificaciones/regla/$id"
+    fun estructura(id: String) = "automatizacion-notificaciones/estructura/$id"
     fun productoCartera(id: String) = "cartera/producto/$id"
     fun automatizacionNotificaciones(tab: String) = "$AUTOMATIZACION_NOTIFICACIONES?tab=$tab"
 }

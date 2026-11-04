@@ -26,12 +26,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
+import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.Payments
+import androidx.compose.material.icons.outlined.Savings
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -83,7 +89,6 @@ import com.mipatrimonio.app.domain.notifications.isInvestment
 import com.mipatrimonio.app.domain.notifications.ProposalKind
 import com.mipatrimonio.app.ui.common.ConfirmDialog
 import com.mipatrimonio.app.ui.common.CategoryIconBadge
-import com.mipatrimonio.app.ui.common.DropdownField
 import com.mipatrimonio.app.ui.common.EmptyState
 import com.mipatrimonio.app.ui.common.LoadingBox
 import com.mipatrimonio.app.ui.common.SectionCard
@@ -103,6 +108,7 @@ fun AutomationScreen(
     onPermissionRequested: () -> Unit = {},
     onTeach: (String) -> Unit,
     onConfigureRule: (String) -> Unit,
+    onOpenStructure: (String) -> Unit,
     onOpenNotificationSettings: () -> Unit,
     viewModel: PendingAutomationViewModel = appViewModel {
         PendingAutomationViewModel(it.notifications, it.settings, it.pendingAutomationNotifier::cancel)
@@ -179,7 +185,7 @@ fun AutomationScreen(
                 onConfigureRule = onConfigureRule,
                 onAlwaysUseStructureDefaults = viewModel::alwaysUseStructureDefaults,
             )
-            AutomationTab.STRUCTURES -> StructuresScreen()
+            AutomationTab.STRUCTURES -> StructuresScreen(onOpenStructure = onOpenStructure)
         }
     }
     discardId?.let { id ->
@@ -525,23 +531,45 @@ fun ConfigureRuleScreen(
 
 @Composable
 private fun DirectionField(selected: NotificationDirection, onSelected: (NotificationDirection) -> Unit) {
-    DropdownField(
-        label = stringResource(R.string.auto_direction), options = NotificationDirection.entries, selected = selected,
-        optionLabel = { directionLabel(it) }, onSelected = { it?.let(onSelected) },
+    ChoiceButtons(
+        label = stringResource(R.string.auto_direction), options = NotificationDirection.entries,
+        selected = selected, optionLabel = { directionLabel(it) }, onSelected = onSelected,
     )
 }
 
 @Composable
 private fun TargetField(selected: NotificationTarget, onSelected: (NotificationTarget) -> Unit, enabled: Boolean = true) {
-    DropdownField(
+    ChoiceButtons(
         label = stringResource(R.string.auto_target), options = NotificationTarget.entries, selected = selected,
         optionLabel = { stringResource(when (it) {
             NotificationTarget.APUNTE -> R.string.auto_target_entry
             NotificationTarget.COMPRA -> R.string.auto_target_purchase
             NotificationTarget.DIVIDENDO -> R.string.auto_target_dividend
         }) },
-        onSelected = { it?.let(onSelected) }, enabled = enabled,
+        onSelected = onSelected, enabled = enabled,
     )
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun <T> ChoiceButtons(
+    label: String, options: List<T>, selected: T, optionLabel: @Composable (T) -> String,
+    onSelected: (T) -> Unit, enabled: Boolean = true,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(label, style = MaterialTheme.typography.labelMedium)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            options.forEach { option ->
+                FilterChip(
+                    selected = option == selected,
+                    onClick = { onSelected(option) },
+                    enabled = enabled,
+                    label = { Text(optionLabel(option)) },
+                    modifier = Modifier.heightIn(min = 48.dp),
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -550,16 +578,34 @@ private fun ProductField(
     productId: String?,
     label: String,
     noneLabel: String? = null,
+    frequent: List<SyncProductoEntity> = emptyList(),
     onSelected: (String?) -> Unit,
 ) {
-    DropdownField(
-        label = label,
-        options = products,
-        selected = products.find { it.id == productId },
-        optionLabel = { it.nombre },
-        onSelected = { onSelected(it?.id) },
-        noneLabel = noneLabel,
-    )
+    var showPicker by rememberSaveable { mutableStateOf(false) }
+    val selected = products.find { it.id == productId }
+    Box(Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = selected?.nombre ?: noneLabel.orEmpty(), onValueChange = {}, readOnly = true,
+            label = { Text(label) },
+            trailingIcon = { Icon(Icons.Outlined.ChevronRight, contentDescription = null) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Box(
+            Modifier.matchParentSize().clickable(role = Role.Button) { showPicker = true }
+                .semantics { contentDescription = label },
+        )
+    }
+    if (showPicker) {
+        Dialog(onDismissRequest = { showPicker = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+            Surface(Modifier.fillMaxSize()) {
+                ProductPickerScreen(
+                    // Los frecuentes nunca pueden ampliar la lista admitida para este campo.
+                    products = products, frequent = frequent.filter { item -> products.any { it.id == item.id } }, selectedId = selected?.id, noneLabel = noneLabel,
+                    onSelected = { onSelected(it); showPicker = false }, onBack = { showPicker = false },
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -679,120 +725,265 @@ private fun PreviewCard(
 
 @Composable
 fun StructuresScreen(
+    onOpenStructure: (String) -> Unit,
     viewModel: StructuresViewModel = appViewModel { StructuresViewModel(it.notifications, it.ledger, it.sync) },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var expandedId by rememberSaveable { mutableStateOf<String?>(null) }
-    var deleteStructure by remember { mutableStateOf<NotificationStructure?>(null) }
-    var deleteRule by remember { mutableStateOf<NotificationRule?>(null) }
+    val context = LocalContext.current
+    var query by rememberSaveable { mutableStateOf("") }
     if (state.isLoading) { LoadingBox(); return }
     if (state.groups.isEmpty()) { EmptyState(Icons.Filled.Tune, stringResource(R.string.auto_no_structures)); return }
+    val applicationNames = state.groups.associate { group ->
+        group.packageName to rememberApplicationName(context, group.packageName)
+    }
+    val groups = filterStructures(state.groups, query, applicationNames)
     LazyColumn(
         modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 88.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        state.groups.forEach { group ->
-            item(group.packageName) { Text(group.packageName, style = MaterialTheme.typography.titleMedium) }
+        item {
+            OutlinedTextField(
+                value = query, onValueChange = { query = it }, singleLine = true,
+                label = { Text(stringResource(R.string.auto_search_structures)) },
+                leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                trailingIcon = if (query.isNotEmpty()) {{
+                    IconButton(onClick = { query = "" }) { Icon(Icons.Outlined.Clear, stringResource(R.string.auto_clear_search)) }
+                }} else null,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (groups.isEmpty()) item {
+            Text(stringResource(R.string.auto_no_matching_structures), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        groups.forEach { group ->
+            item(group.packageName) { Text(applicationNames.getValue(group.packageName), style = MaterialTheme.typography.titleMedium) }
             items(group.structures, key = { it.structure.id }) { managed ->
-                StructureCard(
-                    managed, state.categories, state.products, expandedId == managed.structure.id,
-                    onExpand = { expandedId = if (expandedId == managed.structure.id) null else managed.structure.id },
-                    onSave = viewModel::saveStructure, onEnabled = viewModel::setStructureEnabled,
-                    onDelete = { deleteStructure = it }, onSaveRule = viewModel::saveRule,
-                    onRuleEnabled = viewModel::setRuleEnabled, onDeleteRule = { deleteRule = it },
-                )
+                CompactStructureCard(managed, onOpenStructure, viewModel::setStructureEnabled)
             }
         }
         state.errorMessage?.let { item { ErrorText(it) } }
     }
-    deleteStructure?.let { structure -> ConfirmDialog(
-        title = stringResource(R.string.auto_delete_structure), text = stringResource(R.string.auto_delete_structure_message),
-        confirmLabel = stringResource(R.string.common_delete), onConfirm = { viewModel.deleteStructure(structure.id); deleteStructure = null },
-        onDismiss = { deleteStructure = null },
-    ) }
-    deleteRule?.let { rule -> ConfirmDialog(
-        title = stringResource(R.string.auto_delete_rule), text = stringResource(R.string.auto_delete_rule_message),
-        confirmLabel = stringResource(R.string.common_delete), onConfirm = { viewModel.deleteRule(rule.id); deleteRule = null },
-        onDismiss = { deleteRule = null },
-    ) }
 }
 
 @Composable
-private fun StructureCard(
-    managed: ManagedStructure, categories: List<Category>, products: List<SyncProductoEntity>, expanded: Boolean, onExpand: () -> Unit,
-    onSave: (NotificationStructure) -> Unit, onEnabled: (String, Boolean) -> Unit, onDelete: (NotificationStructure) -> Unit,
-    onSaveRule: (NotificationRule) -> Unit, onRuleEnabled: (String, Boolean) -> Unit, onDeleteRule: (NotificationRule) -> Unit,
+private fun CompactStructureCard(
+    managed: ManagedStructure, onOpen: (String) -> Unit, onEnabled: (String, Boolean) -> Unit,
 ) {
     val structure = managed.structure
-    Card(Modifier.fillMaxWidth(), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline), colors = CardDefaults.cardColors()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f).clickable(onClick = onExpand)) {
-                    Text(structure.name, fontWeight = FontWeight.Bold)
-                    Text(stringResource(R.string.auto_structure_summary, directionLabel(structure.direction), managed.rules.size))
-                }
-                Switch(structure.enabled, { onEnabled(structure.id, it) })
+    Card(Modifier.fillMaxWidth(), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)) {
+        Row(
+            Modifier.fillMaxWidth().clickable { onOpen(structure.id) }.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                when (structure.target) {
+                    NotificationTarget.APUNTE -> Icons.Outlined.AccountBalanceWallet
+                    NotificationTarget.COMPRA -> Icons.Outlined.Savings
+                    NotificationTarget.DIVIDENDO -> Icons.Outlined.Payments
+                },
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(end = 12.dp),
+            )
+            Column(Modifier.weight(1f)) {
+                Text(structure.name, fontWeight = FontWeight.Bold)
+                Text(
+                    pluralStringResource(R.plurals.auto_rule_count, managed.rules.size, managed.rules.size),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
-            if (expanded) {
-                var name by remember(structure.id, structure.name) { mutableStateOf(structure.name) }
-                var direction by remember(structure.id, structure.direction) { mutableStateOf(structure.direction) }
-                var target by remember(structure.id, structure.target) { mutableStateOf(structure.target) }
-                var generatesRoundUp by remember(structure.id, structure.generatesRoundUp) { mutableStateOf(structure.generatesRoundUp) }
-                var isRoundUpInvestment by remember(structure.id, structure.isRoundUpInvestment) { mutableStateOf(structure.isRoundUpInvestment) }
-                var reinvestsDividend by remember(structure.id, structure.reinvestsDividend) { mutableStateOf(structure.reinvestsDividend) }
-                var defaults by remember(structure.id, structure.updatedAt) { mutableStateOf(NotificationDefaults(structure.defaultTitle, structure.defaultDetail, structure.defaultCategoryId, structure.defaultProductId)) }
-                OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.auto_operation_type)) }, modifier = Modifier.fillMaxWidth())
-                TargetField(target, onSelected = { target = it })
-                if (target == NotificationTarget.APUNTE) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(generatesRoundUp, { generatesRoundUp = it })
-                        Text(stringResource(R.string.auto_generates_round_up))
-                    }
-                    DirectionField(direction) { direction = it }
-                    ValuesEditor(stringResource(R.string.auto_structure_values), stringResource(R.string.auto_edit_defaults), defaults.title.orEmpty(), defaults.detail.orEmpty(), defaults.categoryId, categories) { a, b, c -> defaults = defaults.copy(title = a, detail = b, categoryId = c) }
-                } else {
-                    if (target == NotificationTarget.COMPRA) Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(isRoundUpInvestment, { isRoundUpInvestment = it })
-                        Text(stringResource(R.string.auto_is_round_up_investment))
-                    }
-                    if (target == NotificationTarget.DIVIDENDO) Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(reinvestsDividend, { reinvestsDividend = it })
-                            Text(stringResource(R.string.auto_reinvests_dividend))
-                        }
-                        Text(stringResource(R.string.auto_reinvests_dividend_help), style = MaterialTheme.typography.bodySmall)
-                    }
-                    ProductField(selectableInvestmentProducts(products, target, reinvestsDividend), defaults.defaultProductId, stringResource(R.string.auto_default_product), stringResource(R.string.auto_choose_product)) { defaults = defaults.copy(defaultProductId = it) }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { onSave(structure.copy(name = name, direction = direction, defaultTitle = defaults.title, defaultDetail = defaults.detail, defaultCategoryId = defaults.categoryId, target = target, defaultProductId = defaults.defaultProductId, generatesRoundUp = target == NotificationTarget.APUNTE && generatesRoundUp, isRoundUpInvestment = target == NotificationTarget.COMPRA && isRoundUpInvestment, reinvestsDividend = target == NotificationTarget.DIVIDENDO && reinvestsDividend)) }, enabled = name.isNotBlank()) { Text(stringResource(R.string.common_save)) }
-                    TextButton(onClick = { onDelete(structure) }) { Text(stringResource(R.string.common_delete)) }
-                }
-                Text(stringResource(R.string.auto_specific_rules), style = MaterialTheme.typography.titleSmall)
-                managed.rules.forEach { rule -> RuleEditor(rule, target, reinvestsDividend, categories, products, onSaveRule, onRuleEnabled, onDeleteRule) }
-            }
+            Switch(structure.enabled, { onEnabled(structure.id, it) })
         }
     }
 }
 
 @Composable
-private fun RuleEditor(rule: NotificationRule, target: NotificationTarget, reinvestsDividend: Boolean, categories: List<Category>, products: List<SyncProductoEntity>, onSave: (NotificationRule) -> Unit,
+fun StructureDetailScreen(
+    structureId: String,
+    onBack: () -> Unit,
+    viewModel: StructuresViewModel = appViewModel { StructuresViewModel(it.notifications, it.ledger, it.sync) },
+) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val managed = state.groups.asSequence().flatMap { it.structures }.find { it.structure.id == structureId }
+    // Una sola vuelta atrás: al borrar, la estructura desaparece durante la animación de salida y no debe sacar también de Automatización.
+    var closed by remember { mutableStateOf(false) }
+    val close = { if (!closed) { closed = true; onBack() } }
+    LaunchedEffect(state.isLoading, managed) { if (!state.isLoading && managed == null) close() }
+    if (state.isLoading || managed == null) { LoadingBox(); return }
+    var selectedTab by rememberSaveable(structureId) { mutableStateOf(0) }
+    var deleteStructure by remember { mutableStateOf(false) }
+    androidx.compose.material3.Scaffold(
+        topBar = { com.mipatrimonio.app.ui.components.SecondaryTopBar(managed.structure.name, close) },
+    ) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selectedTab == 0, { selectedTab = 0 }, { Text(stringResource(R.string.auto_configuration_tab)) }, modifier = Modifier.weight(1f).heightIn(min = 48.dp))
+                FilterChip(selectedTab == 1, { selectedTab = 1 }, { Text(stringResource(R.string.auto_rules_tab, managed.rules.size)) }, modifier = Modifier.weight(1f).heightIn(min = 48.dp))
+            }
+            if (selectedTab == 0) StructureConfiguration(
+                managed, state.categories, state.products, viewModel::saveStructure, { deleteStructure = true },
+                state.groups.asSequence().flatMap { it.structures }.toList(),
+            ) else StructureRules(
+                managed, state.categories, state.products,
+                state.groups.asSequence().flatMap { it.structures }.toList(), viewModel,
+            )
+        }
+    }
+    if (deleteStructure) ConfirmDialog(
+        title = stringResource(R.string.auto_delete_structure), text = stringResource(R.string.auto_delete_structure_message),
+        confirmLabel = stringResource(R.string.common_delete),
+        onConfirm = { deleteStructure = false; viewModel.deleteStructure(structureId); close() },
+        onDismiss = { deleteStructure = false },
+    )
+}
+
+@Composable
+private fun StructureConfiguration(
+    managed: ManagedStructure, categories: List<Category>, products: List<SyncProductoEntity>,
+    onSave: (NotificationStructure) -> Unit, onDelete: () -> Unit, allStructures: List<ManagedStructure>,
+) {
+    val structure = managed.structure
+    var name by remember(structure.id, structure.name) { mutableStateOf(structure.name) }
+    var direction by remember(structure.id, structure.direction) { mutableStateOf(structure.direction) }
+    var target by remember(structure.id, structure.target) { mutableStateOf(structure.target) }
+    var generatesRoundUp by remember(structure.id, structure.generatesRoundUp) { mutableStateOf(structure.generatesRoundUp) }
+    var isRoundUpInvestment by remember(structure.id, structure.isRoundUpInvestment) { mutableStateOf(structure.isRoundUpInvestment) }
+    var reinvestsDividend by remember(structure.id, structure.reinvestsDividend) { mutableStateOf(structure.reinvestsDividend) }
+    var defaults by remember(structure.id, structure.updatedAt) { mutableStateOf(NotificationDefaults(structure.defaultTitle, structure.defaultDetail, structure.defaultCategoryId, structure.defaultProductId)) }
+    val selectable = selectableInvestmentProducts(products, target, reinvestsDividend)
+    val frequent = frequentProducts(selectable, allStructures.flatMap { item -> listOf(item.structure.defaultProductId) + item.rules.map { it.productId } })
+    LazyColumn(
+        contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 88.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item { OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.auto_operation_type)) }, modifier = Modifier.fillMaxWidth()) }
+        item { TargetField(target, { target = it }) }
+        if (target == NotificationTarget.APUNTE) {
+            item { Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(generatesRoundUp, { generatesRoundUp = it }); Text(stringResource(R.string.auto_generates_round_up)) } }
+            item { DirectionField(direction) { direction = it } }
+            item { ValuesEditor(stringResource(R.string.auto_structure_values), stringResource(R.string.auto_edit_defaults), defaults.title.orEmpty(), defaults.detail.orEmpty(), defaults.categoryId, categories) { a, b, c -> defaults = defaults.copy(title = a, detail = b, categoryId = c) } }
+        } else {
+            if (target == NotificationTarget.COMPRA) item { Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(isRoundUpInvestment, { isRoundUpInvestment = it }); Text(stringResource(R.string.auto_is_round_up_investment)) } }
+            if (target == NotificationTarget.DIVIDENDO) item { Column { Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(reinvestsDividend, { reinvestsDividend = it }); Text(stringResource(R.string.auto_reinvests_dividend)) }; Text(stringResource(R.string.auto_reinvests_dividend_help), style = MaterialTheme.typography.bodySmall) } }
+            item { ProductField(selectable, defaults.defaultProductId, stringResource(R.string.auto_default_product), stringResource(R.string.auto_choose_product), frequent) { defaults = defaults.copy(defaultProductId = it) } }
+        }
+        item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { onSave(structure.copy(name = name, direction = direction, defaultTitle = defaults.title, defaultDetail = defaults.detail, defaultCategoryId = defaults.categoryId, target = target, defaultProductId = defaults.defaultProductId, generatesRoundUp = target == NotificationTarget.APUNTE && generatesRoundUp, isRoundUpInvestment = target == NotificationTarget.COMPRA && isRoundUpInvestment, reinvestsDividend = target == NotificationTarget.DIVIDENDO && reinvestsDividend)) }, enabled = name.isNotBlank()) { Text(stringResource(R.string.common_save)) }
+            TextButton(onClick = onDelete) { Text(stringResource(R.string.common_delete)) }
+        } }
+    }
+}
+
+@Composable
+private fun StructureRules(
+    managed: ManagedStructure, categories: List<Category>, products: List<SyncProductoEntity>,
+    allStructures: List<ManagedStructure>, viewModel: StructuresViewModel,
+) {
+    var query by rememberSaveable(managed.structure.id) { mutableStateOf("") }
+    var editing by remember { mutableStateOf<NotificationRule?>(null) }
+    var deleting by remember { mutableStateOf<NotificationRule?>(null) }
+    val rules = filterRules(managed.rules, query, categories, products)
+    val frequent = frequentProducts(
+        products,
+        allStructures.flatMap { item -> listOf(item.structure.defaultProductId) + item.rules.map { it.productId } },
+    )
+    Column(Modifier.fillMaxSize()) {
+        OutlinedTextField(
+            query, { query = it }, label = { Text(stringResource(R.string.auto_search_rules)) }, singleLine = true,
+            leadingIcon = { Icon(Icons.Outlined.Search, null) },
+            trailingIcon = if (query.isNotEmpty()) {{ IconButton({ query = "" }) { Icon(Icons.Outlined.Clear, stringResource(R.string.auto_clear_search)) } }} else null,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        )
+        if (managed.rules.isEmpty()) PickerMessageText(stringResource(R.string.auto_no_rules))
+        else if (rules.isEmpty()) PickerMessageText(stringResource(R.string.auto_no_matching_rules))
+        else LazyColumn(contentPadding = PaddingValues(bottom = 88.dp)) {
+            items(rules, key = NotificationRule::id) { rule ->
+                CompactRuleRow(rule, categories, products, { editing = rule }, viewModel::setRuleEnabled)
+            }
+        }
+    }
+    editing?.let { rule ->
+        Dialog(onDismissRequest = { editing = null }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+            Surface(Modifier.fillMaxSize()) {
+                Column {
+                    com.mipatrimonio.app.ui.components.SecondaryTopBar(stringResource(R.string.auto_edit_rule), { editing = null })
+                    RuleEditor(
+                        rule, managed.structure.target, managed.structure.reinvestsDividend, categories, products, frequent,
+                        onSave = { viewModel.saveRule(it); editing = null },
+                        onEnabled = viewModel::setRuleEnabled,
+                        onDelete = { deleting = it },
+                    )
+                }
+            }
+        }
+    }
+    deleting?.let { rule -> ConfirmDialog(
+        title = stringResource(R.string.auto_delete_rule), text = stringResource(R.string.auto_delete_rule_message),
+        confirmLabel = stringResource(R.string.common_delete),
+        onConfirm = { viewModel.deleteRule(rule.id); deleting = null; editing = null },
+        onDismiss = { deleting = null },
+    ) }
+}
+
+@Composable
+private fun CompactRuleRow(
+    rule: NotificationRule, categories: List<Category>, products: List<SyncProductoEntity>,
+    onClick: () -> Unit, onEnabled: (String, Boolean) -> Unit,
+) {
+    val category = categories.find { it.id == rule.categoryId }
+    val product = products.find { it.id == rule.productId }
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 8.dp).heightIn(min = 56.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (category != null) CategoryIconBadge(category, categories, size = 36.dp)
+        else if (product != null) Icon(Icons.Outlined.Savings, contentDescription = null, modifier = Modifier.padding(6.dp))
+        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+            Text(rule.variableDisplay, fontWeight = FontWeight.Bold)
+            Text(
+                category?.name ?: product?.nombre ?: stringResource(R.string.auto_uses_structure_defaults),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(rule.enabled, { onEnabled(rule.id, it) })
+    }
+}
+
+@Composable private fun PickerMessageText(value: String) = Text(
+    value, Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant,
+)
+
+@Composable
+private fun RuleEditor(rule: NotificationRule, target: NotificationTarget, reinvestsDividend: Boolean, categories: List<Category>, products: List<SyncProductoEntity>, frequent: List<SyncProductoEntity>, onSave: (NotificationRule) -> Unit,
                        onEnabled: (String, Boolean) -> Unit, onDelete: (NotificationRule) -> Unit) {
     var values by remember(rule.id, rule.updatedAt) { mutableStateOf(NotificationRuleValues(rule.title, rule.detail, rule.categoryId, rule.productId)) }
     var variable by remember(rule.id, rule.updatedAt) { mutableStateOf(rule.variableDisplay) }
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 88.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item {
             Row(verticalAlignment = Alignment.CenterVertically) { Text(rule.variableDisplay, Modifier.weight(1f), fontWeight = FontWeight.Bold); Switch(rule.enabled, { onEnabled(rule.id, it) }) }
+        }
+        item {
             OutlinedTextField(variable, { variable = it }, label = { Text(stringResource(R.string.auto_variable_text)) }, modifier = Modifier.fillMaxWidth())
+        }
+        item {
             if (target == NotificationTarget.APUNTE) {
                 ValuesEditor(stringResource(R.string.auto_rule_values), ruleExplanation(rule.variableDisplay), values.title.orEmpty(), values.detail.orEmpty(), values.categoryId, categories) { a, b, c -> values = values.copy(title = a, detail = b, categoryId = c) }
             } else {
-                ProductField(selectableInvestmentProducts(products, target, reinvestsDividend), values.productId, stringResource(R.string.auto_rule_product), stringResource(R.string.auto_use_default_product)) { values = values.copy(productId = it) }
+                ProductField(selectableInvestmentProducts(products, target, reinvestsDividend), values.productId, stringResource(R.string.auto_rule_product), stringResource(R.string.auto_use_default_product), frequent) { values = values.copy(productId = it) }
             }
+        }
+        item {
             Row { Button(onClick = { onSave(rule.copy(variableDisplay = variable, title = values.title, detail = values.detail, categoryId = values.categoryId, productId = values.productId)) }, enabled = variable.isNotBlank()) { Text(stringResource(R.string.common_save)) }; TextButton(onClick = { onDelete(rule) }) { Text(stringResource(R.string.common_delete)) } }
         }
     }
 }
+
+private fun rememberApplicationName(context: android.content.Context, packageName: String): String = runCatching {
+    val info = context.packageManager.getApplicationInfo(packageName, 0)
+    context.packageManager.getApplicationLabel(info).toString()
+}.getOrDefault(packageName)
 
 @Composable
 private fun ruleExplanation(variableText: String): String = if (variableText.isBlank()) {
