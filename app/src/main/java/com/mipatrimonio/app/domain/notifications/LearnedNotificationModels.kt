@@ -1,7 +1,20 @@
 package com.mipatrimonio.app.domain.notifications
 
 enum class NotificationDirection { SEGUN_SIGNO, INGRESO, GASTO }
-enum class NotificationTarget { APUNTE, COMPRA }
+enum class NotificationTarget { APUNTE, COMPRA, DIVIDENDO }
+
+/** Destinos que crean un movimiento de inversión en la cartera sincronizada, no un apunte local. */
+val NotificationTarget.isInvestment: Boolean get() = this != NotificationTarget.APUNTE
+
+/**
+ * Tipos de producto de la cartera que admite cada destino. La compra deja fuera efectivo, deuda e inmuebles; el
+ * dividendo admite también efectivo e inmuebles (intereses, rentas), pero nunca deuda.
+ */
+fun NotificationTarget.acceptsProductType(type: String): Boolean = when (this) {
+    NotificationTarget.APUNTE -> false
+    NotificationTarget.COMPRA -> type.lowercase() !in setOf("efectivo", "deuda", "inmueble")
+    NotificationTarget.DIVIDENDO -> type.lowercase() != "deuda"
+}
 enum class NotificationRecordStatus {
     PENDIENTE_ESTRUCTURA, PENDIENTE_REGLA, PENDIENTE_CUENTA, PENDIENTE_SINCRONIZACION,
     AUTOMATIZADA, CREADA_MANUAL, DESCARTADA, DUPLICADA,
@@ -17,6 +30,8 @@ sealed interface TemplateSegment {
     data class Literal(val text: String) : TemplateSegment
     data object Amount : TemplateSegment
     data object Variable : TemplateSegment
+    /** Otro importe de la notificación que no es el elegido (p. ej. el dividendo por acción): coincide con cualquier importe. */
+    data object OtherAmount : TemplateSegment
 }
 
 data class NotificationTemplate(val segments: List<TemplateSegment>) {

@@ -28,6 +28,8 @@ class NotificationRepository(
     private val hasSyncSession: suspend () -> Boolean = { false },
     private val createInvestmentPurchase: suspend (String, java.time.LocalDate, Long, String?, String?) -> String =
         { _, _, _, _, _ -> throw IllegalStateException("No hay una sesión de sincronización activa") },
+    private val createInvestmentDividend: suspend (String, java.time.LocalDate, Long, String?, String?) -> String =
+        { _, _, _, _, _ -> throw IllegalStateException("No hay una sesión de sincronización activa") },
 ) {
     private val dao = db.notificationDao()
     private val diagnosticTextState = MutableStateFlow(initialDiagnosticTextEnabled)
@@ -172,7 +174,7 @@ class NotificationRepository(
         val shouldAlert = when {
             record.status == NotificationRecordStatus.PENDIENTE_ESTRUCTURA.name -> true
             record.status == NotificationRecordStatus.PENDIENTE_REGLA.name &&
-                record.structureId?.let { dao.getStructure(it) }?.target == NotificationTarget.COMPRA.name -> true
+                record.structureId?.let { dao.getStructure(it) }?.target in INVESTMENT_TARGETS -> true
             record.status == NotificationRecordStatus.AUTOMATIZADA.name &&
                 record.ruleId == null && (record.transactionId != null || record.syncMovementId != null) &&
                 record.structureId != null && record.variableText != null -> {
@@ -199,7 +201,7 @@ class NotificationRepository(
             .distinct()
             .count { it !in enabledKeys } + dao.getPendingRecords().mapNotNull { pending ->
                 val isMissingPurchase = pending.status == NotificationRecordStatus.PENDIENTE_REGLA.name &&
-                    pending.structureId?.let { dao.getStructure(it) }?.target == NotificationTarget.COMPRA.name
+                    pending.structureId?.let { dao.getStructure(it) }?.target in INVESTMENT_TARGETS
                 if (isMissingPurchase && pending.structureId != null && pending.variableText != null) {
                     pending.structureId to normalizeVariable(pending.variableText)
                 } else null
@@ -215,9 +217,10 @@ class NotificationRepository(
         recordId: String, keyRange: IntRange, variableRange: IntRange, direction: NotificationDirection,
         defaults: NotificationDefaults = NotificationDefaults(), ruleValues: NotificationRuleValues = NotificationRuleValues(),
         target: NotificationTarget = NotificationTarget.APUNTE,
+        amountRange: IntRange? = null,
     ): NotificationPreview = db.withTransaction {
         val record = requireNotNull(dao.getRecord(recordId)) { "El registro no existe" }
-        preview(record, NotificationTemplateBuilder.build(record.text, keyRange, variableRange), direction, defaults, ruleValues, target)
+        preview(record, NotificationTemplateBuilder.build(record.text, keyRange, variableRange, amountRange), direction, defaults, ruleValues, target)
     }
 
     suspend fun createStructureFromRecord(
@@ -225,13 +228,15 @@ class NotificationRepository(
         defaults: NotificationDefaults = NotificationDefaults(), ruleValues: NotificationRuleValues = NotificationRuleValues(),
         target: NotificationTarget = NotificationTarget.APUNTE,
         generatesRoundUp: Boolean = false, isRoundUpInvestment: Boolean = false,
+        amountRange: IntRange? = null,
     ): NotificationStructure = db.withTransaction {
         val record = requireNotNull(dao.getRecord(recordId)) { "El registro no existe" }
-        val result = preview(record, NotificationTemplateBuilder.build(record.text, keyRange, variableRange), direction, defaults, ruleValues, target)
+        val result = preview(record, NotificationTemplateBuilder.build(record.text, keyRange, variableRange, amountRange), direction, defaults, ruleValues, target)
         val now = clock()
         val structure = NotificationStructure(idFactory(), record.packageName, name.trim().also { require(it.isNotEmpty()) { "El nombre es obligatorio" } },
             result.template, direction, defaults.title.clean(), defaults.detail.clean(), defaults.categoryId.clean(), true, now, now,
-            target, defaults.defaultProductId.clean(), generatesRoundUp, isRoundUpInvestment)
+            target, defaults.defaultProductId.clean(), generatesRoundUp && target == NotificationTarget.APUNTE,
+            isRoundUpInvestment && target == NotificationTarget.COMPRA)
         dao.upsertStructure(structure.toEntity())
         val rule = NotificationRule(idFactory(), structure.id, normalizeVariable(result.variableText), result.variableText,
             ruleValues.title.clean(), ruleValues.detail.clean(), ruleValues.categoryId.clean(), true, now, now,
@@ -325,8 +330,8 @@ class NotificationRepository(
         } else null
         val base = row.copy(amountMinor = match?.amount?.amountMinor ?: row.amountMinor, currency = match?.amount?.currency ?: row.currency,
             structureId = structure?.id, ruleId = rule?.id, variableText = match?.variableText)
-        if (structure?.target == NotificationTarget.COMPRA && match != null) {
-            return resolvePurchase(base, authorization, structure, rule, match)
+        if (structure != null && structure.target.isInvestment && match != null) {
+            return resolveInvestment(base, authorization, structure, rule, match)
         }
         val account = authorization.accountId?.let { db.accountDao().getById(it) }
         if (account == null || account.archived || !account.useInApp || account.currency != base.currency) return base.copy(status = NotificationRecordStatus.PENDIENTE_CUENTA.name)
@@ -339,19 +344,20 @@ class NotificationRepository(
         return base.copy(status = NotificationRecordStatus.AUTOMATIZADA.name, transactionId = transactionId)
     }
 
-    private suspend fun resolvePurchase(
+    /** Compra o dividendo: crea el movimiento en la cartera sincronizada con la cuenta de liquidez de la app, si es EUR. */
+    private suspend fun resolveInvestment(
         row: NotificationRecordEntity,
         authorization: NotificationAuthorizationEntity,
         structure: NotificationStructure,
         rule: NotificationRule?,
         match: TemplateMatch,
     ): NotificationRecordEntity {
-        if (match.amount.hasExplicitPlus) {
+        if (structure.target == NotificationTarget.COMPRA && match.amount.hasExplicitPlus) {
             return row.copy(status = NotificationRecordStatus.PENDIENTE_REGLA.name)
         }
         val productId = rule?.productId.clean() ?: structure.defaultProductId.clean()
         val product = productId?.let { db.syncDao().producto(it) }
-        if (product == null || product.deletedAt != null) {
+        if (product == null || product.deletedAt != null || !structure.target.acceptsProductType(product.tipo)) {
             return row.copy(status = NotificationRecordStatus.PENDIENTE_REGLA.name)
         }
         if (!hasSyncSession()) {
@@ -360,14 +366,15 @@ class NotificationRepository(
         val accountId = authorization.accountId?.let { db.accountDao().getById(it) }
             ?.takeIf { !it.archived && it.currency == "EUR" }
             ?.id
-        val movementId = createInvestmentPurchase(
+        val create = if (structure.target == NotificationTarget.DIVIDENDO) createInvestmentDividend else createInvestmentPurchase
+        val movementId = create(
             product.id,
             Instant.ofEpochMilli(row.postedAt).atZone(zoneId).toLocalDate(),
             match.amount.amountMinor,
             accountId,
             match.variableText,
         )
-        if (structure.isRoundUpInvestment && accountId != null) {
+        if (structure.target == NotificationTarget.COMPRA && structure.isRoundUpInvestment && accountId != null) {
             val account = requireNotNull(db.accountDao().getById(accountId))
             val estimated = roundUpPending(account.toDomain(), row.postedAt)
             db.accountDao().upsert(
@@ -421,6 +428,7 @@ class NotificationRepository(
         const val SAMPLE_RETENTION_MILLIS = 24 * 60 * 60 * 1_000L
         const val DIAGNOSTIC_RETENTION_MILLIS = 7 * SAMPLE_RETENTION_MILLIS
         const val DISCARDED_RETENTION_MILLIS = 30 * SAMPLE_RETENTION_MILLIS
+        private val INVESTMENT_TARGETS = NotificationTarget.entries.filter { it.isInvestment }.map { it.name }.toSet()
     }
 }
 

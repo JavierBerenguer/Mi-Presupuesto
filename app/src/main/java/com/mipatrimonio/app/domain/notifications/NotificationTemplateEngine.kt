@@ -1,21 +1,35 @@
 package com.mipatrimonio.app.domain.notifications
 
 object NotificationTemplateBuilder {
-    fun build(text: String, keyRange: IntRange, variableRange: IntRange): NotificationTemplate {
+    /**
+     * [amountRange] elige el importe cuando la notificación trae varios (p. ej. «1,88 € por acción. Has recibido 0,01 €»);
+     * si es nulo se usa el primero. Los demás importes que quedan dentro del patrón pasan a ser «otro importe» y
+     * coinciden con cualquier cantidad, para que la estructura siga reconociendo la notificación aunque cambien.
+     */
+    fun build(text: String, keyRange: IntRange, variableRange: IntRange, amountRange: IntRange? = null): NotificationTemplate {
         require(validRange(text, keyRange) && validRange(text, variableRange)) { "Los rangos seleccionados no son válidos" }
-        val amount = NotificationAmountRecognizer.first(text)
-            ?: throw IllegalArgumentException("No se ha detectado ningún importe en la notificación")
+        val amounts = NotificationAmountRecognizer.findAll(text)
+        require(amounts.isNotEmpty()) { "No se ha detectado ningún importe en la notificación" }
+        val amount = if (amountRange == null) amounts.first() else amounts.firstOrNull { overlaps(it.range, amountRange) }
+            ?: throw IllegalArgumentException("El importe elegido no está en la notificación")
         require(!overlaps(amount.range, variableRange)) { "El texto variable no puede incluir el importe" }
         require(!overlaps(keyRange, variableRange)) { "El texto clave y el variable no pueden solaparse" }
+        val others = amounts.filter { it !== amount && !overlaps(it.range, amount.range) && !overlaps(it.range, variableRange) }
+        val amountRanges = listOf(amount.range) + others.map { it.range }
 
-        val effectiveKeyRange = if (overlaps(keyRange, amount.range)) {
-            minOf(keyRange.first, amount.range.first)..maxOf(keyRange.last, amount.range.last)
-        } else keyRange
-        val keySelections = keySelections(text, effectiveKeyRange, amount.range)
-        require(keySelections.any { (it.segment as? TemplateSegment.Literal)?.text?.isNotBlank() == true }) {
+        val effectiveKeyRange = amountRanges.filter { overlaps(it, keyRange) }.fold(keyRange) { range, hole ->
+            minOf(range.first, hole.first)..maxOf(range.last, hole.last)
+        }
+        require(!overlaps(effectiveKeyRange, variableRange)) { "El texto clave y el variable no pueden solaparse" }
+        val keySelections = subtract(effectiveKeyRange, amountRanges).map { Selection(it, TemplateSegment.Literal(text.substring(it))) }
+        require(keySelections.any { (it.segment as TemplateSegment.Literal).text.isNotBlank() }) {
             "El texto clave es obligatorio"
         }
-        val selected = (keySelections + listOf(
+        val spanStart = minOf(effectiveKeyRange.first, amount.range.first, variableRange.first)
+        val spanEnd = maxOf(effectiveKeyRange.last, amount.range.last, variableRange.last)
+        val otherSelections = others.filter { it.range.first >= spanStart && it.range.last <= spanEnd }
+            .map { Selection(it.range, TemplateSegment.OtherAmount) }
+        val selected = (keySelections + otherSelections + listOf(
             Selection(amount.range, TemplateSegment.Amount),
             Selection(variableRange, TemplateSegment.Variable),
         )).distinctBy { it.range to it.segment }.sortedBy { it.range.first }
@@ -23,28 +37,22 @@ object NotificationTemplateBuilder {
         selected.forEachIndexed { index, selection ->
             if (index > 0) {
                 val previous = selected[index - 1].range.last + 1
-                val gap = text.substring(previous, selection.range.first)
-                if (gap.isNotEmpty()) segments += TemplateSegment.Literal(gap)
+                if (previous < selection.range.first) segments += TemplateSegment.Literal(text.substring(previous, selection.range.first))
             }
             segments += selection.segment
         }
         return NotificationTemplate(mergeLiterals(segments)).also { require(it.isValid) { "La plantilla no es válida" } }
     }
 
-    private fun keySelections(text: String, keyRange: IntRange, amountRange: IntRange): List<Selection> {
-        if (!overlaps(keyRange, amountRange)) {
-            return listOf(Selection(keyRange, TemplateSegment.Literal(text.substring(keyRange))))
+    private fun subtract(range: IntRange, holes: List<IntRange>): List<IntRange> {
+        val result = mutableListOf<IntRange>()
+        var start = range.first
+        holes.filter { overlaps(it, range) }.sortedBy { it.first }.forEach { hole ->
+            if (hole.first > start) result += start until hole.first
+            start = maxOf(start, hole.last + 1)
         }
-        return buildList {
-            if (keyRange.first < amountRange.first) {
-                val before = keyRange.first until amountRange.first
-                add(Selection(before, TemplateSegment.Literal(text.substring(before))))
-            }
-            if (amountRange.last < keyRange.last) {
-                val after = (amountRange.last + 1)..keyRange.last
-                add(Selection(after, TemplateSegment.Literal(text.substring(after))))
-            }
-        }
+        if (start <= range.last) result += start..range.last
+        return result
     }
 
     private fun validRange(text: String, range: IntRange) = range.first >= 0 && range.last < text.length && !range.isEmpty()
@@ -56,15 +64,20 @@ object NotificationTemplateMatcher {
     fun match(template: NotificationTemplate, text: String): TemplateMatch? {
         if (!template.isValid) return null
         val normalized = indexedNormalize(text)
-        return NotificationAmountRecognizer.findAll(text).firstNotNullOfOrNull { amount ->
-            val amountStart = normalized.originalToNormalized(amount.range.first)
-            val amountEnd = normalized.originalToNormalized(amount.range.last + 1)
+        val amounts = NotificationAmountRecognizer.findAll(text)
+        fun normalizedAmount(amount: RecognizedAmount): String = normalized.text.substring(
+            normalized.originalToNormalized(amount.range.first), normalized.originalToNormalized(amount.range.last + 1),
+        )
+        return amounts.firstNotNullOfOrNull { amount ->
+            val others = amounts.filter { it !== amount }.map { Regex.escape(normalizedAmount(it)) }
+            val otherPattern = if (others.isEmpty()) "(?!)" else others.joinToString("|", prefix = "(?:", postfix = ")")
             val pattern = buildString {
                 append(".*?")
                 template.segments.forEachIndexed { index, segment -> when (segment) {
                     is TemplateSegment.Literal -> append(literalPattern(normalizeNotificationText(segment.text)))
-                    TemplateSegment.Amount -> append(Regex.escape(normalized.text.substring(amountStart, amountEnd)))
+                    TemplateSegment.Amount -> append(Regex.escape(normalizedAmount(amount)))
                     TemplateSegment.Variable -> append(if (index == template.segments.lastIndex) "(.*)" else "(.*?)")
+                    TemplateSegment.OtherAmount -> append(otherPattern)
                 } }
                 append(".*")
             }
@@ -117,15 +130,17 @@ object NotificationTemplateJson {
             is TemplateSegment.Literal -> "{\"type\":\"LITERAL\",\"text\":\"${escape(segment.text)}\"}"
             TemplateSegment.Amount -> "{\"type\":\"IMPORTE\"}"
             TemplateSegment.Variable -> "{\"type\":\"VARIABLE\"}"
+            TemplateSegment.OtherAmount -> "{\"type\":\"OTRO_IMPORTE\"}"
         }
     }
 
     fun decode(json: String): NotificationTemplate {
         // La llave final debe ir escapada: el motor de regex de Android (ICU) rechaza «}» suelta aunque la JVM la acepte.
-        val item = Regex("\\{\\\"type\\\":\\\"(LITERAL|IMPORTE|VARIABLE)\\\"(?:,\\\"text\\\":\\\"((?:\\\\.|[^\\\"])*)\\\")?\\}")
+        val item = Regex("\\{\\\"type\\\":\\\"(LITERAL|IMPORTE|VARIABLE|OTRO_IMPORTE)\\\"(?:,\\\"text\\\":\\\"((?:\\\\.|[^\\\"])*)\\\")?\\}")
         val segments = item.findAll(json).map { match -> when (match.groupValues[1]) {
             "LITERAL" -> TemplateSegment.Literal(unescape(match.groupValues[2]))
             "IMPORTE" -> TemplateSegment.Amount
+            "OTRO_IMPORTE" -> TemplateSegment.OtherAmount
             else -> TemplateSegment.Variable
         } }.toList()
         return NotificationTemplate(segments).also { require(it.isValid) { "La plantilla guardada no es válida" } }

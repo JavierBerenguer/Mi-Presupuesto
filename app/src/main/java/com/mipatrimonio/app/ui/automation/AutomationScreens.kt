@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -77,6 +78,8 @@ import com.mipatrimonio.app.domain.notifications.NotificationRule
 import com.mipatrimonio.app.domain.notifications.NotificationRuleValues
 import com.mipatrimonio.app.domain.notifications.NotificationStructure
 import com.mipatrimonio.app.domain.notifications.NotificationTarget
+import com.mipatrimonio.app.domain.notifications.NotificationTemplateMatcher
+import com.mipatrimonio.app.domain.notifications.isInvestment
 import com.mipatrimonio.app.domain.notifications.ProposalKind
 import com.mipatrimonio.app.ui.common.ConfirmDialog
 import com.mipatrimonio.app.ui.common.CategoryIconBadge
@@ -259,7 +262,7 @@ private fun PendingContent(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         items(state.records, key = NotificationRecord::id) { record ->
-            PendingCard(record, onTeach, onConfigureRule, onOpenNotificationSettings, onDiscard)
+            PendingCard(record, record.structureId?.let { state.structures[it] }, onTeach, onConfigureRule, onOpenNotificationSettings, onDiscard)
         }
         state.errorMessage?.let { item { ErrorText(it) } }
     }
@@ -268,6 +271,7 @@ private fun PendingContent(
 @Composable
 private fun PendingCard(
     record: NotificationRecord,
+    structure: NotificationStructure?,
     onTeach: (String) -> Unit,
     onConfigureRule: (String) -> Unit,
     onOpenNotificationSettings: () -> Unit,
@@ -277,7 +281,7 @@ private fun PendingCard(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(record.packageName, fontWeight = FontWeight.Bold)
             Text(formatDate(Instant.ofEpochMilli(record.postedAt).atZone(ZoneId.systemDefault()).toLocalDate()))
-            Text(highlightAmount(record), style = MaterialTheme.typography.bodyMedium)
+            Text(highlightAmount(record, structure), style = MaterialTheme.typography.bodyMedium)
             if (record.status == NotificationRecordStatus.PENDIENTE_CUENTA ||
                 record.status == NotificationRecordStatus.PENDIENTE_SINCRONIZACION
             ) {
@@ -288,7 +292,8 @@ private fun PendingCard(
                 }
             } else {
                 if (record.status == NotificationRecordStatus.PENDIENTE_REGLA) {
-                    val positive = com.mipatrimonio.app.domain.notifications.NotificationAmountRecognizer.first(record.text)?.hasExplicitPlus == true
+                    val positive = structure?.target == NotificationTarget.COMPRA &&
+                        matchedAmount(record, structure)?.hasExplicitPlus == true
                     Text(stringResource(if (positive) R.string.auto_purchase_positive else R.string.auto_purchase_choose_product))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -305,8 +310,12 @@ private fun PendingCard(
     }
 }
 
-private fun highlightAmount(record: NotificationRecord): AnnotatedString {
-    val amount = com.mipatrimonio.app.domain.notifications.NotificationAmountRecognizer.first(record.text)
+private fun matchedAmount(record: NotificationRecord, structure: NotificationStructure?) =
+    structure?.let { NotificationTemplateMatcher.match(it.template, record.text)?.amount }
+        ?: com.mipatrimonio.app.domain.notifications.NotificationAmountRecognizer.first(record.text)
+
+private fun highlightAmount(record: NotificationRecord, structure: NotificationStructure?): AnnotatedString {
+    val amount = matchedAmount(record, structure)
     return AnnotatedString.Builder(record.text).apply {
         amount?.range?.let { addStyle(SpanStyle(fontWeight = FontWeight.Bold), it.first, it.last + 1) }
     }.toAnnotatedString()
@@ -352,16 +361,17 @@ fun TeachStructureScreen(
             }
         }
         if (state.editor.target == NotificationTarget.APUNTE) item { DirectionField(state.editor.direction, viewModel::setDirection) }
-        if (state.editor.target == NotificationTarget.COMPRA) {
+        if (state.editor.target.isInvestment) {
             item {
+                val products = selectableInvestmentProducts(state.products, state.editor.target)
                 ProductField(
-                    state.products,
+                    products,
                     state.editor.defaults.defaultProductId,
                     stringResource(R.string.auto_default_product),
                     stringResource(R.string.auto_choose_product),
                 ) { productId -> viewModel.setDefaults(state.editor.defaults.copy(defaultProductId = productId)) }
                 ProductField(
-                    state.products,
+                    products,
                     state.editor.ruleValues.productId,
                     stringResource(R.string.auto_rule_product),
                     stringResource(R.string.auto_use_default_product),
@@ -421,16 +431,22 @@ private fun WordSelector(state: TeachStructureUiState, viewModel: TeachStructure
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             state.tokens.forEach { token ->
                 val isAmount = rangesOverlap(token.range, state.amountRange)
+                val isOtherAmount = !isAmount && state.amounts.any { rangesOverlap(token.range, it) }
                 val isKey = rangesOverlap(token.range, state.keyRange)
                 val isVariable = rangesOverlap(token.range, state.variableRange)
-                val mark = when { isAmount -> R.string.auto_mark_amount; isKey -> R.string.auto_marked_key; isVariable -> R.string.auto_marked_variable; else -> R.string.auto_unmarked }
+                val mark = when {
+                    isAmount -> R.string.auto_mark_amount; isOtherAmount -> R.string.auto_mark_other_amount
+                    isKey -> R.string.auto_marked_key; isVariable -> R.string.auto_marked_variable; else -> R.string.auto_unmarked
+                }
                 val description = tokenDescription(token.text, mark)
+                val shape = RoundedCornerShape(8.dp)
                 Text(
                     token.text,
                     modifier = Modifier.heightIn(min = 48.dp).background(
                         when { isAmount -> MaterialTheme.colorScheme.tertiaryContainer; isKey -> MaterialTheme.colorScheme.primaryContainer
-                            isVariable -> MaterialTheme.colorScheme.secondaryContainer; else -> Color.Transparent }, RoundedCornerShape(8.dp),
-                    ).clickable(enabled = !isAmount) { viewModel.selectWord(token.index) }.padding(horizontal = 10.dp, vertical = 9.dp)
+                            isVariable -> MaterialTheme.colorScheme.secondaryContainer; else -> Color.Transparent }, shape,
+                    ).then(if (isOtherAmount) Modifier.border(1.dp, MaterialTheme.colorScheme.tertiary, shape) else Modifier)
+                        .clickable(enabled = !isAmount) { viewModel.selectWord(token.index) }.padding(horizontal = 10.dp, vertical = 9.dp)
                         .semantics { contentDescription = description },
                 )
             }
@@ -440,6 +456,7 @@ private fun WordSelector(state: TeachStructureUiState, viewModel: TeachStructure
             TextButton(onClick = { viewModel.clearSelection(SelectionMode.VARIABLE) }) { Text(stringResource(R.string.auto_redo_variable)) }
         }
         Text(stringResource(R.string.auto_selection_help), style = MaterialTheme.typography.bodySmall)
+        if (state.hasSeveralAmounts) Text(stringResource(R.string.auto_several_amounts_help), style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -475,9 +492,10 @@ fun ConfigureRuleScreen(
                 onChange = { title, detail, category -> viewModel.setValues(NotificationRuleValues(title, detail, category)) },
             )
         }
-        if (state.structure?.target == NotificationTarget.COMPRA) item {
+        val target = state.structure?.target ?: NotificationTarget.APUNTE
+        if (target.isInvestment) item {
             ProductField(
-                state.products,
+                selectableInvestmentProducts(state.products, target),
                 state.values.productId,
                 stringResource(R.string.auto_rule_product),
                 stringResource(R.string.auto_use_default_product),
@@ -506,7 +524,11 @@ private fun DirectionField(selected: NotificationDirection, onSelected: (Notific
 private fun TargetField(selected: NotificationTarget, onSelected: (NotificationTarget) -> Unit, enabled: Boolean = true) {
     DropdownField(
         label = stringResource(R.string.auto_target), options = NotificationTarget.entries, selected = selected,
-        optionLabel = { if (it == NotificationTarget.APUNTE) stringResource(R.string.auto_target_entry) else stringResource(R.string.auto_target_purchase) },
+        optionLabel = { stringResource(when (it) {
+            NotificationTarget.APUNTE -> R.string.auto_target_entry
+            NotificationTarget.COMPRA -> R.string.auto_target_purchase
+            NotificationTarget.DIVIDENDO -> R.string.auto_target_dividend
+        }) },
         onSelected = { it?.let(onSelected) }, enabled = enabled,
     )
 }
@@ -617,10 +639,10 @@ private fun PreviewCard(
     products: List<SyncProductoEntity> = emptyList(),
 ) {
     SectionCard(title = stringResource(R.string.auto_preview)) {
-        if (preview == null) Text(stringResource(R.string.auto_preview_waiting)) else if (preview.target == NotificationTarget.COMPRA) {
+        if (preview == null) Text(stringResource(R.string.auto_preview_waiting)) else if (preview.target.isInvestment) {
             Text(
                 stringResource(
-                    R.string.auto_purchase_preview,
+                    if (preview.target == NotificationTarget.DIVIDENDO) R.string.auto_dividend_preview else R.string.auto_purchase_preview,
                     MoneyMath.format(preview.amountMinor, preview.currency),
                     products.find { it.id == preview.productId }?.nombre ?: stringResource(R.string.auto_product_not_selected),
                 ),
@@ -714,11 +736,11 @@ private fun StructureCard(
                     DirectionField(direction) { direction = it }
                     ValuesEditor(stringResource(R.string.auto_structure_values), stringResource(R.string.auto_edit_defaults), defaults.title.orEmpty(), defaults.detail.orEmpty(), defaults.categoryId, categories) { a, b, c -> defaults = defaults.copy(title = a, detail = b, categoryId = c) }
                 } else {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (target == NotificationTarget.COMPRA) Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(isRoundUpInvestment, { isRoundUpInvestment = it })
                         Text(stringResource(R.string.auto_is_round_up_investment))
                     }
-                    ProductField(products, defaults.defaultProductId, stringResource(R.string.auto_default_product), stringResource(R.string.auto_choose_product)) { defaults = defaults.copy(defaultProductId = it) }
+                    ProductField(selectableInvestmentProducts(products, target), defaults.defaultProductId, stringResource(R.string.auto_default_product), stringResource(R.string.auto_choose_product)) { defaults = defaults.copy(defaultProductId = it) }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { onSave(structure.copy(name = name, direction = direction, defaultTitle = defaults.title, defaultDetail = defaults.detail, defaultCategoryId = defaults.categoryId, target = target, defaultProductId = defaults.defaultProductId, generatesRoundUp = target == NotificationTarget.APUNTE && generatesRoundUp, isRoundUpInvestment = target == NotificationTarget.COMPRA && isRoundUpInvestment)) }, enabled = name.isNotBlank()) { Text(stringResource(R.string.common_save)) }
@@ -743,7 +765,7 @@ private fun RuleEditor(rule: NotificationRule, target: NotificationTarget, categ
             if (target == NotificationTarget.APUNTE) {
                 ValuesEditor(stringResource(R.string.auto_rule_values), ruleExplanation(rule.variableDisplay), values.title.orEmpty(), values.detail.orEmpty(), values.categoryId, categories) { a, b, c -> values = values.copy(title = a, detail = b, categoryId = c) }
             } else {
-                ProductField(products, values.productId, stringResource(R.string.auto_rule_product), stringResource(R.string.auto_use_default_product)) { values = values.copy(productId = it) }
+                ProductField(selectableInvestmentProducts(products, target), values.productId, stringResource(R.string.auto_rule_product), stringResource(R.string.auto_use_default_product)) { values = values.copy(productId = it) }
             }
             Row { Button(onClick = { onSave(rule.copy(variableDisplay = variable, title = values.title, detail = values.detail, categoryId = values.categoryId, productId = values.productId)) }, enabled = variable.isNotBlank()) { Text(stringResource(R.string.common_save)) }; TextButton(onClick = { onDelete(rule) }) { Text(stringResource(R.string.common_delete)) } }
         }

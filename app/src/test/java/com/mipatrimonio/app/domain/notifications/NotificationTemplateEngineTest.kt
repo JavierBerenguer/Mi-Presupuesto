@@ -31,6 +31,78 @@ class NotificationTemplateEngineTest {
         assertNull(NotificationTemplateMatcher.match(template, "Has recibido 5,00 € de Ana"))
     }
 
+    @Test fun `dividendo con varios importes usa el elegido y el otro coincide con cualquier importe`() {
+        val text = "Dividendo recibido\nASML ha pagado hoy un dividendo de 1,88 € por acción. Has recibido 0,01 €."
+        val received = text.indexOf("0,01")
+        val template = NotificationTemplateBuilder.build(
+            text,
+            0..text.indexOf("recibido") + "recibido".lastIndex,
+            text.indexOf("ASML")..text.indexOf("ASML") + 3,
+            received..received + 3,
+        )
+
+        assertEquals(
+            listOf(
+                TemplateSegment.Literal("Dividendo recibido\n"), TemplateSegment.Variable,
+                TemplateSegment.Literal(" ha pagado hoy un dividendo de "), TemplateSegment.OtherAmount,
+                TemplateSegment.Literal(" por acción. Has recibido "), TemplateSegment.Amount,
+            ),
+            template.segments,
+        )
+        val original = NotificationTemplateMatcher.match(template, text)
+        assertEquals("ASML", original?.variableText)
+        assertEquals(1L, original?.amount?.amountMinor)
+        val other = NotificationTemplateMatcher.match(
+            template, "Dividendo recibido\nApple ha pagado hoy un dividendo de 0,22 € por acción. Has recibido 3,40 €.",
+        )
+        assertEquals("Apple", other?.variableText)
+        assertEquals(340L, other?.amount?.amountMinor)
+        assertNull(NotificationTemplateMatcher.match(template, "Dividendo recibido\nApple ha pagado hoy. Has recibido 3,40 €."))
+    }
+
+    @Test fun `sin elegir importe usa el primero y los demas no quedan fijos en el patron`() {
+        val text = "Has recibido 0,01 € de ASML: 1,88 € por acción."
+        val withOther = NotificationTemplateBuilder.build(text, text.indexOf("por")..text.lastIndex - 1, text.indexOf("ASML:")..text.indexOf("ASML:") + 4)
+        assertEquals(1L, NotificationTemplateMatcher.match(withOther, text)?.amount?.amountMinor)
+        assertEquals(listOf(TemplateSegment.Amount, TemplateSegment.Literal(" de "), TemplateSegment.Variable,
+            TemplateSegment.Literal(" "), TemplateSegment.OtherAmount, TemplateSegment.Literal(" por acción")), withOther.segments)
+        val match = NotificationTemplateMatcher.match(withOther, "Has recibido 2,00 € de KO: 0,51 € por acción.")
+        assertEquals(200L, match?.amount?.amountMinor)
+        assertEquals("KO", match?.variableText)
+    }
+
+    @Test fun `texto clave que incluye otro importe lo convierte en otro importe`() {
+        val text = "Pago de 2,00 € con comisión de 0,10 € en BAR PEPE"
+        val template = NotificationTemplateBuilder.build(
+            text, 0..text.indexOf(" en") + 2, text.indexOf("BAR")..text.lastIndex, text.indexOf("2,00")..text.indexOf("2,00"),
+        )
+        assertEquals(
+            listOf(
+                TemplateSegment.Literal("Pago de "), TemplateSegment.Amount, TemplateSegment.Literal(" con comisión de "),
+                TemplateSegment.OtherAmount, TemplateSegment.Literal(" en "), TemplateSegment.Variable,
+            ),
+            template.segments,
+        )
+        val match = NotificationTemplateMatcher.match(template, "Pago de 7,50 € con comisión de 0,25 € en KIOSKO")
+        assertEquals(750L, match?.amount?.amountMinor)
+        assertEquals("KIOSKO", match?.variableText)
+    }
+
+    @Test fun `importe elegido que no existe se rechaza`() {
+        val text = "Has pagado 1,60 € a CAFE"
+        assertThrows(IllegalArgumentException::class.java) {
+            NotificationTemplateBuilder.build(text, 0..9, text.indexOf("CAFE")..text.lastIndex, 0..2)
+        }
+    }
+
+    @Test fun `plantilla con otro importe se guarda y se recupera`() {
+        val template = NotificationTemplate(listOf(
+            TemplateSegment.Literal("de "), TemplateSegment.OtherAmount, TemplateSegment.Literal(" recibido "),
+            TemplateSegment.Amount, TemplateSegment.Literal(" "), TemplateSegment.Variable,
+        ))
+        assertEquals(template, NotificationTemplateJson.decode(NotificationTemplateJson.encode(template)))
+    }
+
     @Test fun `construye pago con conector y captura variable final`() {
         val text = "Has pagado 1,60 € a LOOMISP*CAFETERIA PARA"
         val template = NotificationTemplateBuilder.build(text, 0..9, text.indexOf("LOOM")..text.lastIndex)
@@ -147,7 +219,8 @@ class NotificationTemplateEngineTest {
         assertEquals(
             listOf(
                 TemplateSegment.Literal("Saldo "), TemplateSegment.Amount,
-                TemplateSegment.Literal("; después 9,00 € en "), TemplateSegment.Variable,
+                TemplateSegment.Literal("; después "), TemplateSegment.OtherAmount,
+                TemplateSegment.Literal(" en "), TemplateSegment.Variable,
             ),
             template.segments,
         )
