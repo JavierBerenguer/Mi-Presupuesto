@@ -10,10 +10,10 @@ import com.mipatrimonio.app.domain.notifications.NotificationStructure
 object RoundUpCalculator {
     val validMultipliers = setOf(0, 1, 2, 3, 5, 10)
 
+    /** Como Trade Republic: redondea al euro siguiente y, si el importe es exacto, suma un euro entero. */
     fun estimatePayment(amountMinor: Long, multiplier: Int): Long {
         if (amountMinor <= 0L || multiplier <= 0) return 0L
         val remainder = amountMinor % 100L
-        if (remainder == 0L) return 0L
         return Math.multiplyExact(100L - remainder, multiplier.toLong())
     }
 

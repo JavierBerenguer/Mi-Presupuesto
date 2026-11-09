@@ -46,6 +46,8 @@ Este documento lo mantiene Claude y solo recoge lo que **queda por probar**: lo 
     - Se registra la compra.
     - El pendiente vuelve a 0 (solo quedan los pagos posteriores).
     - La cuenta muestra «Último redondeo: estimado X €, real Y €».
+- [ ] E7. *(09/11, pendiente de versión)* **Redondeo con importes exactos:** un pago de euros exactos ya suma un euro entero por el multiplicador (11,00 € con x2 → 2,00 €).
+  - Con los datos actuales, Cuentas y el Efectivo de Inicio muestran «Redondeo pendiente: −8,88 €» (antes −2,88 €), igual que la app de TR.
 
 ## G. Inicio
 - [ ] G3. *(v1.12.3)* **Operativa del mes:** en un mes con más gastos que ingresos, el **Ahorro** sale en negativo (con «−»). Con ingresos y gastos normales, ya se comprobó en el emulador que todo coincide con Movimientos.

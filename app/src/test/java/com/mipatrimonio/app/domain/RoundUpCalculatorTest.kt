@@ -18,7 +18,8 @@ import org.junit.Test
 class RoundUpCalculatorTest {
     @Test fun `calcula los casos limite en centimos exactos`() {
         assertEquals(40L, RoundUpCalculator.estimatePayment(1_780, 2))
-        assertEquals(0L, RoundUpCalculator.estimatePayment(1_700, 2))
+        assertEquals(200L, RoundUpCalculator.estimatePayment(1_700, 2))
+        assertEquals(100L, RoundUpCalculator.estimatePayment(100, 1))
         assertEquals(990L, RoundUpCalculator.estimatePayment(1, 10))
     }
 
