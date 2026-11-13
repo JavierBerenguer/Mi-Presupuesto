@@ -33,6 +33,7 @@ class DestinoTest {
                 Rutas.CATEGORIAS,
                 Rutas.RECURRENTES,
                 Rutas.COPIAS,
+                Rutas.ENVIAR_NEVERLESS,
                 Rutas.AJUSTES,
             ),
             SecondaryMenuDestination.at(MenuLocation.MAS).map { it.route },

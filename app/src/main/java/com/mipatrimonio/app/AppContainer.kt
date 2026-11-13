@@ -21,6 +21,8 @@ import com.mipatrimonio.app.data.sync.SupabaseHttpTransport
 import com.mipatrimonio.app.data.sync.SyncAuthClient
 import com.mipatrimonio.app.data.sync.SyncRepository
 import com.mipatrimonio.app.data.sync.SyncScheduler
+import com.mipatrimonio.app.data.sync.NeverlessDocumentReader
+import com.mipatrimonio.app.data.sync.NeverlessUploadRepository
 import com.mipatrimonio.app.domain.notifications.GenericSpanishParser
 import com.mipatrimonio.app.domain.notifications.NotificationEngine
 import com.mipatrimonio.app.notifications.PendingAutomationNotifier
@@ -53,6 +55,11 @@ class AppContainer(context: Context) {
         authFactory = { url, key -> SyncAuthClient(SupabaseHttpTransport(url, key), syncSessionStore) },
         onOutboxEnqueued = { SyncScheduler.enqueueOutbox(context.applicationContext) },
     )
+    val neverlessUpload = NeverlessUploadRepository(
+        settings = settings,
+        authFactory = { url, key -> SyncAuthClient(SupabaseHttpTransport(url, key), syncSessionStore) },
+    )
+    val neverlessDocuments = NeverlessDocumentReader(context.applicationContext.contentResolver)
     val pendingAutomationNotifier = PendingAutomationNotifier(context.applicationContext, settings)
     val recurring = RecurringRepository(
         database,
