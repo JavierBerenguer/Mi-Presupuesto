@@ -144,7 +144,7 @@ internal fun looksLikeHtml(body: String): Boolean {
     return start.startsWith("<!doctype html") || start.startsWith("<html")
 }
 
-private fun encodePathSegment(value: String): String =
+internal fun encodePathSegment(value: String): String =
     URLEncoder.encode(value, Charsets.UTF_8.name()).replace("+", "%20")
 
 internal fun rumboPanelPath(userId: String, profileId: String): String =

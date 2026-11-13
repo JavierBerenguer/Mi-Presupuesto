@@ -45,6 +45,7 @@ import com.mipatrimonio.app.ui.recurring.RecurringFormScreen
 import com.mipatrimonio.app.ui.recurring.RecurringListScreen
 import com.mipatrimonio.app.ui.backup.BackupScreen
 import com.mipatrimonio.app.ui.importer.TradeRepublicImportScreen
+import com.mipatrimonio.app.ui.importer.NeverlessUploadScreen
 import com.mipatrimonio.app.ui.automation.AutomationScreen
 import com.mipatrimonio.app.ui.automation.ConfigureRuleScreen
 import com.mipatrimonio.app.ui.automation.TeachStructureScreen
@@ -124,6 +125,7 @@ private fun titleFor(route: String?, destino: Destino?): Int = when {
     route == Rutas.RECURRENTES -> R.string.recurring_title
     route == Rutas.COPIAS -> R.string.backup_nav_title
     route == Rutas.IMPORTAR_TRADE_REPUBLIC -> R.string.import_tr_nav_title
+    route == Rutas.ENVIAR_NEVERLESS -> R.string.neverless_title
     route == Rutas.RECURRENTE -> R.string.recurring_edit
     route == Rutas.SINCRONIZACION -> R.string.sync_title
     route == Rutas.PRODUCTO_CARTERA -> R.string.cartera_products
@@ -238,6 +240,7 @@ private fun AppNavHost(
             BackupScreen(onOpenTradeRepublic = { navController.navigate(Rutas.IMPORTAR_TRADE_REPUBLIC) })
         }
         composable(Rutas.IMPORTAR_TRADE_REPUBLIC) { TradeRepublicImportScreen() }
+        composable(Rutas.ENVIAR_NEVERLESS) { NeverlessUploadScreen() }
         composable(Rutas.RECURRENTE, idArg) { entry ->
             RecurringFormScreen(ruleId = idOf(entry), onDone = { navController.popBackStack() })
         }

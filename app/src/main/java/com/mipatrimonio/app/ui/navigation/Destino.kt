@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.mipatrimonio.app.R
 
@@ -51,6 +52,7 @@ object Rutas {
     const val RECURRENTES = "ordenes-permanentes"
     const val COPIAS = "copias-seguridad"
     const val IMPORTAR_TRADE_REPUBLIC = "importar-trade-republic"
+    const val ENVIAR_NEVERLESS = "enviar-extracto-neverless"
     const val RECURRENTE = "orden-permanente/{id}"
     const val APUNTE = "apunte/{id}"
     const val SINCRONIZACION = "sincronizacion-rumbo"
@@ -78,6 +80,7 @@ enum class SecondaryMenuDestination(
     CATEGORIAS(Rutas.CATEGORIAS, R.string.nav_categorias, Icons.Filled.Category, MenuLocation.MAS),
     RECURRENTES(Rutas.RECURRENTES, R.string.recurring_title, Icons.Filled.Schedule, MenuLocation.MAS),
     COPIAS(Rutas.COPIAS, R.string.more_import_export, Icons.Filled.ImportExport, MenuLocation.MAS),
+    ENVIAR_NEVERLESS(Rutas.ENVIAR_NEVERLESS, R.string.neverless_title, Icons.Filled.CloudUpload, MenuLocation.MAS),
     AJUSTES(Rutas.AJUSTES, R.string.nav_ajustes, Icons.Filled.Settings, MenuLocation.MAS),
     NOTIFICACIONES(Rutas.NOTIFICACIONES, R.string.aj_bank_notifications, Icons.Filled.Notifications, MenuLocation.AJUSTES),
     AUTOMATIZACION(Rutas.AUTOMATIZACION_NOTIFICACIONES, R.string.aj_notification_automation, Icons.Filled.Tune, MenuLocation.AJUSTES),

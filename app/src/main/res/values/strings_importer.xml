@@ -41,4 +41,25 @@
     <string name="import_tr_confirm">Confirmar importación</string>
     <string name="import_tr_report">Creados: %1$d (%2$d apuntes y %3$d dividendos). Dividendos fallidos: %4$d. Omitidos: %5$d.</string>
     <string name="import_tr_omitted_reasons">Motivos de omisión: %1$s</string>
+    <string name="neverless_title">Enviar extracto de Neverless</string>
+    <string name="neverless_intro">Descarga en Neverless el CSV de tus transacciones y elígelo aquí. El escritorio lo importará solo la próxima vez que lo abras y después lo borrará de la nube. Si envías otro, sustituye al anterior.</string>
+    <string name="neverless_checking">Comprobando si hay un extracto pendiente…</string>
+    <string name="neverless_no_session">Inicia sesión en Sincronización para enviar el extracto.</string>
+    <string name="neverless_no_profile">Selecciona un perfil en Sincronización para enviar el extracto.</string>
+    <string name="neverless_offline">Sin conexión: no se puede comprobar ni enviar.</string>
+    <string name="neverless_not_pending">No hay ningún extracto pendiente.</string>
+    <string name="neverless_pending">Hay un extracto pendiente de importar.</string>
+    <string name="neverless_pending_date">Hay un extracto pendiente de importar, enviado el %1$s.</string>
+    <string name="neverless_choose_send">Elegir CSV y enviar</string>
+    <string name="neverless_replace_title">Sustituir extracto pendiente</string>
+    <string name="neverless_replace_message">Ya hay un extracto pendiente. ¿Sustituirlo por este?</string>
+    <string name="neverless_replace_confirm">Sustituir</string>
+    <string name="neverless_error_size">El archivo supera el límite de 2 MB.</string>
+    <string name="neverless_error_utf8">El archivo no es texto UTF-8 válido.</string>
+    <string name="neverless_error_format">Este archivo no parece un extracto de Neverless.</string>
+    <string name="neverless_error_no_data">El extracto no contiene ninguna fila de datos.</string>
+    <string name="neverless_error_read">No se pudo leer el archivo seleccionado.</string>
+    <string name="neverless_error_session_expired">La sesión ha caducado. Inicia sesión de nuevo en Sincronización.</string>
+    <string name="neverless_error_storage">No se pudo comprobar o enviar el extracto. Inténtalo de nuevo.</string>
+    <string name="neverless_sent">Extracto enviado. El escritorio lo importará la próxima vez que lo abras.</string>
 </resources>

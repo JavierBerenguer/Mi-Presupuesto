@@ -37,7 +37,9 @@ class SupabaseHttpTransport(projectUrl: String, private val publishableKey: Stri
             request.headers.forEach(connection::setRequestProperty)
             request.body?.let { body ->
                 connection.doOutput = true
-                connection.setRequestProperty("Content-Type", "application/json")
+                if (request.headers.keys.none { it.equals("Content-Type", ignoreCase = true) }) {
+                    connection.setRequestProperty("Content-Type", "application/json")
+                }
                 connection.outputStream.bufferedWriter(Charsets.UTF_8).use { it.write(body) }
             }
             val status = connection.responseCode
